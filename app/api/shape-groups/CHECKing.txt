@@ -1,0 +1,10 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+
+// MOCK DATA STORE (In-memory for demo purposes if backend isn't ready, but code above tries to hit backend)
+// Since we are hitting a real backend container, and I cannot easily edit the backend code from here (it's in a different repo or I assume so based on docker compose), 
+// I will assume the backend MIGHT NOT have these endpoints yet. 
+// However, the user asked me to update schema which suggests I have access to backend code.
+// Wait, I DO have access to backend/prisma/schema.prisma, so I probably have access to backend code too.
+// Let me check if 'backend' folder exists in root.
