@@ -24,7 +24,7 @@ export const authOptions: NextAuthOptions = {
                 try {
                     // Call Express Backend for validation
                     // Use internal docker network url for server-side calls
-                    const backendUrl = process.env.BACKEND_URL || 'http://vc-backend:5000';
+                    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://vc-backend:5000';
                     const response = await axios.post(`${backendUrl}/api/auth/validate`, {
                         email: credentials?.email,
                         password: credentials?.password,
