@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import jwt from 'jsonwebtoken';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://vc-backend:5000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://vc-backend:5000';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
     const session = await getServerSession(authOptions);

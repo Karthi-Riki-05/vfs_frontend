@@ -3,7 +3,7 @@ import axios from 'axios';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://vc-backend:5000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://vc-backend:5000';
 
 export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions);

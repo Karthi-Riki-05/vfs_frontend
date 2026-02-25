@@ -6,7 +6,7 @@ export async function POST(request: Request) {
         const body = await request.json();
 
         // Proxy the request to the backend Express server
-        const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
         const response = await axios.post(`${backendUrl}/api/auth/register`, body);
 
         return NextResponse.json(response.data, { status: 201 });

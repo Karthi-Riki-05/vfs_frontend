@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
         // 4. உங்கள் Backend-க்கு (Docker Service Name அல்லது URL) டேட்டாவை அனுப்பவும்
         // உங்கள் BACKEND_URL "http://vc-backend:5000" என இருக்க வேண்டும்
-        const BACKEND_URL = process.env.BACKEND_URL || 'http://vc-backend:5000';
+        const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://vc-backend:5000';
 
         const response = await axios.post(`${BACKEND_URL}/api/openai`, body, {
             headers: {
