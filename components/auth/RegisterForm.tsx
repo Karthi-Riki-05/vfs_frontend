@@ -15,12 +15,12 @@ export default function RegisterForm() {
     const onFinish = async (values: any) => {
         setLoading(true);
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-            await axios.post(`${apiUrl}/api/auth/register`, values);
+            // Use the Next.js proxy route (baseURL is /api)
+            await axios.post('/auth/register', values);
             message.success("Registration successful! Please login.");
             router.push('/login');
         } catch (err: any) {
-            message.error(err.response?.data?.error || "Registration failed");
+            message.error(err.response?.data?.error?.message || "Registration failed");
         } finally {
             setLoading(false);
         }
@@ -57,7 +57,7 @@ export default function RegisterForm() {
                     name="password"
                     rules={[
                         { required: true, message: 'Please input your password!' },
-                        { min: 6, message: 'Password must be at least 6 characters' }
+                        { min: 8, message: 'Password must be at least 8 characters' }
                     ]}
                 >
                     <Input.Password prefix={<LockOutlined />} placeholder="Password" size="large" />

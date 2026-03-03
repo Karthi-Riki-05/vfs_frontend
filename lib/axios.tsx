@@ -1,34 +1,55 @@
 import axios from 'axios';
 import { signOut } from 'next-auth/react';
+import { message } from 'antd';
 
 // Create a custom instance
 const api = axios.create({
-    baseURL: '/api', // Default to current origin /api for Next.js internal routes, or adjust if hitting backend directly
+    baseURL: '/api',
     headers: {
         'Content-Type': 'application/json',
     },
+    timeout: 30000,
 });
 
-// Add a response interceptor
+// Retry logic for network failures
 api.interceptors.response.use(
-    (response) => {
-        return response;
-    },
-    (error) => {
-        // Check if the error is due to unauthorized access
+    (response) => response,
+    async (error) => {
+        const config = error.config;
+
+        // Retry once on network error (not on HTTP errors)
+        if (!error.response && !config._retry) {
+            config._retry = true;
+            return api(config);
+        }
+
+        // Rate limit handling
+        if (error.response?.status === 429) {
+            message.warning('Too many requests. Please slow down.');
+        }
+
+        // Auth failure → auto-logout
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-            // If we are on the client side, redirect to login
-            if (typeof window !== 'undefined') {
+            if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
                 console.warn("Session expired or invalid token. Logging out...");
-                // Use signOut from next-auth/react to clear session and redirect
-                // We wrap in a check to avoid loops if login itself 401s (though unlikely with next-auth)
-                if (!window.location.pathname.includes('/login')) {
-                    signOut({ callbackUrl: '/login' });
-                }
+                signOut({ callbackUrl: '/login' });
             }
         }
+
         return Promise.reject(error);
     }
 );
+
+// Upload helper with progress
+export function upload(url: string, formData: FormData, onProgress?: (percent: number) => void) {
+    return api.post(url, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e) => {
+            if (onProgress && e.total) {
+                onProgress(Math.round((e.loaded * 100) / e.total));
+            }
+        },
+    });
+}
 
 export default api;

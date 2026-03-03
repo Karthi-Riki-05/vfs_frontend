@@ -1,91 +1,102 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Row, Col, Typography, Empty, Spin, Button, message } from 'antd';
-import { AppstoreOutlined, BarsOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Row, Col, Spin } from 'antd';
+import { FileAddOutlined } from '@ant-design/icons';
 import FlowCard from '@/components/flows/FlowCard';
-import axios from '@/lib/axios';
+import SectionHeader from '@/components/common/SectionHeader';
+import ViewToggle from '@/components/common/ViewToggle';
+import EmptyState from '@/components/common/EmptyState';
+import { useFlows } from '@/hooks/useFlows';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import api from '@/lib/axios';
+import { message } from 'antd';
 
-const { Title } = Typography;
+const PLACEHOLDER_COLORS = [
+  '#E8F5E9',
+  '#E3F2FD',
+  '#FFF3E0',
+  '#F3E5F5',
+  '#E0F7FA',
+  '#FFF8E1',
+];
 
 export default function RecentDocuments() {
-    const [flows, setFlows] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const { data: session } = useSession();
-    const router = useRouter();
+  const { flows, loading, fetchFlows, deleteFlow, duplicateFlow } = useFlows();
+  const [view, setView] = useState<'grid' | 'list'>('grid');
+  const router = useRouter();
 
-    useEffect(() => {
-        if (session) {
-            fetchFlows();
-        }
-    }, [session]);
+  const handleEdit = (id: string) => {
+    router.push(`/dashboard/flows/${id}`);
+  };
 
-    const fetchFlows = async () => {
-        setLoading(true);
-        try {
-            // Fetch recent 4 flows for now, backend pagination might be needed later
-            const response = await axios.get('/flows');
-            // Sort by updated at? Backend usually handles this, assuming list is recent first or sorted.
-            // If not, we might need to sort here.
-            // Assuming response.data.flows is array
-            const allFlows = response.data.flows || [];
-            setFlows(allFlows.slice(0, 4)); // Take top 4
-        } catch (error) {
-            console.error("Failed to fetch recent flows:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const handleDelete = async (id: string) => {
+    await deleteFlow(id);
+  };
 
-    const handleView = (id: string) => {
-        window.open(`/viewer/${id}`, '_blank');
-    };
+  const handleDuplicate = async (id: string) => {
+    await duplicateFlow(id);
+  };
 
-    const handleEdit = (id: string) => {
-        router.push(`/dashboard/flows/${id}`);
-    };
-
-    const handleDelete = async (id: string) => {
-        try {
-            await axios.delete(`/flows/${id}`);
-            message.success("Flow deleted");
-            fetchFlows();
-        } catch (error) {
-            message.error("Failed to delete flow");
-        }
-    };
-
-    if (loading) {
-        return <div style={{ textAlign: 'center', padding: '40px 0' }}><Spin /></div>;
+  const handleFavorite = async (id: string) => {
+    try {
+      await api.patch(`/flows/${id}/favorite`);
+      fetchFlows();
+    } catch {
+      message.error('Failed to update favorite');
     }
+  };
 
-    if (flows.length === 0) {
-        return null; // Don't show section if empty, or show empty state differently
-    }
+  const handleCreateNew = () => {
+    router.push('/dashboard/flows/new');
+  };
 
+  if (loading) {
     return (
-        <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Title level={4} style={{ margin: 0 }}>Recent documents</Title>
-                <div>
-                    <Button icon={<AppstoreOutlined />} type="text" />
-                    <Button icon={<BarsOutlined />} type="text" />
-                </div>
-            </div>
-            <Row gutter={[24, 24]}>
-                {flows.map((flow: any) => (
-                    <Col xs={24} sm={12} md={8} lg={6} key={flow.id}>
-                        <FlowCard
-                            flow={flow}
-                            onEdit={handleEdit}
-                            onView={handleView}
-                            onDelete={handleDelete}
-                        />
-                    </Col>
-                ))}
-            </Row>
-        </div>
+      <div style={{ textAlign: 'center', padding: '60px 0' }}>
+        <Spin size="large" />
+      </div>
     );
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <SectionHeader
+        title="MY FLOWS"
+        right={<ViewToggle view={view} onChange={setView} />}
+      />
+
+      {flows.length === 0 ? (
+        <EmptyState
+          title="No flows yet"
+          description="Create your first flow to get started. Choose a template above or start from scratch."
+          actionText="Create New Flow"
+          onAction={handleCreateNew}
+          icon={<FileAddOutlined style={{ fontSize: 48, color: '#3CB371' }} />}
+        />
+      ) : (
+        <Row gutter={[24, 24]}>
+          {flows.map((flow: any, index: number) => (
+            <Col
+              xs={24}
+              sm={12}
+              md={8}
+              lg={6}
+              key={flow.id}
+            >
+              <FlowCard
+                flow={flow}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onDuplicate={handleDuplicate}
+                onFavorite={handleFavorite}
+                variant="default"
+                placeholderColor={PLACEHOLDER_COLORS[index % PLACEHOLDER_COLORS.length]}
+              />
+            </Col>
+          ))}
+        </Row>
+      )}
+    </div>
+  );
 }

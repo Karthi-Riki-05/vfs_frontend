@@ -58,6 +58,9 @@ export default function LoginForm() {
                 </Form.Item>
 
                 <Form.Item>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                        <a href="/forgot-password">Forgot password?</a>
+                    </div>
                     <Button type="primary" htmlType="submit" size="large" block loading={loading}>
                         Log in
                     </Button>

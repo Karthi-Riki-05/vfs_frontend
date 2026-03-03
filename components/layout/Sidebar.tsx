@@ -1,0 +1,242 @@
+'use client';
+
+import React from 'react';
+import { Layout, Menu, Input, Divider, Typography } from 'antd';
+import {
+  SearchOutlined,
+  ClockCircleOutlined,
+  PlusSquareOutlined,
+  FileTextOutlined,
+  FolderOutlined,
+  DeleteOutlined,
+  QuestionCircleOutlined,
+} from '@ant-design/icons';
+import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
+
+const { Sider } = Layout;
+const { Text } = Typography;
+
+interface SidebarProps {
+  collapsed: boolean;
+  onCollapse: (collapsed: boolean) => void;
+}
+
+const DotIcon = ({ color }: { color: string }) => (
+  <span
+    style={{
+      display: 'inline-block',
+      width: 8,
+      height: 8,
+      borderRadius: '50%',
+      background: color,
+    }}
+  />
+);
+
+const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const getSelectedKey = () => {
+    if (pathname.startsWith('/dashboard/recents')) return 'recents';
+    if (pathname.startsWith('/dashboard/flows')) return 'flows';
+    if (pathname.startsWith('/dashboard/shapes')) return 'shapes';
+    if (pathname.startsWith('/dashboard/drafts')) return 'drafts';
+    if (pathname.startsWith('/dashboard/projects')) return 'projects';
+    if (pathname.startsWith('/dashboard/trash')) return 'trash';
+    if (pathname.startsWith('/dashboard/support')) return 'support';
+    return '';
+  };
+
+  const menuItems = [
+    {
+      key: 'recents',
+      icon: <ClockCircleOutlined />,
+      label: <Link href="/dashboard/recents">Recents</Link>,
+    },
+    {
+      key: 'create-flow',
+      icon: <PlusSquareOutlined style={{ color: '#3CB371' }} />,
+      label: (
+        <span style={{ color: '#3CB371' }}>Create a Flow</span>
+      ),
+      onClick: () => router.push('/dashboard/flows/new'),
+    },
+    {
+      type: 'divider' as const,
+      key: 'divider-1',
+    },
+    {
+      key: 'flows',
+      icon: <DotIcon color="#FF6B6B" />,
+      label: <Link href="/dashboard/flows">Flows</Link>,
+    },
+    {
+      key: 'shapes',
+      icon: <DotIcon color="#4ECDC4" />,
+      label: <Link href="/dashboard/shapes">Shapes</Link>,
+    },
+    {
+      type: 'divider' as const,
+      key: 'divider-2',
+    },
+    {
+      key: 'drafts',
+      icon: <FileTextOutlined />,
+      label: <Link href="/dashboard/drafts">Drafts</Link>,
+    },
+    {
+      key: 'projects',
+      icon: <FolderOutlined style={{ color: '#FFC107' }} />,
+      label: <Link href="/dashboard/projects">All Projects</Link>,
+    },
+    {
+      key: 'trash',
+      icon: <DeleteOutlined />,
+      label: <Link href="/dashboard/trash">Trash</Link>,
+    },
+    {
+      type: 'divider' as const,
+      key: 'divider-3',
+    },
+    {
+      type: 'group' as const,
+      key: 'starred-group',
+      label: (
+        <span
+          style={{
+            textTransform: 'uppercase',
+            fontSize: 11,
+            color: '#BFBFBF',
+            fontWeight: 600,
+            paddingLeft: 0,
+          }}
+        >
+          Starred
+        </span>
+      ),
+      children: [
+        {
+          key: 'starred-placeholder',
+          label: (
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              No starred items
+            </Text>
+          ),
+          disabled: true,
+        },
+      ],
+    },
+  ];
+
+  return (
+    <Sider
+      width={220}
+      collapsedWidth={60}
+      collapsible
+      collapsed={collapsed}
+      onCollapse={onCollapse}
+      trigger={null}
+      style={{
+        background: '#FFFFFF',
+        borderRight: '1px solid #F0F0F0',
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 56px)',
+        position: 'fixed',
+        top: 56,
+        left: 0,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+        }}
+      >
+        {/* Search Input */}
+        {!collapsed && (
+          <div style={{ margin: '12px 16px' }}>
+            <Input
+              prefix={<SearchOutlined />}
+              placeholder="Search"
+              variant="borderless"
+              style={{
+                background: '#F8F9FA',
+                borderRadius: 8,
+              }}
+            />
+          </div>
+        )}
+
+        {/* Navigation Menu */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <Menu
+            mode="inline"
+            selectedKeys={[getSelectedKey()]}
+            items={menuItems}
+            style={{
+              border: 'none',
+              background: 'transparent',
+            }}
+          />
+        </div>
+
+        {/* Bottom: Get Support */}
+        <div
+          style={{
+            borderTop: '1px solid #F0F0F0',
+            padding: collapsed ? '12px 0' : '12px 16px',
+            textAlign: collapsed ? 'center' : 'left',
+          }}
+        >
+          <Link
+            href="/dashboard/support"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              color: '#3CB371',
+              fontSize: 14,
+              textDecoration: 'none',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+            }}
+          >
+            <QuestionCircleOutlined style={{ color: '#3CB371', fontSize: 16 }} />
+            {!collapsed && <span>Get Support</span>}
+          </Link>
+        </div>
+      </div>
+
+      <style jsx global>{`
+        .ant-layout-sider .ant-menu-item {
+          height: 40px !important;
+          line-height: 40px !important;
+          font-size: 14px !important;
+          margin: 0 !important;
+          border-radius: 0 !important;
+          width: 100% !important;
+        }
+        .ant-layout-sider .ant-menu-item:hover {
+          background: #F8F9FA !important;
+        }
+        .ant-layout-sider .ant-menu-item-selected {
+          color: #3CB371 !important;
+          background: #F0FFF4 !important;
+        }
+        .ant-layout-sider .ant-menu-item-selected a {
+          color: #3CB371 !important;
+        }
+        .ant-layout-sider .ant-menu-item a {
+          color: inherit;
+          text-decoration: none;
+        }
+      `}</style>
+    </Sider>
+  );
+};
+
+export default Sidebar;
