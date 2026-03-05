@@ -27,7 +27,7 @@ export default function RecentDocuments() {
   const router = useRouter();
 
   const handleEdit = (id: string) => {
-    router.push(`/dashboard/flows/${id}`);
+    window.open(`/dashboard/flows/${id}`, '_blank');
   };
 
   const handleDelete = async (id: string) => {

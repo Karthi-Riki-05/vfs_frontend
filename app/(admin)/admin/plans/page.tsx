@@ -18,7 +18,8 @@ export default function AdminPlansPage() {
     setLoading(true);
     try {
       const res = await adminApi.listPlans();
-      setPlans(res.data.plans || res.data || []);
+      const data = res.data?.data?.plans || res.data?.data || res.data;
+      setPlans(Array.isArray(data) ? data : []);
     } catch {} finally {
       setLoading(false);
     }

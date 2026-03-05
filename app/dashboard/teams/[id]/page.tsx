@@ -25,8 +25,10 @@ export default function TeamDetailPage() {
       teamsApi.get(teamId),
       teamsApi.listMembers(teamId),
     ]).then(([teamRes, membersRes]) => {
-      setTeam(teamRes.data);
-      setMembers(membersRes.data.members || membersRes.data || []);
+      const teamData = teamRes.data?.data || teamRes.data;
+      setTeam(teamData);
+      const mData = membersRes.data?.data || membersRes.data;
+      setMembers(Array.isArray(mData) ? mData : []);
     }).catch(() => message.error('Failed to load team'))
       .finally(() => setLoading(false));
   }, [teamId]);
@@ -35,15 +37,17 @@ export default function TeamDetailPage() {
     try {
       const values = await form.validateFields();
       setInviting(true);
-      await teamsApi.invite({ email: values.email, teamId, role: values.role });
+      await teamsApi.invite({ email: values.email, teamId });
       message.success('Invitation sent');
       form.resetFields();
       setInviteOpen(false);
       // Refresh members
       const res = await teamsApi.listMembers(teamId);
-      setMembers(res.data.members || res.data || []);
-    } catch {
-      message.error('Failed to invite');
+      const mData = res.data?.data || res.data;
+      setMembers(Array.isArray(mData) ? mData : []);
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error?.message || err?.response?.data?.message || 'Failed to invite';
+      message.error(errMsg);
     } finally {
       setInviting(false);
     }
@@ -79,7 +83,11 @@ export default function TeamDetailPage() {
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
-      render: (role: string) => <Tag color={role === 'OWNER' ? 'gold' : role === 'ADMIN' ? 'blue' : 'default'}>{role}</Tag>,
+      render: (role: string) => {
+        const displayRole = role || 'MEMBER';
+        const color = displayRole === 'OWNER' ? 'gold' : displayRole === 'ADMIN' ? 'blue' : 'default';
+        return <Tag color={color}>{displayRole}</Tag>;
+      },
     },
     {
       title: 'Joined',
@@ -90,7 +98,7 @@ export default function TeamDetailPage() {
     {
       title: '',
       key: 'actions',
-      render: (_: any, record: any) => record.role !== 'OWNER' && (
+      render: (_: any, record: any) => (record.role || 'MEMBER') !== 'OWNER' && (
         <Popconfirm title="Remove this member?" onConfirm={() => handleRemove(record.userId || record.id)}>
           <Button type="text" danger icon={<DeleteOutlined />} size="small" />
         </Popconfirm>
@@ -109,7 +117,7 @@ export default function TeamDetailPage() {
       <Card style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <Title level={3} style={{ margin: 0 }}>{team?.name}</Title>
+            <Title level={3} style={{ margin: 0 }}>{team?.name || `Team #${team?.id?.slice(-6) || ''}`}</Title>
             <Text type="secondary">{team?.description || 'No description'}</Text>
           </div>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setInviteOpen(true)}>
@@ -135,14 +143,8 @@ export default function TeamDetailPage() {
         confirmLoading={inviting}
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="email" label="Email Address" rules={[{ required: true, type: 'email' }]}>
+          <Form.Item name="email" label="Email Address" rules={[{ required: true, type: 'email', message: 'Please enter a valid email address' }]}>
             <Input prefix={<MailOutlined />} placeholder="member@example.com" />
-          </Form.Item>
-          <Form.Item name="role" label="Role" initialValue="MEMBER">
-            <Select options={[
-              { label: 'Member', value: 'MEMBER' },
-              { label: 'Admin', value: 'ADMIN' },
-            ]} />
           </Form.Item>
         </Form>
       </Modal>

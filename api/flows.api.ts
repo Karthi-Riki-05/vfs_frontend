@@ -7,6 +7,12 @@ export const flowsApi = {
   get: (id: string) =>
     api.get(`/flows/${id}`),
 
+  toggleFavorite: (id: string, isFavorite: boolean) =>
+    api.put(`/flows/${id}`, { isFavorite }),
+
+  getFavorites: () =>
+    api.get('/flows/favorites'),
+
   create: (data: { name: string; description?: string; templateId?: string }) =>
     api.post('/flows', data),
 

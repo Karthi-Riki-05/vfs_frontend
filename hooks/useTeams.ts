@@ -43,5 +43,15 @@ export function useTeams() {
     }
   };
 
-  return { teams, loading, fetchTeams, createTeam, deleteTeam };
+  const updateTeam = async (id: string, data: { name?: string; description?: string }) => {
+    try {
+      await teamsApi.update(id, data);
+      message.success('Team updated');
+      fetchTeams();
+    } catch {
+      message.error('Failed to update team');
+    }
+  };
+
+  return { teams, loading, fetchTeams, createTeam, deleteTeam, updateTeam };
 }

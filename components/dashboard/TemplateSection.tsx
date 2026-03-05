@@ -34,7 +34,8 @@ export default function TemplateSection() {
         description: `New ${templateName} created from dashboard`,
       });
       const newFlow = response.data?.data || response.data;
-      window.open(`/viewer/${newFlow.id}`, '_blank');
+      if (!newFlow?.id) throw new Error('No flow ID returned');
+      window.open(`/dashboard/flows/${newFlow.id}`, '_blank');
     } catch (error) {
       console.error('Failed to create flow:', error);
       message.error('Failed to create flow');

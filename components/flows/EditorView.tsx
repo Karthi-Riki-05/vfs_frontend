@@ -111,8 +111,12 @@ export default function EditorView({ flowId }: { flowId: string }) {
     };
 
     const handleExit = () => {
-        if (window.history.length > 1) window.history.back();
-        else window.location.href = '/';
+        // Since editor opens in a new tab, try to close it
+        window.close();
+        // Fallback: if browser blocks window.close() (tab not opened via script)
+        setTimeout(() => {
+            window.location.href = '/dashboard/flows';
+        }, 100);
     };
 
     if (!isMounted) return null;

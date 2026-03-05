@@ -115,19 +115,28 @@ export default function SubscriptionPage() {
               ? 'Custom'
               : price === 0
                 ? '$0'
-                : `$${(price / 100).toFixed(0)}`;
+                : `$${price % 1 === 0 ? price.toFixed(0) : price.toFixed(2)}`;
+          const duration = plan.duration || plan.billing;
           const billingLabel =
-            plan.billing === 'custom'
+            duration === 'custom'
               ? ''
-              : plan.billing === 'forever'
+              : duration === 'forever'
                 ? '/forever'
-                : `/${plan.billing || 'month'}`;
+                : duration === 'yearly'
+                  ? '/year'
+                  : `/${duration || 'month'}`;
           const rawFeatures = plan.features;
-          const features: string[] = Array.isArray(rawFeatures)
-            ? rawFeatures.map((f: any) => (typeof f === 'string' ? f : f.name || String(f)))
-            : typeof rawFeatures === 'string'
-              ? [rawFeatures]
-              : [];
+          let parsedFeatures = rawFeatures;
+          if (typeof parsedFeatures === 'string') {
+            try {
+              parsedFeatures = JSON.parse(parsedFeatures);
+            } catch {
+              parsedFeatures = [parsedFeatures];
+            }
+          }
+          const features: string[] = Array.isArray(parsedFeatures)
+            ? parsedFeatures.map((f: any) => (typeof f === 'string' ? f : f.name || String(f)))
+            : [];
 
           return (
             <Col xs={24} md={8} key={plan.id}>

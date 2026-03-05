@@ -8,6 +8,7 @@ import {
   Layout,
   Space,
   Avatar,
+  Badge,
   Dropdown,
   Tag,
   Button,
@@ -23,6 +24,7 @@ import {
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
 
 const { Header: AntHeader } = Layout;
 const { Text } = Typography;
@@ -36,8 +38,8 @@ const Header: React.FC = () => {
   const userName = user?.name || "User";
   const userInitial = userName.charAt(0).toUpperCase();
   const userPlan: string = (user as any)?.plan || "free";
-  const unreadMessages = (user as any)?.unreadMessages ?? 0;
-  const hasUnreadMessages = unreadMessages > 0;
+  const { totalUnread } = useUnreadCount();
+  const hasUnreadMessages = totalUnread > 0;
   const isPro = userPlan === "pro" || userPlan === "team";
 
   const dropdownItems: MenuProps["items"] = [
@@ -109,20 +111,9 @@ const Header: React.FC = () => {
 
         {/* Chat Icon */}
         <Link href="/dashboard/chat" style={{ display: "flex", alignItems: "center", position: "relative" }}>
-          <MessageOutlined style={{ fontSize: 20, color: "#8C8C8C" }} />
-          {hasUnreadMessages && (
-            <span
-              style={{
-                position: "absolute",
-                top: -2,
-                right: -4,
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "#3CB371",
-              }}
-            />
-          )}
+          <Badge count={totalUnread} size="small" offset={[2, -2]} style={{ backgroundColor: "#3CB371" }}>
+            <MessageOutlined style={{ fontSize: 20, color: "#8C8C8C" }} />
+          </Badge>
         </Link>
 
         {/* Notification Bell */}

@@ -53,9 +53,20 @@ export function useFlows() {
     }
   };
 
+  const favoriteFlow = async (id: string) => {
+    try {
+      const flow = flows.find(f => f.id === id);
+      const newState = !flow?.isFavorite;
+      await flowsApi.toggleFavorite(id, newState);
+      setFlows(prev => prev.map(f => f.id === id ? { ...f, isFavorite: newState } : f));
+    } catch {
+      message.error('Failed to update favorite');
+    }
+  };
+
   return {
     flows, loading, search, setSearch, page, setPage,
     pageSize, setPageSize, total, sort, setSort,
-    fetchFlows, deleteFlow, duplicateFlow,
+    fetchFlows, deleteFlow, duplicateFlow, favoriteFlow,
   };
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Layout, Menu, Input, Divider, Typography } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Layout, Menu, Input, Typography } from 'antd';
 import {
   SearchOutlined,
   ClockCircleOutlined,
@@ -10,9 +10,12 @@ import {
   FolderOutlined,
   DeleteOutlined,
   QuestionCircleOutlined,
+  StarFilled,
 } from '@ant-design/icons';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { createNewFlow } from '@/lib/flow';
+import { flowsApi } from '@/api/flows.api';
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -37,17 +40,66 @@ const DotIcon = ({ color }: { color: string }) => (
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
   const pathname = usePathname();
   const router = useRouter();
+  const [starredFlows, setStarredFlows] = useState<any[]>([]);
+
+  const fetchStarred = useCallback(async () => {
+    try {
+      const res = await flowsApi.getFavorites();
+      const d = res.data?.data || res.data;
+      setStarredFlows(Array.isArray(d) ? d : []);
+    } catch {
+      // Silently fail - sidebar should not break if favorites API fails
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStarred();
+  }, [fetchStarred]);
+
+  // Re-fetch starred flows when navigating (user may have toggled favorites)
+  useEffect(() => {
+    fetchStarred();
+  }, [pathname, fetchStarred]);
 
   const getSelectedKey = () => {
     if (pathname.startsWith('/dashboard/recents')) return 'recents';
     if (pathname.startsWith('/dashboard/flows')) return 'flows';
     if (pathname.startsWith('/dashboard/shapes')) return 'shapes';
+    if (pathname.startsWith('/dashboard/teams')) return 'teams';
     if (pathname.startsWith('/dashboard/drafts')) return 'drafts';
     if (pathname.startsWith('/dashboard/projects')) return 'projects';
     if (pathname.startsWith('/dashboard/trash')) return 'trash';
     if (pathname.startsWith('/dashboard/support')) return 'support';
     return '';
   };
+
+  const starredChildren = starredFlows.length > 0
+    ? starredFlows.map((flow) => ({
+        key: `starred-${flow.id}`,
+        icon: <StarFilled style={{ color: '#FAAD14', fontSize: 12 }} />,
+        label: (
+          <span
+            onClick={(e) => {
+              e.preventDefault();
+              window.open(`/dashboard/flows/${flow.id}`, '_blank');
+            }}
+            style={{ cursor: 'pointer', fontSize: 13 }}
+          >
+            {flow.name}
+          </span>
+        ),
+      }))
+    : [
+        {
+          key: 'starred-placeholder',
+          label: (
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              No starred items
+            </Text>
+          ),
+          disabled: true,
+        },
+      ];
 
   const menuItems = [
     {
@@ -61,7 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       label: (
         <span style={{ color: '#3CB371' }}>Create a Flow</span>
       ),
-      onClick: () => router.push('/dashboard/flows/new'),
+      onClick: () => createNewFlow(),
     },
     {
       type: 'divider' as const,
@@ -76,6 +128,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       key: 'shapes',
       icon: <DotIcon color="#4ECDC4" />,
       label: <Link href="/dashboard/shapes">Shapes</Link>,
+    },
+    {
+      key: 'teams',
+      icon: <DotIcon color="#4A90D9" />,
+      label: <Link href="/dashboard/teams">Teams</Link>,
     },
     {
       type: 'divider' as const,
@@ -116,17 +173,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
           Starred
         </span>
       ),
-      children: [
-        {
-          key: 'starred-placeholder',
-          label: (
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              No starred items
-            </Text>
-          ),
-          disabled: true,
-        },
-      ],
+      children: starredChildren,
     },
   ];
 

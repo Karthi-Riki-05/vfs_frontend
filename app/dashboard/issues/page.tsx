@@ -18,7 +18,8 @@ export default function IssuesPage() {
     setLoading(true);
     try {
       const res = await issuesApi.list();
-      setIssues(res.data.issues || res.data || []);
+      const data = res.data?.data?.issues || res.data?.data || res.data;
+      setIssues(Array.isArray(data) ? data : []);
     } catch {} finally {
       setLoading(false);
     }

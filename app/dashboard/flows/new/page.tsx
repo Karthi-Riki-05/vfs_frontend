@@ -35,9 +35,10 @@ export default function NewFlowPage() {
         description: values.description,
         templateId: selectedTemplate || undefined,
       });
-      const newFlow = res.data;
+      const newFlow = res.data?.data || res.data;
+      if (!newFlow?.id) throw new Error('No flow ID returned');
       message.success('Document created');
-      router.push(`/dashboard/flows/${newFlow.id}`);
+      window.open(`/dashboard/flows/${newFlow.id}`, '_blank');
     } catch (err: any) {
       if (err.errorFields) return; // form validation
       message.error('Failed to create document');

@@ -12,7 +12,10 @@ export default function AdminSubscriptionsPage() {
 
   useEffect(() => {
     adminApi.listSubscriptions()
-      .then(res => setSubscriptions(res.data.subscriptions || res.data || []))
+      .then(res => {
+        const data = res.data?.data?.subscriptions || res.data?.data || res.data;
+        setSubscriptions(Array.isArray(data) ? data : []);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

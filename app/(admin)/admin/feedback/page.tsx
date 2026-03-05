@@ -18,7 +18,8 @@ export default function AdminFeedbackPage() {
     setLoading(true);
     try {
       const res = await adminApi.listFeedback();
-      setFeedback(res.data.feedback || res.data || []);
+      const data = res.data?.data?.feedback || res.data?.data || res.data;
+      setFeedback(Array.isArray(data) ? data : []);
     } catch {} finally {
       setLoading(false);
     }

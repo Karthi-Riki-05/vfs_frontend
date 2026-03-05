@@ -14,7 +14,8 @@ export function useChat(groupId?: string) {
     setLoading(true);
     try {
       const res = await chatApi.listGroups();
-      setGroups(res.data.groups || res.data || []);
+      const data = res.data?.data?.groups || res.data?.data || res.data;
+      setGroups(Array.isArray(data) ? data : []);
     } catch {
       // handled by interceptor
     } finally {
@@ -27,7 +28,8 @@ export function useChat(groupId?: string) {
     setLoading(true);
     try {
       const res = await chatApi.getMessages(groupId);
-      setMessages(res.data.messages || res.data || []);
+      const data = res.data?.data?.messages || res.data?.data || res.data;
+      setMessages(Array.isArray(data) ? data : []);
     } catch {
       // handled by interceptor
     } finally {

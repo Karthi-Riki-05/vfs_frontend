@@ -18,7 +18,8 @@ export default function AdminOffersPage() {
     setLoading(true);
     try {
       const res = await adminApi.listOffers();
-      setOffers(res.data.offers || res.data || []);
+      const data = res.data?.data?.offers || res.data?.data || res.data;
+      setOffers(Array.isArray(data) ? data : []);
     } catch {} finally {
       setLoading(false);
     }

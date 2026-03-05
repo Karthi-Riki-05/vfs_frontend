@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Modal, Form, Input, Select, message, Row, Col, Spin, Radio, Upload, Divider, Space, Card, Typography } from 'antd';
-import { PlusOutlined, FileImageOutlined, ArrowLeftOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { Button, Modal, Form, Input, Select, message, Row, Col, Spin, Radio, Upload, Divider, Space, Card, Typography, Dropdown } from 'antd';
+import { PlusOutlined, FileImageOutlined, ArrowLeftOutlined, AppstoreOutlined, MoreOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import SectionHeader from '@/components/common/SectionHeader';
 import EmptyState from '@/components/common/EmptyState';
 import ShapeCard from '@/components/shapes/ShapeCard';
@@ -23,6 +23,10 @@ export default function ShapesPage() {
   const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
   const [filterGroupId, setFilterGroupId] = useState<string | null>(null);
   const [form] = Form.useForm();
+  const [editGroupForm] = Form.useForm();
+  const [editGroupModalOpen, setEditGroupModalOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<any>(null);
+  const [editingGroupLoading, setEditingGroupLoading] = useState(false);
 
   // Form Watchers
   const shapeType = Form.useWatch('type', form);
@@ -76,6 +80,59 @@ export default function ShapesPage() {
 
   const handleCreateGroupFromEmpty = () => {
     setIsModalVisible(true);
+  };
+
+  const handleEditGroup = (group: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingGroup(group);
+    editGroupForm.setFieldsValue({ name: group.name });
+    setEditGroupModalOpen(true);
+  };
+
+  const handleSaveGroupEdit = async () => {
+    try {
+      const values = await editGroupForm.validateFields();
+      setEditingGroupLoading(true);
+      await api.put(`/shape-groups/${editingGroup.id}`, { name: values.name });
+      message.success('Group renamed');
+      setEditGroupModalOpen(false);
+      setEditingGroup(null);
+      editGroupForm.resetFields();
+      fetchGroups();
+    } catch {
+      message.error('Failed to rename group');
+    } finally {
+      setEditingGroupLoading(false);
+    }
+  };
+
+  const handleDeleteGroup = (group: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const shapeCount = groupShapeCounts[group.id] || group._count?.shapes || 0;
+    Modal.confirm({
+      title: `Delete "${group.name}"?`,
+      icon: <ExclamationCircleOutlined />,
+      content: shapeCount > 0
+        ? `This will delete the group and all ${shapeCount} shape${shapeCount !== 1 ? 's' : ''} inside it. This cannot be undone.`
+        : 'This will delete the empty group. This cannot be undone.',
+      okText: 'Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          await api.delete(`/shape-groups/${group.id}`);
+          message.success('Group deleted');
+          setGroups(prev => prev.filter(g => g.id !== group.id));
+          // Also remove shapes that belonged to this group from local state
+          setShapes(prev => prev.filter(s => s.groupId !== group.id && s.group?.id !== group.id));
+          if (selectedGroup?.id === group.id) {
+            setSelectedGroup(null);
+          }
+        } catch {
+          message.error('Failed to delete group');
+        }
+      },
+    });
   };
 
   // Count shapes per group
@@ -189,39 +246,52 @@ export default function ShapesPage() {
 
     return (
       <Row gutter={[16, 16]}>
-        {displayedGroups.map((group) => (
-          <Col xs={24} sm={12} md={8} lg={6} key={group.id}>
-            <Card
-              hoverable
-              onClick={() => setSelectedGroup(group)}
-              style={{
-                borderRadius: 12,
-                border: '1px solid #F0F0F0',
-                cursor: 'pointer',
-              }}
-              styles={{ body: { padding: '24px', textAlign: 'center' } }}
-            >
-              <div style={{
-                width: 56,
-                height: 56,
-                borderRadius: 12,
-                background: `${TEAL_COLOR}15`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px',
-              }}>
-                <AppstoreOutlined style={{ fontSize: 28, color: TEAL_COLOR }} />
-              </div>
-              <Text strong style={{ fontSize: 14, color: '#1A1A2E', display: 'block', marginBottom: 4 }}>
-                {group.name}
-              </Text>
-              <Text style={{ fontSize: 12, color: '#8C8C8C' }}>
-                {groupShapeCounts[group.id] || 0} shape{(groupShapeCounts[group.id] || 0) !== 1 ? 's' : ''}
-              </Text>
-            </Card>
-          </Col>
-        ))}
+        {displayedGroups.map((group) => {
+          const groupMenuItems = [
+            { key: 'edit', label: 'Rename', icon: <EditOutlined />, onClick: (info: any) => { info.domEvent.stopPropagation(); handleEditGroup(group, info.domEvent); } },
+            { type: 'divider' as const },
+            { key: 'delete', label: 'Delete', icon: <DeleteOutlined />, danger: true, onClick: (info: any) => { info.domEvent.stopPropagation(); handleDeleteGroup(group, info.domEvent); } },
+          ];
+
+          return (
+            <Col xs={24} sm={12} md={8} lg={6} key={group.id}>
+              <Card
+                hoverable
+                onClick={() => setSelectedGroup(group)}
+                style={{
+                  borderRadius: 12,
+                  border: '1px solid #F0F0F0',
+                  cursor: 'pointer',
+                }}
+                styles={{ body: { padding: '24px', textAlign: 'center', position: 'relative' } }}
+              >
+                <div style={{ position: 'absolute', top: 8, right: 8 }}>
+                  <Dropdown menu={{ items: groupMenuItems }} trigger={['click']}>
+                    <Button type="text" icon={<MoreOutlined />} size="small" onClick={(e) => e.stopPropagation()} />
+                  </Dropdown>
+                </div>
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 12,
+                  background: `${TEAL_COLOR}15`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px',
+                }}>
+                  <AppstoreOutlined style={{ fontSize: 28, color: TEAL_COLOR }} />
+                </div>
+                <Text strong style={{ fontSize: 14, color: '#1A1A2E', display: 'block', marginBottom: 4 }}>
+                  {group.name}
+                </Text>
+                <Text style={{ fontSize: 12, color: '#8C8C8C' }}>
+                  {groupShapeCounts[group.id] || 0} shape{(groupShapeCounts[group.id] || 0) !== 1 ? 's' : ''}
+                </Text>
+              </Card>
+            </Col>
+          );
+        })}
       </Row>
     );
   };
@@ -311,6 +381,34 @@ export default function ShapesPage() {
 
       {selectedGroup ? renderShapesInGroup() : renderGroupCards()}
 
+      {/* Edit Group Modal */}
+      <Modal
+        title="Rename Group"
+        open={editGroupModalOpen}
+        onCancel={() => {
+          setEditGroupModalOpen(false);
+          editGroupForm.resetFields();
+          setEditingGroup(null);
+        }}
+        onOk={handleSaveGroupEdit}
+        confirmLoading={editingGroupLoading}
+        okButtonProps={{
+          style: { backgroundColor: '#3CB371', borderColor: '#3CB371' },
+        }}
+        okText="Save"
+      >
+        <Form form={editGroupForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="name"
+            label="Group Name"
+            rules={[{ required: true, message: 'Please enter a group name' }]}
+          >
+            <Input placeholder="Group name" size="large" style={{ borderRadius: 8 }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Add Shape Modal */}
       <Modal
         title="Add New Shape"
         open={isModalVisible}

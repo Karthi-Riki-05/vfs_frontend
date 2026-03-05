@@ -12,7 +12,10 @@ export default function AdminTransactionsPage() {
 
   useEffect(() => {
     adminApi.listTransactions()
-      .then(res => setTransactions(res.data.transactions || res.data || []))
+      .then(res => {
+        const data = res.data?.data?.transactions || res.data?.data || res.data;
+        setTransactions(Array.isArray(data) ? data : []);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

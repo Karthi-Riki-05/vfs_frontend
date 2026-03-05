@@ -8,11 +8,11 @@ import {
   Modal,
   Form,
   Input,
-  Select,
   Spin,
   Avatar,
   Typography,
   Tag,
+  Dropdown,
   message,
 } from 'antd';
 import {
@@ -21,6 +21,10 @@ import {
   UserOutlined,
   CrownOutlined,
   SendOutlined,
+  MoreOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import SectionHeader from '@/components/common/SectionHeader';
@@ -28,20 +32,25 @@ import EmptyState from '@/components/common/EmptyState';
 import api from '@/lib/axios';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeams } from '@/hooks/useTeams';
+import { teamsApi } from '@/api/teams.api';
 
 const { Text } = Typography;
 
 export default function TeamsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { teams, loading, createTeam, fetchTeams } = useTeams();
+  const { teams, loading, createTeam, deleteTeam, fetchTeams } = useTeams();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<any>(null);
   const [inviteTeamId, setInviteTeamId] = useState<string | null>(null);
   const [createForm] = Form.useForm();
   const [inviteForm] = Form.useForm();
+  const [editForm] = Form.useForm();
   const [creating, setCreating] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const handleCreate = async () => {
     try {
@@ -59,16 +68,31 @@ export default function TeamsPage() {
     try {
       const values = await inviteForm.validateFields();
       setInviting(true);
-      await api.post(`/teams/${inviteTeamId}/invite`, {
-        email: values.email,
-        role: values.role,
+      const emailList = values.emails
+        .split(',')
+        .map((e: string) => e.trim())
+        .filter((e: string) => e);
+
+      // Basic email format validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalid = emailList.filter((e: string) => !emailRegex.test(e));
+      if (invalid.length > 0) {
+        message.error(`Invalid email format: ${invalid.join(', ')}`);
+        setInviting(false);
+        return;
+      }
+
+      await api.post('/teams/invite', {
+        teamId: inviteTeamId,
+        emails: emailList,
       });
-      message.success('Invitation sent');
+      message.success(`Invitation${emailList.length > 1 ? 's' : ''} sent`);
       inviteForm.resetFields();
       setInviteModalOpen(false);
       fetchTeams();
-    } catch {
-      message.error('Failed to send invitation');
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error?.message || err?.response?.data?.message || 'Failed to send invitation';
+      message.error(errMsg);
     } finally {
       setInviting(false);
     }
@@ -82,6 +106,45 @@ export default function TeamsPage() {
 
   const openCreateModal = () => {
     setCreateModalOpen(true);
+  };
+
+  const openEditModal = (team: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingTeam(team);
+    editForm.setFieldsValue({ name: team.name || '', description: team.description || '' });
+    setEditModalOpen(true);
+  };
+
+  const handleEdit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      setEditing(true);
+      await teamsApi.update(editingTeam.id, values);
+      message.success('Team updated');
+      editForm.resetFields();
+      setEditModalOpen(false);
+      setEditingTeam(null);
+      fetchTeams();
+    } catch {
+      message.error('Failed to update team');
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleDelete = (team: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    Modal.confirm({
+      title: `Delete "${team.name || 'this team'}"?`,
+      icon: <ExclamationCircleOutlined />,
+      content: 'This will permanently delete the team and remove all members. This action cannot be undone.',
+      okText: 'Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        await deleteTeam(team.id);
+      },
+    });
   };
 
   if (loading) {
@@ -119,8 +182,14 @@ export default function TeamsPage() {
             const memberCount =
               team._count?.members || team.members?.length || 0;
             const isOwner =
-              team.ownerId === user?.id || team.owner?.id === user?.id;
+              team.teamOwnerId === user?.id || team.ownerId === user?.id || team.owner?.id === user?.id;
             const members = team.members || [];
+
+            const teamMenuItems = [
+              { key: 'edit', label: 'Edit', icon: <EditOutlined />, onClick: (info: any) => { info.domEvent.stopPropagation(); openEditModal(team, info.domEvent); } },
+              { type: 'divider' as const },
+              { key: 'delete', label: 'Delete', icon: <DeleteOutlined />, danger: true, onClick: (info: any) => { info.domEvent.stopPropagation(); handleDelete(team, info.domEvent); } },
+            ];
 
             return (
               <Col xs={24} sm={12} md={8} key={team.id}>
@@ -166,7 +235,7 @@ export default function TeamsPage() {
                           marginBottom: 4,
                         }}
                       >
-                        {team.name}
+                        {team.name || `Team #${team.id.slice(-6)}`}
                       </Text>
                       {team.description && (
                         <Text
@@ -181,15 +250,27 @@ export default function TeamsPage() {
                         </Text>
                       )}
                     </div>
-                    {isOwner && (
-                      <Tag
-                        icon={<CrownOutlined />}
-                        color="gold"
-                        style={{ borderRadius: 20, marginLeft: 8, flexShrink: 0 }}
-                      >
-                        Owner
-                      </Tag>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                      {isOwner && (
+                        <Tag
+                          icon={<CrownOutlined />}
+                          color="gold"
+                          style={{ borderRadius: 20, marginLeft: 8 }}
+                        >
+                          Owner
+                        </Tag>
+                      )}
+                      {isOwner && (
+                        <Dropdown menu={{ items: teamMenuItems }} trigger={['click']}>
+                          <Button
+                            type="text"
+                            icon={<MoreOutlined />}
+                            size="small"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </Dropdown>
+                      )}
+                    </div>
                   </div>
 
                   <div
@@ -201,7 +282,6 @@ export default function TeamsPage() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {/* Avatar stack */}
                       <Avatar.Group
                         max={{
                           count: 4,
@@ -300,6 +380,44 @@ export default function TeamsPage() {
         </Form>
       </Modal>
 
+      {/* Edit Team Modal */}
+      <Modal
+        title="Edit Team"
+        open={editModalOpen}
+        onCancel={() => {
+          setEditModalOpen(false);
+          editForm.resetFields();
+          setEditingTeam(null);
+        }}
+        onOk={handleEdit}
+        confirmLoading={editing}
+        okButtonProps={{
+          style: { backgroundColor: '#3CB371', borderColor: '#3CB371' },
+        }}
+        okText="Save"
+      >
+        <Form form={editForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="name"
+            label="Team Name"
+            rules={[{ required: true, message: 'Please enter a team name' }]}
+          >
+            <Input
+              placeholder="e.g. Design Team"
+              size="large"
+              style={{ borderRadius: 8 }}
+            />
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <Input.TextArea
+              placeholder="What does this team work on?"
+              rows={3}
+              style={{ borderRadius: 8 }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
       {/* Invite Member Modal */}
       <Modal
         title="Invite Member"
@@ -317,33 +435,17 @@ export default function TeamsPage() {
       >
         <Form form={inviteForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
-            name="email"
-            label="Email Address"
+            name="emails"
+            label="Email Addresses"
             rules={[
-              { required: true, message: 'Please enter an email address' },
-              { type: 'email', message: 'Please enter a valid email' },
+              { required: true, message: 'Please enter at least one email address' },
             ]}
+            extra="Separate multiple emails with commas"
           >
-            <Input
-              placeholder="colleague@company.com"
-              size="large"
+            <Input.TextArea
+              placeholder="colleague1@company.com, colleague2@company.com"
+              rows={3}
               style={{ borderRadius: 8 }}
-            />
-          </Form.Item>
-          <Form.Item
-            name="role"
-            label="Role"
-            initialValue="MEMBER"
-            rules={[{ required: true, message: 'Please select a role' }]}
-          >
-            <Select
-              size="large"
-              style={{ borderRadius: 8 }}
-              options={[
-                { value: 'MEMBER', label: 'Member' },
-                { value: 'ADMIN', label: 'Admin' },
-                { value: 'VIEWER', label: 'Viewer' },
-              ]}
             />
           </Form.Item>
         </Form>

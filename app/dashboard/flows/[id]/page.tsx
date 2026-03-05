@@ -3,19 +3,28 @@
 import React from 'react';
 import EditorView from '@/components/flows/EditorView';
 import { useParams } from 'next/navigation';
+import { message } from 'antd';
 
 export default function FlowEditorPage() {
     const params = useParams();
     const id = params?.id as string;
 
-    if (!id) {
-        return <div>Invalid Flow ID</div>;
+    if (!id || id === 'undefined' || id === 'null') {
+        message.error('Invalid flow ID');
+        return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <h2>Invalid Flow ID</h2>
+                    <p>This flow could not be found. Please create a new flow.</p>
+                    <a href="/dashboard/flows">Go to Flows</a>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div style={{ height: '100%', margin: '-24px' }}>
+        <div style={{ height: '100vh', width: '100vw' }}>
             <EditorView flowId={id} />
         </div>
     );
 }
-

@@ -16,7 +16,8 @@ export default function AdminUsersPage() {
     setLoading(true);
     try {
       const res = await adminApi.listUsers({ search: search || undefined });
-      setUsers(res.data.users || res.data || []);
+      const data = res.data?.data?.users || res.data?.data || res.data;
+      setUsers(Array.isArray(data) ? data : []);
     } catch {} finally {
       setLoading(false);
     }
