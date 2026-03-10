@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { Suspense, useEffect, useState, useRef } from 'react';
 import { Button, Result, Spin } from 'antd';
 import { CrownOutlined } from '@ant-design/icons';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { proApi } from '@/api/pro.api';
 
-export default function UpgradeProSuccessPage() {
+function UpgradeProSuccessContent() {
     const searchParams = useSearchParams();
     const sessionId = searchParams?.get('session_id') ?? null;
     const [verified, setVerified] = useState(false);
@@ -140,5 +140,13 @@ export default function UpgradeProSuccessPage() {
                 }
             />
         </div>
+    );
+}
+
+export default function UpgradeProSuccessPage() {
+    return (
+        <Suspense fallback={<div style={{ maxWidth: 500, margin: '80px auto', textAlign: 'center' }}><Spin size="large" /></div>}>
+            <UpgradeProSuccessContent />
+        </Suspense>
     );
 }
