@@ -1,10 +1,12 @@
 "use client";
 
 import React from 'react';
-import { Card, Button, Typography, Dropdown } from 'antd';
+import { Card, Button, Typography, Dropdown, Tag } from 'antd';
 import {
   EditOutlined, DeleteOutlined, CopyOutlined, StarOutlined, StarFilled,
-  MoreOutlined, ProjectOutlined, UndoOutlined
+  MoreOutlined, ProjectOutlined, UndoOutlined, FormOutlined,
+  FolderOutlined, FolderAddOutlined, DisconnectOutlined,
+  ShareAltOutlined, EyeOutlined, LockOutlined,
 } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -33,6 +35,12 @@ interface FlowCardProps {
     deletedAt?: string | null;
     isPublic?: boolean;
     isFavorite?: boolean;
+    projectId?: string | null;
+    projectName?: string | null;
+    accessType?: string;
+    shareCount?: number;
+    sharedByName?: string;
+    shareId?: string;
   };
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
@@ -40,18 +48,72 @@ interface FlowCardProps {
   onFavorite?: (id: string) => void;
   onRestore?: (id: string) => void;
   onPermanentDelete?: (id: string) => void;
-  variant?: 'default' | 'trash';
+  onRename?: (id: string, currentName: string) => void;
+  onAssignProject?: (id: string) => void;
+  onRemoveFromProject?: () => void;
+  onShare?: (flow: any) => void;
+  onRemoveShared?: (flowId: string, shareId: string) => void;
+  variant?: 'default' | 'trash' | 'shared';
   placeholderColor?: string;
 }
 
 export default function FlowCard({
   flow, onEdit, onDelete, onDuplicate, onFavorite, onRestore, onPermanentDelete,
+  onRename, onAssignProject, onRemoveFromProject, onShare, onRemoveShared,
   variant = 'default', placeholderColor
 }: FlowCardProps) {
   const isTrash = variant === 'trash';
+  const isShared = variant === 'shared';
+  const isOwner = !isShared && !isTrash;
   const prefix = isTrash ? 'Deleted' : 'Edited';
 
-  const moreItems = [
+  // Menu items for owned flows
+  const ownerItems: any[] = [
+    { key: 'edit', label: 'Edit', icon: <EditOutlined />, onClick: () => onEdit?.(flow.id) },
+    {
+      key: 'favorite',
+      label: flow.isFavorite ? 'Remove Favorite' : 'Mark as Favorite',
+      icon: flow.isFavorite ? <StarFilled style={{ color: '#FAAD14' }} /> : <StarOutlined />,
+      onClick: () => onFavorite?.(flow.id),
+    },
+    ...(onRename ? [{
+      key: 'rename', label: 'Rename', icon: <FormOutlined />,
+      onClick: () => onRename(flow.id, flow.name),
+    }] : []),
+    ...(onAssignProject ? [{
+      key: 'assign-project', label: 'Assign to Project', icon: <FolderAddOutlined />,
+      onClick: () => onAssignProject(flow.id),
+    }] : []),
+    ...(onRemoveFromProject ? [{
+      key: 'remove-project', label: 'Remove from Project', icon: <DisconnectOutlined />,
+      onClick: () => onRemoveFromProject(),
+    }] : []),
+    ...(onShare ? [{
+      key: 'share', label: 'Share', icon: <ShareAltOutlined />,
+      onClick: () => onShare(flow),
+    }] : []),
+    ...(onDuplicate ? [{ key: 'duplicate', label: 'Duplicate', icon: <CopyOutlined />, onClick: () => onDuplicate(flow.id) }] : []),
+    { type: 'divider' as const },
+    { key: 'delete', label: 'Delete', icon: <DeleteOutlined />, danger: true, onClick: () => onDelete?.(flow.id) },
+  ];
+
+  // Menu items for shared flows
+  const sharedViewItems: any[] = [
+    { key: 'open', label: 'Open (view only)', icon: <EyeOutlined />, onClick: () => onEdit?.(flow.id) },
+    {
+      key: 'favorite',
+      label: flow.isFavorite ? 'Remove Favorite' : 'Mark as Favorite',
+      icon: flow.isFavorite ? <StarFilled style={{ color: '#FAAD14' }} /> : <StarOutlined />,
+      onClick: () => onFavorite?.(flow.id),
+    },
+    { type: 'divider' as const },
+    ...(onRemoveShared && flow.shareId ? [{
+      key: 'remove-shared', label: 'Remove from Shared', icon: <ShareAltOutlined />, danger: true,
+      onClick: () => onRemoveShared(flow.id, flow.shareId!),
+    }] : []),
+  ];
+
+  const sharedEditItems: any[] = [
     { key: 'edit', label: 'Edit', icon: <EditOutlined />, onClick: () => onEdit?.(flow.id) },
     {
       key: 'favorite',
@@ -61,8 +123,15 @@ export default function FlowCard({
     },
     ...(onDuplicate ? [{ key: 'duplicate', label: 'Duplicate', icon: <CopyOutlined />, onClick: () => onDuplicate(flow.id) }] : []),
     { type: 'divider' as const },
-    { key: 'delete', label: 'Delete', icon: <DeleteOutlined />, danger: true, onClick: () => onDelete?.(flow.id) },
+    ...(onRemoveShared && flow.shareId ? [{
+      key: 'remove-shared', label: 'Remove from Shared', icon: <ShareAltOutlined />, danger: true,
+      onClick: () => onRemoveShared(flow.id, flow.shareId!),
+    }] : []),
   ];
+
+  const moreItems = isShared
+    ? (flow.accessType === 'edit' ? sharedEditItems : sharedViewItems)
+    : ownerItems;
 
   return (
     <Card
@@ -102,6 +171,14 @@ export default function FlowCard({
               fontSize: 18, color: '#FAAD14',
             }} />
           )}
+          {isShared && (
+            <Tag
+              color={flow.accessType === 'edit' ? 'green' : 'blue'}
+              style={{ position: 'absolute', top: 8, left: 8, fontSize: 11 }}
+            >
+              {flow.accessType === 'edit' ? 'Can edit' : 'View only'}
+            </Tag>
+          )}
         </div>
       }
     >
@@ -110,6 +187,26 @@ export default function FlowCard({
           <Text strong style={{ fontSize: 14, color: '#1A1A2E', display: 'block' }} ellipsis>
             {flow.name}
           </Text>
+          {flow.projectName && (
+            <Text style={{ fontSize: 11, color: '#8C8C8C', display: 'block' }}>
+              <FolderOutlined style={{ marginRight: 4, fontSize: 10 }} />
+              {flow.projectName}
+            </Text>
+          )}
+          {/* Share badge for owned flows */}
+          {isOwner && (flow.shareCount ?? 0) > 0 && (
+            <Text style={{ fontSize: 11, color: '#3CB371', display: 'block' }}>
+              <ShareAltOutlined style={{ marginRight: 4, fontSize: 10 }} />
+              Shared with {flow.shareCount}
+            </Text>
+          )}
+          {/* Shared by info for received flows */}
+          {isShared && flow.sharedByName && (
+            <Text style={{ fontSize: 11, color: '#1890FF', display: 'block' }}>
+              <ShareAltOutlined style={{ marginRight: 4, fontSize: 10 }} />
+              Shared by {flow.sharedByName}
+            </Text>
+          )}
           <Text style={{ fontSize: 12, color: '#8C8C8C' }}>
             {prefix} {timeAgo(flow.deletedAt || flow.updatedAt)}
           </Text>

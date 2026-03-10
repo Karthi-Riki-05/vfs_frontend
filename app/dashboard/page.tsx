@@ -1,13 +1,16 @@
 "use client";
 
 import React from 'react';
-import { Input, Button } from 'antd';
+import { Input, Button, Progress, Typography } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import TemplateSection from '@/components/dashboard/TemplateSection';
 import RecentDocuments from '@/components/dashboard/RecentDocuments';
 import { useAuth } from '@/hooks/useAuth';
+import { usePro } from '@/hooks/usePro';
+import { useRouter } from 'next/navigation';
 
 const { Search } = Input;
+const { Text } = Typography;
 
 function AIBanner() {
   return (
@@ -95,12 +98,81 @@ function AIBanner() {
   );
 }
 
+function FlowUsageBar({ proFlows, isUnlimited, onBuyMore }: { proFlows: any; isUnlimited: boolean; onBuyMore: () => void }) {
+  if (!proFlows) return null;
+  const isLimited = !isUnlimited && proFlows.max > 0;
+  const percent = isLimited ? Math.round((proFlows.used / proFlows.max) * 100) : 0;
+  const isNearLimit = percent >= 80;
+
+  return (
+    <div
+      style={{
+        background: '#FAFAFA',
+        borderRadius: 12,
+        border: '1px solid #E8E8E8',
+        padding: '16px 20px',
+        marginBottom: 32,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}
+    >
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Text strong style={{ fontSize: 14 }}>FLOW USAGE</Text>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            {isUnlimited
+              ? `${proFlows.used} flows used (Unlimited)`
+              : `${proFlows.used} / ${proFlows.max} flows used`
+            }
+          </Text>
+        </div>
+        {isLimited && (
+          <Progress
+            percent={percent}
+            showInfo={false}
+            strokeColor={isNearLimit ? '#FF4D4F' : '#3CB371'}
+            trailColor="#E8E8E8"
+            size="small"
+          />
+        )}
+      </div>
+      {!isUnlimited && (
+        <Button
+          type="primary"
+          onClick={onBuyMore}
+          style={{
+            backgroundColor: '#3CB371',
+            borderColor: '#3CB371',
+            borderRadius: 8,
+            fontWeight: 600,
+          }}
+        >
+          Buy More Flows
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { currentApp, proFlows, status } = usePro();
+  const router = useRouter();
+
+  const isProApp = currentApp === 'pro';
+  const isUnlimited = status?.isUnlimited ?? false;
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
       <AIBanner />
+      {isProApp && (
+        <FlowUsageBar
+          proFlows={proFlows}
+          isUnlimited={isUnlimited}
+          onBuyMore={() => router.push('/dashboard/subscription')}
+        />
+      )}
       <TemplateSection />
       <RecentDocuments />
     </div>

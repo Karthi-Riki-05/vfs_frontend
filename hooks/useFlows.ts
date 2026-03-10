@@ -7,6 +7,7 @@ import { message } from 'antd';
 
 export function useFlows() {
   const [flows, setFlows] = useState<any[]>([]);
+  const [sharedFlows, setSharedFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -24,6 +25,7 @@ export function useFlows() {
       const list = d.flows || (Array.isArray(d) ? d : []);
       setFlows(list);
       setTotal(d.total || list.length || 0);
+      setSharedFlows(Array.isArray(d.shared) ? d.shared : []);
     } catch {
       // Error handled by axios interceptor
     } finally {
@@ -64,9 +66,19 @@ export function useFlows() {
     }
   };
 
+  const removeSharedFlow = async (flowId: string, shareId: string) => {
+    try {
+      await flowsApi.removeShare(flowId, shareId);
+      message.success('Removed from shared');
+      fetchFlows();
+    } catch {
+      message.error('Failed to remove shared flow');
+    }
+  };
+
   return {
-    flows, loading, search, setSearch, page, setPage,
+    flows, sharedFlows, loading, search, setSearch, page, setPage,
     pageSize, setPageSize, total, sort, setSort,
-    fetchFlows, deleteFlow, duplicateFlow, favoriteFlow,
+    fetchFlows, deleteFlow, duplicateFlow, favoriteFlow, removeSharedFlow,
   };
 }

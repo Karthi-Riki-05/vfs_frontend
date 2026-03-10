@@ -30,7 +30,10 @@ export async function middleware(request: NextRequest) {
 export const config = {
     matcher: [
         "/dashboard/:path*",
+        "/upgrade-pro/:path*",
         "/admin/:path*",
+        "/api/upgrade-pro/:path*",
+        "/api/pro/:path*",
         "/api/flows/:path*",
         "/api/shapes/:path*",
         "/api/shape-groups/:path*",
@@ -42,6 +45,8 @@ export const config = {
         "/api/users/me",
         "/api/users/me/:path*",
         "/api/admin/:path*",
+        "/api/invite/accept",
         "/api/openai/:path*",
+        "/api/projects/:path*",
     ],
 };

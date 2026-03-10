@@ -11,11 +11,19 @@ const api = axios.create({
     timeout: 30000,
 });
 
+// Prevent multiple signOut calls from cascading 401 responses
+let isSigningOut = false;
+
 // Retry logic for network failures
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const config = error.config;
+
+        // Don't retry or handle errors if we're already signing out
+        if (isSigningOut) {
+            return Promise.reject(error);
+        }
 
         // Retry once on network error (not on HTTP errors)
         if (!error.response && !config._retry) {
@@ -28,9 +36,10 @@ api.interceptors.response.use(
             message.warning('Too many requests. Please slow down.');
         }
 
-        // Auth failure → auto-logout
-        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-            if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        // Auth failure → auto-logout (only on 401, NOT 403 — 403 is permission denied, not expired session)
+        if (error.response?.status === 401) {
+            if (typeof window !== 'undefined' && !window.location.pathname.includes('/login') && !isSigningOut) {
+                isSigningOut = true;
                 console.warn("Session expired or invalid token. Logging out...");
                 signOut({ callbackUrl: '/login' });
             }

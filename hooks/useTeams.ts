@@ -28,8 +28,15 @@ export function useTeams() {
       await teamsApi.create(data);
       message.success('Team created');
       fetchTeams();
-    } catch {
-      message.error('Failed to create team');
+    } catch (err: any) {
+      const errorCode = err?.response?.data?.error?.code;
+      const errorMsg = err?.response?.data?.error?.message || 'Failed to create team';
+      if (errorCode === 'SUBSCRIPTION_REQUIRED') {
+        message.warning(errorMsg);
+      } else {
+        message.error(errorMsg);
+      }
+      throw err; // re-throw so caller can handle
     }
   };
 

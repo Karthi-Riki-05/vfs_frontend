@@ -16,8 +16,8 @@ WORKDIR /app
 
 # --- புரோபஷனல் முறையில் Environment Variables சேர்த்தல் ---
 # Docker-க்கு வெளியே இருந்து (docker-compose) இந்த வேரியபிள்களைப் பெறுவோம்
-ARG NEXT_PUBLIC_API_URL
-ARG NEXTAUTH_URL
+ARG NEXT_PUBLIC_API_URL=http://localhost:5000
+ARG NEXTAUTH_URL=http://localhost:3000
 
 # இவற்றை Next.js பில்ட் எடுக்கும்போது பயன்படுத்த ENV-ஆக மாற்றுவோம்
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL

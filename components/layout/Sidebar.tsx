@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Layout, Menu, Input, Typography } from 'antd';
+import { Layout, Menu, Typography, Modal, Button, message } from 'antd';
 import {
-  SearchOutlined,
+  CrownOutlined,
   ClockCircleOutlined,
   PlusSquareOutlined,
   FileTextOutlined,
@@ -11,11 +11,16 @@ import {
   DeleteOutlined,
   QuestionCircleOutlined,
   StarFilled,
+  ApartmentOutlined,
+  AppstoreOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createNewFlow } from '@/lib/flow';
 import { flowsApi } from '@/api/flows.api';
+import { proApi } from '@/api/pro.api';
+import { usePro } from '@/hooks/usePro';
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -25,22 +30,14 @@ interface SidebarProps {
   onCollapse: (collapsed: boolean) => void;
 }
 
-const DotIcon = ({ color }: { color: string }) => (
-  <span
-    style={{
-      display: 'inline-block',
-      width: 8,
-      height: 8,
-      borderRadius: '50%',
-      background: color,
-    }}
-  />
-);
-
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
   const router = useRouter();
+  const { hasPro, currentApp } = usePro();
   const [starredFlows, setStarredFlows] = useState<any[]>([]);
+  const [switching, setSwitching] = useState(false);
+  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
+  const [checkingTeamsAccess, setCheckingTeamsAccess] = useState(false);
 
   const fetchStarred = useCallback(async () => {
     try {
@@ -48,18 +45,13 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       const d = res.data?.data || res.data;
       setStarredFlows(Array.isArray(d) ? d : []);
     } catch {
-      // Silently fail - sidebar should not break if favorites API fails
+      // Silently fail
     }
   }, []);
 
   useEffect(() => {
     fetchStarred();
   }, [fetchStarred]);
-
-  // Re-fetch starred flows when navigating (user may have toggled favorites)
-  useEffect(() => {
-    fetchStarred();
-  }, [pathname, fetchStarred]);
 
   const getSelectedKey = () => {
     if (pathname.startsWith('/dashboard/recents')) return 'recents';
@@ -71,6 +63,50 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     if (pathname.startsWith('/dashboard/trash')) return 'trash';
     if (pathname.startsWith('/dashboard/support')) return 'support';
     return '';
+  };
+
+  const handleAppSwitch = async (targetApp: 'free' | 'pro') => {
+    if (switching) return;
+    if (targetApp === 'pro' && !hasPro) {
+      router.push('/upgrade-pro');
+      return;
+    }
+    setSwitching(true);
+    try {
+      await proApi.switchApp(targetApp);
+      window.location.reload();
+    } catch {
+      message.error('Failed to switch app');
+      setSwitching(false);
+    }
+  };
+
+  const handleTeamsClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // PRO app with Pro access: always allow
+    if (currentApp === 'pro' && hasPro) {
+      router.push('/dashboard/teams');
+      return;
+    }
+
+    // ValueChart: check subscription first
+    setCheckingTeamsAccess(true);
+    try {
+      const res = await fetch('/api/subscription/status');
+      const data = await res.json();
+      const subData = data.data || data;
+      if (subData?.hasSubscription && subData?.status === 'active') {
+        router.push('/dashboard/teams');
+      } else {
+        setSubscriptionModalOpen(true);
+      }
+    } catch {
+      setSubscriptionModalOpen(true);
+    } finally {
+      setCheckingTeamsAccess(false);
+    }
   };
 
   const starredChildren = starredFlows.length > 0
@@ -121,18 +157,22 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     },
     {
       key: 'flows',
-      icon: <DotIcon color="#FF6B6B" />,
+      icon: <ApartmentOutlined />,
       label: <Link href="/dashboard/flows">Flows</Link>,
     },
     {
       key: 'shapes',
-      icon: <DotIcon color="#4ECDC4" />,
+      icon: <AppstoreOutlined />,
       label: <Link href="/dashboard/shapes">Shapes</Link>,
     },
     {
       key: 'teams',
-      icon: <DotIcon color="#4A90D9" />,
-      label: <Link href="/dashboard/teams">Teams</Link>,
+      icon: <TeamOutlined />,
+      label: (
+        <span onClick={handleTeamsClick} style={{ cursor: checkingTeamsAccess ? 'wait' : 'pointer' }}>
+          Teams
+        </span>
+      ),
     },
     {
       type: 'divider' as const,
@@ -204,18 +244,97 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
           height: '100%',
         }}
       >
-        {/* Search Input */}
+        {/* Top: App Switch or Upgrade */}
         {!collapsed && (
-          <div style={{ margin: '12px 16px' }}>
-            <Input
-              prefix={<SearchOutlined />}
-              placeholder="Search"
-              variant="borderless"
-              style={{
-                background: '#F8F9FA',
-                borderRadius: 8,
-              }}
-            />
+          <div style={{ padding: '12px 16px 0' }}>
+            {hasPro ? (
+              <div
+                style={{
+                  display: 'flex',
+                  borderRadius: 8,
+                  border: '1px solid #E8E8E8',
+                  overflow: 'hidden',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                <div
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    cursor: currentApp === 'free' ? 'default' : 'pointer',
+                    background: currentApp === 'free' ? '#3CB371' : '#fff',
+                    color: currentApp === 'free' ? '#fff' : '#595959',
+                    transition: 'all 0.2s',
+                  }}
+                  onClick={() => currentApp !== 'free' && handleAppSwitch('free')}
+                >
+                  ValueChart
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    cursor: currentApp === 'pro' ? 'default' : 'pointer',
+                    background: currentApp === 'pro' ? '#F59E0B' : '#fff',
+                    color: currentApp === 'pro' ? '#fff' : '#595959',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                  }}
+                  onClick={() => currentApp !== 'pro' && handleAppSwitch('pro')}
+                >
+                  <CrownOutlined style={{ fontSize: 11 }} />
+                  PRO
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  borderRadius: 8,
+                  border: '1px solid #E8E8E8',
+                  overflow: 'hidden',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                <div
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    background: '#3CB371',
+                    color: '#fff',
+                  }}
+                >
+                  ValueChart
+                </div>
+                <div
+                  onClick={() => router.push('/upgrade-pro')}
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+                    color: '#fff',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <CrownOutlined style={{ fontSize: 11 }} />
+                  PRO
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -237,7 +356,6 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
           style={{
             borderTop: '1px solid #F0F0F0',
             padding: collapsed ? '12px 0' : '12px 16px',
-            textAlign: collapsed ? 'center' : 'left',
           }}
         >
           <Link
@@ -257,6 +375,39 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
           </Link>
         </div>
       </div>
+
+      <Modal
+        open={subscriptionModalOpen}
+        onCancel={() => setSubscriptionModalOpen(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setSubscriptionModalOpen(false)}>
+            Cancel
+          </Button>,
+          <Button
+            key="plans"
+            type="primary"
+            onClick={() => {
+              setSubscriptionModalOpen(false);
+              router.push('/dashboard/subscription');
+            }}
+            style={{ backgroundColor: '#3CB371', borderColor: '#3CB371' }}
+          >
+            View Plans
+          </Button>,
+        ]}
+        centered
+        width={420}
+      >
+        <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
+          <TeamOutlined style={{ fontSize: 40, color: '#3CB371', marginBottom: 16 }} />
+          <h3 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 600 }}>
+            Teams requires a subscription
+          </h3>
+          <p style={{ color: '#595959', margin: 0, fontSize: 14 }}>
+            Subscribe to a Team plan to create and manage teams, invite members, and collaborate on value charts.
+          </p>
+        </div>
+      </Modal>
 
       <style jsx global>{`
         .ant-layout-sider .ant-menu-item {

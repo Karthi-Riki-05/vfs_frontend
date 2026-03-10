@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Form, Input, Button, Card, Typography, Space, Divider, message } from 'antd';
-import { GoogleOutlined, GithubOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
+import { GoogleOutlined, LinkedinOutlined, FacebookOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
@@ -70,8 +70,27 @@ export default function LoginForm() {
             <Divider plain>or login with</Divider>
 
             <Space style={{ width: '100%', justifyContent: 'center' }}>
-                <Button icon={<GoogleOutlined />} onClick={() => signIn('google')} size="large">Google</Button>
-                <Button icon={<GithubOutlined />} onClick={() => signIn('github')} size="large">GitHub</Button>
+                <Button
+                    icon={<GoogleOutlined />}
+                    onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
+                    size="large"
+                >
+                    Google
+                </Button>
+                <Button
+                    icon={<LinkedinOutlined style={{ color: '#0077B5' }} />}
+                    onClick={() => signIn('linkedin', { callbackUrl: '/dashboard' })}
+                    size="large"
+                >
+                    LinkedIn
+                </Button>
+                <Button
+                    icon={<FacebookOutlined style={{ color: '#1877F2' }} />}
+                    onClick={() => signIn('facebook', { callbackUrl: '/dashboard' })}
+                    size="large"
+                >
+                    Facebook
+                </Button>
             </Space>
 
             <div style={{ textAlign: 'center', marginTop: 16 }}>

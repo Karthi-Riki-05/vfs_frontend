@@ -5,12 +5,15 @@ import { Layout } from 'antd';
 import { usePathname } from 'next/navigation';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import ProSidebar from './ProSidebar';
+import { usePro } from '@/hooks/usePro';
 
 const { Content } = Layout;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
+  const { currentApp } = usePro();
 
   // Flow editor pages: /dashboard/flows/SOME_ID (but NOT /dashboard/flows or /dashboard/flows/new)
   const isEditorPage = /^\/dashboard\/flows\/(?!new$)[a-zA-Z0-9_-]+$/.test(pathname);
@@ -24,12 +27,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  // Choose sidebar based on current app
+  const SidebarComponent = currentApp === 'pro' ? ProSidebar : Sidebar;
+
   // Normal pages: render with sidebar + header
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header />
       <Layout>
-        <Sidebar collapsed={collapsed} onCollapse={setCollapsed} />
+        <SidebarComponent collapsed={collapsed} onCollapse={setCollapsed} />
         <Content
           style={{
             marginLeft: collapsed ? 60 : 220,

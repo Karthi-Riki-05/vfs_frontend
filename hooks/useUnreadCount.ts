@@ -27,21 +27,22 @@ export function useUnreadCount() {
         }
     }, []);
 
+    // Fetch initial counts, listen for socket updates, and poll as fallback
     useEffect(() => {
-        fetchCounts();
-    }, [fetchCounts]);
-
-    // Listen for socket updates (dynamically import to avoid SSR issues)
-    useEffect(() => {
+        let cancelled = false;
         let cleanup: (() => void) | undefined;
+
+        // Initial fetch
+        fetchCounts();
 
         const setup = async () => {
             try {
                 const { getSocket } = await import('@/lib/socket');
                 const socket = getSocket();
-                if (!socket) return;
+                if (!socket || cancelled) return;
 
                 const onUnreadCount = (data: { totalUnread: number; groupId: string }) => {
+                    if (cancelled) return;
                     setUnread(prev => ({
                         totalUnread: data.totalUnread,
                         perGroup: {
@@ -52,7 +53,7 @@ export function useUnreadCount() {
                 };
 
                 const onMessageRead = () => {
-                    fetchCounts();
+                    if (!cancelled) fetchCounts();
                 };
 
                 socket.on('notification:unread-count', onUnreadCount);
@@ -70,9 +71,12 @@ export function useUnreadCount() {
         setup();
 
         // Poll every 60s as fallback when socket isn't connected
-        const interval = setInterval(fetchCounts, 60000);
+        const interval = setInterval(() => {
+            if (!cancelled) fetchCounts();
+        }, 60000);
 
         return () => {
+            cancelled = true;
             cleanup?.();
             clearInterval(interval);
         };

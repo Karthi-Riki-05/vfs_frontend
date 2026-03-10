@@ -1,58 +1,54 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { Row, Col, Spin, Button, Card, Typography, message } from 'antd';
-import { FolderOutlined, PlusOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Row, Col, Spin, Button, Card, Typography, Modal, Input, message, Dropdown } from 'antd';
+import {
+  FolderOutlined, PlusOutlined, MoreOutlined,
+  EditOutlined, DeleteOutlined,
+} from '@ant-design/icons';
 import SectionHeader from '@/components/common/SectionHeader';
 import EmptyState from '@/components/common/EmptyState';
-import api from '@/lib/axios';
+import { useProjects } from '@/hooks/useProjects';
 import { useRouter } from 'next/navigation';
 
 const { Text } = Typography;
 
-interface Project {
-  name: string;
-  flowCount: number;
-  flows: any[];
-}
-
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { projects, loading, createProject, deleteProject, updateProject } = useProjects();
   const router = useRouter();
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [renameModal, setRenameModal] = useState<{ open: boolean; id: string; name: string }>({
+    open: false, id: '', name: '',
+  });
 
-  useEffect(() => {
-    const fetchProjects = async () => {
-      setLoading(true);
-      try {
-        const res = await api.get('/flows');
-        const d = res.data?.data || res.data || {};
-        const allFlows = d.flows || (Array.isArray(d) ? d : []);
+  const handleCreate = async () => {
+    if (!newProjectName.trim()) return;
+    setCreating(true);
+    const project = await createProject(newProjectName.trim());
+    setCreating(false);
+    if (project) {
+      setCreateModalOpen(false);
+      setNewProjectName('');
+    }
+  };
 
-        // Group flows by project/folder name, falling back to "Uncategorized"
-        const grouped: Record<string, any[]> = {};
-        allFlows.forEach((flow: any) => {
-          const projectName = flow.project || flow.folder || flow.category || 'Uncategorized';
-          if (!grouped[projectName]) grouped[projectName] = [];
-          grouped[projectName].push(flow);
-        });
+  const handleRename = async () => {
+    if (!renameModal.name.trim()) return;
+    await updateProject(renameModal.id, { name: renameModal.name.trim() });
+    setRenameModal({ open: false, id: '', name: '' });
+  };
 
-        const projectList: Project[] = Object.entries(grouped).map(([name, flows]) => ({
-          name,
-          flowCount: flows.length,
-          flows,
-        }));
-
-        setProjects(projectList);
-      } catch {
-        setProjects([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProjects();
-  }, []);
+  const handleDelete = (id: string, name: string) => {
+    Modal.confirm({
+      title: `Delete "${name}"?`,
+      content: 'Flows in this project will not be deleted — they will become individual flows.',
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: () => deleteProject(id),
+    });
+  };
 
   return (
     <div style={{ padding: 24 }}>
@@ -63,7 +59,7 @@ export default function ProjectsPage() {
             type="primary"
             icon={<PlusOutlined />}
             style={{ borderRadius: 8 }}
-            onClick={() => message.info('Create project coming soon')}
+            onClick={() => setCreateModalOpen(true)}
           >
             New Project
           </Button>
@@ -77,7 +73,7 @@ export default function ProjectsPage() {
       ) : projects.length > 0 ? (
         <Row gutter={[16, 16]}>
           {projects.map((project) => (
-            <Col xs={24} sm={12} md={8} lg={6} key={project.name}>
+            <Col xs={24} sm={12} md={8} lg={6} key={project.id}>
               <Card
                 hoverable
                 style={{
@@ -87,16 +83,37 @@ export default function ProjectsPage() {
                   cursor: 'pointer',
                 }}
                 styles={{ body: { padding: '28px 16px' } }}
-                onClick={() => message.info(`Open project: ${project.name}`)}
+                onClick={() => router.push(`/dashboard/projects/${project.id}`)}
               >
+                <div style={{ position: 'absolute', top: 8, right: 8 }} onClick={(e) => e.stopPropagation()}>
+                  <Dropdown
+                    menu={{
+                      items: [
+                        {
+                          key: 'rename',
+                          label: 'Rename',
+                          icon: <EditOutlined />,
+                          onClick: () => setRenameModal({ open: true, id: project.id, name: project.name }),
+                        },
+                        { type: 'divider' },
+                        {
+                          key: 'delete',
+                          label: 'Delete',
+                          icon: <DeleteOutlined />,
+                          danger: true,
+                          onClick: () => handleDelete(project.id, project.name),
+                        },
+                      ],
+                    }}
+                    trigger={['click']}
+                  >
+                    <Button type="text" icon={<MoreOutlined />} size="small" />
+                  </Dropdown>
+                </div>
                 <div style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: '50%',
-                  background: '#FFF8E1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  width: 64, height: 64, borderRadius: '50%',
+                  background: '#FFF8E1', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
                   margin: '0 auto 16px',
                 }}>
                   <FolderOutlined style={{ fontSize: 28, color: '#FFC107' }} />
@@ -116,9 +133,47 @@ export default function ProjectsPage() {
           title="No projects yet"
           description="Organize your flows into projects"
           actionText="New Project"
-          onAction={() => message.info('Create project coming soon')}
+          onAction={() => setCreateModalOpen(true)}
         />
       )}
+
+      {/* Create Project Modal */}
+      <Modal
+        title="New Project"
+        open={createModalOpen}
+        onCancel={() => { setCreateModalOpen(false); setNewProjectName(''); }}
+        onOk={handleCreate}
+        okText="Create"
+        confirmLoading={creating}
+        okButtonProps={{ disabled: !newProjectName.trim() }}
+      >
+        <Input
+          placeholder="Project name"
+          value={newProjectName}
+          onChange={(e) => setNewProjectName(e.target.value)}
+          onPressEnter={handleCreate}
+          maxLength={255}
+          autoFocus
+        />
+      </Modal>
+
+      {/* Rename Project Modal */}
+      <Modal
+        title="Rename Project"
+        open={renameModal.open}
+        onCancel={() => setRenameModal({ open: false, id: '', name: '' })}
+        onOk={handleRename}
+        okText="Save"
+        okButtonProps={{ disabled: !renameModal.name.trim() }}
+      >
+        <Input
+          value={renameModal.name}
+          onChange={(e) => setRenameModal({ ...renameModal, name: e.target.value })}
+          onPressEnter={handleRename}
+          maxLength={255}
+          autoFocus
+        />
+      </Modal>
     </div>
   );
 }

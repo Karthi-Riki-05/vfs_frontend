@@ -35,6 +35,20 @@ const nextConfig = {
     experimental: {
         esmExternals: 'loose'
     },
+    webpack: (config, { isServer }) => {
+        // Reduce file watching memory usage in Docker
+        config.watchOptions = {
+            poll: 3000,
+            aggregateTimeout: 500,
+            ignored: [
+                '**/node_modules',
+                '**/.next',
+                '**/.git',
+                '**/public/draw_io',   // 6600+ static files — must not be watched
+            ],
+        };
+        return config;
+    },
     typescript: {
         ignoreBuildErrors: true,
     },

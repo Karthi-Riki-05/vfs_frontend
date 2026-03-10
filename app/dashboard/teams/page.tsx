@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Row,
   Col,
@@ -33,6 +33,8 @@ import api from '@/lib/axios';
 import { useAuth } from '@/hooks/useAuth';
 import { useTeams } from '@/hooks/useTeams';
 import { teamsApi } from '@/api/teams.api';
+import { usePro } from '@/hooks/usePro';
+import { subscriptionsApi } from '@/api/subscriptions.api';
 
 const { Text } = Typography;
 
@@ -40,6 +42,8 @@ export default function TeamsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { teams, loading, createTeam, deleteTeam, fetchTeams } = useTeams();
+  const { hasPro, currentApp } = usePro();
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -52,6 +56,37 @@ export default function TeamsPage() {
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  useEffect(() => {
+    // PRO users always have access
+    if (currentApp === 'pro' && hasPro) {
+      setHasAccess(true);
+      return;
+    }
+
+    // ValueChart: check subscription
+    subscriptionsApi.getStatus()
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        const active = data?.hasSubscription && data?.status === 'active';
+        if (!active) {
+          router.push('/dashboard/subscription');
+        } else {
+          setHasAccess(true);
+        }
+      })
+      .catch(() => {
+        router.push('/dashboard/subscription');
+      });
+  }, [currentApp, hasPro, router]);
+
+  if (hasAccess === null) {
+    return (
+      <div style={{ textAlign: 'center', padding: 100 }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
   const handleCreate = async () => {
     try {
       const values = await createForm.validateFields();
@@ -59,6 +94,12 @@ export default function TeamsPage() {
       await createTeam(values);
       createForm.resetFields();
       setCreateModalOpen(false);
+    } catch (err: any) {
+      const errorCode = err?.response?.data?.error?.code;
+      if (errorCode === 'SUBSCRIPTION_REQUIRED') {
+        setCreateModalOpen(false);
+        createForm.resetFields();
+      }
     } finally {
       setCreating(false);
     }

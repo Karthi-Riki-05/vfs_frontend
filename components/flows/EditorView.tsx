@@ -2,14 +2,19 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { getFlowById } from '@/lib/flow';
-import { Spin, Input, Button, message } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
+import { Spin, Input, Button, message, Tag } from 'antd';
+import { ArrowLeftOutlined, SaveOutlined, LockOutlined, EditOutlined } from '@ant-design/icons';
 
 export default function EditorView({ flowId }: { flowId: string }) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const [loading, setLoading] = useState(true);
     const [isMounted, setIsMounted] = useState(false);
-    const [flowName, setFlowName] = useState(""); // டயக்ராம் பெயர்
+    const [flowName, setFlowName] = useState("");
+    const [permission, setPermission] = useState<string | null>(null);
+    const permRef = useRef<string | null>(null);
+
+    const isReadOnly = permission === 'view';
+    const isSharedEdit = permission === 'edit';
 
     useEffect(() => {
         setIsMounted(true);
@@ -23,7 +28,10 @@ export default function EditorView({ flowId }: { flowId: string }) {
                 // 1. INITIAL LOAD
                 if (msg.event === 'init') {
                     const data = await getFlowById(flowId);
-                    setFlowName(data.name || "Untitled Diagram"); // பெயரை செட் செய்கிறோம்
+                    setFlowName(data.name || "Untitled Diagram");
+                    const perm = data.permission || 'owner';
+                    setPermission(perm);
+                    permRef.current = perm;
 
                     const defaultXml = '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel>';
                     const rawData = data.xml || data.diagramData;
@@ -31,7 +39,7 @@ export default function EditorView({ flowId }: { flowId: string }) {
                     let xml = (!rawData || rawData === "{}" || (typeof rawData === 'object'))
                         ? defaultXml : rawData;
 
-                    
+
                     const customBackendShapes = [
                         {
                             title: 'Employee Node',
@@ -58,6 +66,10 @@ export default function EditorView({ flowId }: { flowId: string }) {
 
                 // 2. SAVE BUTTON CLICKED IN DRAW.IO
                 if (msg.event === 'save') {
+                    if (permRef.current === 'view') {
+                        message.warning("You have view-only access to this flow");
+                        return;
+                    }
                     triggerExport();
                 }
 
@@ -72,7 +84,7 @@ export default function EditorView({ flowId }: { flowId: string }) {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 flowId,
-                                name: flowName, // அப்டேட் செய்யப்பட்ட பெயர்
+                                name: flowName,
                                 xml: xmlData,
                                 thumbnail: imageData
                             }),
@@ -85,6 +97,9 @@ export default function EditorView({ flowId }: { flowId: string }) {
                                 message: 'Saved successfully!',
                                 modified: false
                             }), '*');
+                        } else {
+                            const errData = await response.json().catch(() => ({}));
+                            message.error(errData?.error?.message || "Save failed — you may have view-only access");
                         }
                     } catch (err) {
                         message.error("Save failed!");
@@ -100,7 +115,7 @@ export default function EditorView({ flowId }: { flowId: string }) {
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, [flowId, flowName]); // flowName மாறும்போது மெசேஜ் ஹேண்ட்லர் அப்டேட் ஆக வேண்டும்
+    }, [flowId, flowName]);
 
     const triggerExport = () => {
         iframeRef.current?.contentWindow?.postMessage(JSON.stringify({
@@ -111,9 +126,7 @@ export default function EditorView({ flowId }: { flowId: string }) {
     };
 
     const handleExit = () => {
-        // Since editor opens in a new tab, try to close it
         window.close();
-        // Fallback: if browser blocks window.close() (tab not opened via script)
         setTimeout(() => {
             window.location.href = '/dashboard/flows';
         }, 100);
@@ -123,6 +136,38 @@ export default function EditorView({ flowId }: { flowId: string }) {
 
     return (
         <div style={{ width: '100%', height: '100dvh', display: 'flex', flexDirection: 'column' }}>
+            {/* Permission banner */}
+            {isReadOnly && (
+                <div style={{
+                    height: 36,
+                    background: '#FFF7E6',
+                    borderBottom: '1px solid #FFD591',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    fontSize: 13,
+                    color: '#AD6800',
+                }}>
+                    <LockOutlined /> View only — You can view this flow but cannot edit it
+                </div>
+            )}
+            {isSharedEdit && (
+                <div style={{
+                    height: 36,
+                    background: '#F6FFED',
+                    borderBottom: '1px solid #B7EB8F',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    fontSize: 13,
+                    color: '#389E0D',
+                }}>
+                    <EditOutlined /> Shared flow — You have edit access
+                </div>
+            )}
+
             {/* TOP BAR FOR NAME EDITING */}
             <div style={{
                 height: '50px',
@@ -141,17 +186,10 @@ export default function EditorView({ flowId }: { flowId: string }) {
                     style={{ width: '300px', fontWeight: 'bold' }}
                     variant="borderless"
                     placeholder="Diagram Name"
+                    disabled={isReadOnly}
                 />
 
                 <div style={{ flex: 1 }} />
-
-                {/* <Button
-                    type="primary"
-                    icon={<SaveOutlined />}
-                    onClick={triggerExport}
-                >
-                    Save Changes
-                </Button> */}
             </div>
 
             {/* IFRAME EDITOR */}

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Avatar, Upload, message, Typography, Divider, Spin } from 'antd';
-import { UserOutlined, LockOutlined, UploadOutlined, MailOutlined, PhoneOutlined, BankOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, UploadOutlined, MailOutlined, PhoneOutlined } from '@ant-design/icons';
 import SectionHeader from '@/components/common/SectionHeader';
 import api from '@/lib/axios';
 import { useAuth } from '@/hooks/useAuth';
@@ -26,8 +26,7 @@ export default function SettingsPage() {
         profileForm.setFieldsValue({
           name: data.name || '',
           email: data.email || '',
-          phone: data.phone || data.contactNo || '',
-          company: data.company || data.companyId || '',
+          contactNo: data.contactNo || '',
         });
         if (data.image || data.avatar || data.photo) {
           setAvatarUrl(data.image || data.avatar || data.photo);
@@ -47,10 +46,9 @@ export default function SettingsPage() {
   const handleProfileSave = async (values: any) => {
     setProfileLoading(true);
     try {
-      await api.put('/users/profile', {
+      await api.put('/users/me', {
         name: values.name,
-        phone: values.phone,
-        company: values.company,
+        contactNo: values.contactNo,
       });
       message.success('Profile updated successfully');
     } catch {
@@ -209,19 +207,10 @@ export default function SettingsPage() {
             />
           </Form.Item>
 
-          <Form.Item name="phone" label="Phone">
+          <Form.Item name="contactNo" label="Phone">
             <Input
               prefix={<PhoneOutlined style={{ color: '#bfbfbf' }} />}
               placeholder="Phone number"
-              size="large"
-              style={{ borderRadius: 8 }}
-            />
-          </Form.Item>
-
-          <Form.Item name="company" label="Company">
-            <Input
-              prefix={<BankOutlined style={{ color: '#bfbfbf' }} />}
-              placeholder="Company name"
               size="large"
               style={{ borderRadius: 8 }}
             />
