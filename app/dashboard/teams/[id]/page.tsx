@@ -109,14 +109,14 @@ export default function TeamDetailPage() {
   if (loading) return <div style={{ textAlign: 'center', padding: 100 }}><Spin size="large" /></div>;
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto' }}>
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 16px' }}>
       <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => router.push('/dashboard/teams')} style={{ marginBottom: 16 }}>
         Back to Teams
       </Button>
 
       <Card style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <Title level={3} style={{ margin: 0 }}>{team?.name || `Team #${team?.id?.slice(-6) || ''}`}</Title>
             <Text type="secondary">{team?.description || 'No description'}</Text>
           </div>
@@ -127,12 +127,14 @@ export default function TeamDetailPage() {
       </Card>
 
       <Card title={`Members (${members.length})`}>
-        <Table
-          dataSource={members}
-          columns={columns}
-          rowKey={(r) => r.userId || r.id}
-          pagination={false}
-        />
+        <div style={{ overflowX: 'auto' }}>
+          <Table
+            dataSource={members}
+            columns={columns}
+            rowKey={(r) => r.userId || r.id}
+            pagination={false}
+          />
+        </div>
       </Card>
 
       <Modal

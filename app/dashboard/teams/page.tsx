@@ -197,7 +197,7 @@ export default function TeamsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
       <SectionHeader
         title="MY TEAMS"
         right={

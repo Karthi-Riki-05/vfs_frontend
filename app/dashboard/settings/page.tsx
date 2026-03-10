@@ -102,17 +102,19 @@ export default function SettingsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
       <SectionHeader title="PROFILE SETTINGS" />
 
       {/* Avatar Section */}
       <div
         style={{
           display: 'flex',
+          flexDirection: 'row',
+          flexWrap: 'wrap',
           alignItems: 'center',
           gap: 20,
           marginBottom: 32,
-          padding: '24px',
+          padding: '20px',
           background: '#fff',
           borderRadius: 12,
           border: '1px solid #F0F0F0',
@@ -178,7 +180,7 @@ export default function SettingsPage() {
           form={profileForm}
           layout="vertical"
           onFinish={handleProfileSave}
-          style={{ maxWidth: 500 }}
+          style={{ maxWidth: 500, width: '100%' }}
         >
           <Form.Item
             name="name"
@@ -262,7 +264,7 @@ export default function SettingsPage() {
           form={passwordForm}
           layout="vertical"
           onFinish={handlePasswordChange}
-          style={{ maxWidth: 500 }}
+          style={{ maxWidth: 500, width: '100%' }}
         >
           <Form.Item
             name="currentPassword"

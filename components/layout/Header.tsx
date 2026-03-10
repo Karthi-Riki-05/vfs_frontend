@@ -21,18 +21,25 @@ import {
   UserOutlined,
   CrownOutlined,
   LogoutOutlined,
+  MenuOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Header: AntHeader } = Layout;
 const { Text } = Typography;
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { data: session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const isMobile = useIsMobile();
 
   const user = session?.user;
   const userName = user?.name || "User";
@@ -71,43 +78,60 @@ const Header: React.FC = () => {
       style={{
         height: 56,
         lineHeight: "56px",
-        padding: "0 24px",
+        padding: isMobile ? "0 12px" : "0 24px",
         background: "#FFFFFF",
         borderBottom: "1px solid #F0F0F0",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        position: "sticky",
+        position: "fixed",
         top: 0,
-        zIndex: 100,
+        left: 0,
+        right: 0,
+        zIndex: 90,
       }}
     >
-      {/* Left side - Logo */}
-      <Link
-        href="/dashboard"
-        style={{ textDecoration: "none", display: "flex", alignItems: "center" }}
-      >
-        <img
-          src="/images/image.png"
-          alt="ValueChart Logo"
-          style={{ height: 40, width: "auto" }}
-        />
-      </Link>
-
-      {/* Right side */}
-      <Space size={16} align="center">
-        {/* AI Sparkle Button */}
-        <Tooltip title="AI Assistant">
+      {/* Left side */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Hamburger — mobile only */}
+        {isMobile && onMenuClick && (
           <Button
             type="text"
-            style={{ padding: 0, width: 32, height: 32 }}
-            icon={
-              <span style={{ color: "#3CB371", fontSize: 18, fontWeight: "bold" }}>
-                &#10022;
-              </span>
-            }
+            icon={<MenuOutlined style={{ fontSize: 20 }} />}
+            onClick={onMenuClick}
+            style={{ padding: 0, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           />
-        </Tooltip>
+        )}
+
+        {/* Logo */}
+        <Link
+          href="/dashboard"
+          style={{ textDecoration: "none", display: "flex", alignItems: "center" }}
+        >
+          <img
+            src="/images/image.png"
+            alt="ValueChart Logo"
+            style={{ height: isMobile ? 32 : 40, width: "auto" }}
+          />
+        </Link>
+      </div>
+
+      {/* Right side */}
+      <Space size={isMobile ? 8 : 16} align="center">
+        {/* AI Sparkle Button — hide on small mobile */}
+        {!isMobile && (
+          <Tooltip title="AI Assistant">
+            <Button
+              type="text"
+              style={{ padding: 0, width: 32, height: 32 }}
+              icon={
+                <span style={{ color: "#3CB371", fontSize: 18, fontWeight: "bold" }}>
+                  &#10022;
+                </span>
+              }
+            />
+          </Tooltip>
+        )}
 
         {/* Chat Icon */}
         <Link href="/dashboard/chat" style={{ display: "flex", alignItems: "center", position: "relative" }}>
@@ -119,21 +143,23 @@ const Header: React.FC = () => {
         {/* Notification Bell */}
         <NotificationDropdown />
 
-        {/* Plan Badge */}
-        <span className="plan-badge">
-          {isPro ? (
-            <Tag color="gold">Pro Plan</Tag>
-          ) : (
-            <Button
-              type="default"
-              shape="round"
-              size="small"
-              onClick={() => router.push("/dashboard/subscription")}
-            >
-              Upgrade
-            </Button>
-          )}
-        </span>
+        {/* Plan Badge — hide on mobile */}
+        {!isMobile && (
+          <span className="plan-badge">
+            {isPro ? (
+              <Tag color="gold">Pro Plan</Tag>
+            ) : (
+              <Button
+                type="default"
+                shape="round"
+                size="small"
+                onClick={() => router.push("/dashboard/subscription")}
+              >
+                Upgrade
+              </Button>
+            )}
+          </span>
+        )}
 
         {/* User Dropdown */}
         <Dropdown menu={{ items: dropdownItems }} trigger={["click"]} placement="bottomRight">
@@ -144,25 +170,15 @@ const Header: React.FC = () => {
             >
               {userInitial}
             </Avatar>
-            <span className="user-name-text">
-              <Text style={{ fontSize: 14 }}>{userName}</Text>
-            </span>
+            {!isMobile && (
+              <span className="user-name-text">
+                <Text style={{ fontSize: 14 }}>{userName}</Text>
+              </span>
+            )}
             <DownOutlined style={{ fontSize: 10, color: "#8C8C8C" }} />
           </Space>
         </Dropdown>
       </Space>
-
-      {/* Responsive styles */}
-      <style jsx global>{`
-        @media (max-width: 767px) {
-          .user-name-text {
-            display: none !important;
-          }
-          .plan-badge {
-            display: none !important;
-          }
-        }
-      `}</style>
     </AntHeader>
   );
 };

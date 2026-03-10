@@ -28,9 +28,11 @@ const { Text } = Typography;
 interface SidebarProps {
   collapsed: boolean;
   onCollapse: (collapsed: boolean) => void;
+  isMobileDrawer?: boolean;
+  onMobileClose?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
+const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse, isMobileDrawer, onMobileClose }) => {
   const pathname = usePathname() || '';
   const router = useRouter();
   const { hasPro, currentApp } = usePro();
@@ -65,10 +67,17 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     return '';
   };
 
+  const handleNavClick = () => {
+    if (isMobileDrawer && onMobileClose) {
+      onMobileClose();
+    }
+  };
+
   const handleAppSwitch = async (targetApp: 'free' | 'pro') => {
     if (switching) return;
     if (targetApp === 'pro' && !hasPro) {
       router.push('/upgrade-pro');
+      handleNavClick();
       return;
     }
     setSwitching(true);
@@ -88,6 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     // PRO app with Pro access: always allow
     if (currentApp === 'pro' && hasPro) {
       router.push('/dashboard/teams');
+      handleNavClick();
       return;
     }
 
@@ -99,6 +109,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       const subData = data.data || data;
       if (subData?.hasSubscription && subData?.status === 'active') {
         router.push('/dashboard/teams');
+        handleNavClick();
       } else {
         setSubscriptionModalOpen(true);
       }
@@ -118,6 +129,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
             onClick={(e) => {
               e.preventDefault();
               window.open(`/dashboard/flows/${flow.id}`, '_blank');
+              handleNavClick();
             }}
             style={{ cursor: 'pointer', fontSize: 13 }}
           >
@@ -141,7 +153,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     {
       key: 'recents',
       icon: <ClockCircleOutlined />,
-      label: <Link href="/dashboard/recents">Recents</Link>,
+      label: <Link href="/dashboard/recents" onClick={handleNavClick}>Recents</Link>,
     },
     {
       key: 'create-flow',
@@ -149,7 +161,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       label: (
         <span style={{ color: '#3CB371' }}>Create a Flow</span>
       ),
-      onClick: () => createNewFlow(),
+      onClick: () => { createNewFlow(); handleNavClick(); },
     },
     {
       type: 'divider' as const,
@@ -158,12 +170,12 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     {
       key: 'flows',
       icon: <ApartmentOutlined />,
-      label: <Link href="/dashboard/flows">Flows</Link>,
+      label: <Link href="/dashboard/flows" onClick={handleNavClick}>Flows</Link>,
     },
     {
       key: 'shapes',
       icon: <AppstoreOutlined />,
-      label: <Link href="/dashboard/shapes">Shapes</Link>,
+      label: <Link href="/dashboard/shapes" onClick={handleNavClick}>Shapes</Link>,
     },
     {
       key: 'teams',
@@ -181,17 +193,17 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     {
       key: 'drafts',
       icon: <FileTextOutlined />,
-      label: <Link href="/dashboard/drafts">Drafts</Link>,
+      label: <Link href="/dashboard/drafts" onClick={handleNavClick}>Drafts</Link>,
     },
     {
       key: 'projects',
       icon: <FolderOutlined style={{ color: '#FFC107' }} />,
-      label: <Link href="/dashboard/projects">All Projects</Link>,
+      label: <Link href="/dashboard/projects" onClick={handleNavClick}>All Projects</Link>,
     },
     {
       key: 'trash',
       icon: <DeleteOutlined />,
-      label: <Link href="/dashboard/trash">Trash</Link>,
+      label: <Link href="/dashboard/trash" onClick={handleNavClick}>Trash</Link>,
     },
     {
       type: 'divider' as const,
@@ -217,6 +229,200 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     },
   ];
 
+  // Mobile drawer mode: render without Sider wrapper
+  if (isMobileDrawer) {
+    return (
+      <>
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 57px)' }}>
+          {/* App Switch or Upgrade */}
+          <div style={{ padding: '12px 16px 0' }}>
+            {hasPro ? (
+              <div
+                style={{
+                  display: 'flex',
+                  borderRadius: 8,
+                  border: '1px solid #E8E8E8',
+                  overflow: 'hidden',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                <div
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    cursor: currentApp === 'free' ? 'default' : 'pointer',
+                    background: currentApp === 'free' ? '#3CB371' : '#fff',
+                    color: currentApp === 'free' ? '#fff' : '#595959',
+                    transition: 'all 0.2s',
+                  }}
+                  onClick={() => currentApp !== 'free' && handleAppSwitch('free')}
+                >
+                  ValueChart
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    cursor: currentApp === 'pro' ? 'default' : 'pointer',
+                    background: currentApp === 'pro' ? '#F59E0B' : '#fff',
+                    color: currentApp === 'pro' ? '#fff' : '#595959',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                  }}
+                  onClick={() => currentApp !== 'pro' && handleAppSwitch('pro')}
+                >
+                  <CrownOutlined style={{ fontSize: 11 }} />
+                  PRO
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  borderRadius: 8,
+                  border: '1px solid #E8E8E8',
+                  overflow: 'hidden',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                <div
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    background: '#3CB371',
+                    color: '#fff',
+                  }}
+                >
+                  ValueChart
+                </div>
+                <div
+                  onClick={() => { router.push('/upgrade-pro'); handleNavClick(); }}
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+                    color: '#fff',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <CrownOutlined style={{ fontSize: 11 }} />
+                  PRO
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Navigation Menu */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <Menu
+              mode="inline"
+              selectedKeys={[getSelectedKey()]}
+              items={menuItems}
+              style={{
+                border: 'none',
+                background: 'transparent',
+              }}
+            />
+          </div>
+
+          {/* Bottom: Get Support */}
+          <div style={{ borderTop: '1px solid #F0F0F0', padding: '12px 16px' }}>
+            <Link
+              href="/dashboard/support"
+              onClick={handleNavClick}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: '#3CB371',
+                fontSize: 14,
+                textDecoration: 'none',
+              }}
+            >
+              <QuestionCircleOutlined style={{ color: '#3CB371', fontSize: 16 }} />
+              <span>Get Support</span>
+            </Link>
+          </div>
+        </div>
+
+        <Modal
+          open={subscriptionModalOpen}
+          onCancel={() => setSubscriptionModalOpen(false)}
+          footer={[
+            <Button key="cancel" onClick={() => setSubscriptionModalOpen(false)}>
+              Cancel
+            </Button>,
+            <Button
+              key="plans"
+              type="primary"
+              onClick={() => {
+                setSubscriptionModalOpen(false);
+                router.push('/dashboard/subscription');
+                handleNavClick();
+              }}
+              style={{ backgroundColor: '#3CB371', borderColor: '#3CB371' }}
+            >
+              View Plans
+            </Button>,
+          ]}
+          centered
+          width={420}
+          zIndex={1200}
+        >
+          <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
+            <TeamOutlined style={{ fontSize: 40, color: '#3CB371', marginBottom: 16 }} />
+            <h3 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 600 }}>
+              Teams requires a subscription
+            </h3>
+            <p style={{ color: '#595959', margin: 0, fontSize: 14 }}>
+              Subscribe to a Team plan to create and manage teams, invite members, and collaborate on value charts.
+            </p>
+          </div>
+        </Modal>
+
+        <style jsx global>{`
+          .sidebar-drawer .ant-menu-item {
+            height: 44px !important;
+            line-height: 44px !important;
+            font-size: 14px !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            width: 100% !important;
+          }
+          .sidebar-drawer .ant-menu-item:hover {
+            background: #F8F9FA !important;
+          }
+          .sidebar-drawer .ant-menu-item-selected {
+            color: #3CB371 !important;
+            background: #F0FFF4 !important;
+          }
+          .sidebar-drawer .ant-menu-item-selected a {
+            color: #3CB371 !important;
+          }
+          .sidebar-drawer .ant-menu-item a {
+            color: inherit;
+            text-decoration: none;
+          }
+        `}</style>
+      </>
+    );
+  }
+
+  // Desktop/Tablet: Ant Design Sider
   return (
     <Sider
       width={220}
@@ -234,6 +440,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
         position: 'fixed',
         top: 56,
         left: 0,
+        zIndex: 50,
         overflow: 'hidden',
       }}
     >
@@ -397,6 +604,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
         ]}
         centered
         width={420}
+        zIndex={1200}
       >
         <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
           <TeamOutlined style={{ fontSize: 40, color: '#3CB371', marginBottom: 16 }} />

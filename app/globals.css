@@ -97,3 +97,185 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ==================== GLOBAL Z-INDEX SCALE ==================== */
+/*
+ * Z-index hierarchy (lowest to highest):
+ *   1     — In-page elements (badges, tags, relative positioned)
+ *   10    — In-page overlays (drag overlays, sticky sub-headers)
+ *   50    — Sidebar (desktop fixed)
+ *   90    — App header (fixed)
+ *   999   — Mobile sidebar backdrop
+ *   1000  — Mobile sidebar drawer
+ *   1050  — Chat context menu
+ *   1100  — Popover / dropdown / tooltip / notification popup
+ *   1150  — Chat lightbox
+ *   1200  — Modal wrap + mask (subscription modal, etc.)
+ *   1300  — Toast messages / notifications
+ */
+
+/* Ensure Ant Design popovers/dropdowns render ABOVE the fixed header */
+.ant-popover,
+.ant-dropdown,
+.ant-tooltip,
+.ant-select-dropdown {
+  z-index: 1100 !important;
+}
+
+/* Ensure Ant Design modals sit above everything except drawer */
+.ant-modal-wrap {
+  z-index: 1200 !important;
+}
+.ant-modal-mask {
+  z-index: 1200 !important;
+}
+
+/* Ant Design message/notification toasts — topmost */
+.ant-message {
+  z-index: 1300 !important;
+}
+.ant-notification {
+  z-index: 1300 !important;
+}
+
+/* ==================== RESPONSIVE UTILITIES ==================== */
+
+/* Prevent horizontal overflow */
+html, body {
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Images responsive */
+img { max-width: 100%; height: auto; }
+
+/* Safe area insets (iOS notch/home bar) */
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
+
+/* Hide scrollbar utility */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Prevent iOS zoom on input focus */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Mobile sidebar drawer overlay */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+.sidebar-backdrop.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Mobile sidebar drawer */
+.sidebar-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  z-index: 1000;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  background: #FFFFFF;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
+  overflow-y: auto;
+}
+.sidebar-drawer.open {
+  transform: translateX(0);
+}
+
+/* Chat responsive bubbles */
+@media (max-width: 767px) {
+  .chat-bubble-sent,
+  .chat-bubble-received {
+    max-width: 85% !important;
+  }
+}
+
+/* Responsive content padding — use individual sides to avoid overriding paddingTop from fixed header offset */
+@media (max-width: 767px) {
+  .responsive-content {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-bottom: 16px !important;
+  }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .responsive-content {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    padding-bottom: 20px !important;
+  }
+}
+
+/* Section header responsive */
+@media (max-width: 640px) {
+  .section-header-responsive {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .section-header-responsive .section-header-right {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+  }
+}
+
+/* Ant Design modal responsive — full screen on mobile */
+@media (max-width: 767px) {
+  .ant-modal {
+    max-width: 100vw !important;
+    margin: 0 !important;
+    top: 0 !important;
+    padding: 0 !important;
+  }
+  .ant-modal .ant-modal-content {
+    border-radius: 0 !important;
+    min-height: 100vh;
+  }
+  .ant-modal-centered .ant-modal {
+    top: auto !important;
+  }
+  .ant-modal-centered .ant-modal .ant-modal-content {
+    min-height: auto;
+    border-radius: 16px 16px 0 0 !important;
+  }
+}
+
+/* Ant Design table responsive */
+@media (max-width: 767px) {
+  .ant-table-wrapper {
+    overflow-x: auto;
+  }
+  .ant-table {
+    min-width: 500px;
+  }
+}
+
+/* Touch targets — minimum 44px */
+@media (max-width: 767px) {
+  .ant-btn-sm {
+    min-height: 36px !important;
+    min-width: 36px !important;
+  }
+  .ant-dropdown-menu-item {
+    min-height: 44px !important;
+    line-height: 44px !important;
+  }
+}

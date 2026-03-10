@@ -133,6 +133,7 @@ export default function NotificationDropdown() {
       placement="bottomRight"
       arrow={false}
       overlayInnerStyle={{ padding: 0, borderRadius: 12, overflow: 'hidden' }}
+      overlayStyle={{ zIndex: 1100 }}
     >
       <Badge count={unreadCount} size="small">
         <BellOutlined style={{ fontSize: 20, color: '#8C8C8C', cursor: 'pointer' }} />

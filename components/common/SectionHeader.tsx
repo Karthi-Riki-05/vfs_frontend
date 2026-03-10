@@ -9,14 +9,24 @@ interface SectionHeaderProps {
 
 export default function SectionHeader({ title, right }: SectionHeaderProps) {
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 20,
-    }}>
+    <div
+      className="section-header-responsive"
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+      }}
+    >
       <h2 className="section-label">{title}</h2>
-      {right && <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>{right}</div>}
+      {right && (
+        <div
+          className="section-header-right"
+          style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
+        >
+          {right}
+        </div>
+      )}
     </div>
   );
 }

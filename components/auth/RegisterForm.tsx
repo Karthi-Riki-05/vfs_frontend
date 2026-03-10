@@ -27,7 +27,14 @@ export default function RegisterForm() {
     };
 
     return (
-        <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+        <Card
+            style={{
+                width: '100%',
+                maxWidth: 400,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            }}
+            styles={{ body: { padding: '24px 20px' } }}
+        >
             <Space direction="vertical" style={{ width: '100%', textAlign: 'center' }}>
                 <Title level={3}>Create Account</Title>
                 <Text type="secondary">Join Value Charts to start drawing</Text>

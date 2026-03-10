@@ -31,9 +31,16 @@ export default function LoginForm() {
     };
 
     return (
-        <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+        <Card
+            style={{
+                width: '100%',
+                maxWidth: 400,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            }}
+            styles={{ body: { padding: '24px 20px' } }}
+        >
             <Space direction="vertical" style={{ width: '100%', textAlign: 'center' }}>
-                <Title level={3}>Welcome Back</Title>
+                <Title level={3} style={{ marginBottom: 0 }}>Welcome Back</Title>
                 <Text type="secondary">Login to manage your value charts</Text>
             </Space>
 
@@ -69,11 +76,13 @@ export default function LoginForm() {
 
             <Divider plain>or login with</Divider>
 
-            <Space style={{ width: '100%', justifyContent: 'center' }}>
+            {/* Social buttons — stack vertically on mobile, row on desktop */}
+            <div className="social-login-buttons">
                 <Button
                     icon={<GoogleOutlined />}
                     onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
                     size="large"
+                    block
                 >
                     Google
                 </Button>
@@ -81,6 +90,7 @@ export default function LoginForm() {
                     icon={<LinkedinOutlined style={{ color: '#0077B5' }} />}
                     onClick={() => signIn('linkedin', { callbackUrl: '/dashboard' })}
                     size="large"
+                    block
                 >
                     LinkedIn
                 </Button>
@@ -88,16 +98,34 @@ export default function LoginForm() {
                     icon={<FacebookOutlined style={{ color: '#1877F2' }} />}
                     onClick={() => signIn('facebook', { callbackUrl: '/dashboard' })}
                     size="large"
+                    block
                 >
                     Facebook
                 </Button>
-            </Space>
+            </div>
 
             <div style={{ textAlign: 'center', marginTop: 16 }}>
                 <Text type="secondary">
                     Don't have an account? <a href="/register">Register now</a>
                 </Text>
             </div>
+
+            <style jsx global>{`
+                .social-login-buttons {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                @media (min-width: 480px) {
+                    .social-login-buttons {
+                        flex-direction: row;
+                        gap: 8px;
+                    }
+                    .social-login-buttons .ant-btn {
+                        flex: 1;
+                    }
+                }
+            `}</style>
         </Card>
     );
 }

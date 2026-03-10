@@ -18,6 +18,7 @@ import { useFlows } from '@/hooks/useFlows';
 import { createNewFlow } from '@/lib/flow';
 import api from '@/lib/axios';
 import { message } from 'antd';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 const { Text } = Typography;
 
@@ -46,6 +47,7 @@ export default function FlowsPage() {
     fetchFlows, deleteFlow, duplicateFlow, favoriteFlow, removeSharedFlow,
   } = useFlows();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid');
 
   // Rename state
@@ -246,7 +248,7 @@ export default function FlowsPage() {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: isMobile ? 16 : 24 }}>
       <SectionHeader
         title="MY FLOWS"
         right={
@@ -257,13 +259,13 @@ export default function FlowsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               allowClear
-              style={{ width: 220, backgroundColor: '#F8F9FA', borderRadius: 8, border: 'none' }}
+              style={{ width: isMobile ? '100%' : 220, backgroundColor: '#F8F9FA', borderRadius: 8, border: 'none' }}
               variant="borderless"
             />
             <Select
               value={sort}
               onChange={setSort}
-              style={{ width: 150 }}
+              style={{ width: isMobile ? '100%' : 150 }}
               options={[
                 { label: 'Last Modified', value: 'updatedAt' },
                 { label: 'Name', value: 'name' },
@@ -277,6 +279,8 @@ export default function FlowsPage() {
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '6px 16px', backgroundColor: '#3CB371', color: '#FFFFFF',
                 border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                width: isMobile ? '100%' : 'auto', justifyContent: 'center',
+                minHeight: 44,
               }}
             >
               <PlusOutlined /> New Flow

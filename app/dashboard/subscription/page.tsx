@@ -130,13 +130,13 @@ function ProSubscriptionContent() {
   ];
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px' }}>
-      <Title level={3} style={{ marginBottom: 24 }}>
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: '16px' }}>
+      <Title level={3} style={{ marginBottom: 24, fontSize: 20 }}>
         <CrownOutlined style={{ color: '#F59E0B', marginRight: 8 }} />
         Pro Subscription
       </Title>
 
-      <Card style={{ marginBottom: 24, borderRadius: 12 }} bodyStyle={{ padding: '24px 28px' }}>
+      <Card style={{ marginBottom: 24, borderRadius: 12 }} styles={{ body: { padding: '16px 20px' } }}>
         <Text strong style={{ fontSize: 16, display: 'block', marginBottom: 16 }}>Current Plan</Text>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginBottom: 16 }}>
           <div>
@@ -516,7 +516,7 @@ export default function SubscriptionPage() {
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 24px' }}>
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 16px' }}>
       <SectionHeader title="PLAN & PRICING" />
 
       {/* Active subscription banner */}
@@ -616,7 +616,7 @@ export default function SubscriptionPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
           gap: 24,
           marginBottom: 32,
         }}

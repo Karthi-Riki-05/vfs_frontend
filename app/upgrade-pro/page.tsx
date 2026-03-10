@@ -54,7 +54,8 @@ export default function UpgradeProPage() {
         <div
             style={{
                 maxWidth: 500,
-                margin: '60px auto',
+                margin: '40px auto',
+                padding: '0 16px',
                 textAlign: 'center',
             }}
         >

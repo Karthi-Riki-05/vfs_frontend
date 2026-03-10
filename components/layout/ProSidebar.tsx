@@ -29,9 +29,11 @@ const { Text } = Typography;
 interface ProSidebarProps {
     collapsed: boolean;
     onCollapse: (collapsed: boolean) => void;
+    isMobileDrawer?: boolean;
+    onMobileClose?: () => void;
 }
 
-const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse }) => {
+const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse, isMobileDrawer, onMobileClose }) => {
     const pathname = usePathname() || '';
     const router = useRouter();
     const { currentApp } = usePro();
@@ -66,6 +68,12 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse }) => {
         return '';
     };
 
+    const handleNavClick = () => {
+        if (isMobileDrawer && onMobileClose) {
+            onMobileClose();
+        }
+    };
+
     const handleAppSwitch = async (targetApp: 'free' | 'pro') => {
         if (switching) return;
         setSwitching(true);
@@ -87,6 +95,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse }) => {
                     onClick={(e) => {
                         e.preventDefault();
                         window.open(`/dashboard/flows/${flow.id}`, '_blank');
+                        handleNavClick();
                     }}
                     style={{ cursor: 'pointer', fontSize: 13 }}
                 >
@@ -110,13 +119,13 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse }) => {
         {
             key: 'recents',
             icon: <ClockCircleOutlined />,
-            label: <Link href="/dashboard/recents">Recents</Link>,
+            label: <Link href="/dashboard/recents" onClick={handleNavClick}>Recents</Link>,
         },
         {
             key: 'create-flow',
             icon: <PlusSquareOutlined style={{ color: '#3CB371' }} />,
             label: <span style={{ color: '#3CB371' }}>Create a Flow</span>,
-            onClick: () => createNewFlow(),
+            onClick: () => { createNewFlow(); handleNavClick(); },
         },
         {
             type: 'divider' as const,
@@ -125,22 +134,22 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse }) => {
         {
             key: 'flows',
             icon: <ApartmentOutlined />,
-            label: <Link href="/dashboard/flows">Flows</Link>,
+            label: <Link href="/dashboard/flows" onClick={handleNavClick}>Flows</Link>,
         },
         {
             key: 'shapes',
             icon: <AppstoreOutlined />,
-            label: <Link href="/dashboard/shapes">Shapes</Link>,
+            label: <Link href="/dashboard/shapes" onClick={handleNavClick}>Shapes</Link>,
         },
         {
             key: 'teams',
             icon: <TeamOutlined />,
-            label: <Link href="/dashboard/teams">Teams</Link>,
+            label: <Link href="/dashboard/teams" onClick={handleNavClick}>Teams</Link>,
         },
         {
             key: 'chat',
             icon: <MessageOutlined />,
-            label: <Link href="/dashboard/chat">Chat</Link>,
+            label: <Link href="/dashboard/chat" onClick={handleNavClick}>Chat</Link>,
         },
         {
             type: 'divider' as const,
@@ -149,17 +158,17 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse }) => {
         {
             key: 'drafts',
             icon: <FileTextOutlined />,
-            label: <Link href="/dashboard/drafts">Drafts</Link>,
+            label: <Link href="/dashboard/drafts" onClick={handleNavClick}>Drafts</Link>,
         },
         {
             key: 'projects',
             icon: <FolderOutlined style={{ color: '#FFC107' }} />,
-            label: <Link href="/dashboard/projects">All Projects</Link>,
+            label: <Link href="/dashboard/projects" onClick={handleNavClick}>All Projects</Link>,
         },
         {
             key: 'trash',
             icon: <DeleteOutlined />,
-            label: <Link href="/dashboard/trash">Trash</Link>,
+            label: <Link href="/dashboard/trash" onClick={handleNavClick}>Trash</Link>,
         },
         {
             type: 'divider' as const,
@@ -185,6 +194,132 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse }) => {
         },
     ];
 
+    const renderContent = () => (
+        <div style={{ display: 'flex', flexDirection: 'column', height: isMobileDrawer ? 'calc(100% - 57px)' : '100%' }}>
+            {/* Top: App Switch Toggle */}
+            {(!collapsed || isMobileDrawer) && (
+                <div style={{ padding: '12px 16px 0' }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            borderRadius: 8,
+                            border: '1px solid #E8E8E8',
+                            overflow: 'hidden',
+                            fontSize: 12,
+                            fontWeight: 600,
+                        }}
+                    >
+                        <div
+                            style={{
+                                flex: 1,
+                                textAlign: 'center',
+                                padding: '6px 0',
+                                cursor: currentApp === 'free' ? 'default' : 'pointer',
+                                background: currentApp === 'free' ? '#3CB371' : '#fff',
+                                color: currentApp === 'free' ? '#fff' : '#595959',
+                                transition: 'all 0.2s',
+                            }}
+                            onClick={() => currentApp !== 'free' && handleAppSwitch('free')}
+                        >
+                            ValueChart
+                        </div>
+                        <div
+                            style={{
+                                flex: 1,
+                                textAlign: 'center',
+                                padding: '6px 0',
+                                cursor: currentApp === 'pro' ? 'default' : 'pointer',
+                                background: currentApp === 'pro' ? '#F59E0B' : '#fff',
+                                color: currentApp === 'pro' ? '#fff' : '#595959',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 4,
+                            }}
+                            onClick={() => currentApp !== 'pro' && handleAppSwitch('pro')}
+                        >
+                            <CrownOutlined style={{ fontSize: 11 }} />
+                            PRO
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Navigation Menu */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+                <Menu
+                    mode="inline"
+                    selectedKeys={[getSelectedKey()]}
+                    items={menuItems}
+                    style={{
+                        border: 'none',
+                        background: 'transparent',
+                    }}
+                />
+            </div>
+
+            {/* Bottom: Get Support */}
+            <div
+                style={{
+                    borderTop: '1px solid #F0F0F0',
+                    padding: (collapsed && !isMobileDrawer) ? '12px 0' : '12px 16px',
+                }}
+            >
+                <Link
+                    href="/dashboard/support"
+                    onClick={handleNavClick}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        color: '#3CB371',
+                        fontSize: 14,
+                        textDecoration: 'none',
+                        justifyContent: (collapsed && !isMobileDrawer) ? 'center' : 'flex-start',
+                    }}
+                >
+                    <QuestionCircleOutlined style={{ color: '#3CB371', fontSize: 16 }} />
+                    {(!collapsed || isMobileDrawer) && <span>Get Support</span>}
+                </Link>
+            </div>
+        </div>
+    );
+
+    const menuStyles = `
+        ${isMobileDrawer ? '.sidebar-drawer' : '.ant-layout-sider'} .ant-menu-item {
+            height: ${isMobileDrawer ? '44' : '40'}px !important;
+            line-height: ${isMobileDrawer ? '44' : '40'}px !important;
+            font-size: 14px !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            width: 100% !important;
+        }
+        ${isMobileDrawer ? '.sidebar-drawer' : '.ant-layout-sider'} .ant-menu-item:hover {
+            background: #F8F9FA !important;
+        }
+        ${isMobileDrawer ? '.sidebar-drawer' : '.ant-layout-sider'} .ant-menu-item-selected {
+            color: #3CB371 !important;
+            background: #F0FFF4 !important;
+        }
+        ${isMobileDrawer ? '.sidebar-drawer' : '.ant-layout-sider'} .ant-menu-item-selected a {
+            color: #3CB371 !important;
+        }
+        ${isMobileDrawer ? '.sidebar-drawer' : '.ant-layout-sider'} .ant-menu-item a {
+            color: inherit;
+            text-decoration: none;
+        }
+    `;
+
+    if (isMobileDrawer) {
+        return (
+            <>
+                {renderContent()}
+                <style jsx global>{menuStyles}</style>
+            </>
+        );
+    }
+
     return (
         <Sider
             width={220}
@@ -202,128 +337,12 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse }) => {
                 position: 'fixed',
                 top: 56,
                 left: 0,
+                zIndex: 50,
                 overflow: 'hidden',
             }}
         >
-            <div
-                style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100%',
-                }}
-            >
-                {/* Top: App Switch Toggle */}
-                {!collapsed && (
-                    <div style={{ padding: '12px 16px 0' }}>
-                        <div
-                            style={{
-                                display: 'flex',
-                                borderRadius: 8,
-                                border: '1px solid #E8E8E8',
-                                overflow: 'hidden',
-                                fontSize: 12,
-                                fontWeight: 600,
-                            }}
-                        >
-                            <div
-                                style={{
-                                    flex: 1,
-                                    textAlign: 'center',
-                                    padding: '6px 0',
-                                    cursor: currentApp === 'free' ? 'default' : 'pointer',
-                                    background: currentApp === 'free' ? '#3CB371' : '#fff',
-                                    color: currentApp === 'free' ? '#fff' : '#595959',
-                                    transition: 'all 0.2s',
-                                }}
-                                onClick={() => currentApp !== 'free' && handleAppSwitch('free')}
-                            >
-                                ValueChart
-                            </div>
-                            <div
-                                style={{
-                                    flex: 1,
-                                    textAlign: 'center',
-                                    padding: '6px 0',
-                                    cursor: currentApp === 'pro' ? 'default' : 'pointer',
-                                    background: currentApp === 'pro' ? '#F59E0B' : '#fff',
-                                    color: currentApp === 'pro' ? '#fff' : '#595959',
-                                    transition: 'all 0.2s',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 4,
-                                }}
-                                onClick={() => currentApp !== 'pro' && handleAppSwitch('pro')}
-                            >
-                                <CrownOutlined style={{ fontSize: 11 }} />
-                                PRO
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Navigation Menu */}
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    <Menu
-                        mode="inline"
-                        selectedKeys={[getSelectedKey()]}
-                        items={menuItems}
-                        style={{
-                            border: 'none',
-                            background: 'transparent',
-                        }}
-                    />
-                </div>
-
-                {/* Bottom: Get Support */}
-                <div
-                    style={{
-                        borderTop: '1px solid #F0F0F0',
-                        padding: collapsed ? '12px 0' : '12px 16px',
-                    }}
-                >
-                    <Link
-                        href="/dashboard/support"
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            color: '#3CB371',
-                            fontSize: 14,
-                            textDecoration: 'none',
-                            justifyContent: collapsed ? 'center' : 'flex-start',
-                        }}
-                    >
-                        <QuestionCircleOutlined style={{ color: '#3CB371', fontSize: 16 }} />
-                        {!collapsed && <span>Get Support</span>}
-                    </Link>
-                </div>
-            </div>
-
-            <style jsx global>{`
-                .ant-layout-sider .ant-menu-item {
-                    height: 40px !important;
-                    line-height: 40px !important;
-                    font-size: 14px !important;
-                    margin: 0 !important;
-                    border-radius: 0 !important;
-                    width: 100% !important;
-                }
-                .ant-layout-sider .ant-menu-item:hover {
-                    background: #F8F9FA !important;
-                }
-                .ant-layout-sider .ant-menu-item-selected {
-                    color: #3CB371 !important;
-                    background: #F0FFF4 !important;
-                }
-                .ant-layout-sider .ant-menu-item-selected a {
-                    color: #3CB371 !important;
-                }
-                .ant-layout-sider .ant-menu-item a {
-                    color: inherit;
-                    text-decoration: none;
-                }
-            `}</style>
+            {renderContent()}
+            <style jsx global>{menuStyles}</style>
         </Sider>
     );
 };

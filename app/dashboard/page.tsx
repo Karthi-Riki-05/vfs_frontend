@@ -8,18 +8,21 @@ import RecentDocuments from '@/components/dashboard/RecentDocuments';
 import { useAuth } from '@/hooks/useAuth';
 import { usePro } from '@/hooks/usePro';
 import { useRouter } from 'next/navigation';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 const { Search } = Input;
 const { Text } = Typography;
 
 function AIBanner() {
+  const isMobile = useIsMobile();
+
   return (
     <div
       style={{
         background: 'linear-gradient(135deg, #3CB371 0%, #2E8B57 100%)',
-        borderRadius: 16,
-        padding: '32px 32px 28px',
-        marginBottom: 32,
+        borderRadius: isMobile ? 12 : 16,
+        padding: isMobile ? '20px 16px 18px' : '32px 32px 28px',
+        marginBottom: isMobile ? 20 : 32,
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -51,7 +54,7 @@ function AIBanner() {
       <h2
         style={{
           color: '#fff',
-          fontSize: 22,
+          fontSize: isMobile ? 18 : 22,
           fontWeight: 600,
           fontFamily: 'Inter, sans-serif',
           margin: '0 0 16px 0',
@@ -99,6 +102,8 @@ function AIBanner() {
 }
 
 function FlowUsageBar({ proFlows, isUnlimited, onBuyMore }: { proFlows: any; isUnlimited: boolean; onBuyMore: () => void }) {
+  const isMobile = useIsMobile();
+
   if (!proFlows) return null;
   const isLimited = !isUnlimited && proFlows.max > 0;
   const percent = isLimited ? Math.round((proFlows.used / proFlows.max) * 100) : 0;
@@ -110,15 +115,16 @@ function FlowUsageBar({ proFlows, isUnlimited, onBuyMore }: { proFlows: any; isU
         background: '#FAFAFA',
         borderRadius: 12,
         border: '1px solid #E8E8E8',
-        padding: '16px 20px',
-        marginBottom: 32,
+        padding: isMobile ? '12px 16px' : '16px 20px',
+        marginBottom: isMobile ? 20 : 32,
         display: 'flex',
-        alignItems: 'center',
-        gap: 16,
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'stretch' : 'center',
+        gap: isMobile ? 12 : 16,
       }}
     >
       <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
           <Text strong style={{ fontSize: 14 }}>FLOW USAGE</Text>
           <Text type="secondary" style={{ fontSize: 13 }}>
             {isUnlimited
@@ -141,6 +147,7 @@ function FlowUsageBar({ proFlows, isUnlimited, onBuyMore }: { proFlows: any; isU
         <Button
           type="primary"
           onClick={onBuyMore}
+          block={isMobile}
           style={{
             backgroundColor: '#3CB371',
             borderColor: '#3CB371',
@@ -159,12 +166,13 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { currentApp, proFlows, status } = usePro();
   const router = useRouter();
+  const isMobile = useIsMobile();
 
   const isProApp = currentApp === 'pro';
   const isUnlimited = status?.isUnlimited ?? false;
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '0' : '0 24px' }}>
       <AIBanner />
       {isProApp && (
         <FlowUsageBar

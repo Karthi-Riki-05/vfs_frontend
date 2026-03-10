@@ -44,6 +44,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSocket } from '@/hooks/useSocket';
 import { usePresence } from '@/hooks/usePresence';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import EmptyState from '@/components/common/EmptyState';
 
 // Colors
@@ -190,6 +191,7 @@ function resolveFileUrl(attachPath?: string, file?: ChatFile): string {
 export default function ChatPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const { socket, status: connectionStatus, reconnect } = useSocket();
   const { totalUnread, getUnreadCount, markGroupAsRead, refetch: refetchUnread } = useUnreadCount();
   const [groups, setGroups] = useState<ChatGroup[]>([]);
@@ -1503,14 +1505,14 @@ export default function ChatPage() {
 
   return (
     <>
-      <div style={{ display: 'flex', height: 'calc(100vh - 120px)', borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}`, background: '#fff' }}>
+      <div style={{ display: 'flex', height: isMobile ? 'calc(100vh - 88px)' : 'calc(100vh - 56px - 48px)', borderRadius: isMobile ? 0 : 12, overflow: 'hidden', border: isMobile ? 'none' : `1px solid ${BORDER}`, background: '#fff' }}>
         {/* ---- Left Panel: Accordion Sidebar ---- */}
         <div style={{
-          width: 280,
-          minWidth: 280,
+          width: isMobile ? '100%' : 280,
+          minWidth: isMobile ? '100%' : 280,
           background: '#fff',
-          borderRight: `1px solid ${BORDER}`,
-          display: 'flex',
+          borderRight: isMobile ? 'none' : `1px solid ${BORDER}`,
+          display: (isMobile && selectedGroupId) ? 'none' : 'flex',
           flexDirection: 'column',
         }}>
           {/* Search */}
@@ -1534,13 +1536,13 @@ export default function ChatPage() {
           </div>
 
           {/* New Chat button */}
-          <div style={{ padding: 12, borderTop: `1px solid ${BORDER}` }}>
+          <div className="safe-area-bottom" style={{ padding: 12, borderTop: `1px solid ${BORDER}` }}>
             <Button
               type="primary"
               icon={<PlusOutlined />}
               block
               onClick={() => setModalOpen(true)}
-              style={{ background: PRIMARY, borderColor: PRIMARY, borderRadius: 8 }}
+              style={{ background: PRIMARY, borderColor: PRIMARY, borderRadius: 8, minHeight: 44 }}
             >
               New Chat
             </Button>
@@ -1549,7 +1551,14 @@ export default function ChatPage() {
 
         {/* ---- Right Panel ---- */}
         <div
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', position: 'relative' }}
+          style={{
+            flex: 1,
+            display: (isMobile && !selectedGroupId) ? 'none' : 'flex',
+            flexDirection: 'column',
+            background: '#fff',
+            position: 'relative',
+            width: isMobile ? '100%' : undefined,
+          }}
           onDragOver={selectedGroupId ? handleDragOver : undefined}
           onDragLeave={selectedGroupId ? handleDragLeave : undefined}
           onDrop={selectedGroupId ? handleDrop : undefined}
@@ -1586,12 +1595,31 @@ export default function ChatPage() {
             <>
               {/* Chat header */}
               <div style={{
-                padding: '14px 20px',
+                padding: isMobile ? '10px 12px' : '14px 20px',
                 borderBottom: `1px solid ${BORDER}`,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
               }}>
+                {/* Back button — mobile only */}
+                {isMobile && (
+                  <div
+                    onClick={() => setSelectedGroupId(null)}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      fontSize: 18,
+                    }}
+                  >
+                    ←
+                  </div>
+                )}
                 <div style={{ position: 'relative' }}>
                   <div style={{
                     width: 36,
@@ -1726,7 +1754,7 @@ export default function ChatPage() {
                       >
                         <div
                           style={{
-                            maxWidth: '65%',
+                            maxWidth: isMobile ? '85%' : '65%',
                             padding: '10px 14px',
                             borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                             background: isFailed ? '#FFF1F0' : isMe ? PRIMARY : BORDER,
@@ -1855,12 +1883,13 @@ export default function ChatPage() {
               )}
 
               {/* Input area */}
-              <div style={{
-                padding: '12px 20px',
+              <div className="safe-area-bottom" style={{
+                padding: isMobile ? '8px 12px' : '12px 20px',
                 borderTop: `1px solid ${BORDER}`,
                 display: 'flex',
                 gap: 8,
                 alignItems: 'center',
+                ...(isMobile ? { position: 'sticky', bottom: 0, background: '#fff', zIndex: 5 } : {}),
               }}>
                 <input
                   type="file"
@@ -1937,7 +1966,7 @@ export default function ChatPage() {
           style={{
             position: 'fixed',
             inset: 0,
-            zIndex: 1000,
+            zIndex: 1150,
             background: 'rgba(0,0,0,0.85)',
             display: 'flex',
             alignItems: 'center',
