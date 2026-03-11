@@ -39,6 +39,16 @@ export default function EditorView({ flowId }: { flowId: string }) {
                     let xml = (!rawData || rawData === "{}" || (typeof rawData === 'object'))
                         ? defaultXml : rawData;
 
+                    // Load AI-generated XML if coming from AI assistant
+                    const aiXml = sessionStorage.getItem('ai_generated_xml');
+                    const aiName = sessionStorage.getItem('ai_generated_name');
+                    if (aiXml) {
+                        xml = aiXml;
+                        if (aiName) setFlowName(aiName);
+                        sessionStorage.removeItem('ai_generated_xml');
+                        sessionStorage.removeItem('ai_generated_name');
+                    }
+
 
                     const customBackendShapes = [
                         {

@@ -12,7 +12,6 @@ import {
   Dropdown,
   Tag,
   Button,
-  Tooltip,
   Typography,
 } from "antd";
 import {
@@ -118,27 +117,21 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
       {/* Right side */}
       <Space size={isMobile ? 8 : 16} align="center">
-        {/* AI Sparkle Button — hide on small mobile */}
-        {!isMobile && (
-          <Tooltip title="AI Assistant">
-            <Button
-              type="text"
-              style={{ padding: 0, width: 32, height: 32 }}
-              icon={
-                <span style={{ color: "#3CB371", fontSize: 18, fontWeight: "bold" }}>
-                  &#10022;
-                </span>
-              }
-            />
-          </Tooltip>
-        )}
-
-        {/* Chat Icon */}
-        <Link href="/dashboard/chat" style={{ display: "flex", alignItems: "center", position: "relative" }}>
+        {/* Chat Icon — mobile: navigate to /chat, desktop: toggle right column */}
+        <div
+          onClick={() => {
+            if (isMobile) {
+              router.push("/dashboard/chat");
+            } else {
+              (window as any).__toggleChat?.();
+            }
+          }}
+          style={{ display: "flex", alignItems: "center", position: "relative", cursor: "pointer" }}
+        >
           <Badge count={totalUnread} size="small" offset={[2, -2]} style={{ backgroundColor: "#3CB371" }}>
             <MessageOutlined style={{ fontSize: 20, color: "#8C8C8C" }} />
           </Badge>
-        </Link>
+        </div>
 
         {/* Notification Bell */}
         <NotificationDropdown />

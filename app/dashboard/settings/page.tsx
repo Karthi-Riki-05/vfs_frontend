@@ -3,9 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Avatar, Upload, message, Typography, Divider, Spin } from 'antd';
 import { UserOutlined, LockOutlined, UploadOutlined, MailOutlined, PhoneOutlined } from '@ant-design/icons';
+import { DeleteOutlined } from '@ant-design/icons';
 import SectionHeader from '@/components/common/SectionHeader';
 import api from '@/lib/axios';
 import { useAuth } from '@/hooks/useAuth';
+import { useAi } from '@/hooks/useAi';
 
 const { Text } = Typography;
 
@@ -17,6 +19,7 @@ export default function SettingsPage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
+  const { deleteAllData: deleteAiData } = useAi();
 
   useEffect(() => {
     api
@@ -339,6 +342,44 @@ export default function SettingsPage() {
             </Button>
           </Form.Item>
         </Form>
+      </div>
+
+      {/* AI Data & Privacy */}
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 12,
+          border: '1px solid #F0F0F0',
+          padding: '24px',
+          marginTop: 32,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: 600,
+            color: '#1A1A2E',
+            display: 'block',
+            marginBottom: 8,
+          }}
+        >
+          AI Data & Privacy
+        </Text>
+        <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 16 }}>
+          Manage data collected by Value Charts AI
+        </Text>
+        <Button
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => {
+            if (window.confirm('Delete all your AI conversation history? This cannot be undone.')) {
+              deleteAiData();
+            }
+          }}
+          style={{ borderRadius: 8 }}
+        >
+          Delete my AI data
+        </Button>
       </div>
     </div>
   );

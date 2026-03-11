@@ -4,19 +4,45 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <div style={{
       minHeight: '100vh',
+      width: '100%',
       display: 'flex',
-      justifyContent: 'center',
       alignItems: 'center',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      padding: 24,
+      justifyContent: 'center',
+      background: '#4CAF50',
+      fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+      padding: 16,
+      boxSizing: 'border-box',
     }}>
-      <div style={{ width: '100%', maxWidth: 440 }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <h1 style={{ color: '#fff', fontSize: 28, fontWeight: 700, margin: 0 }}>ValueChart</h1>
-          <p style={{ color: 'rgba(255,255,255,0.8)', margin: '8px 0 0' }}>AI-Powered Diagramming</p>
+      {/* Card */}
+      <div className="auth-card" style={{
+        width: '100%',
+        maxWidth: 420,
+        background: '#fff',
+        borderRadius: 20,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+        padding: '32px 28px',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+      }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+          <img
+            src="/images/image.png"
+            alt="Value Charts"
+            style={{ height: 64, width: 'auto', objectFit: 'contain' }}
+          />
         </div>
+
         {children}
       </div>
+
+      <style>{`
+        @media (max-width: 380px) {
+          .auth-card {
+            padding: 24px 16px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

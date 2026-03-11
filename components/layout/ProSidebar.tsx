@@ -149,7 +149,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse, isMobile
         {
             key: 'chat',
             icon: <MessageOutlined />,
-            label: <Link href="/dashboard/chat" onClick={handleNavClick}>Chat</Link>,
+            label: <span onClick={(e) => { e.preventDefault(); handleNavClick(); (window as any).__toggleChat?.(); }} style={{ cursor: 'pointer' }}>Chat</span>,
         },
         {
             type: 'divider' as const,
