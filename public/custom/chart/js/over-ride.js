@@ -867,6 +867,94 @@ function extendApp() {
             editorUi.installResizeHandler(this, true);
         };
 
+        // --- EXPOSE EditorUi INSTANCE ---
+        // Hook into EditorUi.prototype.createUi which is called during
+        // initialization of every EditorUi (and App, which extends it).
+        // This avoids wrapping the App constructor (which breaks static
+        // properties like App.main, App.initPluginCallback, etc.).
+        var _origCreateUi = EditorUi.prototype.createUi;
+        EditorUi.prototype.createUi = function () {
+            window.__editorUi = this;
+            console.log('[over-ride.js] EditorUi captured via createUi');
+            return _origCreateUi.apply(this, arguments);
+        };
+
+        // --- AI XML MERGE HANDLER ---
+        // Listens for 'mergeAiXml' postMessage from the parent window.
+        // Uses graph.importCells() to ADD new cells at a free position
+        // without replacing existing content or changing view settings.
+        // This is the same pattern as the ChatWindow clickFn above.
+        window.addEventListener('message', function (evt) {
+            if (!evt.data || typeof evt.data !== 'string') return;
+            try {
+                var msg = JSON.parse(evt.data);
+                if (msg.action !== 'mergeAiXml' || !msg.xml) return;
+
+                console.log('[over-ride.js] mergeAiXml received, xml length:', msg.xml.length);
+
+                var editorUi = window.__editorUi;
+                console.log('[over-ride.js] __editorUi:', !!editorUi);
+
+                if (!editorUi || !editorUi.editor || !editorUi.editor.graph) {
+                    console.warn('[over-ride.js] mergeAiXml: EditorUi not ready');
+                    (window.opener || window.parent).postMessage(
+                        JSON.stringify({ event: 'mergeAiXml', success: false }),
+                        '*'
+                    );
+                    return;
+                }
+
+                var graph = editorUi.editor.graph;
+
+                try {
+                    // Parse XML to cell objects using draw.io's built-in parser
+                    var cells = editorUi.stringToCells(msg.xml);
+                    console.log('[over-ride.js] stringToCells returned', cells ? cells.length : 0, 'cells');
+
+                    if (cells == null || cells.length === 0) {
+                        console.warn('[over-ride.js] mergeAiXml: No cells parsed from XML');
+                        return;
+                    }
+
+                    // Normalize cell bounding box to origin before inserting
+                    var bbox = graph.getBoundingBoxFromGeometry(cells);
+                    if (bbox) {
+                        editorUi.sidebar.graph.moveCells(cells, -bbox.x, -bbox.y);
+                    }
+
+                    // Find a position that doesn't overlap existing content
+                    var pt = graph.getFreeInsertPoint();
+                    console.log('[over-ride.js] Inserting at', pt.x, pt.y);
+
+                    // Add cells to the graph model — preserves everything existing
+                    graph.model.beginUpdate();
+                    try {
+                        graph.setSelectionCells(graph.importCells(cells, pt.x, pt.y));
+                    } finally {
+                        graph.model.endUpdate();
+                    }
+
+                    // Scroll to the newly inserted cells
+                    graph.scrollCellToVisible(graph.getSelectionCell());
+                    console.log('[over-ride.js] mergeAiXml: SUCCESS');
+
+                    // Notify parent of success
+                    (window.opener || window.parent).postMessage(
+                        JSON.stringify({ event: 'mergeAiXml', success: true }),
+                        '*'
+                    );
+                } catch (e) {
+                    console.error('[over-ride.js] mergeAiXml: Import failed', e);
+                    (window.opener || window.parent).postMessage(
+                        JSON.stringify({ event: 'mergeAiXml', success: false, error: e.message }),
+                        '*'
+                    );
+                }
+            } catch (e) {
+                // Ignore non-JSON messages
+            }
+        });
+
         // --- ADDED SAVE/LOAD LOGIC ---
         const urlParams = new URLSearchParams(window.location.search);
         const flowId = urlParams.get('id');

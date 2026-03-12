@@ -2,6 +2,7 @@
 
 import React from 'react';
 import EditorView from '@/components/flows/EditorView';
+import EditorFABs from '@/components/editor/EditorFABs';
 import { useParams } from 'next/navigation';
 import { message } from 'antd';
 
@@ -25,6 +26,7 @@ export default function FlowEditorPage() {
     return (
         <div style={{ height: '100vh', width: '100vw' }}>
             <EditorView flowId={id} />
+            <EditorFABs />
         </div>
     );
 }

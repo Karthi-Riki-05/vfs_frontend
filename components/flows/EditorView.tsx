@@ -21,6 +21,8 @@ export default function EditorView({ flowId }: { flowId: string }) {
 
         const handleMessage = async (event: MessageEvent) => {
             if (!event.data || typeof event.data !== 'string') return;
+            // Only handle messages from our own editor iframe
+            if (iframeRef.current && event.source !== iframeRef.current.contentWindow) return;
 
             try {
                 const msg = JSON.parse(event.data);
@@ -126,6 +128,27 @@ export default function EditorView({ flowId }: { flowId: string }) {
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
     }, [flowId, flowName]);
+
+    // Listen for AI-generated XML injection — MERGE into existing diagram.
+    // Sends 'mergeAiXml' postMessage to the draw.io iframe, which is handled
+    // by over-ride.js using graph.importCells() — the same approach draw.io's
+    // own AI chat uses. This ADDS cells at a free position without replacing
+    // existing content or changing view settings (grid, page, background).
+    useEffect(() => {
+        function handleAiXml(e: CustomEvent) {
+            const { xml } = e.detail || {};
+            console.log('[EditorView] aiXmlReady received, xml length:', xml?.length, 'iframe:', !!iframeRef.current?.contentWindow);
+            if (xml && iframeRef.current?.contentWindow) {
+                console.log('[EditorView] Sending mergeAiXml to iframe');
+                iframeRef.current.contentWindow.postMessage(JSON.stringify({
+                    action: 'mergeAiXml',
+                    xml,
+                }), '*');
+            }
+        }
+        window.addEventListener('aiXmlReady', handleAiXml as EventListener);
+        return () => window.removeEventListener('aiXmlReady', handleAiXml as EventListener);
+    }, []);
 
     const triggerExport = () => {
         iframeRef.current?.contentWindow?.postMessage(JSON.stringify({

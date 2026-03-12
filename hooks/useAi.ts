@@ -3,12 +3,16 @@ import { message } from 'antd';
 import { aiApi } from '@/api/ai.api';
 import { useSession } from 'next-auth/react';
 
-interface AiResponse {
+export interface AiResponse {
   message: string;
   templateName: string | null;
   openTemplate: boolean;
   drawioXml: string | null;
   suggestedSteps: string[];
+  // Diagram generation fields
+  intent?: string;
+  xml?: string | null;
+  fileName?: string;
 }
 
 export function useAi() {
@@ -96,6 +100,85 @@ export function useAi() {
     }
   }, [conversationId, loading]);
 
+  const generateDiagram = useCallback(async (text: string, existingXml?: string | null) => {
+    if (!text.trim() || loading) return null;
+
+    setLoading(true);
+    setResponse(null);
+
+    try {
+      const res = await aiApi.generateDiagram(text.trim(), existingXml, conversationId);
+      const d = res.data?.data || res.data || {};
+      const resp: AiResponse = {
+        message: d.message || 'Here is your diagram.',
+        templateName: d.templateName || 'AI Generated Flow',
+        openTemplate: !!d.xml,
+        drawioXml: d.xml || null,
+        xml: d.xml || null,
+        intent: d.intent || 'generate_diagram',
+        suggestedSteps: [],
+      };
+      setResponse(resp);
+      return resp;
+    } catch (err: any) {
+      const code = err?.response?.data?.error?.code;
+      if (code === 'CONSENT_REQUIRED') {
+        setHasConsent(false);
+        return null;
+      }
+      setResponse({
+        message: 'Failed to generate diagram. Please try again.',
+        templateName: null,
+        openTemplate: false,
+        drawioXml: null,
+        suggestedSteps: [],
+      });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [conversationId, loading]);
+
+  const generateDiagramFromDocument = useCallback(async (file: File) => {
+    if (loading) return null;
+
+    setLoading(true);
+    setResponse(null);
+
+    try {
+      const res = await aiApi.generateDiagramFromDocument(file);
+      const d = res.data?.data || res.data || {};
+      const resp: AiResponse = {
+        message: d.message || `Generated diagram from "${file.name}".`,
+        templateName: d.templateName || 'AI Generated Flow',
+        openTemplate: !!d.xml,
+        drawioXml: d.xml || null,
+        xml: d.xml || null,
+        intent: d.intent || 'generate_diagram_from_document',
+        fileName: d.fileName || file.name,
+        suggestedSteps: [],
+      };
+      setResponse(resp);
+      return resp;
+    } catch (err: any) {
+      const code = err?.response?.data?.error?.code;
+      if (code === 'CONSENT_REQUIRED') {
+        setHasConsent(false);
+        return null;
+      }
+      setResponse({
+        message: 'Failed to generate diagram from document. Please try again.',
+        templateName: null,
+        openTemplate: false,
+        drawioXml: null,
+        suggestedSteps: [],
+      });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [loading]);
+
   const startNewConversation = useCallback(() => {
     setConversationId(null);
     setResponse(null);
@@ -134,6 +217,8 @@ export function useAi() {
     acceptConsent,
     declineConsent,
     sendMessage,
+    generateDiagram,
+    generateDiagramFromDocument,
     startNewConversation,
     deleteAllData,
     refreshContext,

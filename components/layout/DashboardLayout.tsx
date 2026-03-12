@@ -80,11 +80,62 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setChatFullView(prev => !prev);
   };
 
-  // Editor page: render full-screen without sidebar/header
+  // Editor page: render full-screen without sidebar/header, but include AI + Chat
   if (isEditorPage) {
+    const showEditorChat = chatOpen && !isMobile;
+    const editorChatWidth = showEditorChat && !chatFullView ? 430 : 0;
+
     return (
       <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-        {children}
+        <div style={{
+          width: chatFullView && chatOpen ? 0 : `calc(100% - ${editorChatWidth}px)`,
+          height: '100%',
+          transition: 'width 0.2s',
+          overflow: 'hidden',
+          display: chatFullView && chatOpen ? 'none' : undefined,
+        }}>
+          {children}
+        </div>
+
+        {/* AI Assistant for editor */}
+        <AIAssistant contentLeft={0} contentRight={editorChatWidth} />
+
+        {/* Right chat column — normal mode */}
+        {showEditorChat && !chatFullView && (
+          <div style={{
+            width: 430,
+            height: '100vh',
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            zIndex: 50,
+          }}>
+            <RightChatColumn
+              onClose={handleChatClose}
+              onFullView={handleChatFullView}
+              isFullView={false}
+            />
+          </div>
+        )}
+
+        {/* Full view chat */}
+        {chatOpen && chatFullView && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 60,
+            background: '#fff',
+          }}>
+            <RightChatColumn
+              onClose={handleChatClose}
+              onFullView={handleChatFullView}
+              isFullView={true}
+            />
+          </div>
+        )}
       </div>
     );
   }

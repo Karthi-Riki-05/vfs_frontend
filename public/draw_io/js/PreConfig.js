@@ -15,7 +15,7 @@ window.DRAWIO_CONFIG =
 {
     "ui": "sketch",
     "allowAi": true,
-    "enableAi": true,
+    // "enableAi": true,
     "defaultFonts": ["Inter", "Roboto"],
     "plugins": ["ai"],
     "settings": {

@@ -1,26 +1,29 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Button, Spin } from 'antd';
+import { Spin, message as antdMessage } from 'antd';
 import {
   SendOutlined,
   CloseOutlined,
   ExpandOutlined,
   CompressOutlined,
   SearchOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { useAi } from '@/hooks/useAi';
 import { useIsMobile } from '@/hooks/useMediaQuery';
+import { usePathname } from 'next/navigation';
 import AIConsentModal from './AIConsentModal';
+import DiagramPreview from './DiagramPreview';
+import { flowsApi } from '@/api/flows.api';
 
 type ViewState = 'collapsed' | 'half' | 'fullscreen';
 
 const PRIMARY = '#3CB371';
 
-const BrainIcon = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z" />
-    <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" />
+const GeminiIcon = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12Z" />
   </svg>
 );
 
@@ -35,6 +38,22 @@ const SUGGESTION_CHIPS = [
   'I forgot my password, what do I do?',
 ];
 
+const DIAGRAM_KEYWORDS = [
+  'flowchart', 'flow chart', 'diagram', 'chart', 'map', 'process flow',
+  'workflow', 'schema', 'er diagram', 'org chart', 'vsm', 'value stream',
+  'sequence diagram', 'swimlane', 'bpmn', 'network diagram', 'architecture',
+  'class diagram', 'mind map', 'create a', 'generate a', 'draw a', 'make a',
+  'design a', 'show me a', 'build a',
+];
+
+function isDiagramRequest(message: string): boolean {
+  const lower = message.toLowerCase();
+  const hasDiagramWord = DIAGRAM_KEYWORDS.some(kw => lower.includes(kw));
+  // Exclude pure informational questions
+  const isPureQuestion = /^(what is|what are|why|who|where|when|explain|tell me about|how does|how do i|how can i|what does)/i.test(message.trim());
+  return hasDiagramWord && !isPureQuestion;
+}
+
 interface AIAssistantProps {
   contentLeft?: number;
   contentRight?: number;
@@ -48,27 +67,72 @@ export default function AIAssistant({ contentLeft = 0, contentRight = 0 }: AIAss
     acceptConsent,
     declineConsent,
     sendMessage,
+    generateDiagram,
+    generateDiagramFromDocument,
     startNewConversation,
     refreshContext,
   } = useAi();
   const isMobile = useIsMobile();
+  const pathname = usePathname() || '';
 
   const [state, setState] = useState<ViewState>('collapsed');
   const [input, setInput] = useState('');
   const [lastUserMessage, setLastUserMessage] = useState('');
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showGreeting, setShowGreeting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Detect if we're in the editor page
+  const isInEditor = /^\/dashboard\/flows\/(?!new$)[a-zA-Z0-9_-]+$/.test(pathname);
+
+  // Get the XML from response (supports both formats)
+  const responseXml = response?.xml || response?.drawioXml || null;
 
   const visibleChips = useMemo(() => {
     const shuffled = [...SUGGESTION_CHIPS].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 4);
   }, []);
 
+  // Dispatch AI panel open/close events for FAB hide/show
   useEffect(() => {
     if (state === 'half' || state === 'fullscreen') {
+      window.dispatchEvent(new CustomEvent('aiPanelOpened'));
       setTimeout(() => inputRef.current?.focus(), 100);
+    } else {
+      window.dispatchEvent(new CustomEvent('aiPanelClosed'));
     }
   }, [state]);
+
+  // Mobile greeting bubble — show once per session
+  useEffect(() => {
+    if (!isMobile) return;
+    const seen = sessionStorage.getItem('ai_greeting_seen');
+    if (seen) return;
+    const showTimer = setTimeout(() => setShowGreeting(true), 1000);
+    const hideTimer = setTimeout(() => {
+      setShowGreeting(false);
+      sessionStorage.setItem('ai_greeting_seen', '1');
+    }, 11000);
+    return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
+  }, [isMobile]);
+
+  // Listen for openAIAssistant event from EditorFABs
+  useEffect(() => {
+    function handleOpenEvent() {
+      if (hasConsent === false || hasConsent === null) {
+        setShowConsentModal(true);
+        return;
+      }
+      refreshContext();
+      setState('half');
+    }
+
+    window.addEventListener('openAIAssistant', handleOpenEvent);
+    return () => {
+      window.removeEventListener('openAIAssistant', handleOpenEvent);
+    };
+  }, [hasConsent, refreshContext]);
 
   function handlePillClick() {
     if (hasConsent === false || hasConsent === null) {
@@ -98,7 +162,49 @@ export default function AIAssistant({ contentLeft = 0, contentRight = 0 }: AIAss
     if (!text || loading) return;
     setLastUserMessage(text);
     setInput('');
-    await sendMessage(text);
+
+    // Detect diagram intent — use dedicated endpoint for better XML quality
+    if (isDiagramRequest(text)) {
+      await generateDiagram(text);
+    } else {
+      await sendMessage(text);
+    }
+  }
+
+  async function handleDocumentUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    setLastUserMessage(`Analyzing "${file.name}"...`);
+    await generateDiagramFromDocument(file);
+  }
+
+  async function handleInsertDiagram(xml: string) {
+    console.log('[AIAssistant] handleInsertDiagram called, isInEditor:', isInEditor, 'pathname:', pathname, 'xml length:', xml?.length);
+    if (isInEditor) {
+      // Inject into live canvas
+      console.log('[AIAssistant] Dispatching aiXmlReady event');
+      window.dispatchEvent(new CustomEvent('aiXmlReady', { detail: { xml } }));
+      antdMessage.success('Diagram applied to canvas');
+    } else {
+      // Create a new flow and open the editor with the AI XML preloaded
+      try {
+        const name = response?.templateName || 'AI Generated Flow';
+        sessionStorage.setItem('ai_generated_xml', xml);
+        sessionStorage.setItem('ai_generated_name', name);
+        const res = await flowsApi.create({ name });
+        const newFlow = res.data?.data || res.data;
+        if (!newFlow?.id) throw new Error('No flow ID returned');
+        window.open(`/dashboard/flows/${newFlow.id}`, '_blank');
+      } catch {
+        antdMessage.error('Failed to create flow. Please try again.');
+      }
+    }
+  }
+
+  function handleReloadDiagram(prompt: string) {
+    handleSubmit(prompt);
   }
 
   async function handleConsentAccept() {
@@ -132,12 +238,39 @@ export default function AIAssistant({ contentLeft = 0, contentRight = 0 }: AIAss
         margin: isFS ? '0 auto' : undefined,
         transition: 'border-color 0.2s',
       }}>
+        {/* Document upload button — only in editor */}
+        {isInEditor && (
+          <label
+            style={{
+              cursor: 'pointer',
+              color: '#BFBFBF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              transition: 'color 0.2s',
+            }}
+            title="Upload document to generate diagram"
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = PRIMARY; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#BFBFBF'; }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              accept=".pdf,.txt,.md,.docx,.doc"
+              onChange={handleDocumentUpload}
+            />
+            <FileTextOutlined style={{ fontSize: 15 }} />
+          </label>
+        )}
+
         <input
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-          placeholder="Ask me anything..."
+          placeholder={isInEditor ? "Describe a diagram or ask anything..." : "Ask me anything..."}
           style={{
             flex: 1,
             background: 'transparent',
@@ -238,7 +371,7 @@ export default function AIAssistant({ contentLeft = 0, contentRight = 0 }: AIAss
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             marginBottom: 12, boxShadow: '0 4px 12px rgba(60,179,113,0.3)',
           }}>
-            <BrainIcon size={22} />
+            <GeminiIcon size={22} color="#fff" />
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1A1A2E', marginBottom: 4 }}>
             Hi, I&apos;m Value Charts AI.
@@ -335,106 +468,59 @@ export default function AIAssistant({ contentLeft = 0, contentRight = 0 }: AIAss
           </div>
         ) : response ? (
           <div>
-            {/* AI response */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+            {/* AI response bubble (text part) */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: responseXml ? 0 : 12 }}>
               <div style={{
                 width: 32, height: 32, borderRadius: '50%', background: PRIMARY,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0, marginTop: 2,
               }}>
-                <BrainIcon size={14} />
+                <GeminiIcon size={14} color="#fff" />
               </div>
-              <div style={{
-                flex: 1,
-                background: '#fff',
-                borderRadius: '12px 12px 12px 2px',
-                padding: '10px 14px',
-                border: '1px solid #F0F0F0',
-              }}>
-                <p style={{
-                  color: '#1A1A2E',
-                  fontSize: isFS ? 14 : 13,
-                  lineHeight: 1.7,
-                  margin: 0,
-                  whiteSpace: 'pre-wrap' as const,
-                }}>
-                  {response.openTemplate && response.templateName ? (
-                    <>
-                      {response.message || 'Here is your diagram:'}{' '}
-                      <span style={{ color: PRIMARY, fontWeight: 600 }}>{response.templateName}</span>
-                    </>
-                  ) : (
-                    response.message
-                  )}
-                </p>
-              </div>
-            </div>
-
-            {/* Template card */}
-            {response.openTemplate && (
-              <div style={{
-                marginLeft: 42,
-                background: '#fff',
-                borderRadius: 12,
-                padding: isFS ? 16 : 12,
-                border: '1px solid #F0F0F0',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ color: '#595959', fontSize: 13, fontWeight: 500 }}>{response.templateName}</span>
-                  <Button
-                    type="primary"
-                    size="small"
-                    style={{
-                      borderRadius: 8,
-                      backgroundColor: PRIMARY,
-                      borderColor: PRIMARY,
-                      fontWeight: 500,
-                      fontSize: 12,
-                    }}
-                    onClick={() => {
-                      if (response.drawioXml) {
-                        sessionStorage.setItem('ai_generated_xml', response.drawioXml);
-                        sessionStorage.setItem('ai_generated_name', response.templateName || 'AI Generated Flow');
-                      }
-                      window.open('/dashboard/flows/new?source=ai', '_blank');
-                      handleCollapse();
-                    }}
-                  >
-                    Open in Editor &rarr;
-                  </Button>
-                </div>
-                <div style={{
-                  height: isFS ? 140 : 90,
-                  background: '#FAFAFA',
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid #F0F0F0',
-                }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, marginBottom: 2 }}>&#128202;</div>
-                    <span style={{ fontSize: 11, color: '#8C8C8C' }}>{response.templateName}</span>
-                  </div>
-                </div>
-
-                {response.suggestedSteps && response.suggestedSteps.length > 0 && (
-                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #F0F0F0' }}>
-                    {response.suggestedSteps.map((step, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: '#595959', marginBottom: 4 }}>
-                        <span style={{
-                          width: 16, height: 16, borderRadius: '50%', background: '#E8F5E9', color: PRIMARY,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                          fontSize: 9, fontWeight: 600, marginTop: 1,
-                        }}>{i + 1}</span>
-                        <span>{step}</span>
-                      </div>
-                    ))}
+              <div style={{ flex: 1 }}>
+                {/* Text message — hide when diagram preview is shown (it displays its own message) */}
+                {!responseXml && !(response.openTemplate && response.drawioXml) && (
+                  <div style={{
+                    background: '#fff',
+                    borderRadius: '12px 12px 12px 2px',
+                    padding: '10px 14px',
+                    border: '1px solid #F0F0F0',
+                  }}>
+                    <p style={{
+                      color: '#1A1A2E',
+                      fontSize: isFS ? 14 : 13,
+                      lineHeight: 1.7,
+                      margin: 0,
+                      whiteSpace: 'pre-wrap' as const,
+                    }}>
+                      {response.message}
+                    </p>
                   </div>
                 )}
+
+                {/* ── DIAGRAM PREVIEW with visual thumbnail ── */}
+                {responseXml ? (
+                  <DiagramPreview
+                    xml={responseXml}
+                    aiMessage={response.message || 'Here is your diagram.'}
+                    prompt={lastUserMessage}
+                    isInEditor={isInEditor}
+                    onInsert={handleInsertDiagram}
+                    onReload={handleReloadDiagram}
+                  />
+                ) : response.openTemplate && response.drawioXml ? (
+                  /* Legacy chat responses that contain drawioXml */
+                  <DiagramPreview
+                    xml={response.drawioXml}
+                    aiMessage={response.message || 'Here is your diagram.'}
+                    prompt={lastUserMessage}
+                    isInEditor={isInEditor}
+                    onInsert={handleInsertDiagram}
+                    onReload={handleReloadDiagram}
+                  />
+                ) : null}
               </div>
-            )}
+            </div>
           </div>
         ) : null}
       </div>
@@ -496,39 +582,78 @@ export default function AIAssistant({ contentLeft = 0, contentRight = 0 }: AIAss
               justifyContent: 'center',
               flexShrink: 0,
             }}>
-              <BrainIcon size={14} />
+              <GeminiIcon size={14} color="#fff" />
             </div>
             <span>Hi, I&apos;m Value Charts AI. I am here to help you...</span>
           </button>
           </div>
         )}
 
-        {/* MOBILE: fixed FAB at bottom-right */}
+        {/* MOBILE: fixed FAB at bottom-right with greeting bubble */}
         {isMobile && (
-          <button
-            onClick={handlePillClick}
-            aria-label="Open AI Assistant"
-            style={{
-              position: 'fixed',
-              bottom: 24,
-              right: 20,
-              zIndex: 200,
-              width: 56,
-              height: 56,
-              borderRadius: '50%',
-              background: PRIMARY,
-              color: '#fff',
-              border: 'none',
-              boxShadow: '0 4px 16px rgba(60,179,113,0.4)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.2s',
-            }}
-          >
-            <BrainIcon size={24} />
-          </button>
+          <div style={{ position: 'fixed', bottom: 24, right: 20, zIndex: 200 }}>
+            {/* Greeting bubble */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 56,
+                right: 0,
+                background: '#fff',
+                borderRadius: 16,
+                padding: '10px 16px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+                border: '1px solid #E8E8E8',
+                whiteSpace: 'nowrap',
+                fontSize: 13,
+                fontWeight: 500,
+                color: '#1A1A2E',
+                opacity: showGreeting ? 1 : 0,
+                transform: showGreeting ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.95)',
+                transition: 'opacity 0.3s ease, transform 0.3s ease',
+                pointerEvents: showGreeting ? 'auto' : 'none',
+              }}
+              onClick={() => {
+                setShowGreeting(false);
+                sessionStorage.setItem('ai_greeting_seen', '1');
+                handlePillClick();
+              }}
+            >
+              Hi, I am Value Chart AI 👋
+              {/* Arrow pointing down */}
+              <span style={{
+                position: 'absolute',
+                bottom: -6,
+                right: 20,
+                width: 12,
+                height: 12,
+                background: '#fff',
+                border: '1px solid #E8E8E8',
+                borderTop: 'none',
+                borderLeft: 'none',
+                transform: 'rotate(45deg)',
+              }} />
+            </div>
+            <button
+              onClick={handlePillClick}
+              aria-label="Open AI Assistant"
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                background: PRIMARY,
+                color: '#fff',
+                border: 'none',
+                boxShadow: '0 4px 16px rgba(60,179,113,0.4)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s',
+              }}
+            >
+              <GeminiIcon size={20} />
+            </button>
+          </div>
         )}
 
         <AIConsentModal
@@ -551,7 +676,11 @@ export default function AIAssistant({ contentLeft = 0, contentRight = 0 }: AIAss
             position: 'fixed',
             ...(isMobile
               ? { top: 56, bottom: 0, left: 0, right: 0 }
-              : { bottom: 0, left: contentLeft, right: contentRight }
+              : {
+                  bottom: 0,
+                  left: `calc(${contentLeft}px + (100% - ${contentLeft}px - ${contentRight}px - 460px) / 2)`,
+                  width: 460,
+                }
             ),
             zIndex: isMobile ? 200 : 100,
             height: isMobile ? undefined : '40vh',
@@ -563,7 +692,7 @@ export default function AIAssistant({ contentLeft = 0, contentRight = 0 }: AIAss
             boxShadow: isMobile ? 'none' : '0 -4px 24px rgba(0,0,0,0.1)',
             background: '#fff',
             borderTop: isMobile ? 'none' : '1px solid #F0F0F0',
-            transition: 'left 0.2s, right 0.2s',
+            transition: 'left 0.2s, right 0.2s, width 0.2s',
           }}
         >
           {renderHeader(isMobile)}
@@ -596,14 +725,15 @@ export default function AIAssistant({ contentLeft = 0, contentRight = 0 }: AIAss
             position: 'fixed',
             top: 56,
             bottom: 0,
-            left: contentLeft,
-            right: contentRight,
+            left: `calc(${contentLeft}px + (100% - ${contentLeft}px - ${contentRight}px - 480px) / 2)`,
+            width: 480,
             zIndex: 100,
             background: '#fff',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            transition: 'left 0.2s, right 0.2s',
+            transition: 'left 0.2s, width 0.2s',
+            boxShadow: '0 0 24px rgba(0,0,0,0.08)',
           }}
         >
           {renderHeader(true)}
