@@ -907,8 +907,25 @@ function extendApp() {
                 var graph = editorUi.editor.graph;
 
                 try {
+                    // Handle <mxfile><diagram>compressed</diagram></mxfile> format
+                    // (used by template files) by extracting <mxGraphModel> first.
+                    var xmlToProcess = msg.xml;
+                    try {
+                        var tmpDoc = mxUtils.parseXml(msg.xml);
+                        var tmpRoot = tmpDoc.documentElement;
+                        if (tmpRoot && tmpRoot.nodeName === 'mxfile') {
+                            var extracted = Editor.extractGraphModel(tmpRoot);
+                            if (extracted) {
+                                xmlToProcess = mxUtils.getXml(extracted);
+                                console.log('[over-ride.js] Extracted mxGraphModel from mxfile');
+                            }
+                        }
+                    } catch (parseErr) {
+                        console.log('[over-ride.js] XML format detection fallback, using raw xml');
+                    }
+
                     // Parse XML to cell objects using draw.io's built-in parser
-                    var cells = editorUi.stringToCells(msg.xml);
+                    var cells = editorUi.stringToCells(xmlToProcess);
                     console.log('[over-ride.js] stringToCells returned', cells ? cells.length : 0, 'cells');
 
                     if (cells == null || cells.length === 0) {

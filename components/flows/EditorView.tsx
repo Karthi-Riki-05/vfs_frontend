@@ -3,7 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getFlowById } from '@/lib/flow';
 import { Spin, Input, Button, message, Tag } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined, LockOutlined, EditOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, SaveOutlined, LockOutlined, EditOutlined, AppstoreOutlined } from '@ant-design/icons';
+import TemplateBrowser from '@/components/templates/TemplateBrowser';
 
 export default function EditorView({ flowId }: { flowId: string }) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -12,6 +13,7 @@ export default function EditorView({ flowId }: { flowId: string }) {
     const [flowName, setFlowName] = useState("");
     const [permission, setPermission] = useState<string | null>(null);
     const permRef = useRef<string | null>(null);
+    const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false);
 
     const isReadOnly = permission === 'view';
     const isSharedEdit = permission === 'edit';
@@ -223,6 +225,17 @@ export default function EditorView({ flowId }: { flowId: string }) {
                 />
 
                 <div style={{ flex: 1 }} />
+
+                {!isReadOnly && (
+                    <Button
+                        icon={<AppstoreOutlined />}
+                        onClick={() => setTemplateBrowserOpen(true)}
+                        type="text"
+                        style={{ fontSize: 13, color: '#555' }}
+                    >
+                        Templates
+                    </Button>
+                )}
             </div>
 
             {/* IFRAME EDITOR */}
@@ -239,6 +252,23 @@ export default function EditorView({ flowId }: { flowId: string }) {
                     onLoad={() => setLoading(false)}
                 />
             </div>
+
+            {/* Template Browser — merge into canvas */}
+            <TemplateBrowser
+                isOpen={templateBrowserOpen}
+                onClose={() => setTemplateBrowserOpen(false)}
+                onInsert={(xml: string, name: string) => {
+                    // Use the same mergeAiXml mechanism to insert template into canvas
+                    if (iframeRef.current?.contentWindow) {
+                        iframeRef.current.contentWindow.postMessage(JSON.stringify({
+                            action: 'mergeAiXml',
+                            xml,
+                        }), '*');
+                        message.success(`Template "${name}" inserted`);
+                    }
+                    setTemplateBrowserOpen(false);
+                }}
+            />
         </div>
     );
 }
