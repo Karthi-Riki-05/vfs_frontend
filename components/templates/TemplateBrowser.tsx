@@ -2,15 +2,19 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchTemplates, fetchTemplateXml, TemplateItem } from '@/lib/templates';
+import { useIsMobile } from '@/hooks/useMediaQuery';
+import { TEMPLATE_CATEGORIES } from '@/lib/templateCategories';
 
 interface TemplateBrowserProps {
   isOpen: boolean;
   onClose: () => void;
   onInsert: (xml: string, name: string) => void;
   initialCategory?: string;
+  showStartBlank?: boolean;
+  onStartBlank?: () => void;
 }
 
-export default function TemplateBrowser({ isOpen, onClose, onInsert, initialCategory }: TemplateBrowserProps) {
+export default function TemplateBrowser({ isOpen, onClose, onInsert, initialCategory, showStartBlank = false, onStartBlank }: TemplateBrowserProps) {
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [categories, setCategories] = useState<string[]>(['All']);
   const [activeCategory, setActiveCategory] = useState('All');
@@ -19,13 +23,20 @@ export default function TemplateBrowser({ isOpen, onClose, onInsert, initialCate
   const [selected, setSelected] = useState<TemplateItem | null>(null);
   const [inserting, setInserting] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [mobileOpenCat, setMobileOpenCat] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!isOpen) return;
     setLoading(true);
     setSearch('');
-    if (initialCategory) setActiveCategory(initialCategory);
-    else setActiveCategory('All');
+    if (initialCategory) {
+      setActiveCategory(initialCategory);
+      setMobileOpenCat(initialCategory !== 'All' ? initialCategory : null);
+    } else {
+      setActiveCategory('All');
+      setMobileOpenCat(null);
+    }
 
     fetchTemplates()
       .then((data) => {
@@ -106,37 +117,44 @@ export default function TemplateBrowser({ isOpen, onClose, onInsert, initialCate
           inset: 0,
           zIndex: 1001,
           display: 'flex',
-          alignItems: 'center',
+          alignItems: isMobile ? 'flex-end' : 'center',
           justifyContent: 'center',
-          padding: 24,
+          padding: isMobile ? 0 : 24,
           pointerEvents: 'none',
         }}
       >
         <div
           style={{
             background: '#fff',
-            borderRadius: 16,
+            borderRadius: isMobile ? '20px 20px 0 0' : 16,
             boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            width: 900,
-            maxWidth: '95vw',
-            height: 620,
+            width: isMobile ? '100%' : 900,
+            maxWidth: isMobile ? '100%' : '95vw',
+            height: isMobile ? '90vh' : 620,
             maxHeight: '90vh',
             pointerEvents: 'all',
             animation: closing
-              ? 'tmplModalOut 0.22s cubic-bezier(0.4,0,1,1) forwards'
-              : 'tmplModalIn 0.28s cubic-bezier(0.16,1,0.3,1) forwards',
+              ? (isMobile ? 'tmplSheetOut 0.22s ease forwards' : 'tmplModalOut 0.22s cubic-bezier(0.4,0,1,1) forwards')
+              : (isMobile ? 'tmplSheetIn 0.25s ease forwards' : 'tmplModalIn 0.28s cubic-bezier(0.16,1,0.3,1) forwards'),
           }}
         >
+          {/* Drag handle (mobile) */}
+          {isMobile && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 0' }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: '#D9D9D9' }}/>
+            </div>
+          )}
+
           {/* Header */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '16px 20px',
+              padding: isMobile ? '10px 16px 12px' : '16px 20px',
               borderBottom: '1px solid #f0f0f0',
               flexShrink: 0,
             }}
@@ -170,182 +188,298 @@ export default function TemplateBrowser({ isOpen, onClose, onInsert, initialCate
             </button>
           </div>
 
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            {/* Left sidebar — categories */}
-            <div
-              style={{
-                width: 180,
-                flexShrink: 0,
-                borderRight: '1px solid #f0f0f0',
-                paddingTop: 12,
-                overflowY: 'auto',
-              }}
-            >
+          {isMobile ? (
+            /* ── Mobile: accordion view ── */
+            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
               {/* Search */}
-              <div style={{ padding: '0 12px', marginBottom: 12 }}>
+              <div style={{ padding: '12px 16px 8px', position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>
                 <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    background: '#f8f8f8',
-                    border: '1px solid #e8e8e8',
-                    borderRadius: 8,
-                    padding: '6px 10px',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    background: '#f8f8f8', border: '1px solid #e8e8e8',
+                    borderRadius: 10, padding: '8px 12px',
                   }}
                 >
                   <svg width={14} height={14} fill="none" stroke="#999" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                   </svg>
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search..."
+                    placeholder="Search templates..."
                     style={{
-                      flex: 1,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      fontSize: 12,
-                      color: '#333',
+                      flex: 1, background: 'transparent', border: 'none',
+                      outline: 'none', fontSize: 14, color: '#333',
                     }}
                   />
+                  {search && (
+                    <button
+                      onClick={() => setSearch('')}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#999', fontSize: 16, lineHeight: 1 }}
+                    >×</button>
+                  )}
                 </div>
               </div>
 
-              {/* Category list */}
-              {categories.map((cat) => {
-                const count = cat === 'All' ? templates.length : templates.filter((t) => t.category === cat).length;
-                const isActive = activeCategory === cat;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '8px 16px',
-                      fontSize: 13,
-                      border: 'none',
-                      background: isActive ? '#f0faf4' : 'transparent',
-                      color: isActive ? '#2e7d32' : '#555',
-                      fontWeight: isActive ? 600 : 400,
-                      cursor: 'pointer',
-                      borderRight: isActive ? '2px solid #3CB371' : '2px solid transparent',
-                      transition: 'all 0.15s',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.background = '#fafafa';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {cat}
-                    </span>
-                    <span style={{ fontSize: 11, color: '#aaa', flexShrink: 0, marginLeft: 4 }}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Right — template grid */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
               {loading ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '100%',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      border: '2px solid #3CB371',
-                      borderTopColor: 'transparent',
-                      borderRadius: '50%',
-                      animation: 'tmplSpin 0.6s linear infinite',
-                    }}
-                  />
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+                  <div style={{
+                    width: 24, height: 24, border: '2px solid #3CB371',
+                    borderTopColor: 'transparent', borderRadius: '50%',
+                    animation: 'tmplSpin 0.6s linear infinite',
+                  }}/>
                 </div>
-              ) : filtered.length === 0 ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '100%',
-                    color: '#999',
-                    fontSize: 14,
-                  }}
-                >
-                  No templates found
+              ) : search ? (
+                /* Search results — 2-col grid */
+                <div style={{ padding: '8px 12px 16px' }}>
+                  {filtered.length === 0 ? (
+                    <p style={{ textAlign: 'center', color: '#999', fontSize: 14, padding: '32px 0' }}>
+                      No templates found
+                    </p>
+                  ) : (
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10,
+                    }}>
+                      {filtered.map((tmpl) => (
+                        <MobileTemplateCard key={tmpl.id} template={tmpl} onClick={() => setSelected(tmpl)} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                    gap: 14,
-                  }}
-                >
-                  {filtered.map((template) => (
-                    <TemplateCard
-                      key={template.id}
-                      template={template}
-                      onClick={() => setSelected(template)}
-                    />
-                  ))}
+                /* Accordion categories */
+                <div style={{ padding: '4px 12px 16px' }}>
+                  {categories.filter(c => c !== 'All').map((cat) => {
+                    const catTemplates = templates.filter(t => t.category === cat);
+                    if (catTemplates.length === 0) return null;
+                    const isOpen = mobileOpenCat === cat;
+                    const catMeta = TEMPLATE_CATEGORIES.find(c => c.category === cat);
+                    return (
+                      <div key={cat} style={{
+                        marginBottom: 8, background: '#fff',
+                        border: isOpen ? '1px solid #D1FAE5' : '1px solid #F0F0F0',
+                        borderRadius: 14, overflow: 'hidden',
+                        transition: 'border-color 0.2s',
+                      }}>
+                        <button
+                          onClick={() => setMobileOpenCat(isOpen ? null : cat)}
+                          style={{
+                            width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                            padding: '14px 14px', textAlign: 'left',
+                            background: isOpen ? '#F0FFF4' : 'transparent',
+                            border: 'none', cursor: 'pointer',
+                            transition: 'background 0.2s',
+                          }}
+                        >
+                          <div style={{
+                            width: 40, height: 40, borderRadius: 12,
+                            background: catMeta?.color || '#f0f0f0', flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {catMeta ? (
+                              <div style={{ width: 22, height: 22 }}>
+                                {catMeta.icon(catMeta.iconColor)}
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: 18 }}>📁</span>
+                            )}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: '#333', display: 'block' }}>
+                              {cat}
+                            </span>
+                            <span style={{ fontSize: 11, color: '#999' }}>
+                              {catTemplates.length} template{catTemplates.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <svg
+                            style={{
+                              width: 18, height: 18, color: isOpen ? '#3CB371' : '#bbb', flexShrink: 0,
+                              transition: 'transform 0.2s ease, color 0.2s',
+                              transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                            }}
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+                          </svg>
+                        </button>
+                        {isOpen && (
+                          <div style={{
+                            borderTop: '1px solid #E8F5E9', padding: '10px 10px 12px',
+                            animation: 'tmplAccSlide 0.2s ease forwards',
+                          }}>
+                            <div style={{
+                              display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10,
+                            }}>
+                              {catTemplates.map((tmpl) => (
+                                <MobileTemplateCard key={tmpl.id} template={tmpl} onClick={() => setSelected(tmpl)} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
-          </div>
+          ) : (
+            /* ── Desktop: sidebar + grid ── */
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+              {/* Left sidebar — categories */}
+              <div
+                style={{
+                  width: 180, flexShrink: 0, borderRight: '1px solid #f0f0f0',
+                  paddingTop: 12, overflowY: 'auto',
+                }}
+              >
+                {/* Search */}
+                <div style={{ padding: '0 12px', marginBottom: 12 }}>
+                  <div
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      background: '#f8f8f8', border: '1px solid #e8e8e8',
+                      borderRadius: 8, padding: '6px 10px',
+                    }}
+                  >
+                    <svg width={14} height={14} fill="none" stroke="#999" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search..."
+                      style={{
+                        flex: 1, background: 'transparent', border: 'none',
+                        outline: 'none', fontSize: 12, color: '#333',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Category list */}
+                {categories.map((cat) => {
+                  const count = cat === 'All' ? templates.length : templates.filter((t) => t.category === cat).length;
+                  const isActive = activeCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setActiveCategory(cat)}
+                      style={{
+                        width: '100%', textAlign: 'left', padding: '8px 16px',
+                        fontSize: 13, border: 'none',
+                        background: isActive ? '#f0faf4' : 'transparent',
+                        color: isActive ? '#2e7d32' : '#555',
+                        fontWeight: isActive ? 600 : 400, cursor: 'pointer',
+                        borderRight: isActive ? '2px solid #3CB371' : '2px solid transparent',
+                        transition: 'all 0.15s',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      }}
+                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = '#fafafa'; }}
+                      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {cat}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#aaa', flexShrink: 0, marginLeft: 4 }}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Right — template grid */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+                {loading ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                    <div style={{
+                      width: 24, height: 24, border: '2px solid #3CB371',
+                      borderTopColor: 'transparent', borderRadius: '50%',
+                      animation: 'tmplSpin 0.6s linear infinite',
+                    }}/>
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    height: '100%', color: '#999', fontSize: 14,
+                  }}>
+                    No templates found
+                  </div>
+                ) : (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                    gap: 14,
+                  }}>
+                    {filtered.map((template) => (
+                      <TemplateCard
+                        key={template.id}
+                        template={template}
+                        onClick={() => setSelected(template)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Footer */}
           <div
             style={{
-              padding: '10px 20px',
+              padding: isMobile ? '8px 16px' : '10px 20px',
+              paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : '10px',
               borderTop: '1px solid #f0f0f0',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              justifyContent: isMobile ? 'center' : 'space-between',
               flexShrink: 0,
               background: '#fafafa',
+              gap: 8,
             }}
           >
-            <span style={{ fontSize: 12, color: '#aaa' }}>
-              {filtered.length} template{filtered.length !== 1 ? 's' : ''}
-            </span>
-            <button
-              onClick={handleClose}
-              style={{
-                padding: '6px 16px',
-                fontSize: 13,
-                color: '#666',
-                background: 'transparent',
-                border: '1px solid #ddd',
-                borderRadius: 8,
-                cursor: 'pointer',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f5')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            >
-              Cancel
-            </button>
+            {!isMobile && (
+              <span style={{ fontSize: 12, color: '#aaa' }}>
+                {filtered.length} template{filtered.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: isMobile ? '100%' : 'auto' }}>
+              {showStartBlank && (
+                <button
+                  onClick={onStartBlank || handleClose}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: isMobile ? '10px 16px' : '6px 16px',
+                    fontSize: 13, color: '#666', flex: isMobile ? 1 : undefined,
+                    background: '#fff', border: '1px solid #ddd', borderRadius: 8,
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f5')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
+                >
+                  <svg width={14} height={14} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+                  </svg>
+                  Start Blank
+                </button>
+              )}
+              <button
+                onClick={handleClose}
+                style={{
+                  padding: isMobile ? '10px 16px' : '6px 16px',
+                  fontSize: 13, color: '#666', flex: isMobile ? 1 : undefined,
+                  background: 'transparent', border: '1px solid #ddd',
+                  borderRadius: 8, cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f5')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -366,8 +500,53 @@ export default function TemplateBrowser({ isOpen, onClose, onInsert, initialCate
         @keyframes tmplModalIn  { from { opacity: 0; transform: scale(0.94) translateY(12px) } to { opacity: 1; transform: scale(1) translateY(0) } }
         @keyframes tmplModalOut { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.94) translateY(8px) } }
         @keyframes tmplSpin     { to { transform: rotate(360deg) } }
+        @keyframes tmplSheetIn  { from { transform: translateY(100%) } to { transform: translateY(0) } }
+        @keyframes tmplSheetOut { from { transform: translateY(0) } to { transform: translateY(100%) } }
+        @keyframes tmplAccSlide { from { opacity: 0; transform: translateY(-6px) } to { opacity: 1; transform: translateY(0) } }
       `}</style>
     </>
+  );
+}
+
+/* ── Mobile template card (thumbnail + name) ──────────────────── */
+function MobileTemplateCard({ template, onClick }: { template: TemplateItem; onClick: () => void }) {
+  const [imgError, setImgError] = useState(false);
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        borderRadius: 10, overflow: 'hidden', cursor: 'pointer',
+        border: '1px solid #e8e8e8', background: '#fff',
+        transition: 'box-shadow 0.15s, border-color 0.15s',
+      }}
+      onTouchStart={e => { e.currentTarget.style.borderColor = '#3CB371'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(60,179,113,0.15)'; }}
+      onTouchEnd={e => { e.currentTarget.style.borderColor = '#e8e8e8'; e.currentTarget.style.boxShadow = 'none'; }}
+    >
+      <div style={{
+        height: 80, background: '#f8f9fa', borderBottom: '1px solid #f0f0f0',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        overflow: 'hidden',
+      }}>
+        {!imgError ? (
+          <img
+            src={template.thumbnail}
+            alt={template.name}
+            onError={() => setImgError(true)}
+            style={{ width: '85%', height: '85%', objectFit: 'contain' }}
+          />
+        ) : (
+          <span style={{ color: '#ccc', fontSize: 11 }}>No preview</span>
+        )}
+      </div>
+      <div style={{ padding: '6px 8px' }}>
+        <p style={{
+          margin: 0, fontSize: 11, fontWeight: 600, color: '#1a1a2e',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {template.name}
+        </p>
+      </div>
+    </div>
   );
 }
 

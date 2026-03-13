@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Row, Col, Input, Select, Pagination, Spin, Table, Button, Dropdown, Typography, Modal, Tag } from 'antd';
 import {
   SearchOutlined, PlusOutlined, EditOutlined, StarOutlined, StarFilled,
@@ -19,6 +19,9 @@ import { createNewFlow } from '@/lib/flow';
 import api from '@/lib/axios';
 import { message } from 'antd';
 import { useIsMobile } from '@/hooks/useMediaQuery';
+import { TEMPLATE_CATEGORIES } from '@/lib/templateCategories';
+import { isFlowEmpty } from '@/lib/flowUtils';
+import TemplateBrowser from '@/components/templates/TemplateBrowser';
 
 const { Text } = Typography;
 
@@ -49,6 +52,11 @@ export default function FlowsPage() {
   const router = useRouter();
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid');
+  const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false);
+  const [templateBrowserCategory, setTemplateBrowserCategory] = useState('All');
+
+  // Filter out empty flows (drafts) from the displayed list
+  const displayFlows = (flows || []).filter((f: any) => !isFlowEmpty(f));
 
   // Rename state
   const [renameModal, setRenameModal] = React.useState<{ open: boolean; id: string; name: string }>({
@@ -247,6 +255,25 @@ export default function FlowsPage() {
     },
   ];
 
+  const handleTemplateInsert = async (xml: string, name: string) => {
+    setTemplateBrowserOpen(false);
+    try {
+      const response = await api.post('/flows', {
+        name: name || 'Untitled Template',
+        description: `Created from template: ${name}`,
+      });
+      const newFlow = response.data?.data || response.data;
+      if (!newFlow?.id) throw new Error('No flow ID returned');
+
+      sessionStorage.setItem('ai_generated_xml', xml);
+      sessionStorage.setItem('ai_generated_name', name);
+      window.open(`/dashboard/flows/${newFlow.id}`, '_blank');
+    } catch (error) {
+      console.error('Failed to create flow from template:', error);
+      message.error('Failed to create flow from template');
+    }
+  };
+
   return (
     <div style={{ padding: isMobile ? 16 : 24 }}>
       <SectionHeader
@@ -289,13 +316,120 @@ export default function FlowsPage() {
         }
       />
 
+      {/* Template Section */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <Text strong style={{ fontSize: 12, color: '#8C8C8C', textTransform: 'uppercase', letterSpacing: 1 }}>
+            START FROM A TEMPLATE
+          </Text>
+          <button
+            onClick={() => { setTemplateBrowserCategory('All'); setTemplateBrowserOpen(true); }}
+            style={{
+              fontSize: 12, color: '#3CB371', background: 'transparent', border: 'none',
+              cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            Browse All
+            <svg width={12} height={12} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Desktop: 6-col grid with bigger cards */}
+        {!isMobile && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(6, 1fr)',
+            gap: 14,
+          }}>
+            {TEMPLATE_CATEGORIES.map(cat => (
+              <div
+                key={cat.id}
+                onClick={() => { setTemplateBrowserCategory(cat.category); setTemplateBrowserOpen(true); }}
+                style={{
+                  padding: '20px 8px 14px', borderRadius: 16,
+                  background: cat.color + '30', border: '1px solid transparent',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+                  cursor: 'pointer', transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)';
+                  e.currentTarget.style.borderColor = '#E0E0E0';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.borderColor = 'transparent';
+                }}
+              >
+                <div style={{
+                  width: 64, height: 64, borderRadius: 18, background: cat.color,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'transform 0.2s',
+                }}>
+                  <div style={{ width: 36, height: 36 }}>
+                    {cat.icon(cat.iconColor)}
+                  </div>
+                </div>
+                <Text strong style={{ fontSize: 12, color: '#333', whiteSpace: 'nowrap' }}>
+                  {cat.label}
+                </Text>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Mobile: 3-col card grid */}
+        {isMobile && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 10,
+          }}>
+            {TEMPLATE_CATEGORIES.map(cat => (
+              <div
+                key={cat.id}
+                onClick={() => { setTemplateBrowserCategory(cat.category); setTemplateBrowserOpen(true); }}
+                style={{
+                  padding: '16px 6px 12px', borderRadius: 14,
+                  background: cat.color + '30', border: '1px solid #F0F0F0',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                  cursor: 'pointer', transition: 'all 0.15s ease',
+                }}
+              >
+                <div style={{
+                  width: 48, height: 48, borderRadius: 14, background: cat.color,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <div style={{ width: 28, height: 28 }}>
+                    {cat.icon(cat.iconColor)}
+                  </div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#333', whiteSpace: 'nowrap' }}>
+                  {cat.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <TemplateBrowser
+        isOpen={templateBrowserOpen}
+        initialCategory={templateBrowserCategory}
+        onClose={() => setTemplateBrowserOpen(false)}
+        onInsert={handleTemplateInsert}
+      />
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: '100px 0' }}><Spin size="large" /></div>
-      ) : flows.length > 0 ? (
+      ) : displayFlows.length > 0 ? (
         <>
           {viewMode === 'grid' ? (
             <Row gutter={[16, 16]}>
-              {flows.map((flow: any, index: number) => (
+              {displayFlows.map((flow: any, index: number) => (
                 <Col xs={24} sm={12} md={8} lg={6} key={flow.id}>
                   <FlowCard
                     flow={flow}
@@ -314,7 +448,7 @@ export default function FlowsPage() {
             </Row>
           ) : (
             <Table
-              dataSource={flows}
+              dataSource={displayFlows}
               columns={listColumns}
               rowKey="id"
               pagination={false}

@@ -14,7 +14,7 @@ import { createNewFlow } from '@/lib/flow';
 import api from '@/lib/axios';
 import { message, Dropdown, Button } from 'antd';
 import {
-  EditOutlined, DeleteOutlined, CopyOutlined, StarOutlined, StarFilled,
+  EditOutlined, DeleteOutlined, CopyOutlined, StarOutlined, StarFilled, HeartOutlined, HeartFilled,
   FormOutlined, FolderAddOutlined,
 } from '@ant-design/icons';
 
@@ -94,7 +94,7 @@ export default function RecentDocuments() {
     {
       key: 'favorite',
       label: flow.isFavorite ? 'Remove Favorite' : 'Mark as Favorite',
-      icon: flow.isFavorite ? <StarFilled style={{ color: '#FAAD14' }} /> : <StarOutlined />,
+      icon: flow.isFavorite ? <HeartFilled style={{ color: '#FF4D6A' }} /> : <HeartOutlined />,
       onClick: () => handleFavorite(flow.id),
     },
     { key: 'rename', label: 'Rename', icon: <FormOutlined />, onClick: () => setRenameModal({ open: true, id: flow.id, name: flow.name }) },
@@ -174,7 +174,7 @@ export default function RecentDocuments() {
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Text strong ellipsis style={{ fontSize: 14, color: '#1A1A2E' }}>{flow.name}</Text>
-                  {flow.isFavorite && <StarFilled style={{ fontSize: 12, color: '#FAAD14' }} />}
+                  {flow.isFavorite && <HeartFilled style={{ fontSize: 12, color: '#FF4D6A' }} />}
                 </div>
                 {flow.projectName && (
                   <Text style={{ fontSize: 11, color: '#8C8C8C' }}>

@@ -59,7 +59,7 @@ export default function DocumentsSidebar() {
         {
             key: 'starred',
             icon: <StarOutlined />,
-            label: 'Starred',
+            label: 'Favorites',
         },
         {
             key: 'documents',

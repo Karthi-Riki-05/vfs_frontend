@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, Button, Typography, Dropdown, Tag } from 'antd';
 import {
-  EditOutlined, DeleteOutlined, CopyOutlined, StarOutlined, StarFilled,
+  EditOutlined, DeleteOutlined, CopyOutlined, StarOutlined, StarFilled, HeartOutlined, HeartFilled,
   MoreOutlined, ProjectOutlined, UndoOutlined, FormOutlined,
   FolderOutlined, FolderAddOutlined, DisconnectOutlined,
   ShareAltOutlined, EyeOutlined, LockOutlined,
@@ -73,7 +73,7 @@ export default function FlowCard({
     {
       key: 'favorite',
       label: flow.isFavorite ? 'Remove Favorite' : 'Mark as Favorite',
-      icon: flow.isFavorite ? <StarFilled style={{ color: '#FAAD14' }} /> : <StarOutlined />,
+      icon: flow.isFavorite ? <HeartFilled style={{ color: '#FF4D6A' }} /> : <HeartOutlined />,
       onClick: () => onFavorite?.(flow.id),
     },
     ...(onRename ? [{
@@ -103,7 +103,7 @@ export default function FlowCard({
     {
       key: 'favorite',
       label: flow.isFavorite ? 'Remove Favorite' : 'Mark as Favorite',
-      icon: flow.isFavorite ? <StarFilled style={{ color: '#FAAD14' }} /> : <StarOutlined />,
+      icon: flow.isFavorite ? <HeartFilled style={{ color: '#FF4D6A' }} /> : <HeartOutlined />,
       onClick: () => onFavorite?.(flow.id),
     },
     { type: 'divider' as const },
@@ -118,7 +118,7 @@ export default function FlowCard({
     {
       key: 'favorite',
       label: flow.isFavorite ? 'Remove Favorite' : 'Mark as Favorite',
-      icon: flow.isFavorite ? <StarFilled style={{ color: '#FAAD14' }} /> : <StarOutlined />,
+      icon: flow.isFavorite ? <HeartFilled style={{ color: '#FF4D6A' }} /> : <HeartOutlined />,
       onClick: () => onFavorite?.(flow.id),
     },
     ...(onDuplicate ? [{ key: 'duplicate', label: 'Duplicate', icon: <CopyOutlined />, onClick: () => onDuplicate(flow.id) }] : []),
@@ -166,9 +166,9 @@ export default function FlowCard({
             <ProjectOutlined style={{ fontSize: 48, color: '#BFBFBF' }} />
           )}
           {flow.isFavorite && !isTrash && (
-            <StarFilled style={{
+            <HeartFilled style={{
               position: 'absolute', top: 8, right: 8,
-              fontSize: 18, color: '#FAAD14',
+              fontSize: 18, color: '#FF4D6A',
             }} />
           )}
           {isShared && (

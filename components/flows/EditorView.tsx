@@ -14,6 +14,7 @@ export default function EditorView({ flowId }: { flowId: string }) {
     const [permission, setPermission] = useState<string | null>(null);
     const permRef = useRef<string | null>(null);
     const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false);
+    const [showTemplateChooser, setShowTemplateChooser] = useState(false);
 
     const isReadOnly = permission === 'view';
     const isSharedEdit = permission === 'edit';
@@ -53,6 +54,18 @@ export default function EditorView({ flowId }: { flowId: string }) {
                         sessionStorage.removeItem('ai_generated_name');
                     }
 
+                    // Check if flow is empty — show template chooser after editor loads
+                    const isEmptyFlow = !aiXml && (
+                        !rawData ||
+                        rawData === '{}' ||
+                        (typeof rawData === 'string' && rawData.trim().length < 60) ||
+                        rawData.trim() === '<mxGraphModel></mxGraphModel>' ||
+                        rawData.trim() === '<mxGraphModel/>' ||
+                        (typeof rawData === 'object')
+                    );
+                    if (isEmptyFlow && perm !== 'view') {
+                        setTimeout(() => setShowTemplateChooser(true), 700);
+                    }
 
                     const customBackendShapes = [
                         {
@@ -130,6 +143,14 @@ export default function EditorView({ flowId }: { flowId: string }) {
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
     }, [flowId, flowName]);
+
+    // Check URL param for brand-new flows
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('new') === '1') {
+            setTimeout(() => setShowTemplateChooser(true), 700);
+        }
+    }, []);
 
     // Listen for AI-generated XML injection — MERGE into existing diagram.
     // Sends 'mergeAiXml' postMessage to the draw.io iframe, which is handled
@@ -253,12 +274,11 @@ export default function EditorView({ flowId }: { flowId: string }) {
                 />
             </div>
 
-            {/* Template Browser — merge into canvas */}
+            {/* Template Browser — merge into canvas (manual open) */}
             <TemplateBrowser
                 isOpen={templateBrowserOpen}
                 onClose={() => setTemplateBrowserOpen(false)}
                 onInsert={(xml: string, name: string) => {
-                    // Use the same mergeAiXml mechanism to insert template into canvas
                     if (iframeRef.current?.contentWindow) {
                         iframeRef.current.contentWindow.postMessage(JSON.stringify({
                             action: 'mergeAiXml',
@@ -267,6 +287,29 @@ export default function EditorView({ flowId }: { flowId: string }) {
                         message.success(`Template "${name}" inserted`);
                     }
                     setTemplateBrowserOpen(false);
+                }}
+            />
+
+            {/* Template chooser — auto-shown on new/empty flow */}
+            <TemplateBrowser
+                isOpen={showTemplateChooser}
+                onClose={() => setShowTemplateChooser(false)}
+                showStartBlank={true}
+                onStartBlank={() => setShowTemplateChooser(false)}
+                onInsert={(xml: string, name: string) => {
+                    setShowTemplateChooser(false);
+                    if (iframeRef.current?.contentWindow) {
+                        iframeRef.current.contentWindow.postMessage(JSON.stringify({
+                            action: 'mergeAiXml',
+                            xml,
+                        }), '*');
+                    }
+                    // Save to DB
+                    fetch(`/api/save-diagram`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ flowId, xml, name: name || undefined }),
+                    }).catch(console.error);
                 }}
             />
         </div>

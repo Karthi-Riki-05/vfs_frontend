@@ -11,6 +11,7 @@ import {
     DeleteOutlined,
     QuestionCircleOutlined,
     StarFilled,
+    HeartFilled,
     MessageOutlined,
     TeamOutlined,
     ApartmentOutlined,
@@ -89,7 +90,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse, isMobile
     const starredChildren = starredFlows.length > 0
         ? starredFlows.map((flow) => ({
             key: `starred-${flow.id}`,
-            icon: <StarFilled style={{ color: '#FAAD14', fontSize: 12 }} />,
+            icon: <HeartFilled style={{ color: '#FF4D6A', fontSize: 12 }} />,
             label: (
                 <span
                     onClick={(e) => {
@@ -108,7 +109,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse, isMobile
                 key: 'starred-placeholder',
                 label: (
                     <Text type="secondary" style={{ fontSize: 13 }}>
-                        No starred items
+                        No favorites yet
                     </Text>
                 ),
                 disabled: true,
@@ -187,7 +188,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({ collapsed, onCollapse, isMobile
                         paddingLeft: 0,
                     }}
                 >
-                    Starred
+                    Favorites
                 </span>
             ),
             children: starredChildren,
