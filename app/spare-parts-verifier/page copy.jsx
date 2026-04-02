@@ -168,7 +168,7 @@ export default function App() {
 
       try {
 
-        const resp = await fetch("/api/openai-proxy", {
+        const resp = await fetch("/api/anthropic-proxy", {
 
           method: "POST",
 
@@ -176,7 +176,11 @@ export default function App() {
 
           body: JSON.stringify({
 
-            model: "gpt-4o",
+            model: "claude-sonnet-4-20250514",
+
+            max_tokens: 4096,
+
+            tools: [{ type: "web_search_20250305", name: "web_search" }],
 
             messages: [{
 
@@ -232,7 +236,7 @@ No markdown fences. No explanation. JSON array only.`
 
           const d = await resp.json();
 
-          const txt = d.choices?.[0]?.message?.content || "";
+          const txt = (d.content || []).filter(c => c.type === "text").map(c => c.text).join("");
 
           let parsed;
 
