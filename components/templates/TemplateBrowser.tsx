@@ -695,7 +695,7 @@ function TemplatePreview({
         setXmlLoaded(true);
 
         // Wait for iframe to be ready, then send the XML via postMessage
-        function sendToIframe() {
+        const sendToIframe = () => {
           if (cancelled) return;
           const iframe = iframeRef.current;
           if (!iframe?.contentWindow) {

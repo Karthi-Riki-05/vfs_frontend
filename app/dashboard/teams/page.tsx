@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Row,
   Col,
@@ -14,7 +14,7 @@ import {
   Tag,
   Dropdown,
   message,
-} from 'antd';
+} from "antd";
 import {
   PlusOutlined,
   TeamOutlined,
@@ -25,23 +25,23 @@ import {
   EditOutlined,
   DeleteOutlined,
   ExclamationCircleOutlined,
-} from '@ant-design/icons';
-import { useRouter } from 'next/navigation';
-import SectionHeader from '@/components/common/SectionHeader';
-import EmptyState from '@/components/common/EmptyState';
-import api from '@/lib/axios';
-import { useAuth } from '@/hooks/useAuth';
-import { useTeams } from '@/hooks/useTeams';
-import { teamsApi } from '@/api/teams.api';
-import { usePro } from '@/hooks/usePro';
-import { subscriptionsApi } from '@/api/subscriptions.api';
+} from "@ant-design/icons";
+import { useRouter } from "next/navigation";
+import SectionHeader from "@/components/common/SectionHeader";
+import EmptyState from "@/components/common/EmptyState";
+import { useAuth } from "@/hooks/useAuth";
+import { useTeams } from "@/hooks/useTeams";
+import { teamsApi } from "@/api/teams.api";
+import { usePro } from "@/hooks/usePro";
+import { subscriptionsApi } from "@/api/subscriptions.api";
 
 const { Text } = Typography;
 
 export default function TeamsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { teams, loading, createTeam, deleteTeam, fetchTeams } = useTeams();
+  const { teams, loading, createTeam, deleteTeam, updateTeam, fetchTeams } =
+    useTeams();
   const { hasPro, currentApp } = usePro();
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -58,30 +58,31 @@ export default function TeamsPage() {
 
   useEffect(() => {
     // PRO users always have access
-    if (currentApp === 'pro' && hasPro) {
+    if (currentApp === "pro" && hasPro) {
       setHasAccess(true);
       return;
     }
 
     // ValueChart: check subscription
-    subscriptionsApi.getStatus()
+    subscriptionsApi
+      .getStatus()
       .then((res) => {
         const data = res.data?.data || res.data;
-        const active = data?.hasSubscription && data?.status === 'active';
+        const active = data?.hasSubscription && data?.status === "active";
         if (!active) {
-          router.push('/dashboard/subscription');
+          router.push("/dashboard/subscription");
         } else {
           setHasAccess(true);
         }
       })
       .catch(() => {
-        router.push('/dashboard/subscription');
+        router.push("/dashboard/subscription");
       });
   }, [currentApp, hasPro, router]);
 
   if (hasAccess === null) {
     return (
-      <div style={{ textAlign: 'center', padding: 100 }}>
+      <div style={{ textAlign: "center", padding: 100 }}>
         <Spin size="large" />
       </div>
     );
@@ -96,7 +97,7 @@ export default function TeamsPage() {
       setCreateModalOpen(false);
     } catch (err: any) {
       const errorCode = err?.response?.data?.error?.code;
-      if (errorCode === 'SUBSCRIPTION_REQUIRED') {
+      if (errorCode === "SUBSCRIPTION_REQUIRED") {
         setCreateModalOpen(false);
         createForm.resetFields();
       }
@@ -110,7 +111,7 @@ export default function TeamsPage() {
       const values = await inviteForm.validateFields();
       setInviting(true);
       const emailList = values.emails
-        .split(',')
+        .split(",")
         .map((e: string) => e.trim())
         .filter((e: string) => e);
 
@@ -118,21 +119,24 @@ export default function TeamsPage() {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       const invalid = emailList.filter((e: string) => !emailRegex.test(e));
       if (invalid.length > 0) {
-        message.error(`Invalid email format: ${invalid.join(', ')}`);
+        message.error(`Invalid email format: ${invalid.join(", ")}`);
         setInviting(false);
         return;
       }
 
-      await api.post('/teams/invite', {
-        teamId: inviteTeamId,
+      await teamsApi.invite({
+        teamId: inviteTeamId!,
         emails: emailList,
       });
-      message.success(`Invitation${emailList.length > 1 ? 's' : ''} sent`);
+      message.success(`Invitation${emailList.length > 1 ? "s" : ""} sent`);
       inviteForm.resetFields();
       setInviteModalOpen(false);
       fetchTeams();
     } catch (err: any) {
-      const errMsg = err?.response?.data?.error?.message || err?.response?.data?.message || 'Failed to send invitation';
+      const errMsg =
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        "Failed to send invitation";
       message.error(errMsg);
     } finally {
       setInviting(false);
@@ -152,7 +156,10 @@ export default function TeamsPage() {
   const openEditModal = (team: any, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingTeam(team);
-    editForm.setFieldsValue({ name: team.name || '', description: team.description || '' });
+    editForm.setFieldsValue({
+      name: team.name || "",
+      description: team.description || "",
+    });
     setEditModalOpen(true);
   };
 
@@ -160,14 +167,12 @@ export default function TeamsPage() {
     try {
       const values = await editForm.validateFields();
       setEditing(true);
-      await teamsApi.update(editingTeam.id, values);
-      message.success('Team updated');
+      await updateTeam(editingTeam.id, values);
       editForm.resetFields();
       setEditModalOpen(false);
       setEditingTeam(null);
-      fetchTeams();
     } catch {
-      message.error('Failed to update team');
+      // handled by hook
     } finally {
       setEditing(false);
     }
@@ -176,12 +181,13 @@ export default function TeamsPage() {
   const handleDelete = (team: any, e: React.MouseEvent) => {
     e.stopPropagation();
     Modal.confirm({
-      title: `Delete "${team.name || 'this team'}"?`,
+      title: `Delete "${team.name || "this team"}"?`,
       icon: <ExclamationCircleOutlined />,
-      content: 'This will permanently delete the team and remove all members. This action cannot be undone.',
-      okText: 'Delete',
-      okType: 'danger',
-      cancelText: 'Cancel',
+      content:
+        "This will permanently delete the team and remove all members. This action cannot be undone.",
+      okText: "Delete",
+      okType: "danger",
+      cancelText: "Cancel",
       onOk: async () => {
         await deleteTeam(team.id);
       },
@@ -190,14 +196,14 @@ export default function TeamsPage() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: 100 }}>
+      <div style={{ textAlign: "center", padding: 100 }}>
         <Spin size="large" />
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
+    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 16px" }}>
       <SectionHeader
         title="MY TEAMS"
         right={
@@ -206,8 +212,8 @@ export default function TeamsPage() {
             icon={<PlusOutlined />}
             onClick={openCreateModal}
             style={{
-              backgroundColor: '#3CB371',
-              borderColor: '#3CB371',
+              backgroundColor: "#3CB371",
+              borderColor: "#3CB371",
               borderRadius: 8,
               fontWeight: 600,
             }}
@@ -223,13 +229,32 @@ export default function TeamsPage() {
             const memberCount =
               team._count?.members || team.members?.length || 0;
             const isOwner =
-              team.teamOwnerId === user?.id || team.ownerId === user?.id || team.owner?.id === user?.id;
+              team.teamOwnerId === user?.id ||
+              team.ownerId === user?.id ||
+              team.owner?.id === user?.id;
             const members = team.members || [];
 
             const teamMenuItems = [
-              { key: 'edit', label: 'Edit', icon: <EditOutlined />, onClick: (info: any) => { info.domEvent.stopPropagation(); openEditModal(team, info.domEvent); } },
-              { type: 'divider' as const },
-              { key: 'delete', label: 'Delete', icon: <DeleteOutlined />, danger: true, onClick: (info: any) => { info.domEvent.stopPropagation(); handleDelete(team, info.domEvent); } },
+              {
+                key: "edit",
+                label: "Edit",
+                icon: <EditOutlined />,
+                onClick: (info: any) => {
+                  info.domEvent.stopPropagation();
+                  openEditModal(team, info.domEvent);
+                },
+              },
+              { type: "divider" as const },
+              {
+                key: "delete",
+                label: "Delete",
+                icon: <DeleteOutlined />,
+                danger: true,
+                onClick: (info: any) => {
+                  info.domEvent.stopPropagation();
+                  handleDelete(team, info.domEvent);
+                },
+              },
             ];
 
             return (
@@ -237,32 +262,34 @@ export default function TeamsPage() {
                 <div
                   onClick={() => router.push(`/dashboard/teams/${team.id}`)}
                   style={{
-                    background: '#fff',
+                    background: "#fff",
                     borderRadius: 12,
-                    border: '1px solid #F0F0F0',
-                    padding: '24px',
-                    cursor: 'pointer',
-                    transition: 'box-shadow 0.2s, transform 0.2s',
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
+                    border: "1px solid #F0F0F0",
+                    padding: "24px",
+                    cursor: "pointer",
+                    transition: "box-shadow 0.2s, transform 0.2s",
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLDivElement).style.boxShadow =
-                      '0 8px 24px rgba(0,0,0,0.08)';
+                      "0 8px 24px rgba(0,0,0,0.08)";
                     (e.currentTarget as HTMLDivElement).style.transform =
-                      'translateY(-2px)';
+                      "translateY(-2px)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
-                    (e.currentTarget as HTMLDivElement).style.transform = 'none';
+                    (e.currentTarget as HTMLDivElement).style.boxShadow =
+                      "none";
+                    (e.currentTarget as HTMLDivElement).style.transform =
+                      "none";
                   }}
                 >
                   <div
                     style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
                       marginBottom: 16,
                     }}
                   >
@@ -271,8 +298,8 @@ export default function TeamsPage() {
                         style={{
                           fontSize: 17,
                           fontWeight: 700,
-                          color: '#1A1A2E',
-                          display: 'block',
+                          color: "#1A1A2E",
+                          display: "block",
                           marginBottom: 4,
                         }}
                       >
@@ -283,7 +310,7 @@ export default function TeamsPage() {
                           type="secondary"
                           style={{
                             fontSize: 13,
-                            display: 'block',
+                            display: "block",
                             marginBottom: 8,
                           }}
                         >
@@ -291,7 +318,14 @@ export default function TeamsPage() {
                         </Text>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        flexShrink: 0,
+                      }}
+                    >
                       {isOwner && (
                         <Tag
                           icon={<CrownOutlined />}
@@ -302,7 +336,10 @@ export default function TeamsPage() {
                         </Tag>
                       )}
                       {isOwner && (
-                        <Dropdown menu={{ items: teamMenuItems }} trigger={['click']}>
+                        <Dropdown
+                          menu={{ items: teamMenuItems }}
+                          trigger={["click"]}
+                        >
                           <Button
                             type="text"
                             icon={<MoreOutlined />}
@@ -316,18 +353,20 @@ export default function TeamsPage() {
 
                   <div
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginTop: 'auto',
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginTop: "auto",
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
                       <Avatar.Group
                         max={{
                           count: 4,
                           style: {
-                            backgroundColor: '#3CB371',
+                            backgroundColor: "#3CB371",
                             fontSize: 12,
                             width: 32,
                             height: 32,
@@ -341,18 +380,18 @@ export default function TeamsPage() {
                               key={member.id || idx}
                               src={member.user?.image || member.image}
                               icon={<UserOutlined />}
-                              style={{ backgroundColor: '#3CB371' }}
+                              style={{ backgroundColor: "#3CB371" }}
                             />
                           ))
                         ) : (
                           <Avatar
                             icon={<TeamOutlined />}
-                            style={{ backgroundColor: '#3CB371' }}
+                            style={{ backgroundColor: "#3CB371" }}
                           />
                         )}
                       </Avatar.Group>
                       <Text type="secondary" style={{ fontSize: 13 }}>
-                        {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                        {memberCount} {memberCount === 1 ? "member" : "members"}
                       </Text>
                     </div>
 
@@ -362,7 +401,7 @@ export default function TeamsPage() {
                       icon={<SendOutlined />}
                       onClick={(e) => openInviteModal(team.id, e)}
                       style={{
-                        color: '#3CB371',
+                        color: "#3CB371",
                         fontSize: 12,
                         fontWeight: 600,
                       }}
@@ -395,7 +434,7 @@ export default function TeamsPage() {
         onOk={handleCreate}
         confirmLoading={creating}
         okButtonProps={{
-          style: { backgroundColor: '#3CB371', borderColor: '#3CB371' },
+          style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
         }}
         okText="Create"
       >
@@ -403,7 +442,7 @@ export default function TeamsPage() {
           <Form.Item
             name="name"
             label="Team Name"
-            rules={[{ required: true, message: 'Please enter a team name' }]}
+            rules={[{ required: true, message: "Please enter a team name" }]}
           >
             <Input
               placeholder="e.g. Design Team"
@@ -433,7 +472,7 @@ export default function TeamsPage() {
         onOk={handleEdit}
         confirmLoading={editing}
         okButtonProps={{
-          style: { backgroundColor: '#3CB371', borderColor: '#3CB371' },
+          style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
         }}
         okText="Save"
       >
@@ -441,7 +480,7 @@ export default function TeamsPage() {
           <Form.Item
             name="name"
             label="Team Name"
-            rules={[{ required: true, message: 'Please enter a team name' }]}
+            rules={[{ required: true, message: "Please enter a team name" }]}
           >
             <Input
               placeholder="e.g. Design Team"
@@ -470,7 +509,7 @@ export default function TeamsPage() {
         onOk={handleInvite}
         confirmLoading={inviting}
         okButtonProps={{
-          style: { backgroundColor: '#3CB371', borderColor: '#3CB371' },
+          style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
         }}
         okText="Send Invite"
       >
@@ -479,7 +518,10 @@ export default function TeamsPage() {
             name="emails"
             label="Email Addresses"
             rules={[
-              { required: true, message: 'Please enter at least one email address' },
+              {
+                required: true,
+                message: "Please enter at least one email address",
+              },
             ]}
             extra="Separate multiple emails with commas"
           >

@@ -101,7 +101,7 @@ export default function ChatPanel() {
               }
             >
               <div style={{ height: '100%', overflow: 'auto' }}>
-                <ChatPageContent panelMode />
+                <ChatPageContent />
               </div>
             </React.Suspense>
           )}

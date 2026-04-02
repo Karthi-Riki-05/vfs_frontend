@@ -11,7 +11,7 @@ const { Title, Text, Paragraph } = Typography;
 
 function AcceptInvitationContent() {
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
+  const token = searchParams?.get('token');
   const { data: session, status: sessionStatus } = useSession();
 
   const [pageStatus, setPageStatus] = useState<'loading' | 'valid' | 'expired' | 'accepted' | 'error'>('loading');
