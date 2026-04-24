@@ -5,6 +5,17 @@
 
 # testing
 /coverage
+/tests
+tests/
+tests/**
+/playwright-report
+playwright-report/
+/test-results
+test-results/
+
+# uploads
+/public/uploads
+public/uploads/
 
 # next.js
 /.next/
