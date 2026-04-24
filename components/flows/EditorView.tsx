@@ -13,6 +13,10 @@ import {
   SaveOutlined,
 } from "@ant-design/icons";
 import TemplateBrowser from "@/components/templates/TemplateBrowser";
+import CustomShapesPanel, {
+  type EditorShape,
+} from "@/components/flows/CustomShapesPanel";
+import AiCreditsDisplay from "@/components/ai/AiCreditsDisplay";
 
 const HIDE_AI_CSS = `
   /* Hide draw.io AI/Gemini/Save&Exit affordances */
@@ -219,6 +223,7 @@ export default function EditorView({ flowId }: { flowId: string }) {
   const permRef = useRef<string | null>(null);
   const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false);
   const [showTemplateChooser, setShowTemplateChooser] = useState(false);
+  const [customShapesOpen, setCustomShapesOpen] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
@@ -330,6 +335,14 @@ export default function EditorView({ flowId }: { flowId: string }) {
         // 0. Iframe → parent: open our Templates drawer (from injected sidebar button)
         if (msg.action === "openTemplates") {
           setTemplateBrowserOpen(true);
+          return;
+        }
+
+        // 0b. Iframe → parent: open the Custom Shapes drawer (same pattern
+        // as Templates — installVcShapesBtn() in over-ride.js fires this
+        // when the Shapes sidebar icon is clicked).
+        if (msg.action === "openCustomShapes") {
+          setCustomShapesOpen(true);
           return;
         }
 
@@ -531,6 +544,90 @@ export default function EditorView({ flowId }: { flowId: string }) {
       window.removeEventListener("aiXmlReady", handleAiXml as EventListener);
   }, []);
 
+  // Build draw.io XML for a custom shape and merge it into the canvas via
+  // the same `mergeAiXml` action Templates use. The over-ride.js handler
+  // calls graph.importCells() with the decoded cells — placing them at a
+  // free position below the existing diagram without overwriting anything.
+  const buildShapeXml = (shape: EditorShape): string => {
+    const content = (shape.content || shape.xmlContent || "").trim();
+    const xmlEscape = (s: string) =>
+      s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    const label = xmlEscape(shape.name || "");
+
+    // mxGraph style strings use `;` as a separator and `=` to split key/value.
+    // We can't fully URL-encode an image data URL (that would mangle "data:"
+    // into "data%3A" and mxGraph would try to fetch it as a relative URL).
+    // Just percent-encode the two chars that actually break the parser
+    // (`;` and `=`) and leave `:`, `/`, `,` and base64 alone.
+    const styleSafe = (s: string) =>
+      xmlEscape(s.replace(/;/g, "%3B").replace(/=/g, "%3D"));
+
+    // Decide what URL to use for an "image-shape-style" cell:
+    //   • already a data:/http(s) URL → use as-is
+    //   • raw SVG markup → wrap into a data:image/svg+xml URL
+    //   • anything else (e.g. raw mxGraph stencil XML) → null → caller falls
+    //     back to a labeled placeholder box
+    const toRenderableImage = (raw: string): string | null => {
+      if (!raw) return null;
+      if (/^data:|^https?:\/\//i.test(raw)) return raw;
+      if (raw.toLowerCase().startsWith("<svg"))
+        return `data:image/svg+xml;utf8,${encodeURIComponent(raw)}`;
+      return null;
+    };
+
+    const imageCell = (url: string, labelStr: string, w = 80, h = 80) =>
+      `<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="2" value="${labelStr}" style="shape=image;image=${styleSafe(url)};verticalLabelPosition=bottom;verticalAlign=top;imageAspect=1;aspect=fixed;" vertex="1" parent="1"><mxGeometry x="40" y="40" width="${w}" height="${h}" as="geometry"/></mxCell></root></mxGraphModel>`;
+
+    const fallbackBox = (labelStr: string) =>
+      `<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="2" value="${labelStr}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7E6;strokeColor=#FA8C16;fontColor=#613400;" vertex="1" parent="1"><mxGeometry x="40" y="40" width="160" height="60" as="geometry"/></mxCell></root></mxGraphModel>`;
+
+    switch (shape.type) {
+      case "image":
+      case "stencil": {
+        // image and stencil both resolve to a renderable URL.
+        const url = toRenderableImage(content);
+        return url
+          ? imageCell(url, label, 100, 100)
+          : fallbackBox(label || "Shape");
+      }
+      case "html": {
+        // HTML snippet → render as label inside a transparent text cell.
+        return `<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="2" value="${xmlEscape(content)}" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="40" y="40" width="180" height="60" as="geometry"/></mxCell></root></mxGraphModel>`;
+      }
+      case "shape":
+      default: {
+        // draw.io XML (`<mxGraphModel>` or `<mxfile>`) is directly importable
+        // by mxGraph — pass it through to mergeAiXml as-is.
+        const lower = content.toLowerCase();
+        if (lower.startsWith("<mxgraphmodel") || lower.startsWith("<mxfile")) {
+          return content;
+        }
+        // SVG → wrap as image cell.
+        const url = toRenderableImage(content);
+        return url
+          ? imageCell(url, label, 120, 80)
+          : fallbackBox(label || "Custom Shape");
+      }
+    }
+  };
+
+  const handleCustomShapeInsert = (shape: EditorShape) => {
+    if (!iframeRef.current?.contentWindow) {
+      message.error("Editor not ready");
+      return;
+    }
+    const xml = buildShapeXml(shape);
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({ action: "mergeAiXml", xml }),
+      "*",
+    );
+    message.success(`"${shape.name}" inserted`);
+  };
+
   const triggerExport = () => {
     iframeRef.current?.contentWindow?.postMessage(
       JSON.stringify({
@@ -694,6 +791,8 @@ export default function EditorView({ flowId }: { flowId: string }) {
           </Button>
         )}
 
+        {!isMobile && <AiCreditsDisplay />}
+
         {!isReadOnly && (
           <Button
             icon={<SaveOutlined />}
@@ -755,6 +854,14 @@ export default function EditorView({ flowId }: { flowId: string }) {
           }
           setTemplateBrowserOpen(false);
         }}
+      />
+
+      {/* Custom Shapes drawer — opened by the Shapes sidebar icon inside
+          draw.io. Mirrors the Templates drawer above. */}
+      <CustomShapesPanel
+        open={customShapesOpen}
+        onClose={() => setCustomShapesOpen(false)}
+        onInsert={handleCustomShapeInsert}
       />
 
       {/* Template chooser — auto-shown on new/empty flow */}

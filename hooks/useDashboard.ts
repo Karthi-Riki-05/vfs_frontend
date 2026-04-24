@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { dashboardApi } from '@/api/dashboard.api';
+import { useState, useEffect, useCallback } from "react";
+import { dashboardApi } from "@/api/dashboard.api";
+import { useAppContext } from "@/context/AppContext";
 
 interface DashboardStats {
   totalFlows: number;
@@ -30,11 +31,12 @@ interface TeamActivity {
   flowName: string;
   userName: string;
   userImage: string | null;
-  action: 'created' | 'edited';
+  action: "created" | "edited";
   timestamp: string;
 }
 
 export function useDashboard() {
+  const { activeTeamId, hydrated } = useAppContext();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activity, setActivity] = useState<ActivityDay[]>([]);
   const [recentFlows, setRecentFlows] = useState<RecentFlow[]>([]);
@@ -45,9 +47,9 @@ export function useDashboard() {
     setLoading(true);
     try {
       const [statsRes, activityRes, recentRes, teamRes] = await Promise.all([
-        dashboardApi.getStats().catch(() => null),
-        dashboardApi.getActivity().catch(() => null),
-        dashboardApi.getRecentFlows().catch(() => null),
+        dashboardApi.getStats(activeTeamId).catch(() => null),
+        dashboardApi.getActivity(activeTeamId).catch(() => null),
+        dashboardApi.getRecentFlows(5, activeTeamId).catch(() => null),
         dashboardApi.getTeamActivity().catch(() => null),
       ]);
 
@@ -70,9 +72,19 @@ export function useDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTeamId]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    if (!hydrated) return;
+    fetchAll();
+  }, [fetchAll, hydrated]);
 
-  return { stats, activity, recentFlows, teamActivity, loading, refresh: fetchAll };
+  return {
+    stats,
+    activity,
+    recentFlows,
+    teamActivity,
+    loading,
+    refresh: fetchAll,
+  };
 }

@@ -1,113 +1,121 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Menu, Typography, Button, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import React, { useState } from "react";
+import { Menu, Typography, Button, message } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+// App axios client — carries the workspace-scoping X-Team-Context header.
+import api from "@/lib/axios";
 import {
-    ClockCircleOutlined,
-    StarOutlined,
-    FolderOutlined,
-    DeleteOutlined,
-    TeamOutlined,
-    DownOutlined,
-    RightOutlined
-} from '@ant-design/icons';
+  ClockCircleOutlined,
+  StarOutlined,
+  FolderOutlined,
+  DeleteOutlined,
+  TeamOutlined,
+  DownOutlined,
+  RightOutlined,
+} from "@ant-design/icons";
 
 const { Text } = Typography;
 
 export default function DocumentsSidebar() {
-    const [openKeys, setOpenKeys] = useState(['documents']);
-    const [creating, setCreating] = useState(false);
+  const [openKeys, setOpenKeys] = useState(["documents"]);
+  const [creating, setCreating] = useState(false);
 
-    // Handler for creating a blank diagram
-    const handleCreateFlow = async (templateName: string) => {
-        if (creating) return;
-        setCreating(true);
-        try {
-            const response = await axios.post('/api/flows', {
-                name: `Untitled ${templateName}`,
-                description: `New ${templateName} created from dashboard`
-            });
-            const newFlow = response.data;
-            window.open(`/viewer/${newFlow.id}`, '_blank');
-        } catch (error) {
-            console.error("Failed to create flow:", error);
-            message.error("Failed to create flow");
-        } finally {
-            setCreating(false);
-        }
-    };
+  // Handler for creating a blank diagram
+  const handleCreateFlow = async (templateName: string) => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const response = await api.post("/flows", {
+        name: `Untitled ${templateName}`,
+        description: `New ${templateName} created from dashboard`,
+      });
+      const newFlow = response.data;
+      window.open(`/viewer/${newFlow.id}`, "_blank");
+    } catch (error) {
+      console.error("Failed to create flow:", error);
+      message.error("Failed to create flow");
+    } finally {
+      setCreating(false);
+    }
+  };
 
-    const items = [
+  const items = [
+    {
+      key: "blank-diagram",
+      icon: <PlusOutlined style={{ color: "#52c41a" }} />,
+      label: (
+        <span
+          style={{
+            opacity: creating ? 0.5 : 1,
+            pointerEvents: creating ? "none" : "auto",
+          }}
+        >
+          Blank diagram
+        </span>
+      ),
+      onClick: () => handleCreateFlow("Blank diagram"),
+      disabled: creating,
+    },
+    {
+      key: "recent",
+      icon: <ClockCircleOutlined />,
+      label: "Recent",
+    },
+    {
+      key: "starred",
+      icon: <StarOutlined />,
+      label: "Favorites",
+    },
+    {
+      key: "documents",
+      icon: <FolderOutlined />,
+      label: "Documents",
+      children: [
         {
-            key: 'blank-diagram',
-            icon: <PlusOutlined style={{ color: '#52c41a' }} />,
-            label: (
-                <span style={{ opacity: creating ? 0.5 : 1, pointerEvents: creating ? 'none' : 'auto' }}>
-                    Blank diagram
-                </span>
-            ),
-            onClick: () => handleCreateFlow('Blank diagram'),
-            disabled: creating,
+          key: "my-documents",
+          label: "My documents",
+          icon: <FolderOutlined style={{ fontSize: 16, color: "#8c8c8c" }} />,
         },
         {
-            key: 'recent',
-            icon: <ClockCircleOutlined />,
-            label: 'Recent',
+          key: "trash",
+          label: "Trash",
+          icon: <DeleteOutlined />,
         },
-        {
-            key: 'starred',
-            icon: <StarOutlined />,
-            label: 'Favorites',
-        },
-        {
-            key: 'documents',
-            icon: <FolderOutlined />,
-            label: 'Documents',
-            children: [
-                {
-                    key: 'my-documents',
-                    label: 'My documents',
-                    icon: <FolderOutlined style={{ fontSize: 16, color: '#8c8c8c' }} />
-                },
-                {
-                    key: 'trash',
-                    label: 'Trash',
-                    icon: <DeleteOutlined />
-                },
-            ]
-        },
-        {
-            key: 'shared',
-            icon: <TeamOutlined />,
-            label: 'Shared with me',
-        },
-    ];
+      ],
+    },
+    {
+      key: "shared",
+      icon: <TeamOutlined />,
+      label: "Shared with me",
+    },
+  ];
 
-    return (
-        <div style={{
-            width: '100%',
-            maxWidth: 240,
-            height: '100%',
-            borderRight: '1px solid #f0f0f0',
-            background: '#fff',
-            paddingTop: 16
-        }}>
-            <Menu
-                mode="inline"
-                defaultSelectedKeys={['recent']}
-                openKeys={openKeys}
-                onOpenChange={(keys) => setOpenKeys(keys)}
-                style={{ borderRight: 0 }}
-                items={items}
-                onClick={(info) => {
-                    const item = items.find(i => i.key === info.key);
-                    if (item && typeof item.onClick === 'function') {
-                        item.onClick();
-                    }
-                }}
-            />
-        </div>
-    );
+  return (
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 240,
+        height: "100%",
+        borderRight: "1px solid #f0f0f0",
+        background: "#fff",
+        paddingTop: 16,
+      }}
+    >
+      <Menu
+        mode="inline"
+        defaultSelectedKeys={["recent"]}
+        openKeys={openKeys}
+        onOpenChange={(keys) => setOpenKeys(keys)}
+        style={{ borderRight: 0 }}
+        items={items}
+        onClick={(info) => {
+          const item = items.find((i) => i.key === info.key);
+          if (item && typeof item.onClick === "function") {
+            item.onClick();
+          }
+        }}
+      />
+    </div>
+  );
 }

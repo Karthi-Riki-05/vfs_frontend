@@ -1418,6 +1418,141 @@ function extendApp() {
     })();
     // ────────────────────────────────────────────────────────────────
 
+    // ── ValueChart: custom Shapes icon in left vertical sidebar ────
+    // Mirror of the Templates button above — same three install paths,
+    // same guard observer. Posts `{action: "openCustomShapes"}` up to
+    // the React parent, which opens the CustomShapesPanel drawer.
+    (function installVcShapesBtn() {
+      function onClick(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        if (e && e.stopPropagation) e.stopPropagation();
+        try {
+          (window.opener || window.parent).postMessage(
+            JSON.stringify({ action: "openCustomShapes" }),
+            "*",
+          );
+          console.log("[VC] Shapes clicked → openCustomShapes");
+        } catch (err) {
+          console.error("[VC] openCustomShapes postMessage failed", err);
+        }
+      }
+
+      function buildButton() {
+        var btn = document.createElement("a");
+        btn.className = "geButton";
+        btn.setAttribute("data-vc-shapes", "1");
+        btn.setAttribute("title", "Custom Shapes");
+        btn.setAttribute("role", "button");
+        btn.setAttribute("aria-label", "Custom Shapes");
+        // Four-square shape-library icon (distinct from Templates 2x2)
+        btn.innerHTML =
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3CB371" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">' +
+          '<circle cx="7"  cy="7"  r="3"/>' +
+          '<rect   x="14" y="4"  width="6" height="6" rx="1"/>' +
+          '<polygon points="7,14 11,21 3,21"/>' +
+          '<rect   x="14" y="14" width="6" height="6" rx="2" transform="rotate(45 17 17)"/>' +
+          "</svg>";
+        if (typeof mxEvent !== "undefined") {
+          mxEvent.addListener(btn, "click", onClick);
+        } else {
+          btn.addEventListener("click", onClick);
+        }
+        return btn;
+      }
+
+      function appendTo(picker) {
+        if (!picker) return false;
+        if (picker.querySelector('[data-vc-shapes="1"]')) return true;
+        // Insert right after the Templates button when present, otherwise
+        // as the first icon.
+        var tmpl = picker.querySelector('[data-vc-templates="1"]');
+        if (tmpl && tmpl.nextSibling) {
+          picker.insertBefore(buildButton(), tmpl.nextSibling);
+        } else if (tmpl) {
+          picker.appendChild(buildButton());
+        } else {
+          picker.insertBefore(buildButton(), picker.firstChild);
+        }
+        console.log(
+          "[VC] Shapes button added to",
+          picker.className || picker.nodeName,
+        );
+        startGuardObserver(picker);
+        return true;
+      }
+
+      function startGuardObserver(picker) {
+        if (!picker || picker.__vcShapesGuardObserver) return;
+        var obs = new MutationObserver(function () {
+          if (picker.classList.contains("geCollapsedToolbar")) return;
+          if (
+            picker.children.length > 0 &&
+            !picker.querySelector('[data-vc-shapes="1"]')
+          ) {
+            // Re-insert after Templates if both are rebuilt together
+            var tmpl = picker.querySelector('[data-vc-templates="1"]');
+            if (tmpl && tmpl.nextSibling) {
+              picker.insertBefore(buildButton(), tmpl.nextSibling);
+            } else if (tmpl) {
+              picker.appendChild(buildButton());
+            } else {
+              picker.insertBefore(buildButton(), picker.firstChild);
+            }
+            console.log("[VC] Shapes button re-inserted after expand");
+          }
+        });
+        obs.observe(picker, {
+          childList: true,
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+        picker.__vcShapesGuardObserver = obs;
+      }
+
+      // Path 1 — prototype patch
+      if (
+        typeof EditorUi !== "undefined" &&
+        EditorUi.prototype.createPickerMenuForTheme
+      ) {
+        var __vcOrigCreatePickerMenu2 =
+          EditorUi.prototype.createPickerMenuForTheme;
+        EditorUi.prototype.createPickerMenuForTheme = function (theme) {
+          __vcOrigCreatePickerMenu2.apply(this, arguments);
+          if (
+            (theme === "sketch" || theme === "simple") &&
+            this.sketchPickerMenuElt
+          ) {
+            appendTo(this.sketchPickerMenuElt);
+          }
+        };
+      }
+
+      // Path 2 — picker already built
+      if (window.__editorUi && window.__editorUi.sketchPickerMenuElt) {
+        appendTo(window.__editorUi.sketchPickerMenuElt);
+        return;
+      }
+
+      // Path 3 — DOM retry poll
+      var tries = 0;
+      var iv = setInterval(function () {
+        tries++;
+        var picker =
+          (window.__editorUi && window.__editorUi.sketchPickerMenuElt) ||
+          document.querySelector(".geVerticalToolbar") ||
+          document.querySelector(".geToolbarContainer.geVerticalToolbar");
+        if (appendTo(picker) || tries > 50) {
+          clearInterval(iv);
+          if (tries > 50) {
+            console.warn(
+              "[VC] gave up looking for .geVerticalToolbar (Shapes btn) after 10s",
+            );
+          }
+        }
+      }, 200);
+    })();
+    // ────────────────────────────────────────────────────────────────
+
     // ── ValueChart: un-fade the picker icons after flow XML loads ──
     // On initial embed-mode boot, draw.io builds the picker while the
     // graph is still disabled (graph.isEnabled() === false), so every

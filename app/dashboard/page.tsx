@@ -1,59 +1,80 @@
 "use client";
 
-import React from 'react';
-import { Button, Progress, Typography, Skeleton } from 'antd';
+import React, { useEffect } from "react";
+import { Button, Progress, Typography, Skeleton, message } from "antd";
 import {
-  FileTextOutlined, EditOutlined,
-  TeamOutlined, ShareAltOutlined,
-  HeartFilled, ProjectOutlined,
-} from '@ant-design/icons';
-import SubscriptionWidget from '@/components/dashboard/SubscriptionWidget';
-import { useAuth } from '@/hooks/useAuth';
-import { usePro } from '@/hooks/usePro';
-import { useDashboard } from '@/hooks/useDashboard';
-import { useRouter } from 'next/navigation';
-import { useIsMobile } from '@/hooks/useMediaQuery';
+  FileTextOutlined,
+  EditOutlined,
+  TeamOutlined,
+  ShareAltOutlined,
+  HeartFilled,
+  ProjectOutlined,
+} from "@ant-design/icons";
+import SubscriptionWidget from "@/components/dashboard/SubscriptionWidget";
+import { useAuth } from "@/hooks/useAuth";
+import { usePro } from "@/hooks/usePro";
+import { useDashboard } from "@/hooks/useDashboard";
+import { useRouter } from "next/navigation";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Text } = Typography;
 
-
-function FlowUsageBar({ proFlows, isUnlimited, onBuyMore }: { proFlows: any; isUnlimited: boolean; onBuyMore: () => void }) {
+function FlowUsageBar({
+  proFlows,
+  isUnlimited,
+  onBuyMore,
+}: {
+  proFlows: any;
+  isUnlimited: boolean;
+  onBuyMore: () => void;
+}) {
   const isMobile = useIsMobile();
 
   if (!proFlows) return null;
   const isLimited = !isUnlimited && proFlows.max > 0;
-  const percent = isLimited ? Math.round((proFlows.used / proFlows.max) * 100) : 0;
+  const percent = isLimited
+    ? Math.round((proFlows.used / proFlows.max) * 100)
+    : 0;
   const isNearLimit = percent >= 80;
 
   return (
     <div
       style={{
-        background: '#FAFAFA',
+        background: "#FAFAFA",
         borderRadius: 12,
-        border: '1px solid #E8E8E8',
-        padding: isMobile ? '12px 16px' : '16px 20px',
+        border: "1px solid #E8E8E8",
+        padding: isMobile ? "12px 16px" : "16px 20px",
         marginBottom: isMobile ? 20 : 28,
-        display: 'flex',
-        flexDirection: isMobile ? 'column' : 'row',
-        alignItems: isMobile ? 'stretch' : 'center',
+        display: "flex",
+        flexDirection: isMobile ? "column" : "row",
+        alignItems: isMobile ? "stretch" : "center",
         gap: isMobile ? 12 : 16,
       }}
     >
       <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
-          <Text strong style={{ fontSize: 14 }}>FLOW USAGE</Text>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: 8,
+            flexWrap: "wrap",
+            gap: 4,
+          }}
+        >
+          <Text strong style={{ fontSize: 14 }}>
+            FLOW USAGE
+          </Text>
           <Text type="secondary" style={{ fontSize: 13 }}>
             {isUnlimited
               ? `${proFlows.used} flows used (Unlimited)`
-              : `${proFlows.used} / ${proFlows.max} flows used`
-            }
+              : `${proFlows.used} / ${proFlows.max} flows used`}
           </Text>
         </div>
         {isLimited && (
           <Progress
             percent={percent}
             showInfo={false}
-            strokeColor={isNearLimit ? '#FF4D4F' : '#3CB371'}
+            strokeColor={isNearLimit ? "#FF4D4F" : "#3CB371"}
             trailColor="#E8E8E8"
             size="small"
           />
@@ -65,8 +86,8 @@ function FlowUsageBar({ proFlows, isUnlimited, onBuyMore }: { proFlows: any; isU
           onClick={onBuyMore}
           block={isMobile}
           style={{
-            backgroundColor: '#3CB371',
-            borderColor: '#3CB371',
+            backgroundColor: "#3CB371",
+            borderColor: "#3CB371",
             borderRadius: 8,
             fontWeight: 600,
           }}
@@ -81,10 +102,34 @@ function FlowUsageBar({ proFlows, isUnlimited, onBuyMore }: { proFlows: any; isU
 // ──────── KPI Cards ────────
 
 const KPI_CONFIG = [
-  { key: 'totalFlows', label: 'Total Flows', icon: <FileTextOutlined />, color: '#3CB371', bg: '#F0FFF4' },
-  { key: 'editedThisMonth', label: 'Edited This Month', icon: <EditOutlined />, color: '#1890FF', bg: '#E6F7FF' },
-  { key: 'teamMembers', label: 'Team Members', icon: <TeamOutlined />, color: '#722ED1', bg: '#F9F0FF' },
-  { key: 'sharedFlows', label: 'Shared Flows', icon: <ShareAltOutlined />, color: '#FA8C16', bg: '#FFF7E6' },
+  {
+    key: "totalFlows",
+    label: "Total Flows",
+    icon: <FileTextOutlined />,
+    color: "#3CB371",
+    bg: "#F0FFF4",
+  },
+  {
+    key: "editedThisMonth",
+    label: "Edited This Month",
+    icon: <EditOutlined />,
+    color: "#1890FF",
+    bg: "#E6F7FF",
+  },
+  {
+    key: "teamMembers",
+    label: "Team Members",
+    icon: <TeamOutlined />,
+    color: "#722ED1",
+    bg: "#F9F0FF",
+  },
+  {
+    key: "sharedFlows",
+    label: "Shared Flows",
+    icon: <ShareAltOutlined />,
+    color: "#FA8C16",
+    bg: "#FFF7E6",
+  },
 ];
 
 function KPICards({ stats, loading }: { stats: any; loading: boolean }) {
@@ -93,8 +138,8 @@ function KPICards({ stats, loading }: { stats: any; loading: boolean }) {
   return (
     <div
       style={{
-        display: 'grid',
-        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+        display: "grid",
+        gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
         gap: isMobile ? 10 : 16,
         marginBottom: isMobile ? 20 : 28,
       }}
@@ -103,12 +148,12 @@ function KPICards({ stats, loading }: { stats: any; loading: boolean }) {
         <div
           key={kpi.key}
           style={{
-            background: '#fff',
+            background: "#fff",
             borderRadius: 12,
-            border: '1px solid #F0F0F0',
-            padding: isMobile ? '14px 12px' : '20px 20px',
-            display: 'flex',
-            alignItems: 'center',
+            border: "1px solid #F0F0F0",
+            padding: isMobile ? "14px 12px" : "20px 20px",
+            display: "flex",
+            alignItems: "center",
             gap: isMobile ? 10 : 14,
           }}
         >
@@ -118,9 +163,9 @@ function KPICards({ stats, loading }: { stats: any; loading: boolean }) {
               height: isMobile ? 36 : 44,
               borderRadius: 10,
               background: kpi.bg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               fontSize: isMobile ? 16 : 20,
               color: kpi.color,
               flexShrink: 0,
@@ -130,13 +175,32 @@ function KPICards({ stats, loading }: { stats: any; loading: boolean }) {
           </div>
           <div>
             {loading ? (
-              <Skeleton.Input active size="small" style={{ width: 40, height: 28 }} />
+              <Skeleton.Input
+                active
+                size="small"
+                style={{ width: 40, height: 28 }}
+              />
             ) : (
-              <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 700, lineHeight: 1.1, color: '#1A1A2E' }}>
+              <div
+                style={{
+                  fontSize: isMobile ? 20 : 26,
+                  fontWeight: 700,
+                  lineHeight: 1.1,
+                  color: "#1A1A2E",
+                }}
+              >
                 {stats?.[kpi.key] ?? 0}
               </div>
             )}
-            <div style={{ fontSize: isMobile ? 11 : 12, color: '#8C8C8C', marginTop: 2 }}>{kpi.label}</div>
+            <div
+              style={{
+                fontSize: isMobile ? 11 : 12,
+                color: "#8C8C8C",
+                marginTop: 2,
+              }}
+            >
+              {kpi.label}
+            </div>
           </div>
         </div>
       ))}
@@ -146,12 +210,25 @@ function KPICards({ stats, loading }: { stats: any; loading: boolean }) {
 
 // ──────── Activity Chart (SVG) ────────
 
-function ActivityChart({ activity, loading }: { activity: any[]; loading: boolean }) {
+function ActivityChart({
+  activity,
+  loading,
+}: {
+  activity: any[];
+  loading: boolean;
+}) {
   const isMobile = useIsMobile();
 
   if (loading) {
     return (
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #F0F0F0', padding: 20 }}>
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 12,
+          border: "1px solid #F0F0F0",
+          padding: 20,
+        }}
+      >
         <Skeleton active paragraph={{ rows: 4 }} />
       </div>
     );
@@ -159,28 +236,89 @@ function ActivityChart({ activity, loading }: { activity: any[]; loading: boolea
 
   if (!activity || activity.length === 0) return null;
 
-  const maxVal = Math.max(...activity.map(d => d.created + d.edited), 1);
+  const maxVal = Math.max(...activity.map((d) => d.created + d.edited), 1);
   const chartH = isMobile ? 100 : 140;
   const barW = isMobile ? 24 : 40;
   const gap = isMobile ? 8 : 16;
   const totalW = activity.length * (barW + gap) - gap;
 
   return (
-    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #F0F0F0', padding: isMobile ? '16px 12px' : '20px 24px' }}>
-      <Text strong style={{ fontSize: 12, color: '#8C8C8C', textTransform: 'uppercase', letterSpacing: 1 }}>
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: 12,
+        border: "1px solid #F0F0F0",
+        padding: isMobile ? "16px 12px" : "20px 24px",
+      }}
+    >
+      <Text
+        strong
+        style={{
+          fontSize: 12,
+          color: "#8C8C8C",
+          textTransform: "uppercase",
+          letterSpacing: 1,
+        }}
+      >
         FLOW ACTIVITY (LAST 7 DAYS)
       </Text>
-      <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 4, marginBottom: 12 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8C8C8C' }}>
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: '#3CB371', display: 'inline-block' }} /> Created
+      <div
+        style={{
+          display: "flex",
+          gap: 16,
+          alignItems: "center",
+          marginTop: 4,
+          marginBottom: 12,
+        }}
+      >
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 11,
+            color: "#8C8C8C",
+          }}
+        >
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 2,
+              background: "#3CB371",
+              display: "inline-block",
+            }}
+          />{" "}
+          Created
         </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8C8C8C' }}>
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: '#1890FF', display: 'inline-block' }} /> Edited
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 11,
+            color: "#8C8C8C",
+          }}
+        >
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 2,
+              background: "#1890FF",
+              display: "inline-block",
+            }}
+          />{" "}
+          Edited
         </span>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <svg width={totalW} height={chartH + 24} viewBox={`0 0 ${totalW} ${chartH + 24}`}>
+      <div style={{ overflowX: "auto" }}>
+        <svg
+          width={totalW}
+          height={chartH + 24}
+          viewBox={`0 0 ${totalW} ${chartH + 24}`}
+        >
           {activity.map((day, i) => {
             const x = i * (barW + gap);
             const createdH = (day.created / maxVal) * chartH;
@@ -233,23 +371,37 @@ function timeAgo(dateStr: string): string {
   const date = new Date(dateStr);
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'Just now';
+  if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+  return date.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
 
-function RecentFlowsSection({ flows, loading }: { flows: any[]; loading: boolean }) {
+function RecentFlowsSection({
+  flows,
+  loading,
+}: {
+  flows: any[];
+  loading: boolean;
+}) {
   const isMobile = useIsMobile();
   const router = useRouter();
 
   if (loading) {
     return (
       <div style={{ marginBottom: isMobile ? 20 : 28 }}>
-        <Text strong style={{ fontSize: 12, color: '#8C8C8C', textTransform: 'uppercase', letterSpacing: 1 }}>
+        <Text
+          strong
+          style={{
+            fontSize: 12,
+            color: "#8C8C8C",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+          }}
+        >
           RECENT FLOWS
         </Text>
         <div style={{ marginTop: 12 }}>
@@ -263,78 +415,113 @@ function RecentFlowsSection({ flows, loading }: { flows: any[]; loading: boolean
 
   return (
     <div style={{ marginBottom: isMobile ? 20 : 28 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Text strong style={{ fontSize: 12, color: '#8C8C8C', textTransform: 'uppercase', letterSpacing: 1 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
+        <Text
+          strong
+          style={{
+            fontSize: 12,
+            color: "#8C8C8C",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+          }}
+        >
           RECENT FLOWS
         </Text>
         <button
-          onClick={() => router.push('/dashboard/flows')}
+          onClick={() => router.push("/dashboard/flows")}
           style={{
-            fontSize: 12, color: '#3CB371', background: 'transparent', border: 'none',
-            cursor: 'pointer', fontWeight: 600, fontFamily: 'Inter, sans-serif',
+            fontSize: 12,
+            color: "#3CB371",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            fontWeight: 600,
+            fontFamily: "Inter, sans-serif",
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
-          onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.textDecoration = "underline")
+          }
+          onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
         >
           View All
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          overflowX: "auto",
+          paddingBottom: 4,
+        }}
+      >
         {flows.map((flow) => (
           <div
             key={flow.id}
-            onClick={() => window.open(`/dashboard/flows/${flow.id}`, '_blank')}
+            onClick={() => window.open(`/dashboard/flows/${flow.id}`, "_blank")}
             style={{
               minWidth: isMobile ? 140 : 180,
               width: isMobile ? 140 : 180,
-              background: '#fff',
+              background: "#fff",
               borderRadius: 12,
-              border: '1px solid #F0F0F0',
-              cursor: 'pointer',
-              overflow: 'hidden',
-              transition: 'all 0.2s',
+              border: "1px solid #F0F0F0",
+              cursor: "pointer",
+              overflow: "hidden",
+              transition: "all 0.2s",
               flexShrink: 0,
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "none";
             }}
           >
             {/* Thumbnail */}
             <div
               style={{
                 height: isMobile ? 80 : 100,
-                background: '#F8F9FA',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
+                background: "#F8F9FA",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
               }}
             >
               {flow.thumbnail ? (
-                <img src={flow.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img
+                  src={flow.thumbnail}
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               ) : (
-                <ProjectOutlined style={{ fontSize: 28, color: '#D9D9D9' }} />
+                <ProjectOutlined style={{ fontSize: 28, color: "#D9D9D9" }} />
               )}
             </div>
             {/* Info */}
-            <div style={{ padding: '10px 12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ padding: "10px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <Text
                   strong
                   ellipsis
-                  style={{ fontSize: 13, color: '#1A1A2E', flex: 1 }}
+                  style={{ fontSize: 13, color: "#1A1A2E", flex: 1 }}
                 >
                   {flow.name}
                 </Text>
-                {flow.isFavorite && <HeartFilled style={{ fontSize: 11, color: '#FF4D6A' }} />}
+                {flow.isFavorite && (
+                  <HeartFilled style={{ fontSize: 11, color: "#FF4D6A" }} />
+                )}
               </div>
-              <Text style={{ fontSize: 11, color: '#8C8C8C' }}>
+              <Text style={{ fontSize: 11, color: "#8C8C8C" }}>
                 {timeAgo(flow.updatedAt)}
               </Text>
             </div>
@@ -347,13 +534,27 @@ function RecentFlowsSection({ flows, loading }: { flows: any[]; loading: boolean
 
 // ──────── Team Activity Feed ────────
 
-function TeamActivityFeed({ activity, loading }: { activity: any[]; loading: boolean }) {
+function TeamActivityFeed({
+  activity,
+  loading,
+}: {
+  activity: any[];
+  loading: boolean;
+}) {
   const isMobile = useIsMobile();
 
   if (loading) {
     return (
       <div style={{ marginBottom: isMobile ? 20 : 28 }}>
-        <Text strong style={{ fontSize: 12, color: '#8C8C8C', textTransform: 'uppercase', letterSpacing: 1 }}>
+        <Text
+          strong
+          style={{
+            fontSize: 12,
+            color: "#8C8C8C",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+          }}
+        >
           TEAM ACTIVITY
         </Text>
         <div style={{ marginTop: 12 }}>
@@ -367,20 +568,40 @@ function TeamActivityFeed({ activity, loading }: { activity: any[]; loading: boo
 
   return (
     <div style={{ marginBottom: isMobile ? 20 : 28 }}>
-      <Text strong style={{ fontSize: 12, color: '#8C8C8C', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 12 }}>
+      <Text
+        strong
+        style={{
+          fontSize: 12,
+          color: "#8C8C8C",
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          display: "block",
+          marginBottom: 12,
+        }}
+      >
         TEAM ACTIVITY
       </Text>
 
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #F0F0F0', overflow: 'hidden' }}>
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 12,
+          border: "1px solid #F0F0F0",
+          overflow: "hidden",
+        }}
+      >
         {activity.slice(0, 5).map((item, i) => (
           <div
             key={`${item.id}-${i}`}
             style={{
-              display: 'flex',
-              alignItems: 'center',
+              display: "flex",
+              alignItems: "center",
               gap: 12,
-              padding: '12px 16px',
-              borderBottom: i < Math.min(activity.length, 5) - 1 ? '1px solid #F5F5F5' : 'none',
+              padding: "12px 16px",
+              borderBottom:
+                i < Math.min(activity.length, 5) - 1
+                  ? "1px solid #F5F5F5"
+                  : "none",
             }}
           >
             {/* Avatar */}
@@ -388,31 +609,35 @@ function TeamActivityFeed({ activity, loading }: { activity: any[]; loading: boo
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: '50%',
-                background: '#F0FFF4',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                borderRadius: "50%",
+                background: "#F0FFF4",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 flexShrink: 0,
-                overflow: 'hidden',
+                overflow: "hidden",
               }}
             >
               {item.userImage ? (
-                <img src={item.userImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img
+                  src={item.userImage}
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               ) : (
-                <TeamOutlined style={{ fontSize: 14, color: '#3CB371' }} />
+                <TeamOutlined style={{ fontSize: 14, color: "#3CB371" }} />
               )}
             </div>
             {/* Text */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <Text ellipsis style={{ fontSize: 13, color: '#1A1A2E' }}>
-                <strong>{item.userName}</strong>{' '}
-                {item.action === 'created' ? 'created' : 'edited'}{' '}
-                <span style={{ color: '#3CB371' }}>{item.flowName}</span>
+              <Text ellipsis style={{ fontSize: 13, color: "#1A1A2E" }}>
+                <strong>{item.userName}</strong>{" "}
+                {item.action === "created" ? "created" : "edited"}{" "}
+                <span style={{ color: "#3CB371" }}>{item.flowName}</span>
               </Text>
             </div>
             {/* Time */}
-            <Text style={{ fontSize: 11, color: '#BFBFBF', flexShrink: 0 }}>
+            <Text style={{ fontSize: 11, color: "#BFBFBF", flexShrink: 0 }}>
               {timeAgo(item.timestamp)}
             </Text>
           </div>
@@ -428,34 +653,46 @@ function Greeting({ userName }: { userName: string | null }) {
   const isMobile = useIsMobile();
   const [mounted, setMounted] = React.useState(false);
 
-  React.useEffect(() => { setMounted(true); }, []);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  const firstName = userName?.split(' ')[0] || 'there';
+  const firstName = userName?.split(" ")[0] || "there";
 
   // Avoid hydration mismatch: render neutral text on server, time-aware on client
-  let greeting = 'Welcome';
-  let dateStr = '';
+  let greeting = "Welcome";
+  let dateStr = "";
   if (mounted) {
     const hour = new Date().getHours();
-    greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-    dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    greeting =
+      hour < 12
+        ? "Good morning"
+        : hour < 17
+          ? "Good afternoon"
+          : "Good evening";
+    dateStr = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
   }
 
   return (
     <div style={{ marginBottom: isMobile ? 16 : 20 }}>
-      <h1 style={{
-        fontSize: isMobile ? 20 : 26,
-        fontWeight: 700,
-        color: '#1A1A2E',
-        margin: 0,
-        fontFamily: 'Inter, sans-serif',
-      }}>
+      <h1
+        style={{
+          fontSize: isMobile ? 20 : 26,
+          fontWeight: 700,
+          color: "#1A1A2E",
+          margin: 0,
+          fontFamily: "Inter, sans-serif",
+        }}
+      >
         {greeting}, {firstName}
       </h1>
       {dateStr && (
-        <Text style={{ fontSize: 13, color: '#8C8C8C' }}>
-          {dateStr}
-        </Text>
+        <Text style={{ fontSize: 13, color: "#8C8C8C" }}>{dateStr}</Text>
       )}
     </div>
   );
@@ -466,31 +703,61 @@ function Greeting({ userName }: { userName: string | null }) {
 export default function DashboardPage() {
   const { user } = useAuth();
   const { currentApp, proFlows, status } = usePro();
-  const { stats, activity, recentFlows, teamActivity, loading } = useDashboard();
+  const { stats, activity, recentFlows, teamActivity, loading } =
+    useDashboard();
   const router = useRouter();
   const isMobile = useIsMobile();
 
-  const isProApp = currentApp === 'pro';
+  const isProApp = currentApp === "pro";
   const isUnlimited = status?.isUnlimited ?? false;
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get("addon_success");
+    const cancelled = params.get("addon_cancelled");
+
+    if (success === "true") {
+      const credits = params.get("credits");
+      message.success(
+        credits
+          ? `${credits} AI credits added to your account!`
+          : "AI credits added to your account!",
+      );
+      window.dispatchEvent(new CustomEvent("aiCreditsChanged"));
+      window.history.replaceState({}, "", "/dashboard");
+    } else if (cancelled === "true") {
+      message.info("Credit purchase cancelled");
+      window.history.replaceState({}, "", "/dashboard");
+    }
+  }, []);
+
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '0' : '0 24px' }}>
+    <div
+      style={{
+        maxWidth: 1200,
+        margin: "0 auto",
+        padding: isMobile ? "0" : "0 24px",
+      }}
+    >
       <Greeting userName={user?.name} />
       {isProApp && (
         <FlowUsageBar
           proFlows={proFlows}
           isUnlimited={isUnlimited}
-          onBuyMore={() => router.push('/dashboard/subscription')}
+          onBuyMore={() => router.push("/dashboard/subscription")}
         />
       )}
       <KPICards stats={stats} loading={loading} />
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr',
-        gap: 16,
-        marginBottom: isMobile ? 20 : 28,
-      }}>
-        <div style={{ gridColumn: isMobile ? '1' : '1 / 3' }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",
+          gap: 16,
+          marginBottom: isMobile ? 20 : 28,
+        }}
+      >
+        <div style={{ gridColumn: isMobile ? "1" : "1 / 3" }}>
           <ActivityChart activity={activity} loading={loading} />
         </div>
         <SubscriptionWidget />

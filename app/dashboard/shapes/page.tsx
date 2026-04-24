@@ -1,19 +1,45 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Modal, Form, Input, Select, message, Row, Col, Spin, Radio, Upload, Divider, Space, Card, Typography, Dropdown } from 'antd';
-import { PlusOutlined, FileImageOutlined, ArrowLeftOutlined, AppstoreOutlined, MoreOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
-import SectionHeader from '@/components/common/SectionHeader';
-import EmptyState from '@/components/common/EmptyState';
-import ShapeCard from '@/components/shapes/ShapeCard';
-import api from '@/lib/axios';
-import { RcFile } from 'antd/es/upload';
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  Button,
+  Modal,
+  Form,
+  Input,
+  Select,
+  message,
+  Row,
+  Col,
+  Spin,
+  Radio,
+  Upload,
+  Divider,
+  Space,
+  Card,
+  Typography,
+  Dropdown,
+} from "antd";
+import {
+  PlusOutlined,
+  FileImageOutlined,
+  ArrowLeftOutlined,
+  AppstoreOutlined,
+  MoreOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined,
+} from "@ant-design/icons";
+import SectionHeader from "@/components/common/SectionHeader";
+import EmptyState from "@/components/common/EmptyState";
+import ShapeCard from "@/components/shapes/ShapeCard";
+import api from "@/lib/axios";
+import { RcFile } from "antd/es/upload";
 
 const { Option } = Select;
 const { Text } = Typography;
 const { Dragger } = Upload;
 
-const TEAL_COLOR = '#4ECDC4';
+const TEAL_COLOR = "#4ECDC4";
 
 export default function ShapesPage() {
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -29,8 +55,8 @@ export default function ShapesPage() {
   const [editingGroupLoading, setEditingGroupLoading] = useState(false);
 
   // Form Watchers
-  const shapeType = Form.useWatch('type', form);
-  const [newGroupName, setNewGroupName] = useState('');
+  const shapeType = Form.useWatch("type", form);
+  const [newGroupName, setNewGroupName] = useState("");
   const [addingGroup, setAddingGroup] = useState(false);
 
   useEffect(() => {
@@ -41,11 +67,11 @@ export default function ShapesPage() {
   const fetchShapes = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/shapes');
+      const response = await api.get("/shapes");
       const ds = response.data?.data || response.data || {};
       setShapes(ds.shapes || (Array.isArray(ds) ? ds : []));
     } catch (error: any) {
-      console.error('Failed to load shapes', error);
+      console.error("Failed to load shapes", error);
     } finally {
       setLoading(false);
     }
@@ -53,11 +79,11 @@ export default function ShapesPage() {
 
   const fetchGroups = async () => {
     try {
-      const response = await api.get('/shape-groups');
+      const response = await api.get("/shape-groups");
       const dg = response.data?.data || response.data || {};
       setGroups(dg.groups || (Array.isArray(dg) ? dg : []));
     } catch (error) {
-      console.error('Failed to load groups', error);
+      console.error("Failed to load groups", error);
     }
   };
 
@@ -65,14 +91,14 @@ export default function ShapesPage() {
     if (!newGroupName.trim()) return;
     setAddingGroup(true);
     try {
-      const response = await api.post('/shape-groups', { name: newGroupName });
+      const response = await api.post("/shape-groups", { name: newGroupName });
       const newGroup = response.data?.data || response.data;
       setGroups([newGroup, ...groups]);
       form.setFieldsValue({ groupId: newGroup.id });
-      setNewGroupName('');
-      message.success('Group created');
+      setNewGroupName("");
+      message.success("Group created");
     } catch (error) {
-      message.error('Failed to create group');
+      message.error("Failed to create group");
     } finally {
       setAddingGroup(false);
     }
@@ -94,13 +120,13 @@ export default function ShapesPage() {
       const values = await editGroupForm.validateFields();
       setEditingGroupLoading(true);
       await api.put(`/shape-groups/${editingGroup.id}`, { name: values.name });
-      message.success('Group renamed');
+      message.success("Group renamed");
       setEditGroupModalOpen(false);
       setEditingGroup(null);
       editGroupForm.resetFields();
       fetchGroups();
     } catch {
-      message.error('Failed to rename group');
+      message.error("Failed to rename group");
     } finally {
       setEditingGroupLoading(false);
     }
@@ -112,24 +138,29 @@ export default function ShapesPage() {
     Modal.confirm({
       title: `Delete "${group.name}"?`,
       icon: <ExclamationCircleOutlined />,
-      content: shapeCount > 0
-        ? `This will delete the group and all ${shapeCount} shape${shapeCount !== 1 ? 's' : ''} inside it. This cannot be undone.`
-        : 'This will delete the empty group. This cannot be undone.',
-      okText: 'Delete',
-      okType: 'danger',
-      cancelText: 'Cancel',
+      content:
+        shapeCount > 0
+          ? `This will delete the group and all ${shapeCount} shape${shapeCount !== 1 ? "s" : ""} inside it. This cannot be undone.`
+          : "This will delete the empty group. This cannot be undone.",
+      okText: "Delete",
+      okType: "danger",
+      cancelText: "Cancel",
       onOk: async () => {
         try {
           await api.delete(`/shape-groups/${group.id}`);
-          message.success('Group deleted');
-          setGroups(prev => prev.filter(g => g.id !== group.id));
+          message.success("Group deleted");
+          setGroups((prev) => prev.filter((g) => g.id !== group.id));
           // Also remove shapes that belonged to this group from local state
-          setShapes(prev => prev.filter(s => s.groupId !== group.id && s.group?.id !== group.id));
+          setShapes((prev) =>
+            prev.filter(
+              (s) => s.groupId !== group.id && s.group?.id !== group.id,
+            ),
+          );
           if (selectedGroup?.id === group.id) {
             setSelectedGroup(null);
           }
         } catch {
-          message.error('Failed to delete group');
+          message.error("Failed to delete group");
         }
       },
     });
@@ -138,7 +169,7 @@ export default function ShapesPage() {
   // Count shapes per group
   const groupShapeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    shapes.forEach(s => {
+    shapes.forEach((s) => {
       const gid = s.groupId || s.group?.id;
       if (gid) {
         counts[gid] = (counts[gid] || 0) + 1;
@@ -150,13 +181,15 @@ export default function ShapesPage() {
   // Filtered shapes when viewing inside a group
   const filteredShapes = useMemo(() => {
     if (!selectedGroup) return shapes;
-    return shapes.filter(s => s.groupId === selectedGroup.id || s.group?.id === selectedGroup.id);
+    return shapes.filter(
+      (s) => s.groupId === selectedGroup.id || s.group?.id === selectedGroup.id,
+    );
   }, [shapes, selectedGroup]);
 
   // Filtered groups for the group filter dropdown
   const displayedGroups = useMemo(() => {
     if (!filterGroupId) return groups;
-    return groups.filter(g => g.id === filterGroupId);
+    return groups.filter((g) => g.id === filterGroupId);
   }, [groups, filterGroupId]);
 
   const showModal = () => setIsModalVisible(true);
@@ -179,7 +212,7 @@ export default function ShapesPage() {
       let content = values.content;
 
       // Handle Image Upload
-      if (values.type === 'image' && values.upload) {
+      if (values.type === "image" && values.upload) {
         const file = values.upload[0]?.originFileObj;
         if (file) {
           content = await getBase64(file);
@@ -194,25 +227,25 @@ export default function ShapesPage() {
         content: content,
       };
 
-      await api.post('/shapes', payload);
-      message.success('Shape added successfully');
+      await api.post("/shapes", payload);
+      message.success("Shape added successfully");
       setIsModalVisible(false);
       form.resetFields();
       fetchShapes();
     } catch (error: any) {
-      console.error('Failed to add shape', error);
-      message.error('Failed to add shape');
+      console.error("Failed to add shape", error);
+      message.error("Failed to add shape");
     }
   };
 
   const handleDeleteShape = async (id: string) => {
     try {
       await api.delete(`/shapes/${id}`);
-      setShapes(shapes.filter(s => s.id !== id));
-      message.success('Shape deleted');
+      setShapes(shapes.filter((s) => s.id !== id));
+      message.success("Shape deleted");
     } catch (error) {
-      setShapes(shapes.filter(s => s.id !== id));
-      message.info('Shape removed from view');
+      setShapes(shapes.filter((s) => s.id !== id));
+      message.info("Shape removed from view");
     }
   };
 
@@ -227,7 +260,7 @@ export default function ShapesPage() {
   const renderGroupCards = () => {
     if (loading) {
       return (
-        <div style={{ textAlign: 'center', padding: '100px 0' }}>
+        <div style={{ textAlign: "center", padding: "100px 0" }}>
           <Spin size="large" />
         </div>
       );
@@ -248,9 +281,26 @@ export default function ShapesPage() {
       <Row gutter={[16, 16]}>
         {displayedGroups.map((group) => {
           const groupMenuItems = [
-            { key: 'edit', label: 'Rename', icon: <EditOutlined />, onClick: (info: any) => { info.domEvent.stopPropagation(); handleEditGroup(group, info.domEvent); } },
-            { type: 'divider' as const },
-            { key: 'delete', label: 'Delete', icon: <DeleteOutlined />, danger: true, onClick: (info: any) => { info.domEvent.stopPropagation(); handleDeleteGroup(group, info.domEvent); } },
+            {
+              key: "edit",
+              label: "Rename",
+              icon: <EditOutlined />,
+              onClick: (info: any) => {
+                info.domEvent.stopPropagation();
+                handleEditGroup(group, info.domEvent);
+              },
+            },
+            { type: "divider" as const },
+            {
+              key: "delete",
+              label: "Delete",
+              icon: <DeleteOutlined />,
+              danger: true,
+              onClick: (info: any) => {
+                info.domEvent.stopPropagation();
+                handleDeleteGroup(group, info.domEvent);
+              },
+            },
           ];
 
           return (
@@ -260,33 +310,60 @@ export default function ShapesPage() {
                 onClick={() => setSelectedGroup(group)}
                 style={{
                   borderRadius: 12,
-                  border: '1px solid #F0F0F0',
-                  cursor: 'pointer',
+                  border: "1px solid #F0F0F0",
+                  cursor: "pointer",
                 }}
-                styles={{ body: { padding: '24px', textAlign: 'center', position: 'relative' } }}
+                styles={{
+                  body: {
+                    padding: "24px",
+                    textAlign: "center",
+                    position: "relative",
+                  },
+                }}
               >
-                <div style={{ position: 'absolute', top: 8, right: 8 }}>
-                  <Dropdown menu={{ items: groupMenuItems }} trigger={['click']}>
-                    <Button type="text" icon={<MoreOutlined />} size="small" onClick={(e) => e.stopPropagation()} />
+                <div style={{ position: "absolute", top: 8, right: 8 }}>
+                  <Dropdown
+                    menu={{ items: groupMenuItems }}
+                    trigger={["click"]}
+                  >
+                    <Button
+                      type="text"
+                      icon={<MoreOutlined />}
+                      size="small"
+                      onClick={(e) => e.stopPropagation()}
+                    />
                   </Dropdown>
                 </div>
-                <div style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 12,
-                  background: `${TEAL_COLOR}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 16px',
-                }}>
-                  <AppstoreOutlined style={{ fontSize: 28, color: TEAL_COLOR }} />
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 12,
+                    background: `${TEAL_COLOR}15`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 16px",
+                  }}
+                >
+                  <AppstoreOutlined
+                    style={{ fontSize: 28, color: TEAL_COLOR }}
+                  />
                 </div>
-                <Text strong style={{ fontSize: 14, color: '#1A1A2E', display: 'block', marginBottom: 4 }}>
+                <Text
+                  strong
+                  style={{
+                    fontSize: 14,
+                    color: "#1A1A2E",
+                    display: "block",
+                    marginBottom: 4,
+                  }}
+                >
                   {group.name}
                 </Text>
-                <Text style={{ fontSize: 12, color: '#8C8C8C' }}>
-                  {groupShapeCounts[group.id] || 0} shape{(groupShapeCounts[group.id] || 0) !== 1 ? 's' : ''}
+                <Text style={{ fontSize: 12, color: "#8C8C8C" }}>
+                  {groupShapeCounts[group.id] || 0} shape
+                  {(groupShapeCounts[group.id] || 0) !== 1 ? "s" : ""}
                 </Text>
               </Card>
             </Col>
@@ -300,7 +377,7 @@ export default function ShapesPage() {
   const renderShapesInGroup = () => {
     if (loading) {
       return (
-        <div style={{ textAlign: 'center', padding: '100px 0' }}>
+        <div style={{ textAlign: "center", padding: "100px 0" }}>
           <Spin size="large" />
         </div>
       );
@@ -313,7 +390,7 @@ export default function ShapesPage() {
             type="text"
             icon={<ArrowLeftOutlined />}
             onClick={() => setSelectedGroup(null)}
-            style={{ padding: '4px 8px', color: '#8C8C8C', fontSize: 14 }}
+            style={{ padding: "4px 8px", color: "#8C8C8C", fontSize: 14 }}
           >
             Back to Groups
           </Button>
@@ -342,14 +419,20 @@ export default function ShapesPage() {
   return (
     <div style={{ padding: 24 }}>
       <SectionHeader
-        title={selectedGroup ? selectedGroup.name.toUpperCase() : 'SHAPE LIBRARY'}
+        title={
+          selectedGroup ? selectedGroup.name.toUpperCase() : "SHAPE LIBRARY"
+        }
         right={
           selectedGroup ? (
             <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={showModal}
-              style={{ background: '#3CB371', borderColor: '#3CB371', borderRadius: 8 }}
+              style={{
+                background: "#3CB371",
+                borderColor: "#3CB371",
+                borderRadius: 8,
+              }}
             >
               Add Shape
             </Button>
@@ -359,18 +442,26 @@ export default function ShapesPage() {
                 placeholder="Filter by group"
                 allowClear
                 style={{ width: 180, borderRadius: 8 }}
-                onChange={(value: string | undefined) => setFilterGroupId(value || null)}
+                onChange={(value: string | undefined) =>
+                  setFilterGroupId(value || null)
+                }
                 value={filterGroupId || undefined}
               >
-                {groups.map(g => (
-                  <Option key={g.id} value={g.id}>{g.name}</Option>
+                {groups.map((g) => (
+                  <Option key={g.id} value={g.id}>
+                    {g.name}
+                  </Option>
                 ))}
               </Select>
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={showModal}
-                style={{ background: '#3CB371', borderColor: '#3CB371', borderRadius: 8 }}
+                style={{
+                  background: "#3CB371",
+                  borderColor: "#3CB371",
+                  borderRadius: 8,
+                }}
               >
                 Add Shape
               </Button>
@@ -393,7 +484,7 @@ export default function ShapesPage() {
         onOk={handleSaveGroupEdit}
         confirmLoading={editingGroupLoading}
         okButtonProps={{
-          style: { backgroundColor: '#3CB371', borderColor: '#3CB371' },
+          style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
         }}
         okText="Save"
       >
@@ -401,9 +492,13 @@ export default function ShapesPage() {
           <Form.Item
             name="name"
             label="Group Name"
-            rules={[{ required: true, message: 'Please enter a group name' }]}
+            rules={[{ required: true, message: "Please enter a group name" }]}
           >
-            <Input placeholder="Group name" size="large" style={{ borderRadius: 8 }} />
+            <Input
+              placeholder="Group name"
+              size="large"
+              style={{ borderRadius: 8 }}
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -416,7 +511,12 @@ export default function ShapesPage() {
         footer={null}
         width={700}
       >
-        <Form form={form} layout="vertical" onFinish={handleAddShape} initialValues={{ type: 'stencil', textAlignment: 'bottom' }}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleAddShape}
+          initialValues={{ type: "stencil", textAlignment: "bottom" }}
+        >
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="name" label="Name" rules={[{ required: true }]}>
@@ -424,12 +524,23 @@ export default function ShapesPage() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="type" label="Shape Type" rules={[{ required: true }]}>
-                <Select>
+              <Form.Item
+                name="type"
+                label="Shape Type"
+                rules={[{ required: true }]}
+              >
+                <Select
+                  // Render the popup inside the modal — otherwise the Ant
+                  // Design portal places it on document.body where the
+                  // modal mask/stacking context can hide it.
+                  getPopupContainer={(trigger) =>
+                    trigger.parentElement || document.body
+                  }
+                >
                   <Option value="stencil">Stencil</Option>
                   <Option value="image">Image</Option>
                   <Option value="html">HTML</Option>
-                  <Option value="shape">Shape</Option>
+                  <Option value="shape">XML</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -438,58 +549,124 @@ export default function ShapesPage() {
           <Form.Item
             name="groupId"
             label="Group"
-            rules={[{ required: true, message: 'Please select a group' }]}
+            rules={[{ required: true, message: "Please select a group" }]}
           >
             <Select
               placeholder="Select a group"
-              dropdownRender={(menu) => (
+              // Keep the popup inside the modal (same reason as the Shape
+              // Type select above) and use the new API for custom footer.
+              getPopupContainer={(trigger) =>
+                trigger.parentElement || document.body
+              }
+              popupRender={(menu) => (
                 <>
                   {menu}
-                  <Divider style={{ margin: '8px 0' }} />
-                  <Space style={{ padding: '0 8px 4px' }}>
+                  <Divider style={{ margin: "8px 0" }} />
+                  <Space style={{ padding: "0 8px 4px" }}>
                     <Input
                       placeholder="New group name"
                       value={newGroupName}
                       onChange={(e) => setNewGroupName(e.target.value)}
                     />
-                    <Button type="text" icon={<PlusOutlined />} onClick={handleCreateGroup} loading={addingGroup}>
+                    <Button
+                      type="text"
+                      icon={<PlusOutlined />}
+                      onClick={handleCreateGroup}
+                      loading={addingGroup}
+                    >
                       Add
                     </Button>
                   </Space>
                 </>
               )}
             >
-              {groups.map(g => (
-                <Option key={g.id} value={g.id}>{g.name}</Option>
+              {groups.map((g) => (
+                <Option key={g.id} value={g.id}>
+                  {g.name}
+                </Option>
               ))}
             </Select>
           </Form.Item>
 
-          {shapeType === 'image' ? (
+          {shapeType === "image" ? (
             <Form.Item
               name="upload"
               label="Image Upload"
               valuePropName="fileList"
               getValueFromEvent={normFile}
-              rules={[{ required: true, message: 'Please upload an image' }]}
+              rules={[{ required: true, message: "Please upload an image" }]}
             >
-              <Dragger name="files" maxCount={1} beforeUpload={() => false} accept="image/*">
-                <p className="ant-upload-drag-icon"><FileImageOutlined /></p>
-                <p className="ant-upload-text">Click or drag file to this area to upload</p>
+              <Dragger
+                name="files"
+                maxCount={1}
+                beforeUpload={() => false}
+                accept="image/*"
+              >
+                <p className="ant-upload-drag-icon">
+                  <FileImageOutlined />
+                </p>
+                <p className="ant-upload-text">
+                  Click or drag file to this area to upload
+                </p>
               </Dragger>
             </Form.Item>
           ) : (
-            <Form.Item
-              name="content"
-              label="Content (SVG/HTML/XML)"
-              rules={[{ required: true, message: 'Please enter content' }]}
-              help="Paste your SVG code or HTML snippet here."
-            >
-              <Input.TextArea rows={6} placeholder="<svg...>...</svg>" />
-            </Form.Item>
+            <>
+              {shapeType === "shape" && (
+                <Form.Item label="Upload XML File">
+                  <Dragger
+                    name="xmlfile"
+                    maxCount={1}
+                    showUploadList={false}
+                    accept=".xml,.svg,.txt,text/xml,application/xml,image/svg+xml"
+                    beforeUpload={(file) => {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const text = String(reader.result || "").trim();
+                        if (!text) {
+                          message.error("File is empty");
+                          return;
+                        }
+                        form.setFieldsValue({ content: text });
+                        message.success(`Loaded ${file.name}`);
+                      };
+                      reader.onerror = () =>
+                        message.error("Failed to read file");
+                      reader.readAsText(file);
+                      return false;
+                    }}
+                  >
+                    <p className="ant-upload-drag-icon">
+                      <FileImageOutlined />
+                    </p>
+                    <p className="ant-upload-text">
+                      Click or drag an XML / SVG file
+                    </p>
+                    <p
+                      className="ant-upload-hint"
+                      style={{ fontSize: 12, color: "#888" }}
+                    >
+                      File contents will populate the field below
+                    </p>
+                  </Dragger>
+                </Form.Item>
+              )}
+              <Form.Item
+                name="content"
+                label="Content (SVG/HTML/XML)"
+                rules={[{ required: true, message: "Please enter content" }]}
+                help="Paste your SVG / HTML / mxGraph XML here, or upload a file above."
+              >
+                <Input.TextArea rows={6} placeholder="<svg...>...</svg>" />
+              </Form.Item>
+            </>
           )}
 
-          <Form.Item name="textAlignment" label="Text Alignment" rules={[{ required: true }]}>
+          <Form.Item
+            name="textAlignment"
+            label="Text Alignment"
+            rules={[{ required: true }]}
+          >
             <Radio.Group>
               <Radio value="top">Top</Radio>
               <Radio value="center">Center</Radio>
@@ -503,7 +680,11 @@ export default function ShapesPage() {
               htmlType="submit"
               block
               size="large"
-              style={{ background: '#3CB371', borderColor: '#3CB371', borderRadius: 8 }}
+              style={{
+                background: "#3CB371",
+                borderColor: "#3CB371",
+                borderRadius: 8,
+              }}
             >
               Save Shape
             </Button>
