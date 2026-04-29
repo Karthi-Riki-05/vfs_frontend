@@ -23,6 +23,7 @@ import {
   UserOutlined,
   CrownOutlined,
   LogoutOutlined,
+  CreditCardOutlined,
   MenuOutlined,
   TeamOutlined,
   CheckOutlined,
@@ -34,6 +35,7 @@ import NotificationDropdown from "@/components/common/NotificationDropdown";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useAppContext, type TeamContextOption } from "@/context/AppContext";
+import { usePro } from "@/hooks/usePro";
 
 const { Header: AntHeader } = Layout;
 const { Text } = Typography;
@@ -70,6 +72,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     effectivePlan,
     isTeamContext,
   } = useAppContext();
+  const { currentApp, hasPro } = usePro();
 
   // Subscription-aware personal plan — wins over the stale JWT/session field.
   // (Backend `getTeamContext` resolves it from the active subscription row.)
@@ -78,17 +81,36 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   // Chat-locked subscription popup — same styling as Sidebar's Teams popup
   const [chatLockedOpen, setChatLockedOpen] = useState(false);
 
-  const isPro = effectivePlan === "pro" || effectivePlan === "team";
+  // App-scoped entitlement. Pro lifetime purchase grants Pro features INSIDE
+  // Pro app, but does NOT count as a Team-app subscription. So in Team app,
+  // the badge/locks must reflect Team-app state only (active team sub or
+  // membership), not the Pro flag.
+  const isProApp = currentApp === "pro";
+  const inAppPlan: "free" | "pro" | "team" = isProApp
+    ? // Pro app: Pro entitlement is the only signal
+      personalPlanInfo.hasPro
+      ? "pro"
+      : "free"
+    : // Team app: read Team-only signals — active subscription or team
+      // context. Personal plan='pro' from a separate Pro purchase is ignored.
+      isTeamContext
+      ? activeContext.type === "team"
+        ? activeContext.plan === "team"
+          ? "team"
+          : "free"
+        : "free"
+      : personalPlan === "team"
+        ? "team"
+        : "free";
+  const isPro = inAppPlan === "pro" || inAppPlan === "team";
   const personalActive = activeContext.type === "personal";
   const hasTeamContext = availableTeams.length > 0;
   const activeTeamName =
     activeContext.type === "team" ? activeContext.teamName : "";
-  // Chat unlocks when:
-  //   • personal account is Pro/Team, OR
-  //   • the user has switched into ANY team context (chat is the team
-  //     collaboration tool — membership is the entitlement, even if the
-  //     team owner's currentVersion field is stale).
-  const hasChatAccess = isPro || isTeamContext;
+  // Chat unlocks for any user with the Pro lifetime entitlement, an
+  // active Pro/Team plan in this app, or who's switched into a team
+  // context. Pro purchase = all Team features (product spec).
+  const hasChatAccess = hasPro || isPro || isTeamContext;
 
   // ─────────── Switch button click handler ───────────
 
@@ -191,9 +213,9 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             </div>
             <div style={{ fontSize: 11, color: "#8C8C8C" }}>
               Personal ·{" "}
-              {personalPlan === "team"
+              {inAppPlan === "team"
                 ? "Team Plan"
-                : personalPlan === "pro"
+                : inAppPlan === "pro"
                   ? "Pro Plan"
                   : "Free Plan"}
             </div>
@@ -273,6 +295,12 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       icon: <CrownOutlined />,
       label: "Subscription",
       onClick: () => router.push("/dashboard/subscription"),
+    },
+    {
+      key: "billing",
+      icon: <CreditCardOutlined />,
+      label: "Billing & Transactions",
+      onClick: () => router.push("/dashboard/settings/billing"),
     },
     { type: "divider" as const },
     {
@@ -386,66 +414,32 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
           <NotificationDropdown />
 
-          {/* Plan badge — reflects effective plan */}
+          {/* Plan badge — reflects in-app plan (Pro app shows Pro state,
+              Team app shows Team-subscription state — they don't bleed).
+              Free users see a "Free Plan" tag that links to upgrade. */}
           {!isMobile && (
             <span className="plan-badge">
               {isPro ? (
                 <Tag
-                  color={hydrated && isTeamContext ? "purple" : "gold"}
+                  color={hydrated && inAppPlan === "team" ? "purple" : "gold"}
                   style={{ marginRight: 0 }}
                 >
-                  {hydrated && effectivePlan === "team"
-                    ? "Team Plan"
-                    : "Pro Plan"}
+                  {hydrated && inAppPlan === "team" ? "Team Plan" : "Pro Plan"}
                 </Tag>
               ) : (
-                <Button
-                  type="default"
-                  shape="round"
-                  size="small"
+                <Tag
+                  color="default"
+                  style={{ marginRight: 0, cursor: "pointer" }}
                   onClick={() => router.push("/dashboard/subscription")}
                 >
-                  Upgrade
-                </Button>
+                  Free Plan
+                </Tag>
               )}
             </span>
           )}
 
-          {/* Switch button — shown only when team contexts exist */}
-          {hydrated && hasTeamContext && (
-            <Tooltip
-              title={
-                isTeamContext
-                  ? "Switch back to personal"
-                  : availableTeams.length === 1
-                    ? `Switch to ${availableTeams[0].teamName || "team"}`
-                    : "Switch to a team"
-              }
-            >
-              <button
-                onClick={handleContextSwitch}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  padding: "4px 10px",
-                  borderRadius: 6,
-                  border: `1px solid ${isTeamContext ? "#3CB371" : "#e8e8e8"}`,
-                  background: isTeamContext ? "#F0FFF4" : "#fff",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  color: isTeamContext ? PRIMARY : "#666",
-                  fontWeight: 500,
-                  whiteSpace: "nowrap",
-                  lineHeight: 1.5,
-                  height: 28,
-                }}
-              >
-                <SwapOutlined style={{ fontSize: 12 }} />
-                {!isMobile && <span>{isTeamContext ? "Team" : "Switch"}</span>}
-              </button>
-            </Tooltip>
-          )}
+          {/* Switch button removed — context switching lives inside the
+              user dropdown (Personal / available teams). */}
 
           {/* User dropdown — truncated name + tiny "Team context" subtitle */}
           <Dropdown

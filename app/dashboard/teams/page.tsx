@@ -33,7 +33,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTeams } from "@/hooks/useTeams";
 import { teamsApi } from "@/api/teams.api";
 import { usePro } from "@/hooks/usePro";
+import { useAppContext } from "@/context/AppContext";
 import { subscriptionsApi } from "@/api/subscriptions.api";
+import TeamUpgradeModal from "@/components/common/TeamUpgradeModal";
 
 const { Text } = Typography;
 
@@ -42,8 +44,10 @@ export default function TeamsPage() {
   const { user } = useAuth();
   const { teams, loading, createTeam, deleteTeam, updateTeam, fetchTeams } =
     useTeams();
-  const { hasPro, currentApp } = usePro();
+  const { currentApp, loading: proLoading } = usePro();
+  const { isTeamContext } = useAppContext();
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -57,34 +61,75 @@ export default function TeamsPage() {
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
-    // PRO users always have access
-    if (currentApp === "pro" && hasPro) {
+    // Wait for usePro to settle — otherwise Pro users get blocked during the
+    // initial render where hasPro=false / currentApp='free' (race condition).
+    if (proLoading) return;
+
+    // Pro app shell or active team context → unconditional access. The
+    // lifetime `hasPro` flag is NOT honored in the Team app — it only
+    // matters when the user is in the Pro app shell.
+    if (currentApp === "pro" || isTeamContext) {
       setHasAccess(true);
       return;
     }
 
-    // ValueChart: check subscription
+    let cancelled = false;
     subscriptionsApi
       .getStatus()
       .then((res) => {
+        if (cancelled) return;
         const data = res.data?.data || res.data;
         const active = data?.hasSubscription && data?.status === "active";
-        if (!active) {
-          router.push("/dashboard/subscription");
-        } else {
+        if (active) {
           setHasAccess(true);
+        } else {
+          setHasAccess(false);
+          setUpgradeModalOpen(true);
         }
       })
       .catch(() => {
-        router.push("/dashboard/subscription");
+        if (cancelled) return;
+        setHasAccess(false);
+        setUpgradeModalOpen(true);
       });
-  }, [currentApp, hasPro, router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentApp, isTeamContext, proLoading]);
 
   if (hasAccess === null) {
     return (
       <div style={{ textAlign: "center", padding: 100 }}>
         <Spin size="large" />
       </div>
+    );
+  }
+
+  if (hasAccess === false) {
+    return (
+      <>
+        <div style={{ textAlign: "center", padding: 100 }}>
+          <Typography.Title level={4} style={{ color: "#8C8C8C" }}>
+            Teams is not available on your current plan
+          </Typography.Title>
+          <Button
+            type="primary"
+            onClick={() => setUpgradeModalOpen(true)}
+            style={{
+              backgroundColor: "#3CB371",
+              borderColor: "#3CB371",
+              marginTop: 12,
+            }}
+          >
+            See plans
+          </Button>
+        </div>
+        <TeamUpgradeModal
+          open={upgradeModalOpen}
+          onClose={() => setUpgradeModalOpen(false)}
+          feature="teams"
+        />
+      </>
     );
   }
 

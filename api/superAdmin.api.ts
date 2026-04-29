@@ -330,10 +330,33 @@ export interface UserSearchResult {
   hasPro: boolean;
 }
 
+export interface BroadcastResult {
+  total: number;
+  sent: number;
+  failed: number;
+  cleaned: number;
+}
+
 export const superAdminApi = {
   getDashboardStats: () =>
     api.get<{ success: boolean; data: DashboardStatsResponse }>(
       "/super-admin/dashboard/stats",
+    ),
+
+  countDevices: () =>
+    api.get<{ success: boolean; data: { total: number } }>(
+      "/super-admin/notifications/devices",
+    ),
+
+  broadcastNotification: (payload: {
+    title: string;
+    body: string;
+    url?: string;
+    kind?: "test" | "maintenance" | "announcement";
+  }) =>
+    api.post<{ success: boolean; data: BroadcastResult }>(
+      "/super-admin/notifications/broadcast",
+      payload,
     ),
 
   getUsers: (query: UsersQuery = {}) =>

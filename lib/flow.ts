@@ -68,9 +68,12 @@ export async function createNewFlow(options?: {
       errorCode === "FLOW_LIMIT_REACHED"
     ) {
       showFlowLimitModal(errorMsg);
-    } else {
-      message.error(errorMsg);
+      // Handled with the upgrade modal — return null so unawaited callers
+      // (e.g. sidebar onClick) don't surface an unhandled rejection /
+      // dev-overlay axios error.
+      return null;
     }
-    throw err;
+    message.error(errorMsg);
+    return null;
   }
 }

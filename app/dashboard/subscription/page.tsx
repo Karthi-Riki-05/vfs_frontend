@@ -17,11 +17,14 @@ import {
   CheckCircleFilled,
   CrownOutlined,
   ThunderboltOutlined,
+  ExclamationCircleOutlined,
+  CreditCardOutlined,
 } from "@ant-design/icons";
 import SectionHeader from "@/components/common/SectionHeader";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePro } from "@/hooks/usePro";
 import { usePricing } from "@/hooks/usePricing";
+import { usePackStatus } from "@/hooks/usePackStatus";
 import { proApi } from "@/api/pro.api";
 import { aiApi } from "@/api/ai.api";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -217,18 +220,37 @@ function ProSubscriptionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { pricing } = usePricing();
+  const { status: packStatus, refresh: refreshPackStatus } = usePackStatus();
   const [proSubStatus, setProSubStatus] = useState<ProSubStatus | null>(null);
   const [proSubLoading, setProSubLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
   useEffect(() => {
     const purchased = searchParams?.get("purchased");
-    if (purchased) {
-      const label = purchased === "unlimited" ? "Unlimited flows" : "50 flows";
+    const sessionId = searchParams?.get("session_id");
+    if (!purchased) return;
+    const label = purchased === "unlimited" ? "Unlimited flows" : "50 flows";
+
+    // Success-URL fallback: in local dev (and any env where the Stripe
+    // webhook hasn't reached this backend yet) we explicitly verify the
+    // session against Stripe and credit the account. Idempotent on the
+    // backend — safe even when the webhook eventually arrives.
+    const finish = async () => {
+      if (sessionId) {
+        try {
+          await proApi.verifyFlowPurchase(sessionId);
+        } catch {
+          // Silent — webhook may have already credited; status refresh
+          // below will reflect the final state either way.
+        }
+      }
       message.success(`${label} purchased successfully!`);
+      await fetchProSubStatus();
+      refreshPackStatus();
       router.replace("/dashboard/subscription");
-    }
-  }, [searchParams, router]);
+    };
+    finish();
+  }, [searchParams, router, refreshPackStatus]);
 
   useEffect(() => {
     fetchProSubStatus();
@@ -277,26 +299,31 @@ function ProSubscriptionContent() {
       ? 0
       : Math.round((flows.used / flows.total) * 100);
 
-  const purchaseColumns = [
-    {
-      title: "Date",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      render: (val: string) => new Date(val).toLocaleDateString(),
-    },
-    {
-      title: "Flows",
-      dataIndex: "flowCount",
-      key: "flowCount",
-      render: (val: number) => (val === -1 ? "Unlimited" : val),
-    },
-    {
-      title: "Amount",
-      dataIndex: "amountCents",
-      key: "amountCents",
-      render: (val: number) => `$${(val / 100).toFixed(2)}`,
-    },
-  ];
+  // Pack-level usage detail (active pack lifecycle, expiry, day count).
+  // Falls back gracefully when there's no active pack — Pro lifetime alone
+  // still shows the base 10-flow allowance.
+  const activePack = packStatus?.activePackId ? packStatus : null;
+  const packLabel = activePack?.isUnlimited
+    ? "Unlimited Flows"
+    : activePack?.packType === "fifty_flows"
+      ? "50 Flows pack"
+      : null;
+  const expiryStr = activePack?.expiresAt
+    ? new Date(activePack.expiresAt).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+  const daysLeft = activePack?.daysUntilExpiry ?? null;
+  const expiryColor =
+    daysLeft === null
+      ? "#1A1A2E"
+      : daysLeft <= 1
+        ? "#cf1322"
+        : daysLeft <= 7
+          ? "#D46B08"
+          : "#3CB371";
 
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "16px" }}>
@@ -334,7 +361,7 @@ function ProSubscriptionContent() {
               PRICE
             </Text>
             <div style={{ fontWeight: 600, fontSize: 15 }}>
-              {pricing?.prices.pro_monthly.display ?? "$5.99"}/month
+              {pricing?.prices.pro_monthly.display ?? "$1"} lifetime
             </div>
           </div>
           <div>
@@ -405,6 +432,76 @@ function ProSubscriptionContent() {
         )}
       </Card>
 
+      {/* Pack lifecycle / monthly usage detail. Renders only when the user
+          has an ACTIVE flow pack on top of their Pro lifetime — makes the
+          monthly nature of the pack obvious instead of looking like an
+          annual plan. */}
+      {activePack && packLabel && (
+        <Card
+          style={{ marginBottom: 24, borderRadius: 12 }}
+          styles={{ body: { padding: "16px 20px" } }}
+        >
+          <Text
+            strong
+            style={{ fontSize: 16, display: "block", marginBottom: 12 }}
+          >
+            Monthly Pack Usage
+          </Text>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 24,
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                ACTIVE PACK
+              </Text>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>{packLabel}</div>
+            </div>
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                BILLING CYCLE
+              </Text>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>30 days</div>
+            </div>
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                EXPIRES ON
+              </Text>
+              <div
+                style={{ fontWeight: 600, fontSize: 15, color: expiryColor }}
+              >
+                {expiryStr || "—"}
+              </div>
+            </div>
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                DAYS LEFT
+              </Text>
+              <div
+                style={{ fontWeight: 700, fontSize: 18, color: expiryColor }}
+              >
+                {daysLeft === null
+                  ? "—"
+                  : daysLeft < 0
+                    ? "Expired"
+                    : `${daysLeft} day${daysLeft === 1 ? "" : "s"}`}
+              </div>
+            </div>
+            <div style={{ flex: "1 1 100%" }}>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                Flow packs are 30-day windows with a 3-day grace period after
+                expiry. Renew anytime to extend access — unused time stacks on
+                top of the new pack&apos;s expiry.
+              </Text>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {!isUnlimited && (
         <Card
           style={{ marginBottom: 24, borderRadius: 12 }}
@@ -438,11 +535,23 @@ function ProSubscriptionContent() {
                   fontSize: 28,
                   fontWeight: 700,
                   color: "#3CB371",
-                  marginBottom: 12,
+                  marginBottom: 2,
                 }}
               >
                 $5.00
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
+                >
+                  / month
+                </Text>
               </div>
+              <Text
+                type="secondary"
+                style={{ fontSize: 11, display: "block", marginBottom: 12 }}
+              >
+                Recurring monthly subscription &middot; cancel anytime
+              </Text>
               <Text
                 type="secondary"
                 style={{ display: "block", marginBottom: 8 }}
@@ -470,7 +579,7 @@ function ProSubscriptionContent() {
                   height: 44,
                 }}
               >
-                Purchase &mdash; $5
+                Subscribe &mdash; $5/month
               </Button>
             </div>
             <div
@@ -511,11 +620,23 @@ function ProSubscriptionContent() {
                   fontSize: 28,
                   fontWeight: 700,
                   color: "#F59E0B",
-                  marginBottom: 12,
+                  marginBottom: 2,
                 }}
               >
                 $10.00
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
+                >
+                  / month
+                </Text>
               </div>
+              <Text
+                type="secondary"
+                style={{ fontSize: 11, display: "block", marginBottom: 12 }}
+              >
+                Recurring monthly subscription &middot; cancel anytime
+              </Text>
               <Text
                 type="secondary"
                 style={{ display: "block", marginBottom: 8 }}
@@ -526,7 +647,7 @@ function ProSubscriptionContent() {
                 type="secondary"
                 style={{ fontSize: 12, display: "block", marginBottom: 20 }}
               >
-                One-time payment, unlimited forever
+                Unlimited flows for as long as you subscribe
               </Text>
               <Button
                 type="primary"
@@ -543,7 +664,7 @@ function ProSubscriptionContent() {
                   height: 44,
                 }}
               >
-                Purchase &mdash; $10
+                Subscribe &mdash; $10/month
               </Button>
             </div>
           </div>
@@ -552,23 +673,8 @@ function ProSubscriptionContent() {
 
       <AiAddonPacksSection />
 
-      {proSubStatus.purchases && proSubStatus.purchases.length > 0 && (
-        <Card style={{ borderRadius: 12 }} bodyStyle={{ padding: "24px 28px" }}>
-          <Text
-            strong
-            style={{ fontSize: 16, display: "block", marginBottom: 16 }}
-          >
-            Purchase History
-          </Text>
-          <Table
-            dataSource={proSubStatus.purchases}
-            columns={purchaseColumns}
-            rowKey="id"
-            pagination={false}
-            size="small"
-          />
-        </Card>
-      )}
+      {/* Purchase history lives on the Billing page (/dashboard/settings/billing).
+          Pro subscription page focuses on usage + upgrade actions only. */}
     </div>
   );
 }
@@ -588,6 +694,26 @@ export default function SubscriptionPage() {
   const [monthlyMembers, setMonthlyMembers] = useState(5);
   const [yearlyMembers, setYearlyMembers] = useState(5);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const openCustomerPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/subscription/customer-portal", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        window.location.href = data.data.url;
+      } else {
+        message.error(data.error?.message || "Could not open billing portal");
+      }
+    } catch {
+      message.error("Failed to open billing portal");
+    } finally {
+      setPortalLoading(false);
+    }
+  };
 
   const handlePurchase = async (plan: "monthly" | "yearly") => {
     const teamMembers = plan === "monthly" ? monthlyMembers : yearlyMembers;
@@ -653,6 +779,15 @@ export default function SubscriptionPage() {
     status.status === "active" &&
     status.plan === plan;
 
+  // Same plan type, but the seat count in the slider differs from what
+  // Stripe currently has → user wants to change member count (Case 1).
+  const isMemberCountChange = (plan: "monthly" | "yearly") => {
+    if (!isActivePlan(plan)) return false;
+    const desired = plan === "monthly" ? monthlyMembers : yearlyMembers;
+    const current = status?.teamMemberLimit ?? 0;
+    return desired !== current;
+  };
+
   const isDowngradeBlocked = (plan: "monthly" | "yearly") =>
     status?.hasSubscription &&
     status.status === "active" &&
@@ -665,9 +800,15 @@ export default function SubscriptionPage() {
   const getButtonLabel = (plan: "monthly" | "yearly") => {
     if (!status?.hasSubscription || status.status !== "active")
       return "Purchase Now";
-    if (status.plan === plan) return "Current Plan";
     if (isDowngradeBlocked(plan)) return "Not Available";
     if (isScheduledFor(plan)) return "Scheduled";
+    if (isActivePlan(plan)) {
+      const desired = plan === "monthly" ? monthlyMembers : yearlyMembers;
+      const current = status?.teamMemberLimit ?? 0;
+      if (desired > current) return "Add Members";
+      if (desired < current) return "Reduce Members";
+      return "Current Plan";
+    }
     return "Change Plan";
   };
 
@@ -682,9 +823,9 @@ export default function SubscriptionPage() {
         : pricing?.prices.team_yearly;
     const symbol = pricing?.symbol || "$";
     const perUserAmount = priceInfo?.amount ?? 0;
-    // Original (non-discounted) — 2x for monthly, 3x for yearly as visual anchor
-    const originalPerUser =
-      plan === "monthly" ? perUserAmount * 2 : perUserAmount * 3;
+    // 80% OFF anchor — strikethrough is 5× the discounted price so the
+    // "80% OFF" label is mathematically consistent ($1 ↔ $5, $7.20 ↔ $36).
+    const originalPerUser = perUserAmount * 5;
 
     const currentPrice = members * perUserAmount;
     const originalPrice = members * originalPerUser;
@@ -905,11 +1046,13 @@ export default function SubscriptionPage() {
         {/* Button */}
         <div style={{ padding: "20px 24px 28px" }}>
           <Button
-            type={isCurrent ? "default" : "primary"}
+            type={
+              isCurrent && !isMemberCountChange(plan) ? "default" : "primary"
+            }
             block
             size="large"
             disabled={
-              isCurrent ||
+              (isCurrent && !isMemberCountChange(plan)) ||
               isDowngradeBlocked(plan) ||
               isScheduledFor(plan) ||
               checkoutLoading !== null
@@ -954,6 +1097,62 @@ export default function SubscriptionPage() {
           }}
         >
           🧪 Test Mode — Prices shown in USD
+        </div>
+      )}
+
+      {/* Past-due banner */}
+      {status?.hasSubscription && status.status === "past_due" && (
+        <div
+          style={{
+            background: "#fff2f0",
+            border: "1px solid #ffccc7",
+            borderRadius: 8,
+            padding: "16px 20px",
+            marginBottom: 24,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 12,
+          }}
+        >
+          <ExclamationCircleOutlined
+            style={{
+              color: "#ff4d4f",
+              fontSize: 18,
+              marginTop: 2,
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ flex: 1 }}>
+            <div
+              style={{
+                fontWeight: 700,
+                color: "#cf1322",
+                fontSize: 15,
+                marginBottom: 4,
+              }}
+            >
+              Payment Failed
+            </div>
+            <div style={{ color: "#666", fontSize: 13, marginBottom: 12 }}>
+              Your last payment failed. Please update your payment method to
+              keep your subscription active. If not resolved, your account will
+              be downgraded to the free plan.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button
+                type="primary"
+                danger
+                size="small"
+                loading={portalLoading}
+                onClick={openCustomerPortal}
+              >
+                Update Payment Method
+              </Button>
+              <Button size="small" onClick={() => window.location.reload()}>
+                Retry
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1067,14 +1266,31 @@ export default function SubscriptionPage() {
         {renderPlanColumn("yearly")}
       </div>
 
-      {/* Cancel link */}
+      {/* Manage Billing + Cancel actions */}
       {status?.hasSubscription &&
-        status.status === "active" &&
-        !status.cancelAtPeriodEnd && (
-          <div style={{ textAlign: "center", marginTop: 8 }}>
-            <Button type="link" danger onClick={handleCancel}>
-              Cancel Subscription
+        (status.status === "active" || status.status === "past_due") && (
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: 8,
+              display: "flex",
+              justifyContent: "center",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <Button
+              icon={<CreditCardOutlined />}
+              onClick={openCustomerPortal}
+              loading={portalLoading}
+            >
+              Manage Billing & Invoices
             </Button>
+            {status.status === "active" && !status.cancelAtPeriodEnd && (
+              <Button type="link" danger onClick={handleCancel}>
+                Cancel Subscription
+              </Button>
+            )}
           </div>
         )}
     </div>

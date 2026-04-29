@@ -62,7 +62,31 @@ export function usePro() {
 
   const switchApp = useCallback(async (app: "free" | "pro") => {
     try {
-      await proApi.switchApp(app);
+      const res = await proApi.switchApp(app);
+      const data = res.data?.data || res.data;
+
+      // Backend returns { requiresPurchase: true, url } when the user
+      // hasn't bought Pro yet — Pro is a separate one-time $1 product
+      // that team-plan owners must buy explicitly. Redirect to checkout.
+      if (data?.requiresPurchase && data?.url) {
+        window.location.href = data.url;
+        return false;
+      }
+
+      // Pro and Team are different apps — leaving Pro mode shouldn't
+      // keep the user inside a Team workspace context (that would render
+      // the Team dashboard view inside the Pro app). Reset to personal.
+      try {
+        const STORAGE_KEY = "vc_active_context";
+        const next = { type: "personal" };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        window.dispatchEvent(
+          new CustomEvent("vc:context-change", { detail: next }),
+        );
+      } catch {
+        /* localStorage may be blocked */
+      }
+
       setStatus((prev) => (prev ? { ...prev, currentApp: app } : prev));
       return true;
     } catch {

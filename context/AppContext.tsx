@@ -142,7 +142,14 @@ export function AppContextProvider({
   const refresh = useCallback(async () => {
     if (!userKey) return;
     try {
-      const res = await api.get("/users/team-context");
+      // Pass the current workspace so backend filters teams by appContext.
+      // Reads currentVersion from session for the request-time hint.
+      const sessAppCtx =
+        ((session?.user as any)?.currentVersion as string | undefined) ||
+        "free";
+      const res = await api.get("/users/team-context", {
+        params: { appContext: sessAppCtx },
+      });
       const data = res.data?.data || res.data;
       const teams: TeamContextOption[] = Array.isArray(data?.availableTeams)
         ? data.availableTeams
@@ -188,7 +195,7 @@ export function AppContextProvider({
     } catch {
       // silent: non-critical
     }
-  }, [userKey]);
+  }, [userKey, session?.user]);
 
   useEffect(() => {
     refresh();

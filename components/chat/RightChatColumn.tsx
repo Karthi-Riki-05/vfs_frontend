@@ -40,12 +40,14 @@ import {
   FileWordOutlined,
   DownloadOutlined,
   UserAddOutlined,
+  LockOutlined,
 } from "@ant-design/icons";
 import api from "@/lib/axios";
 import { upload } from "@/lib/axios";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppContext } from "@/context/AppContext";
+import { usePro } from "@/hooks/usePro";
 import { useSocket } from "@/hooks/useSocket";
 
 const PRIMARY = "#3CB371";
@@ -188,7 +190,12 @@ export default function RightChatColumn({
   isFullView = false,
 }: RightChatColumnProps) {
   const { user } = useAuth();
-  const { activeTeamId } = useAppContext();
+  const { activeTeamId, isTeamContext } = useAppContext();
+  const { currentApp } = usePro();
+  // Pro app shell or active team context grants full chat. `hasPro` lifetime
+  // is intentionally NOT honored here — it only unlocks chat when the user
+  // is currently in the Pro app shell.
+  const hasChatAccess = currentApp === "pro" || isTeamContext;
   const {
     getUnreadCount,
     markGroupAsRead,
@@ -253,7 +260,9 @@ export default function RightChatColumn({
 
   const fetchSidebar = useCallback(async () => {
     try {
-      const res = await api.get("/chat/sidebar");
+      const res = await api.get("/chat/sidebar", {
+        params: activeTeamId ? { teamId: activeTeamId } : undefined,
+      });
       const d = res.data?.data || res.data || {};
       if (d.teams !== undefined) {
         setSidebarData(d as SidebarData);
@@ -278,7 +287,7 @@ export default function RightChatColumn({
     } finally {
       setLoadingSidebar(false);
     }
-  }, []);
+  }, [activeTeamId]);
 
   useEffect(() => {
     fetchSidebar();
@@ -1071,7 +1080,9 @@ export default function RightChatColumn({
   // ---- RENDER: Accordion list ----
   const renderAccordion = (highlightId?: string | null) => {
     // Personal context (or non-member of the target team) → locked placeholder.
-    if (sidebarData?.locked) {
+    // Pro users ($1 lifetime) and Pro app users have unconditional chat access,
+    // so suppress the backend's "requires a team" lock for them.
+    if (sidebarData?.locked && !hasChatAccess) {
       return (
         <div
           style={{

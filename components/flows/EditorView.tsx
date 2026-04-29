@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { getFlowById } from "@/lib/flow";
-import { Spin, Input, Button, message, Tag, Drawer } from "antd";
+import { Spin, Input, Button, message, Tag, Drawer, Modal } from "antd";
 import {
   ArrowLeftOutlined,
   LockOutlined,
@@ -226,6 +226,9 @@ export default function EditorView({ flowId }: { flowId: string }) {
   const [customShapesOpen, setCustomShapesOpen] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Latest XML observed from draw.io's export — used by handleExit to
+  // decide between "just close" vs the Save/Discard prompt for empty flows.
+  const latestXmlRef = useRef<string>("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle",
   );
@@ -440,6 +443,7 @@ export default function EditorView({ flowId }: { flowId: string }) {
         if (msg.event === "export") {
           const imageData = msg.data;
           const xmlData = msg.xml;
+          if (typeof xmlData === "string") latestXmlRef.current = xmlData;
 
           setSaveStatus("saving");
           // Drop thumbnail if it exceeds the backend's 500k validator limit
@@ -639,11 +643,74 @@ export default function EditorView({ flowId }: { flowId: string }) {
     );
   };
 
-  const handleExit = () => {
+  const closeEditor = () => {
     window.close();
     setTimeout(() => {
       window.location.href = "/dashboard/flows";
     }, 100);
+  };
+
+  // A flow is "untouched" when the diagram contains only the default
+  // empty mxGraphModel (or nothing) AND the user never renamed it. In
+  // that case we ask Save / Discard. Otherwise the flow is already
+  // autosaved with real content, so we just close.
+  const isUntouchedFlow = (): boolean => {
+    const xml = latestXmlRef.current || "";
+    const trimmed = xml.trim();
+    const looksEmpty =
+      trimmed === "" ||
+      trimmed.length < 200 ||
+      trimmed === "<mxGraphModel></mxGraphModel>" ||
+      trimmed === "<mxGraphModel/>";
+    const nameIsDefault =
+      !flowName || /^untitled/i.test(flowName.trim()) || flowName.trim() === "";
+    return looksEmpty && nameIsDefault;
+  };
+
+  const handleExit = () => {
+    // Read-only viewers and shared-edit users can't delete the flow —
+    // never prompt them with Discard.
+    if (isReadOnly || isSharedEdit || !isUntouchedFlow()) {
+      closeEditor();
+      return;
+    }
+
+    Modal.confirm({
+      title: "Save this flow?",
+      content:
+        "This flow is empty and still named 'Untitled'. Save it to your flows or discard it permanently?",
+      okText: "Save",
+      cancelText: "Discard",
+      centered: true,
+      width: 440,
+      okButtonProps: {
+        style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
+      },
+      cancelButtonProps: { danger: true },
+      onOk: () => {
+        // Cancel any pending autosave and close — backend already has the
+        // most recent state (or nothing, which is fine for an empty flow).
+        if (autosaveTimerRef.current) {
+          clearTimeout(autosaveTimerRef.current);
+          autosaveTimerRef.current = null;
+        }
+        closeEditor();
+      },
+      onCancel: async () => {
+        // Discard → permanently delete the flow.
+        if (autosaveTimerRef.current) {
+          clearTimeout(autosaveTimerRef.current);
+          autosaveTimerRef.current = null;
+        }
+        try {
+          await fetch(`/api/flows/${flowId}`, { method: "DELETE" });
+        } catch {
+          // Non-fatal — closing anyway. The flow is empty so leftover
+          // is harmless and will be cleared by the next sweep.
+        }
+        closeEditor();
+      },
+    });
   };
 
   if (!isMounted) return null;

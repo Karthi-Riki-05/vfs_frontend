@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Layout } from 'antd';
-import { usePathname } from 'next/navigation';
-import Header from './Header';
-import Sidebar from './Sidebar';
-import ProSidebar from './ProSidebar';
-import AIAssistant from '../ai/AIAssistant';
-import RightChatColumn from '../chat/RightChatColumn';
-import { usePro } from '@/hooks/usePro';
-import { useIsMobile, useIsTablet } from '@/hooks/useMediaQuery';
+import React, { useState, useEffect } from "react";
+import { Layout } from "antd";
+import { usePathname } from "next/navigation";
+import Header from "./Header";
+import Sidebar from "./Sidebar";
+import ProSidebar from "./ProSidebar";
+import AIAssistant from "../ai/AIAssistant";
+import RightChatColumn from "../chat/RightChatColumn";
+import EnableNotificationsBanner from "../common/EnableNotificationsBanner";
+import { usePro } from "@/hooks/usePro";
+import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
 
 const { Content } = Layout;
 
@@ -22,25 +23,31 @@ declare global {
   }
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatFullView, setChatFullView] = useState(false);
-  const pathname = usePathname() || '';
+  const pathname = usePathname() || "";
   const { currentApp } = usePro();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
 
   // Flow editor pages: /dashboard/flows/SOME_ID (but NOT /dashboard/flows or /dashboard/flows/new)
-  const isEditorPage = /^\/dashboard\/flows\/(?!new$)[a-zA-Z0-9_-]+$/.test(pathname);
+  const isEditorPage = /^\/dashboard\/flows\/(?!new$)[a-zA-Z0-9_-]+$/.test(
+    pathname,
+  );
 
   // Hide chat column on editor/upgrade pages
-  const hideChatColumn = isEditorPage || pathname?.includes('/upgrade-pro');
+  const hideChatColumn = isEditorPage || pathname?.includes("/upgrade-pro");
 
   // Expose toggle/open functions globally so header/sidebar/redirect can call them
   useEffect(() => {
-    window.__toggleChat = () => setChatOpen(prev => !prev);
+    window.__toggleChat = () => setChatOpen((prev) => !prev);
     window.__openChat = () => setChatOpen(true);
     window.__setChatFullView = (val: boolean) => setChatFullView(val);
     return () => {
@@ -63,11 +70,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Prevent body scroll when mobile drawer is open
   useEffect(() => {
     if (mobileOpen) {
-      document.body.style.overflow = 'hidden';
+      document.body.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = '';
+      document.body.style.overflow = "";
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [mobileOpen]);
 
   // Close chat handlers
@@ -77,7 +86,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const handleChatFullView = () => {
-    setChatFullView(prev => !prev);
+    setChatFullView((prev) => !prev);
   };
 
   // Editor page: render full-screen without sidebar/header, but include AI + Chat
@@ -86,14 +95,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const editorChatWidth = showEditorChat && !chatFullView ? 430 : 0;
 
     return (
-      <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-        <div style={{
-          width: chatFullView && chatOpen ? 0 : `calc(100% - ${editorChatWidth}px)`,
-          height: '100%',
-          transition: 'width 0.2s',
-          overflow: 'hidden',
-          display: chatFullView && chatOpen ? 'none' : undefined,
-        }}>
+      <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
+        <div
+          style={{
+            width:
+              chatFullView && chatOpen
+                ? 0
+                : `calc(100% - ${editorChatWidth}px)`,
+            height: "100%",
+            transition: "width 0.2s",
+            overflow: "hidden",
+            display: chatFullView && chatOpen ? "none" : undefined,
+          }}
+        >
           {children}
         </div>
 
@@ -102,14 +116,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Right chat column — normal mode */}
         {showEditorChat && !chatFullView && (
-          <div style={{
-            width: 430,
-            height: '100vh',
-            position: 'fixed',
-            top: 0,
-            right: 0,
-            zIndex: 50,
-          }}>
+          <div
+            style={{
+              width: 430,
+              height: "100vh",
+              position: "fixed",
+              top: 0,
+              right: 0,
+              zIndex: 50,
+            }}
+          >
             <RightChatColumn
               onClose={handleChatClose}
               onFullView={handleChatFullView}
@@ -120,15 +136,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Full view chat */}
         {chatOpen && chatFullView && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 60,
-            background: '#fff',
-          }}>
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 60,
+              background: "#fff",
+            }}
+          >
             <RightChatColumn
               onClose={handleChatClose}
               onFullView={handleChatFullView}
@@ -141,37 +159,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   // Choose sidebar based on current app
-  const SidebarComponent = currentApp === 'pro' ? ProSidebar : Sidebar;
+  const SidebarComponent = currentApp === "pro" ? ProSidebar : Sidebar;
 
   // Mobile: no fixed sidebar, use drawer. No right chat column on mobile.
   if (isMobile) {
     return (
-      <Layout style={{ minHeight: '100vh' }}>
+      <Layout style={{ minHeight: "100vh" }}>
         <Header onMenuClick={() => setMobileOpen(true)} />
 
         {/* Mobile sidebar drawer */}
         <div
-          className={`sidebar-backdrop ${mobileOpen ? 'open' : ''}`}
+          className={`sidebar-backdrop ${mobileOpen ? "open" : ""}`}
           onClick={() => setMobileOpen(false)}
         />
-        <div className={`sidebar-drawer ${mobileOpen ? 'open' : ''}`}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 16px',
-            borderBottom: '1px solid #F0F0F0',
-          }}>
-            <img src="/images/image.png" alt="ValueChart" style={{ height: 32 }} />
+        <div className={`sidebar-drawer ${mobileOpen ? "open" : ""}`}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "12px 16px",
+              borderBottom: "1px solid #F0F0F0",
+            }}
+          >
+            <img
+              src="/images/image.png"
+              alt="ValueChart"
+              style={{ height: 32 }}
+            />
             <button
               onClick={() => setMobileOpen(false)}
               style={{
-                background: 'none',
-                border: 'none',
+                background: "none",
+                border: "none",
                 fontSize: 20,
-                cursor: 'pointer',
+                cursor: "pointer",
                 padding: 8,
-                color: '#8C8C8C',
+                color: "#8C8C8C",
                 lineHeight: 1,
               }}
             >
@@ -189,12 +213,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Content
           className="responsive-content"
           style={{
-            padding: '16px',
+            padding: "16px",
             paddingTop: 56 + 16,
-            background: '#FFFFFF',
-            minHeight: 'calc(100vh - 56px)',
+            background: "#FFFFFF",
+            minHeight: "calc(100vh - 56px)",
           }}
         >
+          <EnableNotificationsBanner />
           {children}
           <AIAssistant contentLeft={0} contentRight={0} />
         </Content>
@@ -208,7 +233,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const chatColumnWidth = showChatColumn && !chatFullView ? 430 : 0;
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: "100vh" }}>
       <Header />
       <Layout style={{ marginTop: 56 }}>
         <SidebarComponent collapsed={collapsed} onCollapse={setCollapsed} />
@@ -220,27 +245,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             style={{
               marginLeft: siderWidth,
               marginRight: chatColumnWidth,
-              padding: isTablet ? '20px 24px' : '24px 32px',
-              background: '#FFFFFF',
-              minHeight: 'calc(100vh - 56px)',
-              transition: 'margin-left 0.2s, margin-right 0.2s',
+              padding: isTablet ? "20px 24px" : "24px 32px",
+              background: "#FFFFFF",
+              minHeight: "calc(100vh - 56px)",
+              transition: "margin-left 0.2s, margin-right 0.2s",
             }}
           >
+            <EnableNotificationsBanner />
             {children}
-            <AIAssistant contentLeft={siderWidth} contentRight={chatColumnWidth} />
+            <AIAssistant
+              contentLeft={siderWidth}
+              contentRight={chatColumnWidth}
+            />
           </Content>
         )}
 
         {/* Right chat column — normal mode (430px fixed right) */}
         {showChatColumn && !chatFullView && (
-          <div style={{
-            width: 430,
-            height: 'calc(100vh - 56px)',
-            position: 'fixed',
-            top: 56,
-            right: 0,
-            zIndex: 50,
-          }}>
+          <div
+            style={{
+              width: 430,
+              height: "calc(100vh - 56px)",
+              position: "fixed",
+              top: 56,
+              right: 0,
+              zIndex: 50,
+            }}
+          >
             <RightChatColumn
               onClose={handleChatClose}
               onFullView={handleChatFullView}
@@ -251,16 +282,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Full view chat — fills content area (after sidebar) */}
         {!hideChatColumn && chatOpen && chatFullView && (
-          <div style={{
-            position: 'fixed',
-            top: 56,
-            left: siderWidth,
-            right: 0,
-            bottom: 0,
-            zIndex: 60,
-            background: '#fff',
-            transition: 'left 0.2s',
-          }}>
+          <div
+            style={{
+              position: "fixed",
+              top: 56,
+              left: siderWidth,
+              right: 0,
+              bottom: 0,
+              zIndex: 60,
+              background: "#fff",
+              transition: "left 0.2s",
+            }}
+          >
             <RightChatColumn
               onClose={handleChatClose}
               onFullView={handleChatFullView}

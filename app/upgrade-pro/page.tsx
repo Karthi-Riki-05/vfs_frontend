@@ -9,13 +9,13 @@ import { usePricing } from "@/hooks/usePricing";
 const { Text, Title } = Typography;
 
 const FEATURES = [
+  "Lifetime access — pay once, use forever",
+  "All Team features unlocked",
   "10 flow diagrams included",
   "100 AI diagram credits/month",
   "Claude AI powered diagrams",
-  "Unlimited teams",
-  "Unlimited chat",
-  "All shapes & templates",
-  "All export formats",
+  "Unlimited teams & chat",
+  "All shapes, templates & export formats",
   "Priority support",
 ];
 
@@ -25,7 +25,6 @@ export default function UpgradeProPage() {
   const [purchasing, setPurchasing] = useState(false);
 
   const proMonthly = pricing?.prices.pro_monthly;
-  const proYearly = pricing?.prices.pro_yearly;
 
   const handlePurchase = async () => {
     setPurchasing(true);
@@ -102,20 +101,13 @@ export default function UpgradeProPage() {
                 {proMonthly.display}
               </span>
               <span style={{ fontSize: 18, color: "#8C8C8C", marginLeft: 6 }}>
-                /month
+                one-time
               </span>
               <div>
-                <Text type="secondary">Billed monthly. Cancel anytime.</Text>
+                <Text type="secondary">
+                  Pay once. Lifetime access. No recurring charges.
+                </Text>
               </div>
-              {proYearly && (
-                <div style={{ marginTop: 6 }}>
-                  <Text
-                    style={{ fontSize: 13, color: "#3CB371", fontWeight: 600 }}
-                  >
-                    Save with yearly — {proYearly.display}/year
-                  </Text>
-                </div>
-              )}
               {pricing && pricing.currency !== "USD" && (
                 <p
                   style={{
@@ -173,7 +165,7 @@ export default function UpgradeProPage() {
             borderColor: "#3CB371",
           }}
         >
-          Purchase Pro{proMonthly ? ` — ${proMonthly.display}/month` : ""}
+          Purchase Pro{proMonthly ? ` — ${proMonthly.display} lifetime` : ""}
         </Button>
       </div>
     </div>

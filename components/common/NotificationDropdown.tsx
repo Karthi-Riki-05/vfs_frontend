@@ -15,10 +15,11 @@ const { Text } = Typography;
 
 interface Notification {
   id: string;
-  type: "flow" | "team" | "chat" | "subscription" | "system";
+  type: string;
   title: string;
-  description: string;
-  read: boolean;
+  message: string;
+  isRead: boolean;
+  actionUrl: string | null;
   createdAt: string;
 }
 
@@ -37,6 +38,13 @@ function timeAgo(dateStr: string): string {
 }
 
 const iconMap: Record<string, React.ReactNode> = {
+  flow_pack_7day: <FileTextOutlined style={{ color: "#FAAD14" }} />,
+  flow_pack_3day: <FileTextOutlined style={{ color: "#FF7A45" }} />,
+  flow_pack_1day: <FileTextOutlined style={{ color: "#cf1322" }} />,
+  flow_pack_grace: <CrownOutlined style={{ color: "#cf1322" }} />,
+  flow_pack_expired: <CrownOutlined style={{ color: "#cf1322" }} />,
+  flow_picker_required: <FileTextOutlined style={{ color: "#cf1322" }} />,
+  flows_restored: <FileTextOutlined style={{ color: "#3CB371" }} />,
   flow: <FileTextOutlined style={{ color: "#3CB371" }} />,
   team: <TeamOutlined style={{ color: "#1890FF" }} />,
   chat: <MessageOutlined style={{ color: "#3CB371" }} />,
@@ -46,28 +54,52 @@ const iconMap: Record<string, React.ReactNode> = {
 
 export default function NotificationDropdown() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      api
-        .get("/notifications")
-        .then((res) => {
-          const d = res.data?.data || res.data || {};
-          setNotifications(d.notifications || (Array.isArray(d) ? d : []));
-        })
-        .catch(() => {
-          // API may not exist yet — use empty state
-          setNotifications([]);
-        });
-    }
-  }, [open]);
+  // Poll unread count every 60s. Cheap GET, returns just a number.
+  const refreshCount = () => {
+    api
+      .get("/notifications/count")
+      .then((res) => {
+        const d = res.data?.data || res.data || {};
+        setUnreadCount(d.unread ?? 0);
+      })
+      .catch(() => {});
+  };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  useEffect(() => {
+    refreshCount();
+    const t = setInterval(refreshCount, 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    api
+      .get("/notifications")
+      .then((res) => {
+        const d = res.data?.data || res.data || [];
+        setNotifications(Array.isArray(d) ? d : d.notifications || []);
+      })
+      .catch(() => setNotifications([]));
+  }, [open]);
 
   const markAllRead = () => {
     api.put("/notifications/read-all").catch(() => {});
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+  };
+
+  const handleClick = async (n: Notification) => {
+    if (!n.isRead) {
+      api.put(`/notifications/${n.id}/read`).catch(() => {});
+      setNotifications((prev) =>
+        prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)),
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+    }
+    if (n.actionUrl) window.location.href = n.actionUrl;
   };
 
   const content = (
@@ -108,9 +140,10 @@ export default function NotificationDropdown() {
           style={{ maxHeight: 400, overflowY: "auto" }}
           renderItem={(item) => (
             <List.Item
+              onClick={() => handleClick(item)}
               style={{
                 padding: "12px 16px",
-                background: item.read ? "transparent" : "#F0FFF4",
+                background: item.isRead ? "transparent" : "#F0FFF4",
                 cursor: "pointer",
                 borderBottom: "1px solid #F0F0F0",
               }}
@@ -125,7 +158,10 @@ export default function NotificationDropdown() {
                 }
                 title={
                   <Text
-                    style={{ fontSize: 13, fontWeight: item.read ? 400 : 600 }}
+                    style={{
+                      fontSize: 13,
+                      fontWeight: item.isRead ? 400 : 600,
+                    }}
                   >
                     {item.title}
                   </Text>
@@ -133,7 +169,7 @@ export default function NotificationDropdown() {
                 description={
                   <div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      {item.description}
+                      {item.message}
                     </Text>
                     <br />
                     <Text type="secondary" style={{ fontSize: 11 }}>
@@ -142,7 +178,7 @@ export default function NotificationDropdown() {
                   </div>
                 }
               />
-              {!item.read && (
+              {!item.isRead && (
                 <span
                   style={{
                     width: 8,

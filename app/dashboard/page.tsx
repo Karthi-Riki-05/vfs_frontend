@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Progress, Typography, Skeleton, message } from "antd";
 import {
   FileTextOutlined,
@@ -9,6 +9,7 @@ import {
   ShareAltOutlined,
   HeartFilled,
   ProjectOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import SubscriptionWidget from "@/components/dashboard/SubscriptionWidget";
 import { useAuth } from "@/hooks/useAuth";
@@ -711,6 +712,35 @@ export default function DashboardPage() {
   const isProApp = currentApp === "pro";
   const isUnlimited = status?.isUnlimited ?? false;
 
+  const [subStatus, setSubStatus] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/subscription/status")
+      .then((r) => r.json())
+      .then((d) => setSubStatus(d?.data?.status ?? null))
+      .catch(() => {});
+  }, []);
+
+  const openCustomerPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/subscription/customer-portal", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        window.location.href = data.data.url;
+      } else {
+        message.error(data.error?.message || "Could not open billing portal");
+      }
+    } catch {
+      message.error("Failed to open billing portal");
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -741,6 +771,37 @@ export default function DashboardPage() {
       }}
     >
       <Greeting userName={user?.name} />
+      {subStatus === "past_due" && (
+        <div
+          style={{
+            background: "#fff2f0",
+            border: "1px solid #ffccc7",
+            borderRadius: 8,
+            padding: "12px 16px",
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <ExclamationCircleOutlined
+            style={{ color: "#ff4d4f", fontSize: 16, flexShrink: 0 }}
+          />
+          <span style={{ color: "#cf1322", fontSize: 13, flex: 1 }}>
+            <strong>Payment Failed:</strong> Update your payment method to keep
+            your subscription active.
+          </span>
+          <Button
+            size="small"
+            type="primary"
+            danger
+            onClick={openCustomerPortal}
+            loading={portalLoading}
+          >
+            Update Card
+          </Button>
+        </div>
+      )}
       {isProApp && (
         <FlowUsageBar
           proFlows={proFlows}

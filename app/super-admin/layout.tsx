@@ -22,6 +22,7 @@ import {
   LogoutOutlined,
   ArrowLeftOutlined,
   MenuOutlined,
+  NotificationOutlined,
 } from "@ant-design/icons";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
@@ -53,6 +54,11 @@ const menuItems = [
     key: "/super-admin/logs",
     icon: <FileSearchOutlined />,
     label: "System Logs",
+  },
+  {
+    key: "/super-admin/notifications",
+    icon: <NotificationOutlined />,
+    label: "Notifications",
   },
   {
     key: "/super-admin/settings",

@@ -9,6 +9,8 @@ export const dashboardApi = {
     api.get("/dashboard/recent-flows", {
       params: teamId ? { limit, teamId } : { limit },
     }),
-  getTeamActivity: (limit = 10) =>
-    api.get("/dashboard/team-activity", { params: { limit } }),
+  getTeamActivity: (limit = 10, teamId?: string | null) =>
+    api.get("/dashboard/team-activity", {
+      params: teamId ? { limit, teamId } : { limit },
+    }),
 };

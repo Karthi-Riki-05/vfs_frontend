@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Layout, Menu, Typography, Modal, Button, message } from "antd";
+import { Layout, Menu, Typography, message } from "antd";
 import {
   CrownOutlined,
   ClockCircleOutlined,
   PlusSquareOutlined,
-  FileTextOutlined,
   FolderOutlined,
   DeleteOutlined,
   QuestionCircleOutlined,
@@ -15,16 +14,18 @@ import {
   ApartmentOutlined,
   AppstoreOutlined,
   TeamOutlined,
+  HomeOutlined,
+  MessageOutlined,
   LockOutlined,
 } from "@ant-design/icons";
-import { Tag, Tooltip } from "antd";
+import { Tooltip } from "antd";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createNewFlow } from "@/lib/flow";
 import { flowsApi } from "@/api/flows.api";
-import { proApi } from "@/api/pro.api";
 import { usePro } from "@/hooks/usePro";
 import { useAppContext } from "@/context/AppContext";
+import TeamUpgradeModal from "@/components/common/TeamUpgradeModal";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -44,21 +45,38 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const pathname = usePathname() || "";
   const router = useRouter();
-  const { hasPro, currentApp } = usePro();
-  const { isTeamContext, effectivePlan, availableTeams } = useAppContext();
-  // "Team-grade" features (Teams page, Chat) are unlocked when:
-  //   - personal account is Pro/Team, OR
-  //   - user has switched into a team context, OR
-  //   - user belongs to at least one team (so they can switch in).
+  const { hasPro, currentApp, switchApp, loading: proLoading } = usePro();
+  const { isTeamContext, effectivePlan } = useAppContext();
+  // Lock is driven by the ACTIVE context, not by whether invitations exist.
+  // Spec:
+  //   • Pro app                                       → never locked
+  //   • Team app + personal context + free            → locked
+  //   • Team app + personal context + active Team sub → unlocked
+  //   • Team app + team context (switched into team)  → unlocked
+  // Holding a Pro lifetime entitlement (`hasPro`) does NOT unlock Team
+  // app features — Pro and Team are separate workspaces. Likewise, simply
+  // being invited to a team does NOT unlock the menu in personal context;
+  // the user must actually switch into the team context first.
+  const isProApp = currentApp === "pro";
+  // Pro lifetime entitlement grants access to ALL Team features (per the
+  // product spec: "$1 one-time, lifetime access to all Pro & Team
+  // features"). So `hasPro=true` unlocks Teams/Chat in any app shell.
+  // "Pro vs Team separation" applies to BILLING only (transactions,
+  // workspaces) — never to feature gating.
+  // While usePro is still loading, optimistically treat as having access so
+  // we don't flash a "Pro" lock tag on the very first render
+  // (DashboardLayout swaps to ProSidebar once the hook resolves for Pro).
+  // In the Team app (ValueChart shell), `hasPro` lifetime DOES NOT unlock
+  // Teams/Chat — access requires an active team subscription or being inside
+  // a team context. `hasPro` only matters when the user is in the Pro app.
   const hasTeamFeatures =
-    hasPro ||
-    isTeamContext ||
-    effectivePlan === "pro" ||
-    effectivePlan === "team" ||
-    availableTeams.length > 0;
+    proLoading || isProApp || isTeamContext || effectivePlan === "team";
   const [starredFlows, setStarredFlows] = useState<any[]>([]);
   const [switching, setSwitching] = useState(false);
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState<"teams" | "chat">(
+    "teams",
+  );
   const [checkingTeamsAccess, setCheckingTeamsAccess] = useState(false);
 
   const fetchStarred = useCallback(async () => {
@@ -80,10 +98,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (pathname.startsWith("/dashboard/flows")) return "flows";
     if (pathname.startsWith("/dashboard/shapes")) return "shapes";
     if (pathname.startsWith("/dashboard/teams")) return "teams";
-    if (pathname.startsWith("/dashboard/drafts")) return "drafts";
     if (pathname.startsWith("/dashboard/projects")) return "projects";
     if (pathname.startsWith("/dashboard/trash")) return "trash";
     if (pathname.startsWith("/dashboard/support")) return "support";
+    if (pathname === "/dashboard") return "dashboard";
     return "";
   };
 
@@ -95,15 +113,19 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const handleAppSwitch = async (targetApp: "free" | "pro") => {
     if (switching) return;
-    if (targetApp === "pro" && !hasPro) {
-      router.push("/upgrade-pro");
-      handleNavClick();
-      return;
-    }
     setSwitching(true);
     try {
-      await proApi.switchApp(targetApp);
-      window.location.reload();
+      // Use the hook's switchApp — it handles the requiresPurchase redirect
+      // (team-plan owners who haven't bought the standalone $1 Pro product
+      // get redirected to Stripe checkout) and resets workspace context.
+      const switched = await switchApp(targetApp);
+      if (switched) {
+        window.location.reload();
+      } else {
+        // Either redirected to Stripe (no need to reset) or an error happened.
+        // The hook handles the redirect; just clear local switching state.
+        setSwitching(false);
+      }
     } catch {
       message.error("Failed to switch app");
       setSwitching(false);
@@ -114,14 +136,17 @@ const Sidebar: React.FC<SidebarProps> = ({
     e.preventDefault();
     e.stopPropagation();
 
-    // PRO app with Pro access: always allow
-    if (currentApp === "pro" && hasPro) {
+    // Pro app shell or active team context = full team access.
+    // `hasPro` (lifetime $1) is intentionally NOT checked here — the Team app
+    // requires a Team subscription. Pro lifetime only unlocks Teams when the
+    // user is actively in the Pro app shell.
+    if (currentApp === "pro" || isTeamContext) {
       router.push("/dashboard/teams");
       handleNavClick();
       return;
     }
 
-    // ValueChart: check subscription first
+    // Team app users in personal context: require an active team subscription.
     setCheckingTeamsAccess(true);
     try {
       const res = await fetch("/api/subscription/status");
@@ -131,9 +156,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         router.push("/dashboard/teams");
         handleNavClick();
       } else {
+        setUpgradeFeature("teams");
         setSubscriptionModalOpen(true);
       }
     } catch {
+      setUpgradeFeature("teams");
       setSubscriptionModalOpen(true);
     } finally {
       setCheckingTeamsAccess(false);
@@ -171,6 +198,15 @@ const Sidebar: React.FC<SidebarProps> = ({
         ];
 
   const menuItems = [
+    {
+      key: "dashboard",
+      icon: <HomeOutlined />,
+      label: (
+        <Link href="/dashboard" onClick={handleNavClick}>
+          Dashboard
+        </Link>
+      ),
+    },
     {
       key: "recents",
       icon: <ClockCircleOutlined />,
@@ -213,26 +249,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       key: "teams",
-      icon: hasTeamFeatures ? (
-        <TeamOutlined />
-      ) : (
-        <span style={{ position: "relative", display: "inline-block" }}>
-          <TeamOutlined />
-          <LockOutlined
-            style={{
-              position: "absolute",
-              bottom: -4,
-              right: -6,
-              fontSize: 9,
-              color: "#fff",
-              background: "#FF7875",
-              borderRadius: "50%",
-              padding: 1,
-              lineHeight: 1,
-            }}
-          />
-        </span>
-      ),
+      icon: <TeamOutlined />,
       label: (
         <span
           onClick={handleTeamsClick}
@@ -246,18 +263,52 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           <span>Teams</span>
           {!hasTeamFeatures && (
-            <Tooltip title="Switch to a team context or upgrade to access Teams">
-              <Tag
-                color="orange"
+            <Tooltip title="Subscription required">
+              <LockOutlined
                 style={{
-                  fontSize: 9,
-                  padding: "0 4px",
+                  fontSize: 12,
+                  color: "#F59E0B",
                   marginLeft: 6,
-                  lineHeight: "14px",
                 }}
-              >
-                PRO
-              </Tag>
+              />
+            </Tooltip>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "chat",
+      icon: <MessageOutlined />,
+      label: (
+        <span
+          onClick={(e) => {
+            e.preventDefault();
+            handleNavClick();
+            if (hasTeamFeatures) {
+              (window as any).__toggleChat?.();
+            } else {
+              setUpgradeFeature("chat");
+              setSubscriptionModalOpen(true);
+            }
+          }}
+          style={{
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
+          }}
+        >
+          <span>Chat</span>
+          {!hasTeamFeatures && (
+            <Tooltip title="Subscription required">
+              <LockOutlined
+                style={{
+                  fontSize: 12,
+                  color: "#F59E0B",
+                  marginLeft: 6,
+                }}
+              />
             </Tooltip>
           )}
         </span>
@@ -266,15 +317,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     {
       type: "divider" as const,
       key: "divider-2",
-    },
-    {
-      key: "drafts",
-      icon: <FileTextOutlined />,
-      label: (
-        <Link href="/dashboard/drafts" onClick={handleNavClick}>
-          Drafts
-        </Link>
-      ),
     },
     {
       key: "projects",
@@ -461,46 +503,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        <Modal
+        <TeamUpgradeModal
           open={subscriptionModalOpen}
-          onCancel={() => setSubscriptionModalOpen(false)}
-          footer={[
-            <Button
-              key="cancel"
-              onClick={() => setSubscriptionModalOpen(false)}
-            >
-              Cancel
-            </Button>,
-            <Button
-              key="plans"
-              type="primary"
-              onClick={() => {
-                setSubscriptionModalOpen(false);
-                router.push("/dashboard/subscription");
-                handleNavClick();
-              }}
-              style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
-            >
-              View Plans
-            </Button>,
-          ]}
-          centered
-          width={420}
-          zIndex={1200}
-        >
-          <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
-            <TeamOutlined
-              style={{ fontSize: 40, color: "#3CB371", marginBottom: 16 }}
-            />
-            <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 600 }}>
-              Teams requires a subscription
-            </h3>
-            <p style={{ color: "#595959", margin: 0, fontSize: 14 }}>
-              Subscribe to a Team plan to create and manage teams, invite
-              members, and collaborate on value charts.
-            </p>
-          </div>
-        </Modal>
+          onClose={() => setSubscriptionModalOpen(false)}
+          feature={upgradeFeature}
+        />
 
         <style jsx global>{`
           .sidebar-drawer .ant-menu-item {
@@ -695,42 +702,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      <Modal
+      <TeamUpgradeModal
         open={subscriptionModalOpen}
-        onCancel={() => setSubscriptionModalOpen(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setSubscriptionModalOpen(false)}>
-            Cancel
-          </Button>,
-          <Button
-            key="plans"
-            type="primary"
-            onClick={() => {
-              setSubscriptionModalOpen(false);
-              router.push("/dashboard/subscription");
-            }}
-            style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
-          >
-            View Plans
-          </Button>,
-        ]}
-        centered
-        width={420}
-        zIndex={1200}
-      >
-        <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
-          <TeamOutlined
-            style={{ fontSize: 40, color: "#3CB371", marginBottom: 16 }}
-          />
-          <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 600 }}>
-            Teams requires a subscription
-          </h3>
-          <p style={{ color: "#595959", margin: 0, fontSize: 14 }}>
-            Subscribe to a Team plan to create and manage teams, invite members,
-            and collaborate on value charts.
-          </p>
-        </div>
-      </Modal>
+        onClose={() => setSubscriptionModalOpen(false)}
+        feature={upgradeFeature}
+      />
 
       <style jsx global>{`
         .ant-layout-sider .ant-menu-item {

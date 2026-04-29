@@ -1,9 +1,11 @@
-import api from '@/lib/axios';
+import api from "@/lib/axios";
 
 export const paymentsApi = {
-  createCheckout: (data: { planId: string }) =>
-    api.post('/payments', data),
+  createCheckout: (data: { planId: string }) => api.post("/payments", data),
 
-  getTransactions: (params?: { page?: number; limit?: number }) =>
-    api.get('/payments/transactions', { params }),
+  getTransactions: (params?: {
+    page?: number;
+    limit?: number;
+    appType?: "individual" | "enterprise";
+  }) => api.get("/payments/transactions", { params }),
 };

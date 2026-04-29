@@ -46,11 +46,16 @@ export function useDashboard() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
+      // Team Activity is workspace-scoped: only fetch when the user is
+      // actually inside a team context. Personal context = hide entirely.
+      const teamPromise = activeTeamId
+        ? dashboardApi.getTeamActivity(10, activeTeamId).catch(() => null)
+        : Promise.resolve(null);
       const [statsRes, activityRes, recentRes, teamRes] = await Promise.all([
         dashboardApi.getStats(activeTeamId).catch(() => null),
         dashboardApi.getActivity(activeTeamId).catch(() => null),
         dashboardApi.getRecentFlows(5, activeTeamId).catch(() => null),
-        dashboardApi.getTeamActivity().catch(() => null),
+        teamPromise,
       ]);
 
       if (statsRes) {
@@ -68,6 +73,8 @@ export function useDashboard() {
       if (teamRes) {
         const d = teamRes.data?.data || teamRes.data;
         setTeamActivity(Array.isArray(d) ? d : []);
+      } else {
+        setTeamActivity([]);
       }
     } finally {
       setLoading(false);
