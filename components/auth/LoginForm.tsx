@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { message } from "antd";
 import { signIn, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import axios from "@/lib/axios";
 
 const GREEN = "#4CAF50";
 
@@ -48,7 +49,23 @@ export default function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [showResend, setShowResend] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const verified = searchParams.get("verified");
+
+  useEffect(() => {
+    if (verified === "1") setInfo("Your email is verified. Please log in.");
+  }, [verified]);
+
+  const handleVerifyRedirect = () => {
+    if (!email.trim()) {
+      setError("Enter your email first to receive a verification code.");
+      return;
+    }
+    router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +91,8 @@ export default function LoginForm() {
     if (result?.error) {
       message.error("Login failed: " + result.error);
       setError(result.error);
+      if (/verify your email/i.test(result.error)) setShowResend(true);
+      // EMAIL_NOT_VERIFIED is now bounced to OTP page
     } else {
       // Block super admins from using the user login page — they must log
       // in via /super-admin/login so the admin portal is a distinct entry.
@@ -399,6 +418,64 @@ export default function LoginForm() {
             </button>
           </div>
         </div>
+
+        {/* Verification info banner */}
+        {info && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 8,
+              marginBottom: 12,
+              background: "#F0FDF4",
+              border: "1px solid #BBF7D0",
+              borderRadius: 10,
+              padding: "10px 12px",
+            }}
+          >
+            <svg
+              style={{
+                width: 16,
+                height: 16,
+                color: GREEN,
+                flexShrink: 0,
+                marginTop: 2,
+              }}
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 10-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <p style={{ fontSize: 13, color: "#15803D", margin: 0 }}>{info}</p>
+          </div>
+        )}
+
+        {/* Resend verification */}
+        {showResend && (
+          <button
+            type="button"
+            onClick={handleVerifyRedirect}
+            style={{
+              width: "100%",
+              height: 38,
+              borderRadius: 10,
+              marginBottom: 12,
+              background: "#F0FDF4",
+              border: `1px solid ${GREEN}`,
+              color: GREEN,
+              fontWeight: 500,
+              fontSize: 13,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Enter verification code
+          </button>
+        )}
 
         {/* Error */}
         {error && (
