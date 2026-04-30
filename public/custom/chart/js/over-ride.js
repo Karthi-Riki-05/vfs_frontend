@@ -1646,6 +1646,196 @@ function extendApp() {
     }
     // ────────────────────────────────────────────────────────────────
 
+    // ── ValueFlowSoft branding & PDF print interception ──────────────
+    // 1) Override visible draw.io brand strings via mxResources so any
+    //    UI element built from these keys (menus, dialogs, tooltips,
+    //    error messages) reads "ValueFlowSoft" instead of "draw.io".
+    if (typeof mxResources !== "undefined" && mxResources.resources) {
+      var __vcResourceOverrides = {
+        untitledDiagram: "valuechart-flow",
+        untitledLibrary: "valuechart-library",
+        aboutDrawio: "About ValueFlowSoft",
+        "draw.io": "ValueFlowSoft",
+        drawioForWork: "ValueFlowSoft",
+        hateApp: "I dislike ValueFlowSoft",
+      };
+      Object.keys(__vcResourceOverrides).forEach(function (k) {
+        mxResources.resources[k] = __vcResourceOverrides[k];
+      });
+    }
+
+    // 2) Default filename → "valuechart-flow". Wraps EditorUi.init so the
+    //    override survives later assignments inside dependsOnLanguage().
+    if (typeof EditorUi !== "undefined") {
+      var __vcDefaultName = window.VFS_DEFAULT_FILENAME || "valuechart-flow";
+
+      // Helper: route a PDF export to the browser print dialog instead of
+      // the broken EXPORT_URL server roundtrip. Used by every PDF code
+      // path we override below.
+      var __vcRouteToPrint = function (ui) {
+        try {
+          var print =
+            ui && ui.actions && ui.actions.get && ui.actions.get("print");
+          if (print && typeof print.funct === "function") {
+            print.funct();
+            return true;
+          }
+        } catch (e) {}
+        try {
+          window.print();
+          return true;
+        } catch (e) {}
+        return false;
+      };
+
+      var __vcOrigInit = EditorUi.prototype.init;
+      EditorUi.prototype.init = function () {
+        if (__vcOrigInit) __vcOrigInit.apply(this, arguments);
+        try {
+          this.defaultFilename = __vcDefaultName;
+          this.defaultLibraryName = "valuechart-library";
+        } catch (e) {}
+        // Replace the registered exportPdf action's funct so menu clicks
+        // that go via this.actions.get('exportPdf') trigger print.
+        try {
+          var self = this;
+          ["exportPdf", "exportPDF", "pdf"].forEach(function (name) {
+            var act =
+              self.actions && self.actions.get && self.actions.get(name);
+            if (act)
+              act.funct = function () {
+                __vcRouteToPrint(self);
+              };
+          });
+        } catch (e) {}
+      };
+
+      // 3a) PDF export → browser print dialog (Option D).
+      //     Catches code paths that go through exportFile(format).
+      var __vcOrigExportFile = EditorUi.prototype.exportFile;
+      EditorUi.prototype.exportFile = function (format) {
+        var fmt = (format || "").toString().toLowerCase();
+        if (fmt === "pdf") {
+          __vcRouteToPrint(this);
+          return;
+        }
+        if (__vcOrigExportFile) {
+          return __vcOrigExportFile.apply(this, arguments);
+        }
+      };
+
+      // 3b) Catch every other PDF path. saveRequest(name, format, fn) is
+      //     the function that actually builds the mxXmlRequest to
+      //     EXPORT_URL — intercepting it here covers File→Export As→PDF
+      //     and the standalone "Export PDF" dialog.
+      var __vcOrigSaveRequest = EditorUi.prototype.saveRequest;
+      EditorUi.prototype.saveRequest = function (filename, format) {
+        var fmt = (format || "").toString().toLowerCase();
+        if (fmt === "pdf") {
+          __vcRouteToPrint(this);
+          return;
+        }
+        if (__vcOrigSaveRequest) {
+          return __vcOrigSaveRequest.apply(this, arguments);
+        }
+      };
+    }
+
+    // 4) Document title + brand-color scrollbars.
+    try {
+      document.title = "ValueFlowSoft";
+    } catch (e) {}
+
+    var __vcBrandStyle = document.createElement("style");
+    __vcBrandStyle.id = "vfs-branding";
+    __vcBrandStyle.textContent =
+      "::-webkit-scrollbar{width:6px;height:6px;}" +
+      "::-webkit-scrollbar-track{background:#f5f5f5;}" +
+      "::-webkit-scrollbar-thumb{background:#3CB371;border-radius:3px;}" +
+      "::-webkit-scrollbar-thumb:hover{background:#2d9e5a;}";
+    document.head.appendChild(__vcBrandStyle);
+    // ────────────────────────────────────────────────────────────────
+
+    // ── Custom Save / Share dialog interception ─────────────────────
+    // Replace draw.io's native "Save As" and "Share Link" dialogs with
+    // ValueCharts' Ant Design modals. The parent React app receives a
+    // postMessage and renders its own UI. Pass-through any non-dialog
+    // save (forceDialog=false) so autosave / Ctrl-S still work.
+    if (typeof App !== "undefined" && App.prototype) {
+      var __vcOrigSaveFile = App.prototype.saveFile;
+      App.prototype.saveFile = function (forceDialog, success) {
+        if (forceDialog) {
+          var file = this.getCurrentFile && this.getCurrentFile();
+          var xml = "";
+          try {
+            if (typeof this.getFileData === "function") {
+              xml = this.getFileData(true);
+            }
+          } catch (e) {}
+          var currentName =
+            (file && typeof file.getTitle === "function" && file.getTitle()) ||
+            this.defaultFilename ||
+            "valuechart-flow";
+          try {
+            window.parent.postMessage(
+              JSON.stringify({
+                event: "showSaveDialog",
+                xml: xml,
+                currentName: currentName,
+              }),
+              "*",
+            );
+          } catch (e) {}
+          return;
+        }
+        if (__vcOrigSaveFile) {
+          return __vcOrigSaveFile.apply(this, arguments);
+        }
+      };
+    }
+
+    if (typeof EditorUi !== "undefined" && EditorUi.prototype) {
+      // Overrides File → Export As → URL and any other publish-link
+      // entry point so ValueCharts URLs are shown instead of
+      // diagrams.net viewer URLs.
+      EditorUi.prototype.showPublishLinkDialog = function () {
+        try {
+          window.parent.postMessage(
+            JSON.stringify({ event: "showShareDialog" }),
+            "*",
+          );
+        } catch (e) {}
+      };
+    }
+    // ────────────────────────────────────────────────────────────────
+
+    // ── Custom Import dialog interception (Session 3) ───────────────
+    // Replace draw.io's native device-file picker and cloud "pickFile"
+    // dialogs with our Ant Design Import modal. The parent React app
+    // reads the file and posts the parsed XML back via the existing
+    // `load` action.
+    if (typeof EditorUi !== "undefined" && EditorUi.prototype) {
+      EditorUi.prototype.importLocalFile = function () {
+        try {
+          window.parent.postMessage(
+            JSON.stringify({ event: "showImportDialog" }),
+            "*",
+          );
+        } catch (e) {}
+      };
+    }
+    if (typeof App !== "undefined" && App.prototype) {
+      App.prototype.pickFile = function () {
+        try {
+          window.parent.postMessage(
+            JSON.stringify({ event: "showImportDialog" }),
+            "*",
+          );
+        } catch (e) {}
+      };
+    }
+    // ────────────────────────────────────────────────────────────────
+
     (function unfadePickerOnEnable() {
       function triggerRebuild(ui) {
         try {

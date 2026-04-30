@@ -574,6 +574,23 @@ export default function AIAssistant({
       const assistantText =
         resp.message || "Sorry, I couldn't generate a response.";
       appendMessage({ role: "assistant", content: assistantText });
+
+      // ── Fallback diagram detection ──
+      // If the keyword-based detectIntent missed diagram intent but the
+      // chat AI itself responded with diagram generation language,
+      // show the Generate button so the user isn't left stranded.
+      const lowerResp = assistantText.toLowerCase();
+      const chatSuggestsDiagram =
+        (lowerResp.includes("generate") && (lowerResp.includes("diagram") || lowerResp.includes("flow"))) ||
+        (lowerResp.includes("click") && lowerResp.includes("generate below")) ||
+        lowerResp.includes("generate diagram button");
+      if (chatSuggestsDiagram) {
+        appendMessage({
+          role: "assistant",
+          content: "⚡ Ready to generate? Click the button below to use 1 credit.",
+          suggestion: { prompt: text },
+        });
+      }
     } catch (err: any) {
       const code = err?.response?.data?.error?.code;
       if (code === "CONSENT_REQUIRED") {
@@ -626,12 +643,20 @@ export default function AIAssistant({
     } catch (err: any) {
       const status = err?.response?.status;
       const errBalance = err?.response?.data?.error?.balance;
+      const errorCode = err?.response?.data?.error?.code;
+      const isTimeout = err?.code === 'ECONNABORTED' || status === 408 || errorCode === 'REQUEST_TIMEOUT';
+      
       if (status === 402) {
         if (errBalance) setCreditBalance(errBalance);
         setShowCreditsExhausted(true);
+      } else if (isTimeout) {
+        antdMessage.error(
+          "Diagram generation taking longer than expected. This is normal for free users. Please wait a moment and try again. Pro users get faster responses.",
+        );
       } else {
         antdMessage.error(
           err?.response?.data?.error?.message ||
+            err?.message ||
             "Failed to generate diagram. Please try again.",
         );
       }
@@ -664,7 +689,10 @@ export default function AIAssistant({
     // EXPLICIT user click only
     if (isInEditor) {
       window.dispatchEvent(new CustomEvent("aiXmlReady", { detail: { xml } }));
-      antdMessage.success("Diagram applied to canvas");
+      antdMessage.success("✅ Diagram inserted into canvas");
+      // Auto-close the chat panel so the user can immediately see the canvas
+      setState("collapsed");
+      setShowHistory(false);
     } else {
       try {
         sessionStorage.setItem("ai_generated_xml", xml);
@@ -673,6 +701,9 @@ export default function AIAssistant({
         const newFlow = res.data?.data || res.data;
         if (!newFlow?.id) throw new Error("No flow ID returned");
         window.open(`/dashboard/flows/${newFlow.id}`, "_blank");
+        // Collapse after opening flow in new tab
+        setState("collapsed");
+        setShowHistory(false);
       } catch {
         antdMessage.error("Failed to create flow. Please try again.");
       }
@@ -1502,6 +1533,10 @@ export default function AIAssistant({
               }),
             );
             antdMessage.success("✅ Diagram inserted into canvas");
+            // Close preview modal then collapse chat panel
+            setPreviewModal({ visible: false, xml: "" });
+            setState("collapsed");
+            setShowHistory(false);
           }}
         />
       </>
@@ -1568,6 +1603,10 @@ export default function AIAssistant({
               }),
             );
             antdMessage.success("✅ Diagram inserted into canvas");
+            // Close preview modal then collapse chat panel
+            setPreviewModal({ visible: false, xml: "" });
+            setState("collapsed");
+            setShowHistory(false);
           }}
         />
       </>
