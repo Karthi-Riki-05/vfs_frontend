@@ -29,6 +29,7 @@ import {
   ImportOutlined,
   InboxOutlined,
   EyeOutlined,
+  CloseOutlined,
 } from "@ant-design/icons";
 import TemplateBrowser from "@/components/templates/TemplateBrowser";
 import CustomShapesPanel, {
@@ -76,14 +77,30 @@ const HIDE_AI_CSS = `
   .geStatus,
   .geStatusAlert,
   .geStatusMessage,
-  div.geStatus {
+  .geStatusBox,
+  .geStatusDiv,
+  .geStatusContainer,
+  .geNotification,
+  .geLanguage,
+  .geUser,
+  .geFeedback,
+  .geToolbarContainer:has(.geStatus),
+  .geToolbarContainer:has(.geEmbedBtn),
+  a.geStatus,
+  div.geStatus,
+  div.geStatusDiv,
+  [title="Status"],
+  [title*="Saved"],
+  [title*="Saving"] {
     display: none !important;
     visibility: hidden !important;
     height: 0 !important;
     width: 0 !important;
     padding: 0 !important;
     margin: 0 !important;
+    border: none !important;
     pointer-events: none !important;
+    opacity: 0 !important;
   }
 `;
 
@@ -103,10 +120,33 @@ const hideAiElements = (doc: Document | null | undefined): void => {
     '[title*="Save & Exit"]',
     '[title*="Save and Exit"]',
     ".geSaveAndExit",
+    ".geStatus",
+    ".geStatusAlert",
+    ".geStatusMessage",
+    ".geStatusBox",
+    ".geStatusDiv",
+    ".geNotification",
+    ".geToolbarContainer", // Targeted in the loop below
   ];
   selectors.forEach((selector) => {
     try {
       doc.querySelectorAll<HTMLElement>(selector).forEach((el) => {
+        // If it's a toolbar container, only hide it if it contains status or embed buttons
+        // to avoid accidentally hiding the main toolbar or sidebar.
+        if (el.classList.contains("geToolbarContainer")) {
+          const isVertical = el.classList.contains("geVerticalToolbar");
+          const hasStatus = !!el.querySelector(".geStatus, .geStatusDiv, .geStatusBox");
+          const hasEmbed = !!el.querySelector(".geEmbedBtn, .gePrimaryBtn");
+          
+          if (!isVertical && (hasStatus || hasEmbed)) {
+            if (el.style.display !== "none") {
+              el.style.setProperty("display", "none", "important");
+            }
+            return;
+          }
+          return; // Don't hide main toolbar or sidebar
+        }
+
         const btn =
           el.closest<HTMLElement>("a,button,div.geBtn,div.geBigButton") || el;
         if (btn.style.display !== "none") {
@@ -1025,7 +1065,7 @@ export default function EditorView({
           disabled={isReadOnly}
         />
 
-        {!isMobile && <div style={{ flex: 1 }} />}
+        <div style={{ flex: 1 }} />
 
         {!isMobile && (saveStatus !== "idle" || lastSavedAt) && (
           <div
@@ -1102,7 +1142,7 @@ export default function EditorView({
           </Button>
         )}
 
-        {!isViewMode && !isMobile && <AiCreditsDisplay />}
+        {!isViewMode && <AiCreditsDisplay compact={isMobile} />}
 
         {!isViewMode && !isReadOnly && (
           <Button
@@ -1116,11 +1156,14 @@ export default function EditorView({
           </Button>
         )}
 
-        {!isMobile && (
-          <Button onClick={handleExit} type="default">
-            {isViewMode ? "Close" : "Exit"}
-          </Button>
-        )}
+        <Button
+          onClick={handleExit}
+          type="default"
+          icon={isMobile ? <CloseOutlined /> : undefined}
+          title={isViewMode ? "Close" : "Exit"}
+        >
+          {!isMobile && (isViewMode ? "Close" : "Exit")}
+        </Button>
       </div>
 
       {/* IFRAME EDITOR — Templates icon is injected inside draw.io sidebar via injectEditorCustomisations */}

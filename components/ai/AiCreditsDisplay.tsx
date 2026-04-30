@@ -14,7 +14,7 @@ interface CreditBalance {
   source?: "self" | "team";
 }
 
-export default function AiCreditsDisplay() {
+export default function AiCreditsDisplay({ compact = false }: { compact?: boolean }) {
   const { activeTeamId } = useAppContext();
   const [balance, setBalance] = useState<CreditBalance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,20 +70,20 @@ export default function AiCreditsDisplay() {
         style={{
           display: "inline-flex",
           alignItems: "center",
-          gap: 6,
-          padding: "4px 10px",
+          gap: compact ? 4 : 6,
+          padding: compact ? "4px 8px" : "4px 10px",
           borderRadius: 16,
           background: `${color}15`,
           border: `1px solid ${color}40`,
-          fontSize: 13,
+          fontSize: compact ? 12 : 13,
           fontWeight: 600,
           color,
           cursor: "default",
           userSelect: "none",
         }}
       >
-        <ThunderboltFilled style={{ fontSize: 12 }} />
-        <span>AI Credits: {total}</span>
+        <ThunderboltFilled style={{ fontSize: compact ? 11 : 12 }} />
+        <span>{compact ? total : `AI Credits: ${total}`}</span>
       </div>
     </Tooltip>
   );

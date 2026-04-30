@@ -58,11 +58,13 @@ export const aiApi = {
     message: string,
     confirmed: boolean,
     conversationId?: string | null,
+    messageId?: string | null,
   ) =>
     api.post("/ai/generate-diagram", {
       message,
       confirmed,
       conversationId: conversationId || undefined,
+      messageId: messageId || undefined,
     }),
 
   updateConversationTitle: (conversationId: string, title: string) =>

@@ -610,13 +610,25 @@ export default function AIAssistant({
     if (generatingId) return;
     setGeneratingId(msgId);
     try {
+      // Ensure we have a conversation ID before starting the long request
+      let convId = activeConversationId;
+      if (!convId) {
+        const createRes = await aiApi.createConversation();
+        convId = createRes.data?.data?.id || createRes.data?.id;
+        if (convId) {
+          setActiveConversationId(convId);
+          localStorage.setItem(ACTIVE_CONV_KEY, convId);
+        }
+      }
+
       const res = await aiApi.generateDiagramGated(
         prompt,
         true,
-        activeConversationId,
+        convId,
+        msgId,
       );
       const data = res.data?.data || res.data || {};
-      if (data.conversationId && data.conversationId !== activeConversationId) {
+      if (data.conversationId && data.conversationId !== convId) {
         setActiveConversationId(data.conversationId);
         localStorage.setItem(ACTIVE_CONV_KEY, data.conversationId);
       }
