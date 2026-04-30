@@ -237,6 +237,7 @@ export default function SuperAdminUsersPage() {
         status: values.status,
         appType: values.appType,
         adminNote: values.adminNote,
+        isVerified: values.isVerified,
       };
       if (values.plan === "pro" || values.plan === "team") {
         payload.duration = values.duration || "monthly";
@@ -696,6 +697,7 @@ export default function SuperAdminUsersPage() {
             duration: "monthly",
             seats: 5,
             inviteEmails: [],
+            isVerified: true,
           }}
           onValuesChange={(changed) => {
             // Couple App Type ↔ Plan (updated spec)
@@ -786,6 +788,14 @@ export default function SuperAdminUsersPage() {
               <Radio.Button value="active">Active</Radio.Button>
               <Radio.Button value="inactive">Inactive</Radio.Button>
             </Radio.Group>
+          </Form.Item>
+          <Form.Item
+            name="isVerified"
+            label="Email Verified"
+            valuePropName="checked"
+            tooltip="If No, the user will be prompted to verify via OTP upon their first login."
+          >
+            <Checkbox>Yes, mark as verified</Checkbox>
           </Form.Item>
           <Form.Item
             name="appType"
@@ -1297,10 +1307,27 @@ function RowActions({
     });
   };
 
+  const handleManualVerify = async () => {
+    try {
+      await superAdminApi.updateUser(user.id, { isVerified: true });
+      message.success("User verified successfully");
+      onChanged();
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.error?.message || "Failed to verify user"
+      );
+    }
+  };
+
   const items: MenuProps["items"] = [
     {
       key: "view",
       label: <Link href={`/super-admin/users/${user.id}`}>View details</Link>,
+    },
+    !user.emailVerified && {
+      key: "verify",
+      label: "Verify Email",
+      onClick: handleManualVerify,
     },
     user.suspendedAt
       ? { key: "reactivate", label: "Reactivate", onClick: handleReactivate }
@@ -1311,6 +1338,37 @@ function RowActions({
           danger: true,
         },
     { key: "reset", label: "Reset Password", onClick: handleResetPassword },
+    {
+      key: "hard-delete",
+      label: "Hard Delete",
+      danger: true,
+      onClick: () => {
+        Modal.confirm({
+          title: `PERMANENTLY delete ${user.name || user.email}?`,
+          content: (
+            <Text type="danger">
+              WARNING: This will permanently remove this user and ALL their
+              associated data (flows, teams, subscriptions, AI chat) from the
+              database. This action CANNOT be undone.
+            </Text>
+          ),
+          okText: "Delete Forever",
+          okButtonProps: { danger: true },
+          onOk: async () => {
+            try {
+              await superAdminApi.deleteUser(user.id, true);
+              message.success("User permanently deleted");
+              onChanged();
+            } catch (err: any) {
+              message.error(
+                err?.response?.data?.error?.message ||
+                  "Failed to permanently delete user",
+              );
+            }
+          },
+        });
+      },
+    },
   ];
 
   return (

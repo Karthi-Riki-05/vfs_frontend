@@ -8,11 +8,13 @@ import SectionHeader from '@/components/common/SectionHeader';
 import api from '@/lib/axios';
 import { useAuth } from '@/hooks/useAuth';
 import { useAi } from '@/hooks/useAi';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 const { Text } = Typography;
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
   const [profileLoading, setProfileLoading] = useState(false);
@@ -112,9 +114,9 @@ export default function SettingsPage() {
       <div
         style={{
           display: 'flex',
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          alignItems: 'center',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'center' : 'flex-start',
+          textAlign: isMobile ? 'center' : 'left',
           gap: 20,
           marginBottom: 32,
           padding: '20px',
@@ -124,23 +126,35 @@ export default function SettingsPage() {
         }}
       >
         <Avatar
-          size={80}
+          size={isMobile ? 100 : 80}
           src={avatarUrl || user?.image}
           icon={<UserOutlined />}
           style={{ backgroundColor: '#3CB371', flexShrink: 0 }}
         />
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
           <div
             style={{
               fontSize: 18,
               fontWeight: 600,
               color: '#1A1A2E',
               marginBottom: 4,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
             }}
           >
             {user?.name || 'User'}
           </div>
-          <Text type="secondary" style={{ fontSize: 14 }}>
+          <Text 
+            type="secondary" 
+            style={{ 
+                fontSize: 14, 
+                display: 'block',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+            }}
+          >
             {user?.email || ''}
           </Text>
           <div style={{ marginTop: 12 }}>

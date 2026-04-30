@@ -13,6 +13,7 @@ export interface AdminUser {
   userType: string;
   lastSeen: string | null;
   createdAt: string;
+  emailVerified: string | null;
   suspendedAt: string | null;
   adminNote: string | null;
   stripeCustomerId: string | null;
@@ -100,6 +101,7 @@ export interface CreateUserPayload {
   seats?: number;
   inviteEmails?: string[];
   flowLimit?: number;
+  isVerified?: boolean;
 }
 
 export interface CreateUserResponse extends AdminUser {
@@ -200,6 +202,7 @@ export interface UpdateUserPayload {
   adminNote?: string | null;
   proFlowLimit?: number;
   proUnlimitedFlows?: boolean;
+  isVerified?: boolean;
 }
 
 export interface SubscriptionRow {

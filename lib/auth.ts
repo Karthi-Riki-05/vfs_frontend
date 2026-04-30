@@ -57,11 +57,11 @@ export const authOptions: NextAuthOptions = {
         } catch (error: any) {
           const code = error?.response?.data?.error?.code;
           const msg = error?.response?.data?.error?.message;
-          if (code === "EMAIL_NOT_VERIFIED" || code === "ACCOUNT_INACTIVE") {
-            throw new Error(msg || "Login blocked");
+          if (code === "EMAIL_NOT_VERIFIED" || code === "ACCOUNT_INACTIVE" || code === "INVALID_CREDENTIALS") {
+            throw new Error(msg || "Login failed");
           }
           console.error("Auth proxy error:", error);
-          return null;
+          throw new Error(msg || "An unexpected error occurred during login");
         }
       },
     }),

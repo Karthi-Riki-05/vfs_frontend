@@ -206,7 +206,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <UserOutlined />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>
-              {truncateName(userName, 22)}{" "}
+              {truncateName(userName, isMobile ? 12 : 22)}{" "}
               <span style={{ color: "#8C8C8C", fontWeight: 400, fontSize: 11 }}>
                 (you)
               </span>
@@ -252,10 +252,10 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        maxWidth: 220,
+                        maxWidth: isMobile ? 140 : 220,
                       }}
                     >
-                      {truncateName(t.teamName, 22)}
+                      {truncateName(t.teamName, isMobile ? 12 : 22)}
                     </div>
                     <div style={{ fontSize: 11, color: "#8C8C8C" }}>
                       {t.plan === "team"
@@ -445,13 +445,14 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <Dropdown
             menu={{ items: dropdownItems }}
             trigger={["click"]}
-            placement="bottomRight"
+            placement={isMobile ? "bottom" : "bottomRight"}
+            overlayStyle={{ maxWidth: isMobile ? 'calc(100vw - 24px)' : undefined }}
           >
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
+                gap: isMobile ? 4 : 8,
                 cursor: "pointer",
               }}
             >
