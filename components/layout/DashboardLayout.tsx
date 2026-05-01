@@ -10,7 +10,7 @@ import AIAssistant from "../ai/AIAssistant";
 import RightChatColumn from "../chat/RightChatColumn";
 import EnableNotificationsBanner from "../common/EnableNotificationsBanner";
 import { usePro } from "@/hooks/usePro";
-import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
+import { useIsMobile, useIsTablet, useIsWideMobile } from "@/hooks/useMediaQuery";
 
 const { Content } = Layout;
 
@@ -36,6 +36,7 @@ export default function DashboardLayout({
   const { currentApp } = usePro();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
+  const isWideMobile = useIsWideMobile();
 
   // Flow editor pages: /dashboard/flows/SOME_ID (but NOT /dashboard/flows or /dashboard/flows/new)
   const isEditorPage = /^\/dashboard\/flows\/(?!new$)[a-zA-Z0-9_-]+$/.test(
@@ -164,7 +165,7 @@ export default function DashboardLayout({
   // Mobile: no fixed sidebar, use drawer. No right chat column on mobile.
   if (isMobile) {
     return (
-      <Layout style={{ minHeight: "100vh" }}>
+      <Layout style={{ minHeight: "100dvh" }}>
         <Header onMenuClick={() => setMobileOpen(true)} />
 
         {/* Mobile sidebar drawer */}
@@ -185,7 +186,12 @@ export default function DashboardLayout({
             <img
               src="/images/image.png"
               alt="ValueChart"
-              style={{ height: 32 }}
+              style={{ 
+                height: isMobile && !isWideMobile ? 32 : 40,
+                objectFit: isMobile && !isWideMobile ? "cover" : "contain",
+                objectPosition: "top",
+                maxHeight: isMobile && !isWideMobile ? 22 : 40
+              }}
             />
             <button
               onClick={() => setMobileOpen(false)}
@@ -216,7 +222,8 @@ export default function DashboardLayout({
             padding: "16px",
             paddingTop: 56 + 16,
             background: "#FFFFFF",
-            minHeight: "calc(100vh - 56px)",
+            minHeight: "calc(100dvh - 56px)",
+            overflowX: "hidden",
           }}
         >
           <EnableNotificationsBanner />

@@ -515,7 +515,7 @@ export default function FlowsPage() {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
-                padding: "6px 16px",
+                padding: isMobile ? "8px 16px" : "6px 16px",
                 backgroundColor: "#3CB371",
                 color: "#FFFFFF",
                 border: "none",
@@ -657,12 +657,12 @@ export default function FlowsPage() {
           </div>
         )}
 
-        {/* Mobile: 3-col card grid */}
+        {/* Mobile: 2-col card grid (was 3-col, but too cramped) */}
         {isMobile && (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
+              gridTemplateColumns: "repeat(2, 1fr)",
               gap: 10,
             }}
           >
@@ -760,14 +760,16 @@ export default function FlowsPage() {
               ))}
             </Row>
           ) : (
-            <Table
-              dataSource={displayFlows}
-              columns={listColumns}
-              rowKey="id"
-              pagination={false}
-              size="middle"
-              style={{ background: "#fff", borderRadius: 12 }}
-            />
+            <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12 }}>
+              <Table
+                dataSource={displayFlows}
+                columns={listColumns}
+                rowKey="id"
+                pagination={false}
+                size="middle"
+                style={{ minWidth: isMobile ? 600 : "auto" }}
+              />
+            </div>
           )}
           {total > pageSize && (
             <div style={{ textAlign: "center", marginTop: 24 }}>
@@ -804,10 +806,8 @@ export default function FlowsPage() {
                   <FlowCard
                     flow={flow}
                     onEdit={handleEdit}
-                    onDuplicate={
-                      flow.accessType === "edit" ? duplicateFlow : undefined
-                    }
                     onFavorite={favoriteFlow}
+                    onDuplicate={duplicateFlow}
                     onRemoveShared={removeSharedFlow}
                     variant="shared"
                     placeholderColor={
@@ -818,14 +818,16 @@ export default function FlowsPage() {
               ))}
             </Row>
           ) : (
-            <Table
-              dataSource={sharedFlows}
-              columns={sharedListColumns}
-              rowKey="id"
-              pagination={false}
-              size="middle"
-              style={{ background: "#fff", borderRadius: 12 }}
-            />
+            <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12 }}>
+              <Table
+                dataSource={sharedFlows}
+                columns={sharedListColumns}
+                rowKey="id"
+                pagination={false}
+                size="middle"
+                style={{ minWidth: isMobile ? 600 : "auto" }}
+              />
+            </div>
           )}
         </div>
       )}

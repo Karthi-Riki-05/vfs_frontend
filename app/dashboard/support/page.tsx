@@ -16,6 +16,7 @@ import {
 } from '@ant-design/icons';
 import SectionHeader from '@/components/common/SectionHeader';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 const { Text } = Typography;
 const { Search } = Input;
@@ -55,9 +56,10 @@ const helpCards = [
 
 export default function SupportPage() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '0 16px' : '0 24px' }}>
       <SectionHeader title="GET SUPPORT" />
 
       {/* AI Help Banner */}
@@ -65,7 +67,7 @@ export default function SupportPage() {
         style={{
           background: 'linear-gradient(135deg, #3CB371 0%, #2E8B57 100%)',
           borderRadius: 16,
-          padding: '40px 32px',
+          padding: isMobile ? '32px 20px' : '40px 32px',
           marginBottom: 32,
           position: 'relative',
           overflow: 'hidden',

@@ -38,7 +38,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!isAdmin) return null;
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100dvh' }}>
       <Sider width={220} style={{ background: '#111827' }}>
         <div style={{ padding: '16px 16px 8px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <Link href="/dashboard" style={{ color: 'rgba(255,255,255,0.65)', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 12 }}>

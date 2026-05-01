@@ -1,12 +1,20 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
+/* Prevent horizontal overflow without breaking scroll */
+html {
+  overflow-x: hidden;
+  height: 100%;
+}
 body {
   margin: 0;
   padding: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #FFFFFF;
   color: #1A1A2E;
+  overflow-x: hidden;
+  min-height: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Custom scrollbar */
@@ -141,12 +149,6 @@ body {
 
 /* ==================== RESPONSIVE UTILITIES ==================== */
 
-/* Prevent horizontal overflow */
-html, body {
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-}
-
 /* Images responsive */
 img { max-width: 100%; height: auto; }
 
@@ -192,13 +194,17 @@ img { max-width: 100%; height: auto; }
   width: 280px;
   z-index: 1000;
   transform: translateX(-100%);
-  transition: transform 0.3s ease;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 0.3s ease, visibility 0.3s ease;
   background: #FFFFFF;
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
   overflow-y: auto;
 }
 .sidebar-drawer.open {
   transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
 }
 
 /* Chat responsive bubbles */
@@ -245,13 +251,21 @@ img { max-width: 100%; height: auto; }
     margin: 0 !important;
     top: 0 !important;
     padding: 0 !important;
+    height: 100dvh;
   }
   .ant-modal .ant-modal-content {
     border-radius: 0 !important;
-    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  .ant-modal .ant-modal-body {
+    flex: 1;
+    overflow-y: auto;
   }
   .ant-modal-centered .ant-modal {
     top: auto !important;
+    height: auto;
   }
   .ant-modal-centered .ant-modal .ant-modal-content {
     min-height: auto;

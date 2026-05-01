@@ -1109,7 +1109,7 @@ export default function EditorView({
                     display: "inline-block",
                   }}
                 />
-                Autosave on · {formatSaveTime(lastSavedAt)}
+                {!isMobile && "Autosave on · "}{formatSaveTime(lastSavedAt)}
               </span>
             )}
           </div>

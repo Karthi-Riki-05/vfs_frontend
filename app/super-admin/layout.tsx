@@ -241,7 +241,7 @@ export default function SuperAdminLayout({
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFB" }}>
+    <div style={{ minHeight: "100dvh", background: "#F8FAFB" }}>
       {/* ─────────── Fixed top bar (full width) ─────────── */}
       <header
         style={{
@@ -367,7 +367,7 @@ export default function SuperAdminLayout({
             position: "fixed",
             top: TOPBAR_H,
             left: 0,
-            height: `calc(100vh - ${TOPBAR_H}px)`,
+            height: `calc(100dvh - ${TOPBAR_H}px)`,
             zIndex: 50,
             overflow: "auto",
           }}
@@ -396,14 +396,14 @@ export default function SuperAdminLayout({
         style={{
           marginLeft: isMobile ? 0 : SIDEBAR_W,
           paddingTop: TOPBAR_H,
-          minHeight: "100vh",
+          minHeight: "100dvh",
         }}
       >
         <Content
           style={{
             padding: isMobile ? 14 : 24,
             background: "#F8FAFB",
-            minHeight: `calc(100vh - ${TOPBAR_H}px)`,
+            minHeight: `calc(100dvh - ${TOPBAR_H}px)`,
           }}
         >
           {children}

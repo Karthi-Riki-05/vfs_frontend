@@ -16,7 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePro } from "@/hooks/usePro";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useRouter } from "next/navigation";
-import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useIsMobile, useIsWideMobile } from "@/hooks/useMediaQuery";
 
 const { Text } = Typography;
 
@@ -135,13 +135,18 @@ const KPI_CONFIG = [
 
 function KPICards({ stats, loading }: { stats: any; loading: boolean }) {
   const isMobile = useIsMobile();
+  const isWideMobile = useIsWideMobile();
+
+  // On very narrow screens, 2 cols. On wide mobile (Fold unfolded) and above, 4 cols.
+  const columns = (isMobile && !isWideMobile) ? "repeat(2, 1fr)" : "repeat(4, 1fr)";
+  const gap = (isMobile && !isWideMobile) ? 10 : 16;
 
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
-        gap: isMobile ? 10 : 16,
+        gridTemplateColumns: columns,
+        gap: gap,
         marginBottom: isMobile ? 20 : 28,
       }}
     >
@@ -680,7 +685,7 @@ function Greeting({ userName }: { userName: string | null }) {
   }
 
   return (
-    <div style={{ marginBottom: isMobile ? 16 : 20 }}>
+    <div style={{ marginBottom: isMobile ? 16 : 20, padding: isMobile ? "0 16px" : 0 }}>
       <h1
         style={{
           fontSize: isMobile ? 20 : 26,
@@ -767,7 +772,7 @@ export default function DashboardPage() {
       style={{
         maxWidth: 1200,
         margin: "0 auto",
-        padding: isMobile ? "0" : "0 24px",
+        padding: isMobile ? "0 16px" : "0 24px",
       }}
     >
       <Greeting userName={user?.name} />

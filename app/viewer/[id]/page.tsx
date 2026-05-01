@@ -13,7 +13,7 @@ export default function FlowViewerPage() {
     }
 
     return (
-        <div style={{ height: '100vh', width: '100vw' }}>
+        <div style={{ height: '100dvh', width: '100vw' }}>
             <EditorView flowId={id} />
         </div>
     );

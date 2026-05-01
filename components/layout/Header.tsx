@@ -33,7 +33,7 @@ import {
 import type { MenuProps } from "antd";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
-import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useIsMobile, useIsWideMobile } from "@/hooks/useMediaQuery";
 import { useAppContext, type TeamContextOption } from "@/context/AppContext";
 import { usePro } from "@/hooks/usePro";
 
@@ -56,6 +56,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { data: session } = useSession();
   const router = useRouter();
   const isMobile = useIsMobile();
+  const isWideMobile = useIsWideMobile();
 
   const user = session?.user;
   const userName = user?.name || "User";
@@ -361,7 +362,14 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             <img
               src="/images/image.png"
               alt="ValueChart Logo"
-              style={{ height: isMobile ? 32 : 40, width: "auto" }}
+              style={{ 
+                height: isMobile && !isWideMobile ? 32 : 40, 
+                width: "auto",
+                // On narrow mobile, crop the bottom tagline to keep the main logo crisp
+                objectFit: isMobile && !isWideMobile ? "cover" : "contain",
+                objectPosition: "top",
+                maxHeight: isMobile && !isWideMobile ? 22 : 40 
+              }}
             />
           </Link>
         </div>

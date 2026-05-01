@@ -110,7 +110,7 @@ function AcceptInvitationContent() {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          minHeight: "100vh",
+          minHeight: "100dvh",
           background: "#f5f5f5",
         }}
       >
@@ -126,7 +126,7 @@ function AcceptInvitationContent() {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          minHeight: "100vh",
+          minHeight: "100dvh",
           background: "#f5f5f5",
         }}
       >
@@ -146,7 +146,7 @@ function AcceptInvitationContent() {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          minHeight: "100vh",
+          minHeight: "100dvh",
           background: "#f5f5f5",
         }}
       >
@@ -175,7 +175,7 @@ function AcceptInvitationContent() {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          minHeight: "100vh",
+          minHeight: "100dvh",
           background: "#f5f5f5",
         }}
       >
@@ -420,7 +420,7 @@ export default function AcceptInvitationPage() {
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            minHeight: "100vh",
+            minHeight: "100dvh",
             background: "#f5f5f5",
           }}
         >

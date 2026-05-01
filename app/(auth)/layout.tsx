@@ -3,7 +3,7 @@ import React from 'react';
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: '100dvh',
       width: '100%',
       display: 'flex',
       alignItems: 'center',

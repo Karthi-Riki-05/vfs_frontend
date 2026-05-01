@@ -10,12 +10,14 @@ import SectionHeader from '@/components/common/SectionHeader';
 import EmptyState from '@/components/common/EmptyState';
 import { useProjects } from '@/hooks/useProjects';
 import { useRouter } from 'next/navigation';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 const { Text } = Typography;
 
 export default function ProjectsPage() {
   const { projects, loading, createProject, deleteProject, updateProject } = useProjects();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [creating, setCreating] = useState(false);
@@ -51,7 +53,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: isMobile ? 16 : 24 }}>
       <SectionHeader
         title="ALL PROJECTS"
         right={

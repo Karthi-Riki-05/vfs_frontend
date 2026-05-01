@@ -1328,6 +1328,7 @@ export default function RightChatColumn({
         alignItems: "center",
         gap: 6,
         padding: "8px 12px",
+        paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
         borderTop: `1px solid ${BORDER}`,
         flexShrink: 0,
         background: "#fff",

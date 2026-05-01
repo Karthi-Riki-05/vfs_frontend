@@ -380,7 +380,7 @@ No markdown fences. No explanation. JSON array only.`
 
   return (
 
-    <div suppressHydrationWarning style={{ minHeight: "100vh", background: "#0b0e14", color: "#c8cdd5", fontFamily: "'IBM Plex Sans','Segoe UI',sans-serif" }}>
+    <div suppressHydrationWarning style={{ minHeight: "100dvh", background: "#0b0e14", color: "#c8cdd5", fontFamily: "'IBM Plex Sans','Segoe UI',sans-serif" }}>
 
       <style suppressHydrationWarning>{`
 

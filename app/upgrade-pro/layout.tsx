@@ -8,7 +8,7 @@ const { Content } = Layout;
 
 export default function UpgradeProLayout({ children }: { children: React.ReactNode }) {
     return (
-        <Layout style={{ minHeight: '100vh' }}>
+        <Layout style={{ minHeight: '100dvh' }}>
             <Header />
             <Content
                 style={{
