@@ -57,7 +57,11 @@ export const authOptions: NextAuthOptions = {
         } catch (error: any) {
           const code = error?.response?.data?.error?.code;
           const msg = error?.response?.data?.error?.message;
-          if (code === "EMAIL_NOT_VERIFIED" || code === "ACCOUNT_INACTIVE" || code === "INVALID_CREDENTIALS") {
+          if (
+            code === "EMAIL_NOT_VERIFIED" ||
+            code === "ACCOUNT_INACTIVE" ||
+            code === "INVALID_CREDENTIALS"
+          ) {
             throw new Error(msg || "Login failed");
           }
           console.error("Auth proxy error:", error);
@@ -80,6 +84,8 @@ export const authOptions: NextAuthOptions = {
               name: user.name,
               image: user.image,
               provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              accountType: account.type || "oauth",
             },
           );
           if (response.data?.success && response.data?.data) {

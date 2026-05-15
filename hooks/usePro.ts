@@ -123,6 +123,7 @@ export function usePro() {
     loading,
     fetchError,
     hasPro: status?.hasPro ?? false,
+    proPurchasedAt: status?.proPurchasedAt ?? null,
     currentApp: status?.currentApp ?? "free",
     proFlows: status?.proFlows ?? null,
     switchApp,

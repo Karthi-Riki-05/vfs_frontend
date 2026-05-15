@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 // profile is enabled — otherwise returns 503 and over-ride.js's
 // browser-print fallback handles PDF.
 const EXPORT_SERVER_URL =
-  process.env.EXPORT_SERVER_URL || "http://drawio-export:8000/";
+  process.env.EXPORT_SERVER_URL || "http://drawio-export:8080";
 
 export async function POST(req: NextRequest) {
   try {

@@ -56,7 +56,6 @@ export const config = {
     "/api/users/me/:path*",
     "/api/admin/:path*",
     "/api/invite/accept",
-    "/api/openai/:path*",
     "/api/projects/:path*",
   ],
 };

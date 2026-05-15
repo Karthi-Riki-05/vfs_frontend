@@ -324,12 +324,35 @@ export default function SuperAdminUsersPage() {
       {
         key: "app",
         title: COLUMN_LABELS.app,
-        render: (_, u) =>
-          u.currentVersion === "team" ? (
-            <Tag color="purple">ValueChart Teams</Tag>
-          ) : (
-            <Tag color="blue">ValueChart Pro</Tag>
-          ),
+        render: (_, u) => {
+          const hasProLifetime = u.proPurchasedAt != null;
+          const hasTeam =
+            u.currentVersion === "team" || u.subscription?.status === "active";
+          return (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {hasProLifetime && (
+                <Tag color="purple" style={{ margin: 0 }}>
+                  ValueChart Pro
+                </Tag>
+              )}
+              {hasTeam && (
+                <Tag
+                  style={{
+                    margin: 0,
+                    background: "#E0F2F1",
+                    color: "#00695C",
+                    borderColor: "#00695C",
+                  }}
+                >
+                  ValueChart Teams
+                </Tag>
+              )}
+              {!hasProLifetime && !hasTeam && (
+                <Tag style={{ margin: 0 }}>ValueChart</Tag>
+              )}
+            </div>
+          );
+        },
       },
       {
         key: "loginType",
@@ -1148,8 +1171,31 @@ function RegisteredUsersSelect({
 }
 
 function renderPlanTag(u: AdminUser) {
-  if (u.hasPro && u.currentVersion === "team")
-    return <Tag color="purple">Team</Tag>;
+  if (u.role === "super_admin")
+    return (
+      <Tag color="red" style={{ fontWeight: 600 }}>
+        Super Admin
+      </Tag>
+    );
+
+  const hasProLifetime = u.proPurchasedAt != null;
+  const hasTeam =
+    u.subscription?.status === "active" || u.currentVersion === "team";
+
+  // User has both Pro lifetime purchase AND active team subscription
+  if (hasProLifetime && hasTeam)
+    return (
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        <Tag color="blue" style={{ margin: 0 }}>
+          Pro
+        </Tag>
+        <Tag color="purple" style={{ margin: 0 }}>
+          Team
+        </Tag>
+      </div>
+    );
+  if (hasProLifetime) return <Tag color="blue">Pro</Tag>;
+  if (hasTeam) return <Tag color="purple">Team</Tag>;
   if (u.hasPro) return <Tag color="blue">Pro</Tag>;
   if (u.currentVersion === "team") return <Tag color="purple">Team</Tag>;
   return <Tag>Free</Tag>;
@@ -1314,7 +1360,7 @@ function RowActions({
       onChanged();
     } catch (err: any) {
       message.error(
-        err?.response?.data?.error?.message || "Failed to verify user"
+        err?.response?.data?.error?.message || "Failed to verify user",
       );
     }
   };

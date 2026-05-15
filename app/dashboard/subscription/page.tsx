@@ -83,6 +83,141 @@ interface ProSubStatus {
   }>;
 }
 
+function TeamAiAddonSection() {
+  const [buying, setBuying] = useState<string | null>(null);
+  const { pricing } = usePricing();
+
+  const handleBuy = async (packType: "starter" | "standard" | "proppack") => {
+    setBuying(packType);
+    try {
+      const res = await aiApi.createAddonCheckout(packType);
+      const data = res.data?.data || res.data;
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        message.error("Could not start checkout");
+        setBuying(null);
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || "Checkout failed";
+      message.error(msg);
+      setBuying(null);
+    }
+  };
+
+  return (
+    <Card
+      style={{ borderRadius: 12, marginBottom: 24 }}
+      styles={{ body: { padding: "20px 24px" } }}
+    >
+      <Text strong style={{ fontSize: 16, display: "block", marginBottom: 4 }}>
+        AI Credit Add-ons
+      </Text>
+      <Text
+        type="secondary"
+        style={{ fontSize: 13, display: "block", marginBottom: 16 }}
+      >
+        Your Team plan includes 300 AI credits/month per member. Top up your
+        account with extra credits anytime — credits never expire and are
+        available for your AI diagram usage.
+      </Text>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 12,
+        }}
+      >
+        {ADDON_PACK_META.map((pack) => {
+          const priceInfo = pricing?.prices[pack.priceKey];
+          return (
+            <div
+              key={pack.packType}
+              style={{
+                position: "relative",
+                border: pack.popular
+                  ? "2px solid #3CB371"
+                  : "1px solid #E8E8E8",
+                borderRadius: 12,
+                padding: "20px 16px",
+                background: pack.popular ? "#F0FFF4" : "#fff",
+                textAlign: "center",
+              }}
+            >
+              {pack.popular && (
+                <Tag
+                  color="#3CB371"
+                  style={{
+                    position: "absolute",
+                    top: -10,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "1px 10px",
+                    borderRadius: 10,
+                    border: "none",
+                  }}
+                >
+                  MOST POPULAR
+                </Tag>
+              )}
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#1A1A2E" }}>
+                {pack.credits}
+              </div>
+              <Text
+                type="secondary"
+                style={{ fontSize: 12, display: "block", marginBottom: 10 }}
+              >
+                credits
+              </Text>
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: "#3CB371",
+                  marginBottom: 12,
+                }}
+              >
+                {priceInfo?.display ?? "…"}
+              </div>
+              <Button
+                type="primary"
+                block
+                loading={buying === pack.packType}
+                disabled={!!buying}
+                onClick={() => handleBuy(pack.packType)}
+                style={{
+                  backgroundColor: "#3CB371",
+                  borderColor: "#3CB371",
+                  borderRadius: 8,
+                  fontWeight: 600,
+                }}
+              >
+                Buy Now
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+      {pricing && pricing.currency !== "USD" && (
+        <Text
+          type="secondary"
+          style={{
+            fontSize: 11,
+            display: "block",
+            marginTop: 12,
+            textAlign: "center",
+          }}
+        >
+          Prices shown in {pricing.currency}. You will be charged in your local
+          currency at checkout. Amount deposited to merchant in USD.
+        </Text>
+      )}
+    </Card>
+  );
+}
+
 function AiAddonPacksSection() {
   const [buying, setBuying] = useState<string | null>(null);
   const { pricing } = usePricing();
@@ -261,8 +396,11 @@ function ProSubscriptionContent() {
       const res = await proApi.getSubscriptionStatus();
       const data = res.data?.data || res.data;
       setProSubStatus(data);
-    } catch {
-      message.error("Failed to load subscription status");
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.error?.message || "Failed to load Pro plan";
+      message.error(msg);
+      setProSubStatus(null);
     } finally {
       setProSubLoading(false);
     }
@@ -291,7 +429,26 @@ function ProSubscriptionContent() {
     );
   }
 
-  if (!proSubStatus) return null;
+  if (!proSubStatus) {
+    return (
+      <div style={{ maxWidth: 500, margin: "80px auto", textAlign: "center" }}>
+        <CrownOutlined style={{ fontSize: 48, color: "#8C8C8C" }} />
+        <Title level={4} style={{ marginTop: 16, color: "#595959" }}>
+          Could not load Pro plan
+        </Title>
+        <Text type="secondary" style={{ display: "block", marginBottom: 24 }}>
+          Your Pro access is active but the plan details failed to load.
+        </Text>
+        <Button
+          type="primary"
+          onClick={fetchProSubStatus}
+          style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   const { flows, isUnlimited } = proSubStatus;
   const usagePercent =
@@ -502,174 +659,188 @@ function ProSubscriptionContent() {
         </Card>
       )}
 
-      {!isUnlimited && (
-        <Card
-          style={{ marginBottom: 24, borderRadius: 12 }}
-          bodyStyle={{ padding: "24px 28px" }}
+      <Card
+        style={{ marginBottom: 24, borderRadius: 12 }}
+        bodyStyle={{ padding: "24px 28px" }}
+      >
+        <Text
+          strong
+          style={{ fontSize: 16, display: "block", marginBottom: 20 }}
         >
-          <Text
-            strong
-            style={{ fontSize: 16, display: "block", marginBottom: 20 }}
+          Add More Flows
+        </Text>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <div
+            style={{
+              flex: 1,
+              minWidth: 220,
+              border: "1px solid #E8E8E8",
+              borderRadius: 12,
+              padding: "24px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+            }}
           >
-            Add More Flows
-          </Text>
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <Title level={4} style={{ margin: "0 0 4px" }}>
+              50 Flows
+            </Title>
             <div
               style={{
-                flex: 1,
-                minWidth: 220,
-                border: "1px solid #E8E8E8",
-                borderRadius: 12,
-                padding: "24px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                textAlign: "center",
+                fontSize: 28,
+                fontWeight: 700,
+                color: "#3CB371",
+                marginBottom: 2,
               }}
             >
-              <Title level={4} style={{ margin: "0 0 4px" }}>
-                50 Flows
-              </Title>
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: "#3CB371",
-                  marginBottom: 2,
-                }}
-              >
-                $5.00
-                <Text
-                  type="secondary"
-                  style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
-                >
-                  / month
-                </Text>
-              </div>
+              $5.00
               <Text
                 type="secondary"
-                style={{ fontSize: 11, display: "block", marginBottom: 12 }}
+                style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
               >
-                Recurring monthly subscription &middot; cancel anytime
+                / month
               </Text>
-              <Text
-                type="secondary"
-                style={{ display: "block", marginBottom: 8 }}
-              >
-                Added to your current balance
-              </Text>
-              <Text
-                type="secondary"
-                style={{ fontSize: 12, display: "block", marginBottom: 20 }}
-              >
-                Current: {flows.total} &rarr; After: {flows.total + 50}
-              </Text>
-              <Button
-                type="primary"
-                block
-                size="large"
-                loading={purchasing === "50"}
-                disabled={!!purchasing}
-                onClick={() => handlePurchase("50")}
-                style={{
-                  backgroundColor: "#3CB371",
-                  borderColor: "#3CB371",
-                  borderRadius: 8,
-                  fontWeight: 600,
-                  height: 44,
-                }}
-              >
-                Subscribe &mdash; $5/month
-              </Button>
             </div>
-            <div
+            <Text
+              type="secondary"
+              style={{ fontSize: 11, display: "block", marginBottom: 12 }}
+            >
+              Recurring monthly subscription &middot; cancel anytime
+            </Text>
+            <Text
+              type="secondary"
+              style={{ display: "block", marginBottom: 8 }}
+            >
+              Added to your current balance
+            </Text>
+            <Text
+              type="secondary"
+              style={{ fontSize: 12, display: "block", marginBottom: 20 }}
+            >
+              Current: {flows.total} &rarr; After: {flows.total + 50}
+            </Text>
+            <Button
+              type="primary"
+              block
+              size="large"
+              loading={purchasing === "50"}
+              disabled={!!purchasing}
+              onClick={() => handlePurchase("50")}
               style={{
-                flex: 1,
-                minWidth: 220,
-                border: "2px solid #F59E0B",
-                borderRadius: 12,
-                padding: "24px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                textAlign: "center",
-                position: "relative",
-                background: "#FFFBEB",
+                backgroundColor: "#3CB371",
+                borderColor: "#3CB371",
+                borderRadius: 8,
+                fontWeight: 600,
+                height: 44,
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  top: -12,
-                  background: "#F59E0B",
-                  color: "#fff",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: "2px 12px",
-                  borderRadius: 20,
-                  letterSpacing: 0.5,
-                }}
-              >
-                BEST VALUE
-              </div>
-              <Title level={4} style={{ margin: "8px 0 4px" }}>
-                Unlimited Flows
-              </Title>
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: "#F59E0B",
-                  marginBottom: 2,
-                }}
-              >
-                $10.00
-                <Text
-                  type="secondary"
-                  style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
-                >
-                  / month
-                </Text>
-              </div>
-              <Text
-                type="secondary"
-                style={{ fontSize: 11, display: "block", marginBottom: 12 }}
-              >
-                Recurring monthly subscription &middot; cancel anytime
-              </Text>
-              <Text
-                type="secondary"
-                style={{ display: "block", marginBottom: 8 }}
-              >
-                Never worry about flow limits again
-              </Text>
-              <Text
-                type="secondary"
-                style={{ fontSize: 12, display: "block", marginBottom: 20 }}
-              >
-                Unlimited flows for as long as you subscribe
-              </Text>
-              <Button
-                type="primary"
-                block
-                size="large"
-                loading={purchasing === "unlimited"}
-                disabled={!!purchasing}
-                onClick={() => handlePurchase("unlimited")}
-                style={{
-                  backgroundColor: "#F59E0B",
-                  borderColor: "#F59E0B",
-                  borderRadius: 8,
-                  fontWeight: 600,
-                  height: 44,
-                }}
-              >
-                Subscribe &mdash; $10/month
-              </Button>
-            </div>
+              Subscribe &mdash; $5/month
+            </Button>
           </div>
-        </Card>
-      )}
+          <div
+            style={{
+              flex: 1,
+              minWidth: 220,
+              border: "2px solid #F59E0B",
+              borderRadius: 12,
+              padding: "24px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              position: "relative",
+              background: "#FFFBEB",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: -12,
+                background: "#F59E0B",
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 700,
+                padding: "2px 12px",
+                borderRadius: 20,
+                letterSpacing: 0.5,
+              }}
+            >
+              BEST VALUE
+            </div>
+            <Title level={4} style={{ margin: "8px 0 4px" }}>
+              Unlimited Flows
+            </Title>
+            <div
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: "#F59E0B",
+                marginBottom: 2,
+              }}
+            >
+              $10.00
+              <Text
+                type="secondary"
+                style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
+              >
+                / month
+              </Text>
+            </div>
+            <Text
+              type="secondary"
+              style={{ fontSize: 11, display: "block", marginBottom: 12 }}
+            >
+              Recurring monthly subscription &middot; cancel anytime
+            </Text>
+            <Text
+              type="secondary"
+              style={{ display: "block", marginBottom: 8 }}
+            >
+              Never worry about flow limits again
+            </Text>
+            <Text
+              type="secondary"
+              style={{ fontSize: 12, display: "block", marginBottom: 20 }}
+            >
+              Unlimited flows for as long as you subscribe
+            </Text>
+            <Button
+              type="primary"
+              block
+              size="large"
+              loading={purchasing === "unlimited"}
+              disabled={!!purchasing}
+              onClick={() => handlePurchase("unlimited")}
+              style={{
+                backgroundColor: "#F59E0B",
+                borderColor: "#F59E0B",
+                borderRadius: 8,
+                fontWeight: 600,
+                height: 44,
+              }}
+            >
+              Subscribe &mdash; $10/month
+            </Button>
+          </div>
+        </div>
+        {isUnlimited && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: "12px 16px",
+              background: "#F0FFF4",
+              borderRadius: 8,
+              border: "1px solid #B7EB8F",
+              color: "#389E0D",
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            ♾ You already have Unlimited Flows active — no pack purchase needed.
+          </div>
+        )}
+      </Card>
 
       <AiAddonPacksSection />
 
@@ -680,7 +851,7 @@ function ProSubscriptionContent() {
 }
 
 export default function SubscriptionPage() {
-  const { currentApp } = usePro();
+  const { currentApp, loading: proLoading } = usePro();
   const { pricing, isTestMode } = usePricing();
   const {
     status,
@@ -761,17 +932,19 @@ export default function SubscriptionPage() {
     });
   };
 
-  // Pro app: show Pro subscription content instead of Team plans
-  if (currentApp === "pro") {
-    return <ProSubscriptionContent />;
-  }
-
-  if (loading) {
+  // Hold the spinner until usePro has resolved — prevents a flash of
+  // Team plan UI for Pro users while currentApp is still "free" (default).
+  if (proLoading || loading) {
     return (
       <div style={{ textAlign: "center", padding: 100 }}>
         <Spin size="large" />
       </div>
     );
+  }
+
+  // Pro app: show Pro subscription content instead of Team plans
+  if (currentApp === "pro") {
+    return <ProSubscriptionContent />;
   }
 
   const isActivePlan = (plan: "monthly" | "yearly") =>
@@ -1293,6 +1466,12 @@ export default function SubscriptionPage() {
             )}
           </div>
         )}
+
+      {/* AI credit add-ons — available for team owners to top up credits
+          that all team members can draw from their shared pool */}
+      <div style={{ marginTop: 32 }}>
+        <TeamAiAddonSection />
+      </div>
     </div>
   );
 }

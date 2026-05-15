@@ -581,13 +581,15 @@ export default function AIAssistant({
       // show the Generate button so the user isn't left stranded.
       const lowerResp = assistantText.toLowerCase();
       const chatSuggestsDiagram =
-        (lowerResp.includes("generate") && (lowerResp.includes("diagram") || lowerResp.includes("flow"))) ||
+        (lowerResp.includes("generate") &&
+          (lowerResp.includes("diagram") || lowerResp.includes("flow"))) ||
         (lowerResp.includes("click") && lowerResp.includes("generate below")) ||
         lowerResp.includes("generate diagram button");
       if (chatSuggestsDiagram) {
         appendMessage({
           role: "assistant",
-          content: "⚡ Ready to generate? Click the button below to use 1 credit.",
+          content:
+            "⚡ Ready to generate? Click the button below to use 1 credit.",
           suggestion: { prompt: text },
         });
       }
@@ -621,12 +623,7 @@ export default function AIAssistant({
         }
       }
 
-      const res = await aiApi.generateDiagramGated(
-        prompt,
-        true,
-        convId,
-        msgId,
-      );
+      const res = await aiApi.generateDiagramGated(prompt, true, convId, msgId);
       const data = res.data?.data || res.data || {};
       if (data.conversationId && data.conversationId !== convId) {
         setActiveConversationId(data.conversationId);
@@ -656,8 +653,11 @@ export default function AIAssistant({
       const status = err?.response?.status;
       const errBalance = err?.response?.data?.error?.balance;
       const errorCode = err?.response?.data?.error?.code;
-      const isTimeout = err?.code === 'ECONNABORTED' || status === 408 || errorCode === 'REQUEST_TIMEOUT';
-      
+      const isTimeout =
+        err?.code === "ECONNABORTED" ||
+        status === 408 ||
+        errorCode === "REQUEST_TIMEOUT";
+
       if (status === 402) {
         if (errBalance) setCreditBalance(errBalance);
         setShowCreditsExhausted(true);
@@ -1539,16 +1539,9 @@ export default function AIAssistant({
           xml={previewModal.xml}
           onClose={() => setPreviewModal({ visible: false, xml: "" })}
           onInsert={() => {
-            window.dispatchEvent(
-              new CustomEvent("aiXmlReady", {
-                detail: { xml: previewModal.xml },
-              }),
-            );
-            antdMessage.success("✅ Diagram inserted into canvas");
-            // Close preview modal then collapse chat panel
+            const xml = previewModal.xml;
             setPreviewModal({ visible: false, xml: "" });
-            setState("collapsed");
-            setShowHistory(false);
+            handleInsertDiagram(xml);
           }}
         />
       </>
@@ -1610,16 +1603,9 @@ export default function AIAssistant({
           xml={previewModal.xml}
           onClose={() => setPreviewModal({ visible: false, xml: "" })}
           onInsert={() => {
-            window.dispatchEvent(
-              new CustomEvent("aiXmlReady", {
-                detail: { xml: previewModal.xml },
-              }),
-            );
-            antdMessage.success("✅ Diagram inserted into canvas");
-            // Close preview modal then collapse chat panel
+            const xml = previewModal.xml;
             setPreviewModal({ visible: false, xml: "" });
-            setState("collapsed");
-            setShowHistory(false);
+            handleInsertDiagram(xml);
           }}
         />
       </>

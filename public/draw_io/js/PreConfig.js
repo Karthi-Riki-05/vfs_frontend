@@ -4,12 +4,10 @@
  */
 // Overrides of global vars need to be pre-loaded
 window.DRAWIO_PUBLIC_BUILD = true;
-// EXPORT_URL: server-side render endpoint (PDF / large PNG / advanced JPG).
-// PDF is intercepted client-side by over-ride.js (browser print dialog).
-// All other formats are rendered client-side by draw.io and downloaded by
-// EditorView.tsx via postMessage. A real export-server is planned for a
-// later session — until then we keep this URL non-functional.
-window.EXPORT_URL = "/api/export-disabled";
+// EXPORT_URL: routes to the jgraph/export-server container via Next.js proxy.
+// When the export server is not running the proxy returns 503 and over-ride.js
+// falls back to the browser print dialog automatically.
+window.EXPORT_URL = "/api/export-proxy";
 window.PLANT_URL = "/api/plantuml-disabled";
 // ValueFlowSoft branding
 window.VFS_APP_NAME = "ValueFlowSoft";

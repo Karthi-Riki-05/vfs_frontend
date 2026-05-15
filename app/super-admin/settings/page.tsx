@@ -58,7 +58,6 @@ interface SettingsData {
     lastSeen: string | null;
   }[];
   apiKeys: {
-    openai: boolean;
     anthropic: boolean;
     gemini: boolean;
     stripe: boolean;
@@ -279,7 +278,6 @@ export default function SuperAdminSettingsPage() {
               size="small"
               dataSource={
                 [
-                  { key: "openai", label: "OpenAI" },
                   { key: "anthropic", label: "Anthropic" },
                   { key: "gemini", label: "Gemini" },
                   { key: "stripe", label: "Stripe" },

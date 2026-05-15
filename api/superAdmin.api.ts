@@ -7,6 +7,7 @@ export interface AdminUser {
   image: string | null;
   role: string;
   hasPro: boolean;
+  proPurchasedAt: string | null;
   currentVersion: string;
   clientType: string;
   userStatus: string;
@@ -595,7 +596,6 @@ export const superAdminApi = {
           lastSeen: string | null;
         }[];
         apiKeys: {
-          openai: boolean;
           anthropic: boolean;
           gemini: boolean;
           stripe: boolean;

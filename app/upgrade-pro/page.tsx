@@ -1,10 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
-import { Button, Typography, message, Spin } from "antd";
-import { CheckCircleFilled, CrownOutlined } from "@ant-design/icons";
+import React, { Suspense, useState, useEffect } from "react";
+import { Button, Typography, message, Spin, Alert } from "antd";
+import {
+  CheckCircleFilled,
+  CrownOutlined,
+  ArrowLeftOutlined,
+} from "@ant-design/icons";
 import { usePro } from "@/hooks/usePro";
 import { usePricing } from "@/hooks/usePricing";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const { Text, Title } = Typography;
 
@@ -19,18 +24,69 @@ const FEATURES = [
   "Priority support",
 ];
 
-export default function UpgradeProPage() {
-  const { hasPro, purchasePro, loading: proLoading } = usePro();
+const STRIPE_PENDING_KEY = "vc_stripe_pending_pro";
+
+function BackToDashboard({ router }: { router: ReturnType<typeof useRouter> }) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <Button
+        type="text"
+        icon={<ArrowLeftOutlined />}
+        onClick={() => router.push("/dashboard")}
+        style={{ color: "#8C8C8C", paddingLeft: 0, fontSize: 14 }}
+      >
+        Back to Dashboard
+      </Button>
+    </div>
+  );
+}
+
+function UpgradeProContent() {
+  const { hasPro, proPurchasedAt, purchasePro, loading: proLoading } = usePro();
   const { pricing, loading: pricingLoading } = usePricing();
   const [purchasing, setPurchasing] = useState(false);
+  const [returnedFromStripe, setReturnedFromStripe] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const wasCancelled = searchParams?.get("cancelled") === "true";
+
+  // Detect browser back-button return from Stripe (no cancel_url param).
+  // purchasePro() sets the flag in sessionStorage before redirecting.
+  // pageshow fires on BFCache restore AND on fresh navigation.
+  useEffect(() => {
+    const checkStripeReturn = () => {
+      if (sessionStorage.getItem(STRIPE_PENDING_KEY)) {
+        sessionStorage.removeItem(STRIPE_PENDING_KEY);
+        setReturnedFromStripe(true);
+        // Clean up any Stripe URL fragment left in history
+        window.history.replaceState({}, "", "/upgrade-pro");
+      }
+    };
+    // pageshow catches both BFCache restores and normal loads
+    window.addEventListener("pageshow", checkStripeReturn);
+    checkStripeReturn(); // also run on first mount
+    return () => window.removeEventListener("pageshow", checkStripeReturn);
+  }, []);
+
+  // Replace the Stripe checkout URL in history so the browser back button
+  // returns to the dashboard rather than Stripe's hosted page.
+  useEffect(() => {
+    if (wasCancelled) {
+      window.history.replaceState({}, "", "/upgrade-pro?cancelled=true");
+    }
+  }, [wasCancelled]);
 
   const proMonthly = pricing?.prices.pro_monthly;
 
   const handlePurchase = async () => {
     setPurchasing(true);
     try {
+      // Mark that we're about to go to Stripe so the back-button
+      // return can be detected when the user comes back.
+      sessionStorage.setItem(STRIPE_PENDING_KEY, "1");
       await purchasePro();
     } catch (err: any) {
+      sessionStorage.removeItem(STRIPE_PENDING_KEY);
       const msg =
         err?.response?.data?.error?.message ||
         err?.response?.data?.error ||
@@ -49,9 +105,17 @@ export default function UpgradeProPage() {
     );
   }
 
-  if (hasPro) {
+  // Only show "You already have Pro" when the user has explicitly PURCHASED
+  // the $1 lifetime Pro product (proPurchasedAt is set). Team-plan users have
+  // hasPro=true but proPurchasedAt=null — they are a different product and
+  // CAN buy Pro independently. Also don't block if they came back from Stripe
+  // (cancelled payment — proPurchasedAt might be stale until page refresh).
+  const hasProLifetime = hasPro && proPurchasedAt !== null;
+
+  if (hasProLifetime && !wasCancelled && !returnedFromStripe) {
     return (
       <div style={{ maxWidth: 500, margin: "80px auto", textAlign: "center" }}>
+        <BackToDashboard router={router} />
         <CrownOutlined style={{ fontSize: 48, color: "#F59E0B" }} />
         <Title level={3} style={{ marginTop: 16 }}>
           You already have Pro!
@@ -59,9 +123,20 @@ export default function UpgradeProPage() {
         <Text type="secondary">
           You can switch to the Pro app from the sidebar.
         </Text>
+        <div style={{ marginTop: 24 }}>
+          <Button
+            type="primary"
+            onClick={() => router.push("/dashboard")}
+            style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
+          >
+            Go to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
+
+  const showReturnAlert = wasCancelled || returnedFromStripe;
 
   return (
     <div
@@ -72,6 +147,28 @@ export default function UpgradeProPage() {
         textAlign: "center",
       }}
     >
+      <BackToDashboard router={router} />
+
+      {wasCancelled && (
+        <Alert
+          message="Payment cancelled"
+          description="No charge was made. You can complete your purchase below whenever you're ready."
+          type="info"
+          showIcon
+          style={{ marginBottom: 24, textAlign: "left" }}
+        />
+      )}
+
+      {returnedFromStripe && !wasCancelled && (
+        <Alert
+          message="Payment not completed"
+          description="You left the checkout page. No charge was made. Complete your purchase below whenever you're ready."
+          type="info"
+          showIcon
+          style={{ marginBottom: 24, textAlign: "left" }}
+        />
+      )}
+
       <CrownOutlined
         style={{ fontSize: 48, color: "#F59E0B", marginBottom: 16 }}
       />
@@ -167,7 +264,30 @@ export default function UpgradeProPage() {
         >
           Purchase Pro{proMonthly ? ` — ${proMonthly.display} lifetime` : ""}
         </Button>
+
+        <Button
+          block
+          size="large"
+          onClick={() => router.push("/dashboard")}
+          style={{ marginTop: 12, height: 44 }}
+        >
+          Back to Dashboard
+        </Button>
       </div>
     </div>
+  );
+}
+
+export default function UpgradeProPage() {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ textAlign: "center", padding: 100 }}>
+          <Spin size="large" />
+        </div>
+      }
+    >
+      <UpgradeProContent />
+    </Suspense>
   );
 }

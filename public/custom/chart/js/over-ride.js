@@ -1710,12 +1710,23 @@ function extendApp() {
         } catch (e) {}
       };
 
-      // 3a) PDF export → browser print dialog (Option D).
-      //     Catches code paths that go through exportFile(format).
+      // Detect whether a real export server is wired up.
+      // EXPORT_URL = "/api/export-proxy" → server available (or 503 → fallback below).
+      // EXPORT_URL = "/api/export-disabled" or missing → always use print.
+      var __vcExportServerConfigured =
+        typeof window.EXPORT_URL === "string" &&
+        window.EXPORT_URL !== "" &&
+        window.EXPORT_URL.indexOf("disabled") === -1;
+
+      // 3a) PDF export path through exportFile(format).
+      //     When the export server is configured, let draw.io handle the
+      //     request normally (it will POST to EXPORT_URL). If the server
+      //     returns an error or is unreachable we fall back to print.
+      //     When no server is configured, always route to print.
       var __vcOrigExportFile = EditorUi.prototype.exportFile;
       EditorUi.prototype.exportFile = function (format) {
         var fmt = (format || "").toString().toLowerCase();
-        if (fmt === "pdf") {
+        if (fmt === "pdf" && !__vcExportServerConfigured) {
           __vcRouteToPrint(this);
           return;
         }
@@ -1724,14 +1735,12 @@ function extendApp() {
         }
       };
 
-      // 3b) Catch every other PDF path. saveRequest(name, format, fn) is
-      //     the function that actually builds the mxXmlRequest to
-      //     EXPORT_URL — intercepting it here covers File→Export As→PDF
-      //     and the standalone "Export PDF" dialog.
+      // 3b) saveRequest path (File→Export As→PDF and Export PDF dialog).
+      //     Same logic — only intercept when no export server is configured.
       var __vcOrigSaveRequest = EditorUi.prototype.saveRequest;
       EditorUi.prototype.saveRequest = function (filename, format) {
         var fmt = (format || "").toString().toLowerCase();
-        if (fmt === "pdf") {
+        if (fmt === "pdf" && !__vcExportServerConfigured) {
           __vcRouteToPrint(this);
           return;
         }
