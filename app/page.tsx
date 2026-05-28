@@ -25,5 +25,9 @@ export default function RootPage() {
     router.replace("/dashboard");
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return null;
+  // Return an empty fragment — NOT null.
+  // Next.js App Router treats return null as "no page" and serves the
+  // notFound slot instead, which prevents the JS bundle from loading
+  // and kills the useEffect redirect entirely.
+  return <></>;
 }
