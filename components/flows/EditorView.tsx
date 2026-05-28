@@ -35,7 +35,9 @@ import TemplateBrowser from "@/components/templates/TemplateBrowser";
 import CustomShapesPanel, {
   type EditorShape,
 } from "@/components/flows/CustomShapesPanel";
+import ShareFlowModal from "@/components/flows/ShareFlowModal";
 import AiCreditsDisplay from "@/components/ai/AiCreditsDisplay";
+import { useSession } from "next-auth/react";
 
 const HIDE_AI_CSS = `
   /* Hide draw.io AI/Gemini/Save&Exit affordances */
@@ -135,9 +137,11 @@ const hideAiElements = (doc: Document | null | undefined): void => {
         // to avoid accidentally hiding the main toolbar or sidebar.
         if (el.classList.contains("geToolbarContainer")) {
           const isVertical = el.classList.contains("geVerticalToolbar");
-          const hasStatus = !!el.querySelector(".geStatus, .geStatusDiv, .geStatusBox");
+          const hasStatus = !!el.querySelector(
+            ".geStatus, .geStatusDiv, .geStatusBox",
+          );
           const hasEmbed = !!el.querySelector(".geEmbedBtn, .gePrimaryBtn");
-          
+
           if (!isVertical && (hasStatus || hasEmbed)) {
             if (el.style.display !== "none") {
               el.style.setProperty("display", "none", "important");
@@ -279,6 +283,12 @@ export default function EditorView({
   flowId: string;
   isViewMode?: boolean;
 }) {
+  const { data: session } = useSession();
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loading, setLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
@@ -314,6 +324,7 @@ export default function EditorView({
   const [saveTarget, setSaveTarget] = useState<"cloud" | "device">("cloud");
   const [saveLoading, setSaveLoading] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [flowShareModalOpen, setFlowShareModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [importFileName, setImportFileName] = useState<string>("");
@@ -402,6 +413,26 @@ export default function EditorView({
   const isReadOnly = permission === "view";
   const isSharedEdit = permission === "edit";
 
+  const sendUserContext = (perm?: string) => {
+    const sess = sessionRef.current;
+    const hasPro = (sess?.user as any)?.hasPro ?? false;
+    const userVersion = (sess?.user as any)?.currentVersion ?? "free";
+    const effectivePerm = perm ?? permRef.current;
+    const canShare =
+      effectivePerm === "owner" && (hasPro || userVersion === "team");
+    iframeRef.current?.contentWindow?.postMessage(
+      JSON.stringify({ event: "userContext", canShare }),
+      "*",
+    );
+  };
+
+  // Re-send when session resolves after init (avoids stale canShare=false)
+  useEffect(() => {
+    if (!session || !permRef.current) return;
+    sendUserContext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   useEffect(() => {
     setIsMounted(true);
 
@@ -425,6 +456,17 @@ export default function EditorView({
         // when the Shapes sidebar icon is clicked).
         if (msg.action === "openCustomShapes") {
           setCustomShapesOpen(true);
+          return;
+        }
+
+        // 0b2. Iframe → parent: open the Share flow modal (installVcShareBtn
+        // in over-ride.js fires this when the Share sidebar icon is clicked).
+        if (msg.action === "openShare") {
+          if (permRef.current === "view" || isViewMode) {
+            message.warning("You cannot share a flow you don't own");
+            return;
+          }
+          setFlowShareModalOpen(true);
           return;
         }
 
@@ -525,6 +567,7 @@ export default function EditorView({
             }),
             "*",
           );
+          sendUserContext(perm);
         }
 
         // 2. SAVE BUTTON CLICKED IN DRAW.IO
@@ -1109,7 +1152,8 @@ export default function EditorView({
                     display: "inline-block",
                   }}
                 />
-                {!isMobile && "Autosave on · "}{formatSaveTime(lastSavedAt)}
+                {!isMobile && "Autosave on · "}
+                {formatSaveTime(lastSavedAt)}
               </span>
             )}
           </div>
@@ -1242,6 +1286,15 @@ export default function EditorView({
         open={customShapesOpen}
         onClose={() => setCustomShapesOpen(false)}
         onInsert={handleCustomShapeInsert}
+      />
+
+      {/* Collaborative Share modal — opened by the Share sidebar icon
+          inside draw.io (installVcShareBtn in over-ride.js). Owner-only. */}
+      <ShareFlowModal
+        open={flowShareModalOpen}
+        flow={flowShareModalOpen ? { id: flowId, name: flowName } : null}
+        onClose={() => setFlowShareModalOpen(false)}
+        onSuccess={() => setFlowShareModalOpen(false)}
       />
 
       {/* Custom "Save As" modal — replaces draw.io's native save dialog.

@@ -25,14 +25,21 @@ const FEATURES = [
 ];
 
 const STRIPE_PENDING_KEY = "vc_stripe_pending_pro";
+const PRO_REDIRECT_KEY = "vc_pro_purchase_redirect";
 
-function BackToDashboard({ router }: { router: ReturnType<typeof useRouter> }) {
+function BackToDashboard({
+  router,
+  backUrl,
+}: {
+  router: ReturnType<typeof useRouter>;
+  backUrl: string;
+}) {
   return (
     <div style={{ marginBottom: 24 }}>
       <Button
         type="text"
         icon={<ArrowLeftOutlined />}
-        onClick={() => router.push("/dashboard")}
+        onClick={() => router.push(backUrl)}
         style={{ color: "#8C8C8C", paddingLeft: 0, fontSize: 14 }}
       >
         Back to Dashboard
@@ -49,6 +56,9 @@ function UpgradeProContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const wasCancelled = searchParams?.get("cancelled") === "true";
+  // When arriving from forced Pro mode (?app=pro), preserve the return path
+  const isFromProApp = searchParams?.get("app") === "pro";
+  const backUrl = isFromProApp ? "/dashboard" : "/dashboard";
 
   // Detect browser back-button return from Stripe (no cancel_url param).
   // purchasePro() sets the flag in sessionStorage before redirecting.
@@ -81,12 +91,15 @@ function UpgradeProContent() {
   const handlePurchase = async () => {
     setPurchasing(true);
     try {
-      // Mark that we're about to go to Stripe so the back-button
-      // return can be detected when the user comes back.
       sessionStorage.setItem(STRIPE_PENDING_KEY, "1");
+      // After purchase, redirect back to Pro dashboard if user came from forced Pro mode
+      if (isFromProApp) {
+        sessionStorage.setItem(PRO_REDIRECT_KEY, "/dashboard?app=pro");
+      }
       await purchasePro();
     } catch (err: any) {
       sessionStorage.removeItem(STRIPE_PENDING_KEY);
+      if (isFromProApp) sessionStorage.removeItem(PRO_REDIRECT_KEY);
       const msg =
         err?.response?.data?.error?.message ||
         err?.response?.data?.error ||
@@ -115,7 +128,7 @@ function UpgradeProContent() {
   if (hasProLifetime && !wasCancelled && !returnedFromStripe) {
     return (
       <div style={{ maxWidth: 500, margin: "80px auto", textAlign: "center" }}>
-        <BackToDashboard router={router} />
+        <BackToDashboard router={router} backUrl={backUrl} />
         <CrownOutlined style={{ fontSize: 48, color: "#F59E0B" }} />
         <Title level={3} style={{ marginTop: 16 }}>
           You already have Pro!
@@ -126,7 +139,7 @@ function UpgradeProContent() {
         <div style={{ marginTop: 24 }}>
           <Button
             type="primary"
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push(backUrl)}
             style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
           >
             Go to Dashboard
@@ -268,7 +281,7 @@ function UpgradeProContent() {
         <Button
           block
           size="large"
-          onClick={() => router.push("/dashboard")}
+          onClick={() => router.push(backUrl)}
           style={{ marginTop: 12, height: 44 }}
         >
           Back to Dashboard

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Layout } from "antd";
 import { usePathname } from "next/navigation";
 import Header from "./Header";
@@ -9,8 +9,13 @@ import ProSidebar from "./ProSidebar";
 import AIAssistant from "../ai/AIAssistant";
 import RightChatColumn from "../chat/RightChatColumn";
 import EnableNotificationsBanner from "../common/EnableNotificationsBanner";
+import FloatingActionButton from "./FloatingActionButton";
 import { usePro } from "@/hooks/usePro";
-import { useIsMobile, useIsTablet, useIsWideMobile } from "@/hooks/useMediaQuery";
+import {
+  useIsMobile,
+  useIsTablet,
+  useIsWideMobile,
+} from "@/hooks/useMediaQuery";
 
 const { Content } = Layout;
 
@@ -33,7 +38,65 @@ export default function DashboardLayout({
   const [chatOpen, setChatOpen] = useState(false);
   const [chatFullView, setChatFullView] = useState(false);
   const pathname = usePathname() || "";
-  const { currentApp } = usePro();
+  const {
+    currentApp,
+    forcedMode,
+    hasPro,
+    proPurchasedAt,
+    switchApp,
+    loading: proLoading,
+  } = usePro();
+  const forcedSwitchDone = useRef(false);
+
+  // Auto-switch to the forced app once usePro has resolved.
+  // Reads sessionStorage directly (not forcedMode state) to avoid the race
+  // where forcedMode state is still null when proLoading first flips to false
+  // (the useEffect setter in usePro runs after this effect on the same cycle).
+  // forcedMode 'team' → API value 'free' (team shell = the free app).
+  // forcedMode 'pro'  → API value 'pro'.
+  // Guard: skip the Pro switch when the user hasn't purchased Pro — calling
+  // switchApp('pro') without hasPro triggers a Stripe checkout redirect, which
+  // is wrong inside a locked WebView. The toggle is hidden via forcedMode
+  // regardless, so the user still gets a clean locked-down UI.
+  // Ref guard prevents double-firing on re-renders; reload() re-mounts anyway.
+  useEffect(() => {
+    if (proLoading || forcedSwitchDone.current) return;
+    let mode: string | null = null;
+    try {
+      mode = sessionStorage.getItem("vc_forced_app_mode");
+    } catch {}
+    console.log("[DashboardLayout] forced-switch effect:", {
+      proLoading,
+      forcedMode: mode,
+      currentApp,
+      hasPro,
+      done: forcedSwitchDone.current,
+    });
+    if (!mode || (mode !== "team" && mode !== "pro")) return;
+    const target = mode === "pro" ? ("pro" as const) : ("free" as const);
+    // Don't attempt Pro switch without a confirmed purchase — ProGuard redirects
+    // unauthorized users first, this is a safety net for edge cases.
+    if (target === "pro" && !(hasPro && proPurchasedAt)) {
+      console.log(
+        "[DashboardLayout] skipping pro switch — user has not purchased Pro",
+      );
+      forcedSwitchDone.current = true;
+      return;
+    }
+    if (currentApp === target) {
+      forcedSwitchDone.current = true;
+      return;
+    }
+    forcedSwitchDone.current = true;
+    (async () => {
+      try {
+        const switched = await switchApp(target);
+        if (switched) window.location.reload();
+      } catch (err) {
+        console.error("[DashboardLayout] auto-switch failed:", err);
+      }
+    })();
+  }, [proLoading, hasPro, proPurchasedAt, currentApp, switchApp]);
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const isWideMobile = useIsWideMobile();
@@ -96,7 +159,7 @@ export default function DashboardLayout({
     const editorChatWidth = showEditorChat && !chatFullView ? 430 : 0;
 
     return (
-      <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
+      <div style={{ width: "100vw", height: "100dvh", overflow: "hidden" }}>
         <div
           style={{
             width:
@@ -120,7 +183,7 @@ export default function DashboardLayout({
           <div
             style={{
               width: 430,
-              height: "100vh",
+              height: "100dvh",
               position: "fixed",
               top: 0,
               right: 0,
@@ -186,11 +249,11 @@ export default function DashboardLayout({
             <img
               src="/images/image.png"
               alt="ValueChart"
-              style={{ 
+              style={{
                 height: isMobile && !isWideMobile ? 32 : 40,
                 objectFit: isMobile && !isWideMobile ? "cover" : "contain",
                 objectPosition: "top",
-                maxHeight: isMobile && !isWideMobile ? 22 : 40
+                maxHeight: isMobile && !isWideMobile ? 22 : 40,
               }}
             />
             <button
@@ -224,23 +287,26 @@ export default function DashboardLayout({
             background: "#FFFFFF",
             minHeight: "calc(100dvh - 56px)",
             overflowX: "hidden",
+            overscrollBehavior: "contain",
           }}
         >
           <EnableNotificationsBanner />
           {children}
           <AIAssistant contentLeft={0} contentRight={0} />
         </Content>
+        <FloatingActionButton />
       </Layout>
     );
   }
 
   // Tablet and Desktop
   const siderWidth = collapsed ? 60 : 220;
+  // On tablet: hide right chat column (no room); chat button routes to /dashboard/chat
   const showChatColumn = !hideChatColumn && chatOpen && !isTablet;
   const chatColumnWidth = showChatColumn && !chatFullView ? 430 : 0;
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout style={{ minHeight: "100dvh" }}>
       <Header />
       <Layout style={{ marginTop: 56 }}>
         <SidebarComponent collapsed={collapsed} onCollapse={setCollapsed} />
@@ -254,7 +320,7 @@ export default function DashboardLayout({
               marginRight: chatColumnWidth,
               padding: isTablet ? "20px 24px" : "24px 32px",
               background: "#FFFFFF",
-              minHeight: "calc(100vh - 56px)",
+              minHeight: "calc(100dvh - 56px)",
               transition: "margin-left 0.2s, margin-right 0.2s",
             }}
           >
@@ -267,12 +333,14 @@ export default function DashboardLayout({
           </Content>
         )}
 
+        <FloatingActionButton />
+
         {/* Right chat column — normal mode (430px fixed right) */}
         {showChatColumn && !chatFullView && (
           <div
             style={{
               width: 430,
-              height: "calc(100vh - 56px)",
+              height: "calc(100dvh - 56px)",
               position: "fixed",
               top: 56,
               right: 0,

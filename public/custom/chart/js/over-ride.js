@@ -1553,6 +1553,185 @@ function extendApp() {
     })();
     // ────────────────────────────────────────────────────────────────
 
+    // ── ValueChart: Share icon in left vertical sidebar ────────────
+    // Mirror of Templates / Shapes buttons. Posts {action:"openShare"} up
+    // to the React parent, which opens ShareFlowModal for the current flow.
+    // Only shown when the parent sends {event:"userContext",canShare:true},
+    // i.e. when the user is the flow owner AND has Pro or team access.
+    (function installVcShareBtn() {
+      var canShare = false; // toggled by userContext message from parent
+
+      function onClick(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        if (e && e.stopPropagation) e.stopPropagation();
+        try {
+          (window.opener || window.parent).postMessage(
+            JSON.stringify({ action: "openShare" }),
+            "*",
+          );
+          console.log("[VC] Share clicked → openShare");
+        } catch (err) {
+          console.error("[VC] openShare postMessage failed", err);
+        }
+      }
+
+      function buildButton() {
+        var btn = document.createElement("a");
+        btn.className = "geButton";
+        btn.setAttribute("data-vc-share", "1");
+        btn.setAttribute("title", "Share");
+        btn.setAttribute("role", "button");
+        btn.setAttribute("aria-label", "Share");
+        btn.innerHTML =
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3CB371" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">' +
+          '<circle cx="18" cy="5" r="3"/>' +
+          '<circle cx="6"  cy="12" r="3"/>' +
+          '<circle cx="18" cy="19" r="3"/>' +
+          '<line x1="8.59"  y1="13.51" x2="15.42" y2="17.49"/>' +
+          '<line x1="15.41" y1="6.51"  x2="8.59"  y2="10.49"/>' +
+          "</svg>";
+        if (typeof mxEvent !== "undefined") {
+          mxEvent.addListener(btn, "click", onClick);
+        } else {
+          btn.addEventListener("click", onClick);
+        }
+        return btn;
+      }
+
+      function removeFrom(picker) {
+        if (!picker) return;
+        var existing = picker.querySelector('[data-vc-share="1"]');
+        if (existing && existing.parentNode)
+          existing.parentNode.removeChild(existing);
+      }
+
+      function appendTo(picker) {
+        if (!picker || !canShare) return false;
+        if (picker.querySelector('[data-vc-share="1"]')) return true;
+        // Insert after the Shapes button when present, otherwise after
+        // Templates, otherwise as the first icon.
+        var shapes = picker.querySelector('[data-vc-shapes="1"]');
+        var tmpl = picker.querySelector('[data-vc-templates="1"]');
+        var anchor = shapes || tmpl;
+        if (anchor && anchor.nextSibling) {
+          picker.insertBefore(buildButton(), anchor.nextSibling);
+        } else if (anchor) {
+          picker.appendChild(buildButton());
+        } else {
+          picker.insertBefore(buildButton(), picker.firstChild);
+        }
+        console.log(
+          "[VC] Share button added to",
+          picker.className || picker.nodeName,
+        );
+        startGuardObserver(picker);
+        return true;
+      }
+
+      function startGuardObserver(picker) {
+        if (!picker || picker.__vcShareGuardObserver) return;
+        var obs = new MutationObserver(function () {
+          if (picker.classList.contains("geCollapsedToolbar")) return;
+          if (!canShare) {
+            removeFrom(picker);
+            return;
+          }
+          if (
+            picker.children.length > 0 &&
+            !picker.querySelector('[data-vc-share="1"]')
+          ) {
+            var shapes = picker.querySelector('[data-vc-shapes="1"]');
+            var tmpl = picker.querySelector('[data-vc-templates="1"]');
+            var anchor = shapes || tmpl;
+            if (anchor && anchor.nextSibling) {
+              picker.insertBefore(buildButton(), anchor.nextSibling);
+            } else if (anchor) {
+              picker.appendChild(buildButton());
+            } else {
+              picker.insertBefore(buildButton(), picker.firstChild);
+            }
+            console.log("[VC] Share button re-inserted after expand");
+          }
+        });
+        obs.observe(picker, {
+          childList: true,
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+        picker.__vcShareGuardObserver = obs;
+      }
+
+      function getActivePicker() {
+        return (
+          (window.__editorUi && window.__editorUi.sketchPickerMenuElt) ||
+          document.querySelector(".geVerticalToolbar") ||
+          document.querySelector(".geToolbarContainer.geVerticalToolbar")
+        );
+      }
+
+      // Listen for {event:"userContext",canShare:bool} from parent
+      window.addEventListener("message", function (e) {
+        try {
+          var msg = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+          if (!msg || msg.event !== "userContext") return;
+          var prev = canShare;
+          canShare = !!msg.canShare;
+          if (prev === canShare) return;
+          var picker = getActivePicker();
+          if (!picker) return;
+          if (canShare) {
+            appendTo(picker);
+          } else {
+            removeFrom(picker);
+          }
+          console.log("[VC] Share button canShare →", canShare);
+        } catch (_) {}
+      });
+
+      // Path 1 — prototype patch (button added when picker is (re)built)
+      if (
+        typeof EditorUi !== "undefined" &&
+        EditorUi.prototype.createPickerMenuForTheme
+      ) {
+        var __vcOrigCreatePickerMenu3 =
+          EditorUi.prototype.createPickerMenuForTheme;
+        EditorUi.prototype.createPickerMenuForTheme = function (theme) {
+          __vcOrigCreatePickerMenu3.apply(this, arguments);
+          if (
+            (theme === "sketch" || theme === "simple") &&
+            this.sketchPickerMenuElt
+          ) {
+            appendTo(this.sketchPickerMenuElt);
+          }
+        };
+      }
+
+      // Path 2 — picker already built and canShare already known
+      if (window.__editorUi && window.__editorUi.sketchPickerMenuElt) {
+        appendTo(window.__editorUi.sketchPickerMenuElt);
+        return;
+      }
+
+      // Path 3 — DOM retry poll (canShare may still be false at this point;
+      // appendTo is a no-op when canShare=false, so the guard observer is
+      // the mechanism that inserts the button once userContext arrives)
+      var tries = 0;
+      var iv = setInterval(function () {
+        tries++;
+        var picker = getActivePicker();
+        if (picker) {
+          startGuardObserver(picker); // always attach observer so future show works
+          if (appendTo(picker) || tries > 50) clearInterval(iv);
+        } else if (tries > 50) {
+          clearInterval(iv);
+          console.warn(
+            "[VC] gave up looking for .geVerticalToolbar (Share btn) after 10s",
+          );
+        }
+      }, 200);
+    })();
+    // ────────────────────────────────────────────────────────────────
+
     // ── ValueChart: un-fade the picker icons after flow XML loads ──
     // On initial embed-mode boot, draw.io builds the picker while the
     // graph is still disabled (graph.isEnabled() === false), so every

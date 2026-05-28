@@ -45,7 +45,13 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const pathname = usePathname() || "";
   const router = useRouter();
-  const { hasPro, currentApp, switchApp, loading: proLoading } = usePro();
+  const {
+    hasPro,
+    currentApp,
+    switchApp,
+    loading: proLoading,
+    forcedMode,
+  } = usePro();
   const { isTeamContext, effectivePlan } = useAppContext();
   // Lock is driven by the ACTIVE context, not by whether invitations exist.
   // Spec:
@@ -371,102 +377,106 @@ const Sidebar: React.FC<SidebarProps> = ({
             height: "calc(100% - 57px)",
           }}
         >
-          {/* App Switch or Upgrade */}
-          <div style={{ padding: "12px 16px 0" }}>
-            {hasPro ? (
-              <div
-                style={{
-                  display: "flex",
-                  borderRadius: 8,
-                  border: "1px solid #E8E8E8",
-                  overflow: "hidden",
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
+          {/* App Switch or Upgrade — hidden in forced WebView mode */}
+          {!forcedMode && (
+            <div style={{ padding: "12px 16px 0" }}>
+              {hasPro ? (
                 <div
                   style={{
-                    flex: 1,
-                    textAlign: "center",
-                    padding: "6px 0",
-                    cursor: currentApp === "free" ? "default" : "pointer",
-                    background: currentApp === "free" ? "#3CB371" : "#fff",
-                    color: currentApp === "free" ? "#fff" : "#595959",
-                    transition: "all 0.2s",
-                  }}
-                  onClick={() =>
-                    currentApp !== "free" && handleAppSwitch("free")
-                  }
-                >
-                  ValueChart
-                </div>
-                <div
-                  style={{
-                    flex: 1,
-                    textAlign: "center",
-                    padding: "6px 0",
-                    cursor: currentApp === "pro" ? "default" : "pointer",
-                    background: currentApp === "pro" ? "#F59E0B" : "#fff",
-                    color: currentApp === "pro" ? "#fff" : "#595959",
-                    transition: "all 0.2s",
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 4,
-                  }}
-                  onClick={() => currentApp !== "pro" && handleAppSwitch("pro")}
-                >
-                  <CrownOutlined style={{ fontSize: 11 }} />
-                  PRO
-                </div>
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  borderRadius: 8,
-                  border: "1px solid #E8E8E8",
-                  overflow: "hidden",
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                <div
-                  style={{
-                    flex: 1,
-                    textAlign: "center",
-                    padding: "6px 0",
-                    background: "#3CB371",
-                    color: "#fff",
+                    borderRadius: 8,
+                    border: "1px solid #E8E8E8",
+                    overflow: "hidden",
+                    fontSize: 12,
+                    fontWeight: 600,
                   }}
                 >
-                  ValueChart
+                  <div
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      padding: "6px 0",
+                      cursor: currentApp === "free" ? "default" : "pointer",
+                      background: currentApp === "free" ? "#3CB371" : "#fff",
+                      color: currentApp === "free" ? "#fff" : "#595959",
+                      transition: "all 0.2s",
+                    }}
+                    onClick={() =>
+                      currentApp !== "free" && handleAppSwitch("free")
+                    }
+                  >
+                    ValueChart
+                  </div>
+                  <div
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      padding: "6px 0",
+                      cursor: currentApp === "pro" ? "default" : "pointer",
+                      background: currentApp === "pro" ? "#F59E0B" : "#fff",
+                      color: currentApp === "pro" ? "#fff" : "#595959",
+                      transition: "all 0.2s",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 4,
+                    }}
+                    onClick={() =>
+                      currentApp !== "pro" && handleAppSwitch("pro")
+                    }
+                  >
+                    <CrownOutlined style={{ fontSize: 11 }} />
+                    PRO
+                  </div>
                 </div>
+              ) : (
                 <div
-                  onClick={() => {
-                    router.push("/upgrade-pro");
-                    handleNavClick();
-                  }}
                   style={{
-                    flex: 1,
-                    textAlign: "center",
-                    padding: "6px 0",
-                    cursor: "pointer",
-                    background: "linear-gradient(135deg, #F59E0B, #D97706)",
-                    color: "#fff",
-                    transition: "all 0.2s",
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 4,
+                    borderRadius: 8,
+                    border: "1px solid #E8E8E8",
+                    overflow: "hidden",
+                    fontSize: 12,
+                    fontWeight: 600,
                   }}
                 >
-                  <CrownOutlined style={{ fontSize: 11 }} />
-                  PRO
+                  <div
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      padding: "6px 0",
+                      background: "#3CB371",
+                      color: "#fff",
+                    }}
+                  >
+                    ValueChart
+                  </div>
+                  <div
+                    onClick={() => {
+                      router.push("/upgrade-pro");
+                      handleNavClick();
+                    }}
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      padding: "6px 0",
+                      cursor: "pointer",
+                      background: "linear-gradient(135deg, #F59E0B, #D97706)",
+                      color: "#fff",
+                      transition: "all 0.2s",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <CrownOutlined style={{ fontSize: 11 }} />
+                    PRO
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Navigation Menu */}
           <div style={{ flex: 1, overflowY: "auto" }}>
@@ -508,31 +518,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           onClose={() => setSubscriptionModalOpen(false)}
           feature={upgradeFeature}
         />
-
-        <style jsx global>{`
-          .sidebar-drawer .ant-menu-item {
-            height: 44px !important;
-            line-height: 44px !important;
-            font-size: 14px !important;
-            margin: 0 !important;
-            border-radius: 0 !important;
-            width: 100% !important;
-          }
-          .sidebar-drawer .ant-menu-item:hover {
-            background: #f8f9fa !important;
-          }
-          .sidebar-drawer .ant-menu-item-selected {
-            color: #3cb371 !important;
-            background: #f0fff4 !important;
-          }
-          .sidebar-drawer .ant-menu-item-selected a {
-            color: #3cb371 !important;
-          }
-          .sidebar-drawer .ant-menu-item a {
-            color: inherit;
-            text-decoration: none;
-          }
-        `}</style>
+        {/* Sidebar drawer menu styles are in globals.css */}
       </>
     );
   }
@@ -551,7 +537,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         borderRight: "1px solid #F0F0F0",
         display: "flex",
         flexDirection: "column",
-        height: "calc(100vh - 56px)",
+        height: "calc(100dvh - 56px)",
         position: "fixed",
         top: 56,
         left: 0,
@@ -566,8 +552,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           height: "100%",
         }}
       >
-        {/* Top: App Switch or Upgrade */}
-        {!collapsed && (
+        {/* Top: App Switch or Upgrade — hidden in forced WebView mode */}
+        {!collapsed && !forcedMode && (
           <div style={{ padding: "12px 16px 0" }}>
             {hasPro ? (
               <div
@@ -707,31 +693,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         onClose={() => setSubscriptionModalOpen(false)}
         feature={upgradeFeature}
       />
-
-      <style jsx global>{`
-        .ant-layout-sider .ant-menu-item {
-          height: 40px !important;
-          line-height: 40px !important;
-          font-size: 14px !important;
-          margin: 0 !important;
-          border-radius: 0 !important;
-          width: 100% !important;
-        }
-        .ant-layout-sider .ant-menu-item:hover {
-          background: #f8f9fa !important;
-        }
-        .ant-layout-sider .ant-menu-item-selected {
-          color: #3cb371 !important;
-          background: #f0fff4 !important;
-        }
-        .ant-layout-sider .ant-menu-item-selected a {
-          color: #3cb371 !important;
-        }
-        .ant-layout-sider .ant-menu-item a {
-          color: inherit;
-          text-decoration: none;
-        }
-      `}</style>
+      {/* Sider menu styles are in globals.css */}
     </Sider>
   );
 };

@@ -33,7 +33,11 @@ import {
 import type { MenuProps } from "antd";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
-import { useIsMobile, useIsWideMobile } from "@/hooks/useMediaQuery";
+import {
+  useIsMobile,
+  useIsTablet,
+  useIsWideMobile,
+} from "@/hooks/useMediaQuery";
 import { useAppContext, type TeamContextOption } from "@/context/AppContext";
 import { usePro } from "@/hooks/usePro";
 
@@ -56,6 +60,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { data: session } = useSession();
   const router = useRouter();
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
   const isWideMobile = useIsWideMobile();
 
   const user = session?.user;
@@ -73,7 +78,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     effectivePlan,
     isTeamContext,
   } = useAppContext();
-  const { currentApp, hasPro } = usePro();
+  const { currentApp, hasPro, forcedMode } = usePro();
 
   // Subscription-aware personal plan — wins over the stale JWT/session field.
   // (Backend `getTeamContext` resolves it from the active subscription row.)
@@ -190,7 +195,9 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       setChatLockedOpen(true);
       return;
     }
-    if (isMobile) {
+    // Mobile AND tablet: navigate to full-screen chat page
+    // (chat column is hidden on tablet — no room with sidebar + content)
+    if (isMobile || isTablet) {
       router.push("/dashboard/chat");
     } else {
       (window as any).__toggleChat?.();
@@ -200,91 +207,111 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   // ─────────── Account dropdown items (kept compact) ───────────
 
   const dropdownItems: MenuProps["items"] = [
-    {
-      key: "ctx-personal",
-      label: (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <UserOutlined />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>
-              {truncateName(userName, isMobile ? 12 : 22)}{" "}
-              <span style={{ color: "#8C8C8C", fontWeight: 400, fontSize: 11 }}>
-                (you)
-              </span>
-            </div>
-            <div style={{ fontSize: 11, color: "#8C8C8C" }}>
-              Personal ·{" "}
-              {inAppPlan === "team"
-                ? "Team Plan"
-                : inAppPlan === "pro"
-                  ? "Pro Plan"
-                  : "Free Plan"}
-            </div>
-          </div>
-          {personalActive && (
-            <CheckOutlined style={{ color: PRIMARY, fontSize: 12 }} />
-          )}
-        </div>
-      ),
-      onClick: () => {
-        if (!personalActive) {
-          switchToPersonal();
-          message.success("Switched to your personal account");
-        }
-      },
-    },
-    ...(availableTeams.length > 0
+    // Context-switcher items are hidden in forced WebView mode — the user
+    // cannot change workspace when the app param is locked to team or pro.
+    ...(!forcedMode
       ? [
-          { type: "divider" as const },
-          ...availableTeams.map((t: TeamContextOption) => {
-            const isActive =
-              activeContext.type === "team" &&
-              activeContext.teamId === t.teamId;
-            return {
-              key: `ctx-team-${t.teamId}`,
-              label: (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <TeamOutlined style={{ color: "#7C3AED" }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
+          {
+            key: "ctx-personal",
+            label: (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <UserOutlined />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>
+                    {truncateName(userName, isMobile ? 12 : 22)}{" "}
+                    <span
                       style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        maxWidth: isMobile ? 140 : 220,
+                        color: "#8C8C8C",
+                        fontWeight: 400,
+                        fontSize: 11,
                       }}
                     >
-                      {truncateName(t.teamName, isMobile ? 12 : 22)}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#8C8C8C" }}>
-                      {t.plan === "team"
-                        ? "Team Plan"
-                        : t.plan === "pro"
-                          ? "Pro Plan"
-                          : "Free Plan"}{" "}
-                      · {isActive ? "Active" : "Switch"}
-                    </div>
+                      (you)
+                    </span>
                   </div>
-                  {isActive && (
-                    <CheckOutlined style={{ color: PRIMARY, fontSize: 12 }} />
-                  )}
+                  <div style={{ fontSize: 11, color: "#8C8C8C" }}>
+                    Personal ·{" "}
+                    {inAppPlan === "team"
+                      ? "Team Plan"
+                      : inAppPlan === "pro"
+                        ? "Pro Plan"
+                        : "Free Plan"}
+                  </div>
                 </div>
-              ),
-              onClick: () => {
-                if (!isActive) {
-                  switchToTeam(t);
-                  message.success(
-                    `Switched to ${t.teamName || "team"} context`,
-                  );
-                }
-              },
-            };
-          }),
+                {personalActive && (
+                  <CheckOutlined style={{ color: PRIMARY, fontSize: 12 }} />
+                )}
+              </div>
+            ),
+            onClick: () => {
+              if (!personalActive) {
+                switchToPersonal();
+                message.success("Switched to your personal account");
+              }
+            },
+          },
+          ...(availableTeams.length > 0
+            ? [
+                { type: "divider" as const },
+                ...availableTeams.map((t: TeamContextOption) => {
+                  const isActive =
+                    activeContext.type === "team" &&
+                    activeContext.teamId === t.teamId;
+                  return {
+                    key: `ctx-team-${t.teamId}`,
+                    label: (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <TeamOutlined style={{ color: "#7C3AED" }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              maxWidth: isMobile ? 140 : 220,
+                            }}
+                          >
+                            {truncateName(t.teamName, isMobile ? 12 : 22)}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#8C8C8C" }}>
+                            {t.plan === "team"
+                              ? "Team Plan"
+                              : t.plan === "pro"
+                                ? "Pro Plan"
+                                : "Free Plan"}{" "}
+                            · {isActive ? "Active" : "Switch"}
+                          </div>
+                        </div>
+                        {isActive && (
+                          <CheckOutlined
+                            style={{ color: PRIMARY, fontSize: 12 }}
+                          />
+                        )}
+                      </div>
+                    ),
+                    onClick: () => {
+                      if (!isActive) {
+                        switchToTeam(t);
+                        message.success(
+                          `Switched to ${t.teamName || "team"} context`,
+                        );
+                      }
+                    },
+                  };
+                }),
+              ]
+            : []),
+          { type: "divider" as const },
         ]
       : []),
-    { type: "divider" as const },
     {
       key: "profile",
       icon: <UserOutlined />,
@@ -308,7 +335,11 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       key: "logout",
       icon: <LogoutOutlined style={{ color: "#FF4D4F" }} />,
       label: <span style={{ color: "#FF4D4F" }}>Log out</span>,
-      onClick: () => signOut(),
+      onClick: () => {
+        // Keep vc_forced_app_mode in sessionStorage so forced mode (WebView)
+        // is restored automatically when the user logs back in on the same tab.
+        signOut({ callbackUrl: "/login" });
+      },
     },
   ];
 
@@ -362,13 +393,13 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             <img
               src="/images/image.png"
               alt="ValueChart Logo"
-              style={{ 
-                height: isMobile && !isWideMobile ? 32 : 40, 
+              style={{
+                height: isMobile && !isWideMobile ? 32 : 40,
                 width: "auto",
                 // On narrow mobile, crop the bottom tagline to keep the main logo crisp
                 objectFit: isMobile && !isWideMobile ? "cover" : "contain",
                 objectPosition: "top",
-                maxHeight: isMobile && !isWideMobile ? 22 : 40 
+                maxHeight: isMobile && !isWideMobile ? 22 : 40,
               }}
             />
           </Link>
@@ -454,7 +485,9 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             menu={{ items: dropdownItems }}
             trigger={["click"]}
             placement={isMobile ? "bottom" : "bottomRight"}
-            overlayStyle={{ maxWidth: isMobile ? 'calc(100vw - 24px)' : undefined }}
+            overlayStyle={{
+              maxWidth: isMobile ? "calc(100vw - 16px)" : undefined,
+            }}
           >
             <div
               style={{
@@ -546,7 +579,14 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           </Button>,
         ]}
         centered
-        width={420}
+        width={
+          isMobile
+            ? Math.min(
+                420,
+                typeof window !== "undefined" ? window.innerWidth * 0.92 : 360,
+              )
+            : 420
+        }
         zIndex={1200}
       >
         <div style={{ textAlign: "center", padding: "16px 0 8px" }}>

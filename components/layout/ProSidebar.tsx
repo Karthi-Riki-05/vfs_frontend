@@ -41,7 +41,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
 }) => {
   const pathname = usePathname() || "";
   const router = useRouter();
-  const { currentApp, switchApp } = usePro();
+  const { currentApp, switchApp, forcedMode } = usePro();
   const [starredFlows, setStarredFlows] = useState<any[]>([]);
   const [switching, setSwitching] = useState(false);
 
@@ -256,8 +256,8 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
         height: isMobileDrawer ? "calc(100% - 57px)" : "100%",
       }}
     >
-      {/* Top: App Switch Toggle */}
-      {(!collapsed || isMobileDrawer) && (
+      {/* Top: App Switch Toggle — hidden in forced WebView mode */}
+      {(!collapsed || isMobileDrawer) && !forcedMode && (
         <div style={{ padding: "12px 16px 0" }}>
           <div
             style={{

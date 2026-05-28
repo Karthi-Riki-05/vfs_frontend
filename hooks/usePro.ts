@@ -24,6 +24,21 @@ export function usePro() {
   const [status, setStatus] = useState<ProStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  // Must start as null on both server and client — any other initial value
+  // causes a React hydration mismatch (server renders null, client reads
+  // sessionStorage and gets 'pro'/'team'). The useEffect below populates it
+  // after hydration, which is safe and SSR-correct.
+  const [forcedMode, setForcedMode] = useState<"team" | "pro" | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem("vc_forced_app_mode");
+      console.log("[usePro] forcedMode from sessionStorage:", stored);
+      if (stored === "team" || stored === "pro") setForcedMode(stored);
+    } catch {
+      // sessionStorage blocked
+    }
+  }, []);
 
   const fetchStatus = useCallback(async () => {
     console.log("[usePro] fetchStatus called");
@@ -118,14 +133,19 @@ export function usePro() {
     }
   }, []);
 
+  const hasPro = status?.hasPro ?? false;
+  const proPurchasedAt = status?.proPurchasedAt ?? null;
+
   return {
     status,
     loading,
     fetchError,
-    hasPro: status?.hasPro ?? false,
-    proPurchasedAt: status?.proPurchasedAt ?? null,
+    hasPro,
+    proPurchasedAt,
+    isProOwner: hasPro && proPurchasedAt !== null,
     currentApp: status?.currentApp ?? "free",
     proFlows: status?.proFlows ?? null,
+    forcedMode,
     switchApp,
     purchasePro,
     buyFlows,

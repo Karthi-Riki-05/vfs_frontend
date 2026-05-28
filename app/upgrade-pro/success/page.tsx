@@ -7,6 +7,8 @@ import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { proApi } from "@/api/pro.api";
 
+const PRO_REDIRECT_KEY = "vc_pro_purchase_redirect";
+
 function UpgradeProSuccessContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams?.get("session_id") ?? null;
@@ -14,6 +16,21 @@ function UpgradeProSuccessContent() {
   const [error, setError] = useState(false);
   const pollRef = useRef(false);
   const { update: updateSession } = useSession();
+
+  const getPostPurchaseRedirect = () => {
+    try {
+      return sessionStorage.getItem(PRO_REDIRECT_KEY) || "/dashboard";
+    } catch {
+      return "/dashboard";
+    }
+  };
+
+  const redirectAfterPurchase = () => {
+    try {
+      sessionStorage.removeItem(PRO_REDIRECT_KEY);
+    } catch {}
+    window.location.href = getPostPurchaseRedirect();
+  };
 
   useEffect(() => {
     if (!sessionId) {
@@ -38,12 +55,9 @@ function UpgradeProSuccessContent() {
 
         if (verifyData?.verified || verifyData?.alreadyActive) {
           setVerified(true);
-          // Refresh the session to pick up hasPro and currentVersion
           await updateSession();
           setTimeout(() => {
-            if (!cancelled) {
-              window.location.href = "/dashboard";
-            }
+            if (!cancelled) redirectAfterPurchase();
           }, 2000);
           return;
         }
@@ -62,9 +76,7 @@ function UpgradeProSuccessContent() {
           setVerified(true);
           await updateSession();
           setTimeout(() => {
-            if (!cancelled) {
-              window.location.href = "/dashboard";
-            }
+            if (!cancelled) redirectAfterPurchase();
           }, 2000);
           return;
         }
@@ -128,9 +140,7 @@ function UpgradeProSuccessContent() {
             <Button
               type="primary"
               size="large"
-              onClick={() => {
-                window.location.href = "/dashboard";
-              }}
+              onClick={redirectAfterPurchase}
               style={{
                 backgroundColor: "#3CB371",
                 borderColor: "#3CB371",

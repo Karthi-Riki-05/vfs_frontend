@@ -137,9 +137,12 @@ function KPICards({ stats, loading }: { stats: any; loading: boolean }) {
   const isMobile = useIsMobile();
   const isWideMobile = useIsWideMobile();
 
-  // On very narrow screens, 2 cols. On wide mobile (Fold unfolded) and above, 4 cols.
-  const columns = (isMobile && !isWideMobile) ? "repeat(2, 1fr)" : "repeat(4, 1fr)";
-  const gap = (isMobile && !isWideMobile) ? 10 : 16;
+  // Breakpoints:
+  //   <500px  (fold folded / iPhone SE) → 2 cols
+  //   500-767px (fold unfolded / wide mobile) → 2 cols (4 is too cramped at this width)
+  //   768px+  → 4 cols
+  const columns = isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)";
+  const gap = isMobile ? 10 : 16;
 
   return (
     <div
@@ -461,6 +464,7 @@ function RecentFlowsSection({
       </div>
 
       <div
+        className="hide-scrollbar"
         style={{
           display: "flex",
           gap: 12,
@@ -685,7 +689,7 @@ function Greeting({ userName }: { userName: string | null }) {
   }
 
   return (
-    <div style={{ marginBottom: isMobile ? 16 : 20, padding: isMobile ? "0 16px" : 0 }}>
+    <div style={{ marginBottom: isMobile ? 16 : 20 }}>
       <h1
         style={{
           fontSize: isMobile ? 20 : 26,

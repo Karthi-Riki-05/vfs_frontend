@@ -323,19 +323,23 @@ export default function SuperAdminLayout({
             </>
           )}
 
-          <Tag
-            color={PRIMARY}
-            style={{
-              borderRadius: 10,
-              fontWeight: 600,
-              fontSize: 10,
-              lineHeight: "18px",
-              padding: "0 8px",
-              marginRight: 0,
-            }}
-          >
-            ADMIN MODE
-          </Tag>
+          {/* Only show ADMIN MODE tag when there's enough room (≥360px) */}
+          {(typeof window === 'undefined' || window.innerWidth >= 360) && (
+            <Tag
+              color={PRIMARY}
+              style={{
+                borderRadius: 10,
+                fontWeight: 600,
+                fontSize: 10,
+                lineHeight: "18px",
+                padding: "0 8px",
+                marginRight: 0,
+                flexShrink: 0,
+              }}
+            >
+              ADMIN
+            </Tag>
+          )}
         </div>
 
         {/* Right: identity */}
@@ -401,7 +405,7 @@ export default function SuperAdminLayout({
       >
         <Content
           style={{
-            padding: isMobile ? 14 : 24,
+            padding: isMobile ? 16 : 24,
             background: "#F8FAFB",
             minHeight: `calc(100dvh - ${TOPBAR_H}px)`,
           }}

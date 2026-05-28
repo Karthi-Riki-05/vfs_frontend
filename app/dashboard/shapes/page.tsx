@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Button,
   Modal,
@@ -42,6 +43,7 @@ const { Dragger } = Upload;
 const TEAL_COLOR = "#4ECDC4";
 
 export default function ShapesPage() {
+  const searchParams = useSearchParams();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [shapes, setShapes] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
@@ -63,6 +65,12 @@ export default function ShapesPage() {
     fetchShapes();
     fetchGroups();
   }, []);
+
+  useEffect(() => {
+    if (searchParams?.get("action") === "new") {
+      showModal();
+    }
+  }, [searchParams]);
 
   const fetchShapes = async () => {
     setLoading(true);

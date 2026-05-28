@@ -31,11 +31,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 const { Text, Title } = Typography;
 
-const TEAM_OPTIONS = [5, 10, 15, 20, 25, 30];
+const TEAM_OPTIONS = [5, 10, 15, 20, 25, 50, 75, 100];
 
 const FEATURES = [
   "Unlimited flows",
-  "300 AI diagram credits/month (Team)",
+  "60 AI credits/user/month (Team)",
   "Claude AI powered diagrams",
   "All shapes library",
   "Export all formats",
@@ -48,21 +48,27 @@ const FEATURES = [
 const ADDON_PACK_META = [
   {
     packType: "starter" as const,
-    credits: 25,
+    credits: 50,
     priceKey: "addon_starter" as const,
   },
   {
     packType: "standard" as const,
-    credits: 60,
+    credits: 100,
     priceKey: "addon_standard" as const,
     popular: true,
   },
   {
     packType: "proppack" as const,
-    credits: 150,
+    credits: 200,
     priceKey: "addon_proppack" as const,
   },
 ];
+
+interface FlowAddon {
+  plan: "standard_100" | "unlimited" | null;
+  status: "active" | "cancelling" | "cancelled" | "past_due" | null;
+  currentPeriodEnd: string | null;
+}
 
 interface ProSubStatus {
   plan: string;
@@ -81,6 +87,7 @@ interface ProSubStatus {
     amountCents: number;
     createdAt: string;
   }>;
+  flowAddon?: FlowAddon;
 }
 
 function TeamAiAddonSection() {
@@ -117,9 +124,9 @@ function TeamAiAddonSection() {
         type="secondary"
         style={{ fontSize: 13, display: "block", marginBottom: 16 }}
       >
-        Your Team plan includes 300 AI credits/month per member. Top up your
-        account with extra credits anytime — credits never expire and are
-        available for your AI diagram usage.
+        Your Team plan includes 60 AI credits/user/month. Top up your account
+        with extra credits anytime — credits never expire and are available for
+        your AI diagram usage.
       </Text>
       <div
         style={{
@@ -359,24 +366,33 @@ function ProSubscriptionContent() {
   const [proSubStatus, setProSubStatus] = useState<ProSubStatus | null>(null);
   const [proSubLoading, setProSubLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     const purchased = searchParams?.get("purchased");
+    const addonSubscribed = searchParams?.get("flow_addon_subscribed");
     const sessionId = searchParams?.get("session_id");
+
+    if (addonSubscribed) {
+      const label =
+        addonSubscribed === "unlimited"
+          ? "Unlimited Flow Add-on"
+          : "Standard 100-flow Add-on";
+      message.success(`${label} subscription activated!`);
+      fetchProSubStatus();
+      router.replace("/dashboard/subscription");
+      return;
+    }
+
     if (!purchased) return;
     const label = purchased === "unlimited" ? "Unlimited flows" : "50 flows";
 
-    // Success-URL fallback: in local dev (and any env where the Stripe
-    // webhook hasn't reached this backend yet) we explicitly verify the
-    // session against Stripe and credit the account. Idempotent on the
-    // backend — safe even when the webhook eventually arrives.
     const finish = async () => {
       if (sessionId) {
         try {
           await proApi.verifyFlowPurchase(sessionId);
         } catch {
-          // Silent — webhook may have already credited; status refresh
-          // below will reflect the final state either way.
+          // Silent — webhook may have already credited
         }
       }
       message.success(`${label} purchased successfully!`);
@@ -419,6 +435,49 @@ function ProSubscriptionContent() {
       message.error(msg);
       setPurchasing(null);
     }
+  };
+
+  const handleAddonSubscribe = async (plan: "standard" | "unlimited") => {
+    setPurchasing(plan);
+    try {
+      const res = await proApi.createFlowAddonCheckout(plan);
+      const data = res.data?.data || res.data;
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || "Checkout failed";
+      message.error(msg);
+      setPurchasing(null);
+    }
+  };
+
+  const handleAddonCancel = async () => {
+    Modal.confirm({
+      title: "Cancel Flow Add-on?",
+      icon: <ExclamationCircleOutlined />,
+      content:
+        "Your flow add-on will remain active until the end of the current billing period, then your limit will revert to 10 flows.",
+      okText: "Cancel Subscription",
+      okType: "danger",
+      cancelText: "Keep Subscription",
+      onOk: async () => {
+        setCancelling(true);
+        try {
+          await proApi.cancelFlowAddon();
+          message.success(
+            "Subscription will cancel at the end of the billing period",
+          );
+          fetchProSubStatus();
+        } catch (err: any) {
+          const msg =
+            err?.response?.data?.error?.message || "Cancellation failed";
+          message.error(msg);
+        } finally {
+          setCancelling(false);
+        }
+      },
+    });
   };
 
   if (proSubLoading) {
@@ -518,7 +577,7 @@ function ProSubscriptionContent() {
               PRICE
             </Text>
             <div style={{ fontWeight: 600, fontSize: 15 }}>
-              {pricing?.prices.pro_monthly.display ?? "$1"} lifetime
+              {pricing?.prices.pro_monthly.display ?? "$5"} one-time
             </div>
           </div>
           <div>
@@ -659,188 +718,237 @@ function ProSubscriptionContent() {
         </Card>
       )}
 
-      <Card
-        style={{ marginBottom: 24, borderRadius: 12 }}
-        bodyStyle={{ padding: "24px 28px" }}
-      >
-        <Text
-          strong
-          style={{ fontSize: 16, display: "block", marginBottom: 20 }}
-        >
-          Add More Flows
-        </Text>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <div
-            style={{
-              flex: 1,
-              minWidth: 220,
-              border: "1px solid #E8E8E8",
-              borderRadius: 12,
-              padding: "24px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              textAlign: "center",
-            }}
-          >
-            <Title level={4} style={{ margin: "0 0 4px" }}>
-              50 Flows
-            </Title>
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                color: "#3CB371",
-                marginBottom: 2,
-              }}
+      {/* Flow Add-on Subscription Card */}
+      {(() => {
+        const addon = proSubStatus?.flowAddon;
+        const addonActive =
+          addon?.status === "active" || addon?.status === "cancelling";
+
+        if (addonActive) {
+          const label =
+            addon?.plan === "unlimited"
+              ? "Unlimited Flows"
+              : "Standard — 100 Flows";
+          const periodEndStr = addon?.currentPeriodEnd
+            ? new Date(addon.currentPeriodEnd).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })
+            : null;
+          return (
+            <Card
+              style={{ marginBottom: 24, borderRadius: 12 }}
+              styles={{ body: { padding: "20px 24px" } }}
             >
-              $5.00
-              <Text
-                type="secondary"
-                style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 12,
+                }}
               >
-                / month
-              </Text>
-            </div>
-            <Text
-              type="secondary"
-              style={{ fontSize: 11, display: "block", marginBottom: 12 }}
-            >
-              Recurring monthly subscription &middot; cancel anytime
-            </Text>
-            <Text
-              type="secondary"
-              style={{ display: "block", marginBottom: 8 }}
-            >
-              Added to your current balance
-            </Text>
-            <Text
-              type="secondary"
-              style={{ fontSize: 12, display: "block", marginBottom: 20 }}
-            >
-              Current: {flows.total} &rarr; After: {flows.total + 50}
-            </Text>
-            <Button
-              type="primary"
-              block
-              size="large"
-              loading={purchasing === "50"}
-              disabled={!!purchasing}
-              onClick={() => handlePurchase("50")}
-              style={{
-                backgroundColor: "#3CB371",
-                borderColor: "#3CB371",
-                borderRadius: 8,
-                fontWeight: 600,
-                height: 44,
-              }}
-            >
-              Subscribe &mdash; $5/month
-            </Button>
-          </div>
-          <div
-            style={{
-              flex: 1,
-              minWidth: 220,
-              border: "2px solid #F59E0B",
-              borderRadius: 12,
-              padding: "24px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              textAlign: "center",
-              position: "relative",
-              background: "#FFFBEB",
-            }}
+                <div>
+                  <Text strong style={{ fontSize: 16 }}>
+                    Flow Add-on: {label}
+                  </Text>
+                  <div style={{ marginTop: 4 }}>
+                    {addon?.status === "cancelling" ? (
+                      <Tag color="orange">
+                        Cancels {periodEndStr ?? "at period end"}
+                      </Tag>
+                    ) : (
+                      <Tag color="green">Active</Tag>
+                    )}
+                    {periodEndStr && addon?.status === "active" && (
+                      <Text
+                        type="secondary"
+                        style={{ fontSize: 12, marginLeft: 8 }}
+                      >
+                        Renews {periodEndStr}
+                      </Text>
+                    )}
+                  </div>
+                </div>
+                {addon?.status === "active" && (
+                  <Button
+                    danger
+                    loading={cancelling}
+                    onClick={handleAddonCancel}
+                  >
+                    Cancel Subscription
+                  </Button>
+                )}
+              </div>
+            </Card>
+          );
+        }
+
+        return (
+          <Card
+            style={{ marginBottom: 24, borderRadius: 12 }}
+            styles={{ body: { padding: "24px 28px" } }}
           >
-            <div
-              style={{
-                position: "absolute",
-                top: -12,
-                background: "#F59E0B",
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 700,
-                padding: "2px 12px",
-                borderRadius: 20,
-                letterSpacing: 0.5,
-              }}
+            <Text
+              strong
+              style={{ fontSize: 16, display: "block", marginBottom: 20 }}
             >
-              BEST VALUE
-            </div>
-            <Title level={4} style={{ margin: "8px 0 4px" }}>
-              Unlimited Flows
-            </Title>
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                color: "#F59E0B",
-                marginBottom: 2,
-              }}
-            >
-              $10.00
-              <Text
-                type="secondary"
-                style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
+              Add More Flows
+            </Text>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 220,
+                  border: "1px solid #E8E8E8",
+                  borderRadius: 12,
+                  padding: "24px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  textAlign: "center",
+                }}
               >
-                / month
-              </Text>
+                <Title level={4} style={{ margin: "0 0 4px" }}>
+                  Standard — 100 Flows
+                </Title>
+                <div
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: "#3CB371",
+                    marginBottom: 2,
+                  }}
+                >
+                  $10.00
+                  <Text
+                    type="secondary"
+                    style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
+                  >
+                    / month
+                  </Text>
+                </div>
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 11, display: "block", marginBottom: 12 }}
+                >
+                  Recurring monthly subscription &middot; cancel anytime
+                </Text>
+                <Text
+                  type="secondary"
+                  style={{ display: "block", marginBottom: 20 }}
+                >
+                  Up to 100 flows in your Pro workspace
+                </Text>
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  loading={purchasing === "standard"}
+                  disabled={!!purchasing}
+                  onClick={() => handleAddonSubscribe("standard")}
+                  style={{
+                    backgroundColor: "#3CB371",
+                    borderColor: "#3CB371",
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    height: 44,
+                  }}
+                >
+                  Subscribe &mdash; $10/month
+                </Button>
+              </div>
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 220,
+                  border: "2px solid #F59E0B",
+                  borderRadius: 12,
+                  padding: "24px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  textAlign: "center",
+                  position: "relative",
+                  background: "#FFFBEB",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: -12,
+                    background: "#F59E0B",
+                    color: "#fff",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: "2px 12px",
+                    borderRadius: 20,
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  BEST VALUE
+                </div>
+                <Title level={4} style={{ margin: "8px 0 4px" }}>
+                  Unlimited Flows
+                </Title>
+                <div
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: "#F59E0B",
+                    marginBottom: 2,
+                  }}
+                >
+                  $20.00
+                  <Text
+                    type="secondary"
+                    style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
+                  >
+                    / month
+                  </Text>
+                </div>
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 11, display: "block", marginBottom: 12 }}
+                >
+                  Recurring monthly subscription &middot; cancel anytime
+                </Text>
+                <Text
+                  type="secondary"
+                  style={{ display: "block", marginBottom: 8 }}
+                >
+                  Never worry about flow limits again
+                </Text>
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12, display: "block", marginBottom: 20 }}
+                >
+                  Unlimited flows for as long as you subscribe
+                </Text>
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  loading={purchasing === "unlimited"}
+                  disabled={!!purchasing}
+                  onClick={() => handleAddonSubscribe("unlimited")}
+                  style={{
+                    backgroundColor: "#F59E0B",
+                    borderColor: "#F59E0B",
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    height: 44,
+                  }}
+                >
+                  Subscribe &mdash; $20/month
+                </Button>
+              </div>
             </div>
-            <Text
-              type="secondary"
-              style={{ fontSize: 11, display: "block", marginBottom: 12 }}
-            >
-              Recurring monthly subscription &middot; cancel anytime
-            </Text>
-            <Text
-              type="secondary"
-              style={{ display: "block", marginBottom: 8 }}
-            >
-              Never worry about flow limits again
-            </Text>
-            <Text
-              type="secondary"
-              style={{ fontSize: 12, display: "block", marginBottom: 20 }}
-            >
-              Unlimited flows for as long as you subscribe
-            </Text>
-            <Button
-              type="primary"
-              block
-              size="large"
-              loading={purchasing === "unlimited"}
-              disabled={!!purchasing}
-              onClick={() => handlePurchase("unlimited")}
-              style={{
-                backgroundColor: "#F59E0B",
-                borderColor: "#F59E0B",
-                borderRadius: 8,
-                fontWeight: 600,
-                height: 44,
-              }}
-            >
-              Subscribe &mdash; $10/month
-            </Button>
-          </div>
-        </div>
-        {isUnlimited && (
-          <div
-            style={{
-              marginTop: 16,
-              padding: "12px 16px",
-              background: "#F0FFF4",
-              borderRadius: 8,
-              border: "1px solid #B7EB8F",
-              color: "#389E0D",
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            ♾ You already have Unlimited Flows active — no pack purchase needed.
-          </div>
-        )}
-      </Card>
+          </Card>
+        );
+      })()}
 
       <AiAddonPacksSection />
 
@@ -996,12 +1104,7 @@ export default function SubscriptionPage() {
         : pricing?.prices.team_yearly;
     const symbol = pricing?.symbol || "$";
     const perUserAmount = priceInfo?.amount ?? 0;
-    // 80% OFF anchor — strikethrough is 5× the discounted price so the
-    // "80% OFF" label is mathematically consistent ($1 ↔ $5, $7.20 ↔ $36).
-    const originalPerUser = perUserAmount * 5;
-
     const currentPrice = members * perUserAmount;
-    const originalPrice = members * originalPerUser;
 
     const fmtMoney = (n: number) => {
       const rounded =
@@ -1016,10 +1119,6 @@ export default function SubscriptionPage() {
       plan === "monthly"
         ? `${fmtMoney(currentPrice)}/month`
         : `${fmtMoney(currentPrice)}/year`;
-    const originalLabel =
-      plan === "monthly"
-        ? `${fmtMoney(originalPrice)}/month`
-        : `${fmtMoney(originalPrice)}/year`;
 
     const isCurrent = isActivePlan(plan);
     const buttonLabel = getButtonLabel(plan);
@@ -1076,21 +1175,23 @@ export default function SubscriptionPage() {
             </Text>
           </div>
 
-          <Tag
-            color="#FF4D4F"
-            style={{
-              position: "absolute",
-              top: 16,
-              right: 16,
-              fontWeight: 700,
-              fontSize: 12,
-              padding: "2px 10px",
-              borderRadius: 20,
-              border: "none",
-            }}
-          >
-            80% OFF
-          </Tag>
+          {plan === "yearly" && (
+            <Tag
+              color="#3CB371"
+              style={{
+                position: "absolute",
+                top: 16,
+                right: 16,
+                fontWeight: 700,
+                fontSize: 12,
+                padding: "2px 10px",
+                borderRadius: 20,
+                border: "none",
+              }}
+            >
+              SAVE 17%
+            </Tag>
+          )}
 
           <div
             style={{
@@ -1162,12 +1263,6 @@ export default function SubscriptionPage() {
           </div>
 
           <div style={{ marginBottom: 20 }}>
-            <Text
-              delete
-              style={{ fontSize: 16, color: "#BFBFBF", marginRight: 8 }}
-            >
-              {originalLabel}
-            </Text>
             <span
               style={{
                 fontSize: 32,
@@ -1183,8 +1278,15 @@ export default function SubscriptionPage() {
           <div style={{ marginBottom: 8 }}>
             <Text style={{ fontSize: 12, color: "#8C8C8C" }}>
               {plan === "monthly"
-                ? `${fmtMoney(perUserAmount)}/user/month`
-                : `${fmtMoney(perUserAmount)}/user/year`}
+                ? `${members} seats × ${fmtMoney(perUserAmount)}/user/month`
+                : `${members} seats × ${fmtMoney(perUserAmount)}/user/year`}
+            </Text>
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <Text style={{ fontSize: 12, color: "#8C8C8C" }}>
+              {plan === "monthly"
+                ? `${members * 60} AI credits/month included`
+                : `${members * 800} AI credits/year included (~${Math.round((members * 800) / 12)}/month)`}
             </Text>
           </div>
           {pricing && pricing.currency !== "USD" && (

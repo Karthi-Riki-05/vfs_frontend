@@ -101,6 +101,11 @@ export default function LoginForm() {
         const sess = await res.json();
         const role = sess?.user?.role;
         if (role === "super_admin") {
+          try {
+            sessionStorage.removeItem("vc_forced_app_mode");
+          } catch {
+            // sessionStorage may be blocked
+          }
           await signOut({ redirect: false });
           setError("Super admin accounts must log in at /super-admin/login.");
           message.error("Redirecting to the admin portal…");
@@ -108,9 +113,9 @@ export default function LoginForm() {
           return;
         }
         message.success("Logged in successfully!");
-        router.push("/dashboard");
+        window.location.href = "/dashboard";
       } catch {
-        router.push("/dashboard");
+        window.location.href = "/dashboard";
       }
     }
   };

@@ -42,8 +42,13 @@ export const flowsApi = {
     api.get(`/flows/${id}`, { params: { export: format } }),
 
   // Sharing
-  shareFlow: (id: string, shares: { userId: string; permission: string }[]) =>
-    api.post(`/flows/${id}/share`, { shares }),
+  shareFlow: (
+    id: string,
+    shares: (
+      | { userId: string; permission: string }
+      | { email: string; permission: string }
+    )[],
+  ) => api.post(`/flows/${id}/share`, { shares }),
 
   getShares: (id: string) => api.get(`/flows/${id}/shares`),
 
