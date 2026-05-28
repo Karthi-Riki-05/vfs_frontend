@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { Suspense, useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Button,
@@ -42,7 +42,7 @@ const { Dragger } = Upload;
 
 const TEAL_COLOR = "#4ECDC4";
 
-export default function ShapesPage() {
+function ShapesContent() {
   const searchParams = useSearchParams();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [shapes, setShapes] = useState<any[]>([]);
@@ -700,5 +700,19 @@ export default function ShapesPage() {
         </Form>
       </Modal>
     </div>
+  );
+}
+
+export default function ShapesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ textAlign: "center", padding: 80 }}>
+          <Spin size="large" />
+        </div>
+      }
+    >
+      <ShapesContent />
+    </Suspense>
   );
 }
