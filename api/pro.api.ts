@@ -17,4 +17,14 @@ export const proApi = {
     api.post("/pro/flow-addon/checkout", { plan }),
   cancelFlowAddon: () => api.post("/pro/flow-addon/cancel"),
   getFlowAddonStatus: () => api.get("/pro/flow-addon/status"),
+  // Called after login/registration in the Pro mobile WebView. Grants Pro
+  // without Stripe — the purchase happened in the App Store / Google Play.
+  grantProFromMobile: () =>
+    api.post(
+      "/pro/grant-from-mobile",
+      {},
+      {
+        headers: { "X-App-Source": "pro-mobile-app" },
+      },
+    ),
 };

@@ -17,6 +17,7 @@ import {
 import { useAi } from "@/hooks/useAi";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { usePro } from "@/hooks/usePro";
+import { getLogoForApp } from "@/lib/getLogo";
 import { usePathname } from "next/navigation";
 import AIConsentModal from "./AIConsentModal";
 import CreditsExhaustedModal from "./CreditsExhaustedModal";
@@ -248,7 +249,7 @@ export default function AIAssistant({
   contentRight = 0,
 }: AIAssistantProps) {
   const { hasConsent, acceptConsent, declineConsent, refreshContext } = useAi();
-  const { status: proStatus } = usePro();
+  const { status: proStatus, currentApp } = usePro();
   const isMobile = useIsMobile();
   const pathname = usePathname() || "";
 
@@ -748,7 +749,7 @@ export default function AIAssistant({
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <img
-          src="/images/image.png"
+          src={getLogoForApp(currentApp)}
           alt="Value Charts"
           style={{ height: 28, width: "auto", marginRight: 4 }}
         />

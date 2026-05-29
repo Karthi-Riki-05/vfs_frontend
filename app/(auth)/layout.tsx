@@ -1,10 +1,19 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { getLogoForApp, getForcedMode } from "@/lib/getLogo";
 
 export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [logoSrc, setLogoSrc] = useState("/images/image.png");
+
+  useEffect(() => {
+    setLogoSrc(getLogoForApp(getForcedMode()));
+  }, []);
+
   return (
     <div
       style={{
@@ -41,7 +50,7 @@ export default function AuthLayout({
           }}
         >
           <img
-            src="/images/image.png"
+            src={logoSrc}
             alt="Value Charts"
             style={{ height: 64, width: "auto", objectFit: "contain" }}
           />

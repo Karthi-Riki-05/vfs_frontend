@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { getLogoForApp } from "@/lib/getLogo";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
@@ -391,7 +392,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             }}
           >
             <img
-              src="/images/image.png"
+              src={getLogoForApp(currentApp)}
               alt="ValueChart Logo"
               style={{
                 height: isMobile && !isWideMobile ? 32 : 40,

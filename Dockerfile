@@ -1,6 +1,6 @@
 FROM node:18-alpine
 
-# Native build tools needed by canvas / sharp
+# Native build tools needed by canvas / sharp; curl needed for HEALTHCHECK
 RUN apk add --no-cache \
     python3 \
     make \
@@ -9,7 +9,8 @@ RUN apk add --no-cache \
     pango-dev \
     jpeg-dev \
     giflib-dev \
-    librsvg-dev
+    librsvg-dev \
+    curl
 
 WORKDIR /app
 
@@ -48,6 +49,15 @@ COPY . .
 
 RUN npm run build
 
+# Non-root user — reduces blast radius if the container is compromised
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+    && chown -R appuser:appgroup /app
+USER appuser
+
 EXPOSE 3000
+
+# start-period is 60s (longer than backend) because Next.js takes time to warm up
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3000/login || exit 1
 
 CMD ["npm", "start"]

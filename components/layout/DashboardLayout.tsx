@@ -11,6 +11,7 @@ import RightChatColumn from "../chat/RightChatColumn";
 import EnableNotificationsBanner from "../common/EnableNotificationsBanner";
 import FloatingActionButton from "./FloatingActionButton";
 import { usePro } from "@/hooks/usePro";
+import { getLogoForApp } from "@/lib/getLogo";
 import {
   useIsMobile,
   useIsTablet,
@@ -50,15 +51,12 @@ export default function DashboardLayout({
 
   // Auto-switch to the forced app once usePro has resolved.
   // Reads sessionStorage directly (not forcedMode state) to avoid the race
-  // where forcedMode state is still null when proLoading first flips to false
-  // (the useEffect setter in usePro runs after this effect on the same cycle).
+  // where forcedMode state is still null when proLoading first flips to false.
   // forcedMode 'team' → API value 'free' (team shell = the free app).
   // forcedMode 'pro'  → API value 'pro'.
-  // Guard: skip the Pro switch when the user hasn't purchased Pro — calling
-  // switchApp('pro') without hasPro triggers a Stripe checkout redirect, which
-  // is wrong inside a locked WebView. The toggle is hidden via forcedMode
-  // regardless, so the user still gets a clean locked-down UI.
-  // Ref guard prevents double-firing on re-renders; reload() re-mounts anyway.
+  // Note: Pro grant for ?app=pro users is handled by ProGuard (which runs
+  // before this effect), so by the time this effect fires after a grant
+  // reload, hasPro will already be true.
   useEffect(() => {
     if (proLoading || forcedSwitchDone.current) return;
     let mode: string | null = null;
@@ -74,12 +72,9 @@ export default function DashboardLayout({
     });
     if (!mode || (mode !== "team" && mode !== "pro")) return;
     const target = mode === "pro" ? ("pro" as const) : ("free" as const);
-    // Don't attempt Pro switch without a confirmed purchase — ProGuard redirects
-    // unauthorized users first, this is a safety net for edge cases.
     if (target === "pro" && !(hasPro && proPurchasedAt)) {
-      console.log(
-        "[DashboardLayout] skipping pro switch — user has not purchased Pro",
-      );
+      // Grant not yet completed — ProGuard is handling it. Skip switch.
+      console.log("[DashboardLayout] skipping pro switch — awaiting Pro grant");
       forcedSwitchDone.current = true;
       return;
     }
@@ -247,7 +242,7 @@ export default function DashboardLayout({
             }}
           >
             <img
-              src="/images/image.png"
+              src={getLogoForApp(currentApp)}
               alt="ValueChart"
               style={{
                 height: isMobile && !isWideMobile ? 32 : 40,

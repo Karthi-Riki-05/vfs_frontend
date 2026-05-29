@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { message } from "antd";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -50,7 +50,28 @@ export default function RegisterForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isWebView, setIsWebView] = useState(false);
+  const [pageUrl, setPageUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [existsCode, setExistsCode] = useState<
+    "PRO_USER_EXISTS" | "TEAM_USER_EXISTS" | "USER_EXISTS" | null
+  >(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    const webview =
+      /\bwv\b/.test(ua) ||
+      /FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Twitter|Snapchat|TikTok|BytedanceWebview/.test(
+        ua,
+      ) ||
+      (/iPhone|iPad|iPod/.test(ua) &&
+        /AppleWebKit/.test(ua) &&
+        !/Safari/.test(ua)) ||
+      /WebView|webview/.test(ua);
+    setIsWebView(webview);
+    setPageUrl(window.location.href);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,15 +88,26 @@ export default function RegisterForm() {
       return;
     }
     setError("");
+    setExistsCode(null);
     setLoading(true);
     try {
       await axios.post("/auth/register", { name, email, password });
       message.success("We've sent a 6-digit code to your email.");
       router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
+      const code = err.response?.data?.error?.code as string | undefined;
       const msg = err.response?.data?.error?.message || "Registration failed";
-      message.error(msg);
-      setError(msg);
+
+      if (
+        code === "PRO_USER_EXISTS" ||
+        code === "TEAM_USER_EXISTS" ||
+        code === "USER_EXISTS"
+      ) {
+        setExistsCode(code);
+      } else {
+        message.error(msg);
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -109,11 +141,100 @@ export default function RegisterForm() {
         </p>
       </div>
 
-      {/* Social buttons */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, width: "100%" }}>
+      {/* WebView banner — Google/LinkedIn/Facebook block OAuth in in-app browsers */}
+      {isWebView && (
+        <div
+          style={{
+            background: "#FFF7ED",
+            border: "1px solid #FED7AA",
+            borderRadius: 12,
+            padding: "14px 16px",
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+            <div>
+              <p
+                style={{
+                  margin: "0 0 4px",
+                  fontWeight: 600,
+                  fontSize: 13,
+                  color: "#92400E",
+                }}
+              >
+                Social sign-up blocked in this browser
+              </p>
+              <p style={{ margin: 0, fontSize: 12, color: "#B45309" }}>
+                You&apos;re in an in-app browser. Google requires Chrome or
+                Safari to sign up. Copy the link below and open it there — or
+                use email/password instead.
+              </p>
+            </div>
+          </div>
+          <div
+            style={{
+              background: "#FEF3C7",
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontSize: 11,
+              color: "#78350F",
+              wordBreak: "break-all",
+              marginBottom: 8,
+              fontFamily: "monospace",
+            }}
+          >
+            {pageUrl}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard?.writeText(pageUrl).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              });
+            }}
+            style={{
+              width: "100%",
+              height: 36,
+              borderRadius: 8,
+              background: copied ? "#3CB371" : "#F59E0B",
+              color: "#fff",
+              border: "none",
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "background 0.2s",
+            }}
+          >
+            {copied ? "✓ Copied!" : "Copy link — open in Chrome / Safari"}
+          </button>
+        </div>
+      )}
+
+      {/* Social buttons — disabled when inside a WebView */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          marginBottom: 20,
+          width: "100%",
+          opacity: isWebView ? 0.4 : 1,
+          pointerEvents: isWebView ? "none" : "auto",
+        }}
+      >
         {/* Google — red, flex-1 */}
         <button
           type="button"
+          disabled={isWebView}
           onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
           style={{
             flex: 1,
@@ -126,17 +247,17 @@ export default function RegisterForm() {
             border: "none",
             backgroundColor: "#DB4437",
             color: "#fff",
-            cursor: "pointer",
+            cursor: isWebView ? "not-allowed" : "pointer",
             fontSize: 14,
             fontWeight: 500,
             fontFamily: "inherit",
             transition: "opacity 0.15s",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "0.9";
+            if (!isWebView) e.currentTarget.style.opacity = "0.9";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "1";
+            if (!isWebView) e.currentTarget.style.opacity = "1";
           }}
         >
           <svg
@@ -165,6 +286,7 @@ export default function RegisterForm() {
         {/* LinkedIn — blue, 44x44 */}
         <button
           type="button"
+          disabled={isWebView}
           onClick={() => signIn("linkedin", { callbackUrl: "/dashboard" })}
           style={{
             display: "flex",
@@ -177,15 +299,15 @@ export default function RegisterForm() {
             border: "none",
             backgroundColor: "#0A66C2",
             color: "#fff",
-            cursor: "pointer",
+            cursor: isWebView ? "not-allowed" : "pointer",
             transition: "opacity 0.15s",
             fontFamily: "inherit",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "0.9";
+            if (!isWebView) e.currentTarget.style.opacity = "0.9";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "1";
+            if (!isWebView) e.currentTarget.style.opacity = "1";
           }}
         >
           <svg
@@ -199,6 +321,7 @@ export default function RegisterForm() {
         {/* Facebook — blue, 44x44 */}
         <button
           type="button"
+          disabled={isWebView}
           onClick={() => signIn("facebook", { callbackUrl: "/dashboard" })}
           style={{
             display: "flex",
@@ -211,15 +334,15 @@ export default function RegisterForm() {
             border: "none",
             backgroundColor: "#1877F2",
             color: "#fff",
-            cursor: "pointer",
+            cursor: isWebView ? "not-allowed" : "pointer",
             transition: "opacity 0.15s",
             fontFamily: "inherit",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "0.9";
+            if (!isWebView) e.currentTarget.style.opacity = "0.9";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "1";
+            if (!isWebView) e.currentTarget.style.opacity = "1";
           }}
         >
           <svg
@@ -400,7 +523,50 @@ export default function RegisterForm() {
           </a>
         </p>
 
-        {/* Error */}
+        {/* Account-exists banner — context-aware per error code */}
+        {existsCode && (
+          <div
+            style={{
+              marginBottom: 14,
+              background: "#FFF7ED",
+              border: "1px solid #FED7AA",
+              borderRadius: 10,
+              padding: "12px 14px",
+            }}
+          >
+            <p
+              style={{
+                fontSize: 13,
+                color: "#92400E",
+                margin: "0 0 8px",
+                fontWeight: 500,
+              }}
+            >
+              {existsCode === "PRO_USER_EXISTS"
+                ? "You already have a Pro account. Use the same credentials to log in — your Pro features will be available in this app too."
+                : existsCode === "TEAM_USER_EXISTS"
+                  ? "You already have a Team account. Use the same credentials to log in — your Team features will be available in this app too."
+                  : "An account with this email already exists. Please log in instead."}
+            </p>
+            <a
+              href={`/login?email=${encodeURIComponent(email)}`}
+              style={{
+                display: "inline-block",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#fff",
+                background: GREEN,
+                borderRadius: 8,
+                padding: "6px 14px",
+                textDecoration: "none",
+              }}
+            >
+              Go to Login →
+            </a>
+          </div>
+        )}
+
+        {/* Generic error (non-duplicate errors) */}
         {error && (
           <div
             style={{

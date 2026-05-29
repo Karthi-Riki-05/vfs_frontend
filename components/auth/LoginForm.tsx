@@ -43,6 +43,25 @@ const iconWrap: React.CSSProperties = {
   alignItems: "center",
 };
 
+function detectWebView(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return (
+    // Android in-app WebView flag
+    /\bwv\b/.test(ua) ||
+    // Social / messaging in-app browsers
+    /FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Twitter|Snapchat|TikTok|BytedanceWebview/.test(
+      ua,
+    ) ||
+    // iOS in-app browsers: have AppleWebKit but NOT "Safari" (full Safari always includes "Safari")
+    (/iPhone|iPad|iPod/.test(ua) &&
+      /AppleWebKit/.test(ua) &&
+      !/Safari/.test(ua)) ||
+    // Generic WebView strings
+    /WebView|webview/.test(ua)
+  );
+}
+
 export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -51,6 +70,9 @@ export default function LoginForm() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [showResend, setShowResend] = useState(false);
+  const [isWebView, setIsWebView] = useState(false);
+  const [pageUrl, setPageUrl] = useState("");
+  const [copied, setCopied] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const verified = searchParams.get("verified");
@@ -58,6 +80,17 @@ export default function LoginForm() {
   useEffect(() => {
     if (verified === "1") setInfo("Your email is verified. Please log in.");
   }, [verified]);
+
+  // Pre-fill email when redirected from registration duplicate-account flow
+  useEffect(() => {
+    const emailParam = searchParams.get("email");
+    if (emailParam) setEmail(decodeURIComponent(emailParam));
+  }, [searchParams]);
+
+  useEffect(() => {
+    setIsWebView(detectWebView());
+    setPageUrl(window.location.href);
+  }, []);
 
   const handleVerifyRedirect = () => {
     if (!email.trim()) {
@@ -129,6 +162,13 @@ export default function LoginForm() {
     e.currentTarget.style.backgroundColor = "#EFF6FF";
   };
 
+  const handleCopy = () => {
+    navigator.clipboard?.writeText(pageUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   return (
     <div style={{ width: "100%" }}>
       {/* Header */}
@@ -148,11 +188,101 @@ export default function LoginForm() {
         </p>
       </div>
 
-      {/* Social buttons */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, width: "100%" }}>
+      {/* WebView banner — Google blocks OAuth in in-app browsers */}
+      {isWebView && (
+        <div
+          style={{
+            background: "#FFF7ED",
+            border: "1px solid #FED7AA",
+            borderRadius: 12,
+            padding: "14px 16px",
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+            <div>
+              <p
+                style={{
+                  margin: "0 0 4px",
+                  fontWeight: 600,
+                  fontSize: 13,
+                  color: "#92400E",
+                }}
+              >
+                Google sign-in blocked in this browser
+              </p>
+              <p style={{ margin: 0, fontSize: 12, color: "#B45309" }}>
+                You&apos;re in an in-app browser. Google requires a real browser
+                (Chrome or Safari) to sign in. Open the link below in Chrome or
+                Safari to continue.
+              </p>
+            </div>
+          </div>
+          <div
+            style={{
+              background: "#FEF3C7",
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontSize: 11,
+              color: "#78350F",
+              wordBreak: "break-all",
+              marginBottom: 8,
+              fontFamily: "monospace",
+            }}
+          >
+            {pageUrl}
+          </div>
+          <button
+            type="button"
+            onClick={handleCopy}
+            style={{
+              width: "100%",
+              height: 36,
+              borderRadius: 8,
+              background: copied ? "#3CB371" : "#F59E0B",
+              color: "#fff",
+              border: "none",
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "background 0.2s",
+            }}
+          >
+            {copied ? "✓ Copied!" : "Copy link — open in Chrome / Safari"}
+          </button>
+        </div>
+      )}
+
+      {/* Social buttons — disabled with tooltip when inside a WebView */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          marginBottom: 20,
+          width: "100%",
+          opacity: isWebView ? 0.4 : 1,
+          pointerEvents: isWebView ? "none" : "auto",
+          position: "relative",
+        }}
+        title={
+          isWebView
+            ? "Social sign-in is not available in in-app browsers. Copy the link above and open it in Chrome or Safari."
+            : undefined
+        }
+      >
         {/* Google — red, flex-1 */}
         <button
           type="button"
+          disabled={isWebView}
           onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
           style={{
             flex: 1,
@@ -165,17 +295,17 @@ export default function LoginForm() {
             border: "none",
             backgroundColor: "#DB4437",
             color: "#fff",
-            cursor: "pointer",
+            cursor: isWebView ? "not-allowed" : "pointer",
             fontSize: 14,
             fontWeight: 500,
             fontFamily: "inherit",
             transition: "opacity 0.15s",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "0.9";
+            if (!isWebView) e.currentTarget.style.opacity = "0.9";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "1";
+            if (!isWebView) e.currentTarget.style.opacity = "1";
           }}
         >
           <svg
@@ -204,6 +334,7 @@ export default function LoginForm() {
         {/* LinkedIn — blue, 44x44 */}
         <button
           type="button"
+          disabled={isWebView}
           onClick={() => signIn("linkedin", { callbackUrl: "/dashboard" })}
           style={{
             display: "flex",
@@ -216,15 +347,15 @@ export default function LoginForm() {
             border: "none",
             backgroundColor: "#0A66C2",
             color: "#fff",
-            cursor: "pointer",
+            cursor: isWebView ? "not-allowed" : "pointer",
             transition: "opacity 0.15s",
             fontFamily: "inherit",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "0.9";
+            if (!isWebView) e.currentTarget.style.opacity = "0.9";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "1";
+            if (!isWebView) e.currentTarget.style.opacity = "1";
           }}
         >
           <svg
@@ -238,6 +369,7 @@ export default function LoginForm() {
         {/* Facebook — blue, 44x44 */}
         <button
           type="button"
+          disabled={isWebView}
           onClick={() => signIn("facebook", { callbackUrl: "/dashboard" })}
           style={{
             display: "flex",
@@ -250,15 +382,15 @@ export default function LoginForm() {
             border: "none",
             backgroundColor: "#1877F2",
             color: "#fff",
-            cursor: "pointer",
+            cursor: isWebView ? "not-allowed" : "pointer",
             transition: "opacity 0.15s",
             fontFamily: "inherit",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "0.9";
+            if (!isWebView) e.currentTarget.style.opacity = "0.9";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "1";
+            if (!isWebView) e.currentTarget.style.opacity = "1";
           }}
         >
           <svg
