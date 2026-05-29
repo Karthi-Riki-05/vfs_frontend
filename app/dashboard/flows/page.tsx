@@ -760,19 +760,27 @@ export default function FlowsPage() {
               ))}
             </Row>
           ) : (
-            <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12 }}>
+            <div
+              style={{
+                overflowX: "auto",
+                background: "#fff",
+                borderRadius: 12,
+              }}
+            >
               <Table
-                dataSource={displayFlows}
+                dataSource={Array.isArray(displayFlows) ? displayFlows : []}
                 columns={listColumns}
                 rowKey="id"
                 pagination={false}
                 size="middle"
-                style={{ minWidth: isMobile ? 600 : "auto" }}
+                scroll={{ x: 600 }}
               />
             </div>
           )}
           {total > pageSize && (
-            <div style={{ textAlign: "center", marginTop: 24 }}>
+            <div
+              style={{ textAlign: "center", marginTop: 24, overflowX: "auto" }}
+            >
               <Pagination
                 current={page}
                 pageSize={pageSize}
@@ -782,6 +790,7 @@ export default function FlowsPage() {
                   setPageSize(ps);
                 }}
                 showSizeChanger
+                size={isMobile ? "small" : "default"}
               />
             </div>
           )}
@@ -818,14 +827,20 @@ export default function FlowsPage() {
               ))}
             </Row>
           ) : (
-            <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12 }}>
+            <div
+              style={{
+                overflowX: "auto",
+                background: "#fff",
+                borderRadius: 12,
+              }}
+            >
               <Table
-                dataSource={sharedFlows}
+                dataSource={Array.isArray(sharedFlows) ? sharedFlows : []}
                 columns={sharedListColumns}
                 rowKey="id"
                 pagination={false}
                 size="middle"
-                style={{ minWidth: isMobile ? 600 : "auto" }}
+                scroll={{ x: 600 }}
               />
             </div>
           )}

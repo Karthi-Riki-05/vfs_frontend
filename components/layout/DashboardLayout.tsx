@@ -284,10 +284,9 @@ export default function DashboardLayout({
           style={{
             padding: "16px",
             paddingTop: 56 + 16,
+            paddingBottom: 140,
             background: "#FFFFFF",
             minHeight: "calc(100dvh - 56px)",
-            overflowX: "hidden",
-            overscrollBehavior: "contain",
           }}
         >
           <EnableNotificationsBanner />

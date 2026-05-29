@@ -28,6 +28,7 @@ import { usePackStatus } from "@/hooks/usePackStatus";
 import { proApi } from "@/api/pro.api";
 import { aiApi } from "@/api/ai.api";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Text, Title } = Typography;
 
@@ -1353,6 +1354,8 @@ export default function SubscriptionPage() {
       </div>
     );
   };
+
+  const isMobile = useIsMobile();
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 16px" }}>

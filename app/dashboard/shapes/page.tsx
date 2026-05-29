@@ -35,6 +35,7 @@ import EmptyState from "@/components/common/EmptyState";
 import ShapeCard from "@/components/shapes/ShapeCard";
 import api from "@/lib/axios";
 import { RcFile } from "antd/es/upload";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -44,6 +45,7 @@ const TEAL_COLOR = "#4ECDC4";
 
 function ShapesContent() {
   const searchParams = useSearchParams();
+  const isMobile = useIsMobile();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [shapes, setShapes] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
@@ -425,7 +427,7 @@ function ShapesContent() {
   };
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: isMobile ? 16 : 24 }}>
       <SectionHeader
         title={
           selectedGroup ? selectedGroup.name.toUpperCase() : "SHAPE LIBRARY"
@@ -449,7 +451,7 @@ function ShapesContent() {
               <Select
                 placeholder="Filter by group"
                 allowClear
-                style={{ width: 180, borderRadius: 8 }}
+                style={{ width: isMobile ? "100%" : 180, borderRadius: 8 }}
                 onChange={(value: string | undefined) =>
                   setFilterGroupId(value || null)
                 }
@@ -465,6 +467,7 @@ function ShapesContent() {
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={showModal}
+                block={isMobile}
                 style={{
                   background: "#3CB371",
                   borderColor: "#3CB371",
@@ -517,7 +520,8 @@ function ShapesContent() {
         open={isModalVisible}
         onCancel={handleCancel}
         footer={null}
-        width={700}
+        width={isMobile ? "100%" : 700}
+        styles={{ body: { maxHeight: "70dvh", overflowY: "auto" } }}
       >
         <Form
           form={form}
@@ -526,12 +530,12 @@ function ShapesContent() {
           initialValues={{ type: "stencil", textAlignment: "bottom" }}
         >
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="name" label="Name" rules={[{ required: true }]}>
                 <Input placeholder="Shape name" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="type"
                 label="Shape Type"

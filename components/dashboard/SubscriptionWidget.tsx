@@ -117,10 +117,12 @@ export default function SubscriptionWidget() {
         background: "#fff",
         borderRadius: 12,
         border: "1px solid #F0F0F0",
-        padding: "20px",
+        padding: "16px 20px",
         display: "flex",
         flexDirection: "column",
         gap: 0,
+        width: "100%",
+        boxSizing: "border-box",
       }}
     >
       {/* Header */}

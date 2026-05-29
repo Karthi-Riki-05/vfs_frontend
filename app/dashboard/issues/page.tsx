@@ -1,13 +1,29 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Table, Typography, Button, Modal, Form, Input, InputNumber, Switch, Space, Empty, message, Tag } from 'antd';
-import { PlusOutlined, BugOutlined, DeleteOutlined } from '@ant-design/icons';
-import { issuesApi } from '@/api/issues.api';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Card,
+  Table,
+  Typography,
+  Button,
+  Modal,
+  Form,
+  Input,
+  InputNumber,
+  Switch,
+  Space,
+  Empty,
+  message,
+  Tag,
+} from "antd";
+import { PlusOutlined, BugOutlined, DeleteOutlined } from "@ant-design/icons";
+import { issuesApi } from "@/api/issues.api";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Title, Text } = Typography;
 
 export default function IssuesPage() {
+  const isMobile = useIsMobile();
   const [issues, setIssues] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -20,25 +36,31 @@ export default function IssuesPage() {
       const res = await issuesApi.list();
       const data = res.data?.data?.issues || res.data?.data || res.data;
       setIssues(Array.isArray(data) ? data : []);
-    } catch {} finally {
+    } catch {
+    } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchIssues(); }, [fetchIssues]);
+  useEffect(() => {
+    fetchIssues();
+  }, [fetchIssues]);
 
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
       setCreating(true);
       // flowId must be an integer
-      await issuesApi.create({ title: values.title, flowId: Number(values.flowId) });
-      message.success('Issue created');
+      await issuesApi.create({
+        title: values.title,
+        flowId: Number(values.flowId),
+      });
+      message.success("Issue created");
       form.resetFields();
       setModalOpen(false);
       fetchIssues();
     } catch {
-      message.error('Failed to create issue');
+      message.error("Failed to create issue");
     } finally {
       setCreating(false);
     }
@@ -47,41 +69,41 @@ export default function IssuesPage() {
   const handleToggle = async (id: string, currentChecked: boolean) => {
     try {
       await issuesApi.update(id, { isChecked: !currentChecked });
-      message.success('Issue updated');
+      message.success("Issue updated");
       fetchIssues();
     } catch {
-      message.error('Failed to update');
+      message.error("Failed to update");
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await issuesApi.delete(id);
-      message.success('Issue deleted');
+      message.success("Issue deleted");
       fetchIssues();
     } catch {
-      message.error('Failed to delete');
+      message.error("Failed to delete");
     }
   };
 
   const columns = [
     {
-      title: 'Title',
-      dataIndex: 'title',
-      key: 'title',
+      title: "Title",
+      dataIndex: "title",
+      key: "title",
       render: (text: string) => <Text strong>{text}</Text>,
     },
     {
-      title: 'Flow ID',
-      dataIndex: 'flowId',
-      key: 'flowId',
+      title: "Flow ID",
+      dataIndex: "flowId",
+      key: "flowId",
       render: (id: number) => <Tag>{id}</Tag>,
       width: 100,
     },
     {
-      title: 'Resolved',
-      dataIndex: 'isChecked',
-      key: 'isChecked',
+      title: "Resolved",
+      dataIndex: "isChecked",
+      key: "isChecked",
       render: (checked: boolean, record: any) => (
         <Switch
           checked={checked}
@@ -93,15 +115,15 @@ export default function IssuesPage() {
       width: 110,
     },
     {
-      title: 'Created',
-      dataIndex: 'createdAt',
-      key: 'created',
+      title: "Created",
+      dataIndex: "createdAt",
+      key: "created",
       render: (d: string) => new Date(d).toLocaleDateString(),
       width: 120,
     },
     {
-      title: '',
-      key: 'actions',
+      title: "",
+      key: "actions",
       width: 60,
       render: (_: any, record: any) => (
         <Button
@@ -116,24 +138,56 @@ export default function IssuesPage() {
   ];
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+    <div
+      style={{
+        maxWidth: 1000,
+        margin: "0 auto",
+        padding: isMobile ? "0 12px" : "0",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          justifyContent: "space-between",
+          alignItems: isMobile ? "flex-start" : "center",
+          gap: isMobile ? 12 : 0,
+          marginBottom: 24,
+        }}
+      >
         <div>
-          <Title level={3} style={{ margin: 0 }}>Issues</Title>
+          <Title level={3} style={{ margin: 0, fontSize: isMobile ? 20 : 24 }}>
+            Issues
+          </Title>
           <Text type="secondary">Track and manage issues in your diagrams</Text>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          block={isMobile}
+          onClick={() => setModalOpen(true)}
+        >
           New Issue
         </Button>
       </div>
 
-      <Card>
+      <Card styles={{ body: { padding: isMobile ? "12px 8px" : "24px" } }}>
         <Table
-          dataSource={issues}
+          dataSource={Array.isArray(issues) ? issues : []}
           columns={columns}
           rowKey="id"
           loading={loading}
-          locale={{ emptyText: <Empty image={<BugOutlined style={{ fontSize: 48, color: '#d9d9d9' }} />} description="No issues found" /> }}
+          scroll={{ x: 600 }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={
+                  <BugOutlined style={{ fontSize: 48, color: "#d9d9d9" }} />
+                }
+                description="No issues found"
+              />
+            ),
+          }}
           pagination={{ pageSize: 10, showSizeChanger: true }}
         />
       </Card>
@@ -146,16 +200,29 @@ export default function IssuesPage() {
         confirmLoading={creating}
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="title" label="Title" rules={[{ required: true, message: 'Please enter a title' }]}>
+          <Form.Item
+            name="title"
+            label="Title"
+            rules={[{ required: true, message: "Please enter a title" }]}
+          >
             <Input placeholder="Issue title" />
           </Form.Item>
           <Form.Item
             name="flowId"
             label="Flow ID"
-            rules={[{ required: true, message: 'Please enter the Flow ID this issue belongs to' }]}
+            rules={[
+              {
+                required: true,
+                message: "Please enter the Flow ID this issue belongs to",
+              },
+            ]}
             extra="Enter the numeric ID of the flow this issue is linked to"
           >
-            <InputNumber min={1} style={{ width: '100%' }} placeholder="e.g. 1" />
+            <InputNumber
+              min={1}
+              style={{ width: "100%" }}
+              placeholder="e.g. 1"
+            />
           </Form.Item>
         </Form>
       </Modal>

@@ -1,14 +1,30 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Avatar, Upload, message, Typography, Divider, Spin } from 'antd';
-import { UserOutlined, LockOutlined, UploadOutlined, MailOutlined, PhoneOutlined } from '@ant-design/icons';
-import { DeleteOutlined } from '@ant-design/icons';
-import SectionHeader from '@/components/common/SectionHeader';
-import api from '@/lib/axios';
-import { useAuth } from '@/hooks/useAuth';
-import { useAi } from '@/hooks/useAi';
-import { useIsMobile } from '@/hooks/useMediaQuery';
+import React, { useState, useEffect } from "react";
+import {
+  Form,
+  Input,
+  Button,
+  Avatar,
+  Upload,
+  message,
+  Typography,
+  Divider,
+  Spin,
+} from "antd";
+import {
+  UserOutlined,
+  LockOutlined,
+  UploadOutlined,
+  MailOutlined,
+  PhoneOutlined,
+} from "@ant-design/icons";
+import { DeleteOutlined } from "@ant-design/icons";
+import SectionHeader from "@/components/common/SectionHeader";
+import api from "@/lib/axios";
+import { useAuth } from "@/hooks/useAuth";
+import { useAi } from "@/hooks/useAi";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Text } = Typography;
 
@@ -25,13 +41,13 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api
-      .get('/users/me')
+      .get("/users/me")
       .then((res) => {
         const data = res.data?.data || res.data || {};
         profileForm.setFieldsValue({
-          name: data.name || '',
-          email: data.email || '',
-          contactNo: data.contactNo || '',
+          name: data.name || "",
+          email: data.email || "",
+          contactNo: data.contactNo || "",
         });
         if (data.image || data.avatar || data.photo) {
           setAvatarUrl(data.image || data.avatar || data.photo);
@@ -40,8 +56,8 @@ export default function SettingsPage() {
       .catch(() => {
         if (user) {
           profileForm.setFieldsValue({
-            name: user.name || '',
-            email: user.email || '',
+            name: user.name || "",
+            email: user.email || "",
           });
         }
       })
@@ -51,13 +67,13 @@ export default function SettingsPage() {
   const handleProfileSave = async (values: any) => {
     setProfileLoading(true);
     try {
-      await api.put('/users/me', {
+      await api.put("/users/me", {
         name: values.name,
         contactNo: values.contactNo,
       });
-      message.success('Profile updated successfully');
+      message.success("Profile updated successfully");
     } catch {
-      message.error('Failed to update profile');
+      message.error("Failed to update profile");
     } finally {
       setProfileLoading(false);
     }
@@ -66,15 +82,15 @@ export default function SettingsPage() {
   const handlePasswordChange = async (values: any) => {
     setPasswordLoading(true);
     try {
-      await api.put('/users/me/password', {
+      await api.put("/users/me/password", {
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
       });
-      message.success('Password changed successfully');
+      message.success("Password changed successfully");
       passwordForm.resetFields();
     } catch (err: any) {
       message.error(
-        err.response?.data?.error?.message || 'Failed to change password'
+        err.response?.data?.error?.message || "Failed to change password",
       );
     } finally {
       setPasswordLoading(false);
@@ -83,79 +99,85 @@ export default function SettingsPage() {
 
   const handleAvatarUpload = (file: File) => {
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append("avatar", file);
     api
-      .post('/users/me', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      .post("/users/me", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
       })
       .then((res) => {
-        message.success('Avatar updated');
+        message.success("Avatar updated");
         if (res.data?.image || res.data?.avatar) {
           setAvatarUrl(res.data.image || res.data.avatar);
         }
       })
-      .catch(() => message.error('Avatar upload failed'));
+      .catch(() => message.error("Avatar upload failed"));
     return false;
   };
 
   if (initialLoading) {
     return (
-      <div style={{ textAlign: 'center', padding: 100 }}>
+      <div style={{ textAlign: "center", padding: 100 }}>
         <Spin size="large" />
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
+    <div
+      style={{
+        maxWidth: 700,
+        margin: "0 auto",
+        padding: isMobile ? "0 12px" : "0 16px",
+      }}
+    >
       <SectionHeader title="PROFILE SETTINGS" />
 
       {/* Avatar Section */}
       <div
         style={{
-          display: 'flex',
-          flexDirection: isMobile ? 'column' : 'row',
-          alignItems: isMobile ? 'center' : 'flex-start',
-          textAlign: isMobile ? 'center' : 'left',
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: isMobile ? "center" : "flex-start",
+          textAlign: isMobile ? "center" : "left",
           gap: 20,
           marginBottom: 32,
-          padding: '20px',
-          background: '#fff',
+          padding: "20px",
+          background: "#fff",
           borderRadius: 12,
-          border: '1px solid #F0F0F0',
+          border: "1px solid #F0F0F0",
         }}
       >
         <Avatar
           size={isMobile ? 100 : 80}
           src={avatarUrl || user?.image}
           icon={<UserOutlined />}
-          style={{ backgroundColor: '#3CB371', flexShrink: 0 }}
+          style={{ backgroundColor: "#3CB371", flexShrink: 0 }}
         />
-        <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
+        <div style={{ flex: 1, minWidth: 0, width: "100%" }}>
           <div
             style={{
               fontSize: 18,
               fontWeight: 600,
-              color: '#1A1A2E',
+              color: "#1A1A2E",
               marginBottom: 4,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            {user?.name || 'User'}
+            {user?.name || "User"}
           </div>
-          <Text 
-            type="secondary" 
-            style={{ 
-                fontSize: 14, 
-                display: 'block',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
+          <Text
+            type="secondary"
+            style={{
+              fontSize: 14,
+              display: "block",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            {user?.email || ''}
+            {user?.email || ""}
           </Text>
           <div style={{ marginTop: 12 }}>
             <Upload
@@ -174,10 +196,10 @@ export default function SettingsPage() {
       {/* Profile Form */}
       <div
         style={{
-          background: '#fff',
+          background: "#fff",
           borderRadius: 12,
-          border: '1px solid #F0F0F0',
-          padding: '24px',
+          border: "1px solid #F0F0F0",
+          padding: isMobile ? "16px" : "24px",
           marginBottom: 32,
         }}
       >
@@ -185,8 +207,8 @@ export default function SettingsPage() {
           style={{
             fontSize: 16,
             fontWeight: 600,
-            color: '#1A1A2E',
-            display: 'block',
+            color: "#1A1A2E",
+            display: "block",
             marginBottom: 20,
           }}
         >
@@ -197,15 +219,15 @@ export default function SettingsPage() {
           form={profileForm}
           layout="vertical"
           onFinish={handleProfileSave}
-          style={{ maxWidth: 500, width: '100%' }}
+          style={{ maxWidth: 500, width: "100%" }}
         >
           <Form.Item
             name="name"
             label="Name"
-            rules={[{ required: true, message: 'Please enter your name' }]}
+            rules={[{ required: true, message: "Please enter your name" }]}
           >
             <Input
-              prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
+              prefix={<UserOutlined style={{ color: "#bfbfbf" }} />}
               placeholder="Your full name"
               size="large"
               style={{ borderRadius: 8 }}
@@ -215,10 +237,10 @@ export default function SettingsPage() {
           <Form.Item
             name="email"
             label="Email"
-            rules={[{ required: true, type: 'email' }]}
+            rules={[{ required: true, type: "email" }]}
           >
             <Input
-              prefix={<MailOutlined style={{ color: '#bfbfbf' }} />}
+              prefix={<MailOutlined style={{ color: "#bfbfbf" }} />}
               placeholder="Email address"
               size="large"
               disabled
@@ -228,7 +250,7 @@ export default function SettingsPage() {
 
           <Form.Item name="contactNo" label="Phone">
             <Input
-              prefix={<PhoneOutlined style={{ color: '#bfbfbf' }} />}
+              prefix={<PhoneOutlined style={{ color: "#bfbfbf" }} />}
               placeholder="Phone number"
               size="large"
               style={{ borderRadius: 8 }}
@@ -243,8 +265,8 @@ export default function SettingsPage() {
               block
               size="large"
               style={{
-                backgroundColor: '#3CB371',
-                borderColor: '#3CB371',
+                backgroundColor: "#3CB371",
+                borderColor: "#3CB371",
                 borderRadius: 8,
                 height: 48,
                 fontWeight: 600,
@@ -259,18 +281,18 @@ export default function SettingsPage() {
       {/* Password Section */}
       <div
         style={{
-          background: '#fff',
+          background: "#fff",
           borderRadius: 12,
-          border: '1px solid #F0F0F0',
-          padding: '24px',
+          border: "1px solid #F0F0F0",
+          padding: isMobile ? "16px" : "24px",
         }}
       >
         <Text
           style={{
             fontSize: 16,
             fontWeight: 600,
-            color: '#1A1A2E',
-            display: 'block',
+            color: "#1A1A2E",
+            display: "block",
             marginBottom: 20,
           }}
         >
@@ -281,17 +303,17 @@ export default function SettingsPage() {
           form={passwordForm}
           layout="vertical"
           onFinish={handlePasswordChange}
-          style={{ maxWidth: 500, width: '100%' }}
+          style={{ maxWidth: 500, width: "100%" }}
         >
           <Form.Item
             name="currentPassword"
             label="Current Password"
             rules={[
-              { required: true, message: 'Please enter your current password' },
+              { required: true, message: "Please enter your current password" },
             ]}
           >
             <Input.Password
-              prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+              prefix={<LockOutlined style={{ color: "#bfbfbf" }} />}
               placeholder="Current password"
               size="large"
               style={{ borderRadius: 8 }}
@@ -302,12 +324,12 @@ export default function SettingsPage() {
             name="newPassword"
             label="New Password"
             rules={[
-              { required: true, message: 'Please enter a new password' },
-              { min: 8, message: 'Password must be at least 8 characters' },
+              { required: true, message: "Please enter a new password" },
+              { min: 8, message: "Password must be at least 8 characters" },
             ]}
           >
             <Input.Password
-              prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+              prefix={<LockOutlined style={{ color: "#bfbfbf" }} />}
               placeholder="New password"
               size="large"
               style={{ borderRadius: 8 }}
@@ -317,21 +339,21 @@ export default function SettingsPage() {
           <Form.Item
             name="confirmPassword"
             label="Confirm Password"
-            dependencies={['newPassword']}
+            dependencies={["newPassword"]}
             rules={[
-              { required: true, message: 'Please confirm your new password' },
+              { required: true, message: "Please confirm your new password" },
               ({ getFieldValue }) => ({
                 validator(_, value) {
-                  if (!value || getFieldValue('newPassword') === value) {
+                  if (!value || getFieldValue("newPassword") === value) {
                     return Promise.resolve();
                   }
-                  return Promise.reject(new Error('Passwords do not match'));
+                  return Promise.reject(new Error("Passwords do not match"));
                 },
               }),
             ]}
           >
             <Input.Password
-              prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+              prefix={<LockOutlined style={{ color: "#bfbfbf" }} />}
               placeholder="Confirm new password"
               size="large"
               style={{ borderRadius: 8 }}
@@ -343,10 +365,11 @@ export default function SettingsPage() {
               type="primary"
               htmlType="submit"
               loading={passwordLoading}
+              block={isMobile}
               size="large"
               style={{
-                backgroundColor: '#3CB371',
-                borderColor: '#3CB371',
+                backgroundColor: "#3CB371",
+                borderColor: "#3CB371",
                 borderRadius: 8,
                 height: 48,
                 fontWeight: 600,
@@ -361,10 +384,10 @@ export default function SettingsPage() {
       {/* AI Data & Privacy */}
       <div
         style={{
-          background: '#fff',
+          background: "#fff",
           borderRadius: 12,
-          border: '1px solid #F0F0F0',
-          padding: '24px',
+          border: "1px solid #F0F0F0",
+          padding: isMobile ? "16px" : "24px",
           marginTop: 32,
         }}
       >
@@ -372,21 +395,28 @@ export default function SettingsPage() {
           style={{
             fontSize: 16,
             fontWeight: 600,
-            color: '#1A1A2E',
-            display: 'block',
+            color: "#1A1A2E",
+            display: "block",
             marginBottom: 8,
           }}
         >
           AI Data & Privacy
         </Text>
-        <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 16 }}>
+        <Text
+          type="secondary"
+          style={{ fontSize: 14, display: "block", marginBottom: 16 }}
+        >
           Manage data collected by Value Charts AI
         </Text>
         <Button
           danger
           icon={<DeleteOutlined />}
           onClick={() => {
-            if (window.confirm('Delete all your AI conversation history? This cannot be undone.')) {
+            if (
+              window.confirm(
+                "Delete all your AI conversation history? This cannot be undone.",
+              )
+            ) {
               deleteAiData();
             }
           }}

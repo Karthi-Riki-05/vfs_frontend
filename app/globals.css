@@ -4,7 +4,11 @@
 /* Prevent horizontal overflow without breaking scroll */
 html {
   overflow-x: hidden;
-  height: 100%;
+  /* height: auto lets the document grow with content on all viewports.
+     height: 100% would pin html to the viewport and block page scroll
+     when any child creates an overflow context. */
+  height: auto;
+  min-height: 100%;
 }
 body {
   margin: 0;
@@ -66,6 +70,18 @@ body {
 /* Card hover effect */
 .flow-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+/* Mobile: replace hover with active/tap feedback */
+.flow-card-mobile:hover {
+  box-shadow: none;
+  transform: none;
+}
+.flow-card-mobile:active {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: scale(0.98);
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease;
 }
 
 /* Template card hover */
@@ -265,7 +281,11 @@ img {
   .responsive-content {
     padding-left: 16px !important;
     padding-right: 16px !important;
-    padding-bottom: 16px !important;
+    /* 140px = FAB (48) + AI button (48) + gap (24) + bottom clearance + safe area */
+    padding-bottom: max(
+      140px,
+      calc(140px + env(safe-area-inset-bottom, 0px))
+    ) !important;
   }
 }
 @media (min-width: 768px) and (max-width: 1023px) {
@@ -340,13 +360,32 @@ img {
 
 /* ==================== TOUCH TARGETS — MINIMUM 44px ====================
    WCAG / Apple HIG / Material all converge on 44px.
-   Pagination arrows are the primary mobile touch targets.
 */
 @media (max-width: 767px) {
+  /* All buttons */
+  .ant-btn {
+    min-height: 44px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
   .ant-btn-sm {
     min-height: 36px !important;
     min-width: 36px !important;
   }
+  /* icon-only buttons keep a square touch area */
+  .ant-btn-icon-only {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 0 !important;
+  }
+  /* Form inputs */
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-select-selector,
+  .ant-picker {
+    min-height: 44px !important;
+  }
+  /* Pagination */
   .ant-pagination-item,
   .ant-pagination-prev,
   .ant-pagination-next,
@@ -359,9 +398,27 @@ img {
     align-items: center !important;
     justify-content: center !important;
   }
+  /* Dropdown items */
   .ant-dropdown-menu-item {
     min-height: 44px !important;
     line-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+}
+
+/* ==================== SAFE AREA INSETS (iOS notch / Android chin) ====================
+   Ensures FAB, bottom navigation, and content padding respect device safe areas.
+*/
+@supports (padding: max(0px)) {
+  @media (max-width: 767px) {
+    .responsive-content {
+      padding-left: max(16px, env(safe-area-inset-left)) !important;
+      padding-right: max(16px, env(safe-area-inset-right)) !important;
+    }
+    .sidebar-drawer {
+      padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
   }
 }
 

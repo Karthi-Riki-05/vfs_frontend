@@ -1,6 +1,7 @@
 "use client";
 
-import React from 'react';
+import React from "react";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 interface SectionHeaderProps {
   title: string;
@@ -8,13 +9,16 @@ interface SectionHeaderProps {
 }
 
 export default function SectionHeader({ title, right }: SectionHeaderProps) {
+  const isMobile = useIsMobile();
   return (
     <div
       className="section-header-responsive"
       style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        display: "flex",
+        flexDirection: isMobile && right ? "column" : "row",
+        justifyContent: "space-between",
+        alignItems: isMobile && right ? "flex-start" : "center",
+        gap: isMobile && right ? 12 : 0,
         marginBottom: 20,
       }}
     >
@@ -22,7 +26,13 @@ export default function SectionHeader({ title, right }: SectionHeaderProps) {
       {right && (
         <div
           className="section-header-right"
-          style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            width: isMobile ? "100%" : "auto",
+          }}
         >
           {right}
         </div>

@@ -31,6 +31,7 @@ import SectionHeader from "@/components/common/SectionHeader";
 import EmptyState from "@/components/common/EmptyState";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeams } from "@/hooks/useTeams";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import { teamsApi } from "@/api/teams.api";
 import { usePro } from "@/hooks/usePro";
 import { useAppContext } from "@/context/AppContext";
