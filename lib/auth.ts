@@ -45,10 +45,13 @@ export const authOptions: NextAuthOptions = {
           // Use internal docker network url for server-side calls
           const backendUrl =
             process.env.BACKEND_URL || "http://vc-backend:5000";
-          const response = await axios.post(`${backendUrl}/api/auth/validate`, {
-            email: credentials?.email,
-            password: credentials?.password,
-          });
+          const response = await axios.post(
+            `${backendUrl}/api/v1/auth/validate`,
+            {
+              email: credentials?.email,
+              password: credentials?.password,
+            },
+          );
 
           if (response.data?.success && response.data?.data) {
             return response.data.data;
@@ -78,7 +81,7 @@ export const authOptions: NextAuthOptions = {
           const backendUrl =
             process.env.BACKEND_URL || "http://vc-backend:5000";
           const response = await axios.post(
-            `${backendUrl}/api/auth/oauth-sync`,
+            `${backendUrl}/api/v1/auth/oauth-sync`,
             {
               email: user.email,
               name: user.name,
