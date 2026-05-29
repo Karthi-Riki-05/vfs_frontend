@@ -11,7 +11,6 @@ import {
   message,
   Card,
   Progress,
-  Table,
 } from "antd";
 import {
   CheckCircleFilled,
@@ -28,7 +27,6 @@ import { usePackStatus } from "@/hooks/usePackStatus";
 import { proApi } from "@/api/pro.api";
 import { aiApi } from "@/api/ai.api";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Text, Title } = Typography;
 
@@ -420,21 +418,6 @@ function ProSubscriptionContent() {
       setProSubStatus(null);
     } finally {
       setProSubLoading(false);
-    }
-  };
-
-  const handlePurchase = async (flowPackage: "50" | "unlimited") => {
-    setPurchasing(flowPackage);
-    try {
-      const res = await proApi.buyFlows(flowPackage);
-      const data = res.data?.data || res.data;
-      if (data?.url) {
-        window.location.href = data.url;
-      }
-    } catch (err: any) {
-      const msg = err?.response?.data?.error?.message || "Purchase failed";
-      message.error(msg);
-      setPurchasing(null);
     }
   };
 
@@ -1354,8 +1337,6 @@ export default function SubscriptionPage() {
       </div>
     );
   };
-
-  const isMobile = useIsMobile();
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 16px" }}>
