@@ -1,5 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
 
 /* Prevent horizontal overflow without breaking scroll */
 html {
@@ -9,9 +9,17 @@ html {
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: #FFFFFF;
-  color: #1A1A2E;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  background: #ffffff;
+  color: #1a1a2e;
   overflow-x: hidden;
   min-height: 100%;
   -webkit-overflow-scrolling: touch;
@@ -35,21 +43,21 @@ body {
 
 /* Focus ring — green theme */
 *:focus-visible {
-  outline: 2px solid #3CB371;
+  outline: 2px solid #3cb371;
   outline-offset: 2px;
 }
 
 /* Selection color */
 ::selection {
-  background: #C8E6C9;
-  color: #1A1A2E;
+  background: #c8e6c9;
+  color: #1a1a2e;
 }
 
 /* Section Label style */
 .section-label {
   font-size: 13px;
   font-weight: 600;
-  color: #8C8C8C;
+  color: #8c8c8c;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   margin: 0;
@@ -62,7 +70,9 @@ body {
 
 /* Template card hover */
 .template-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   cursor: pointer;
 }
 .template-card:hover {
@@ -72,15 +82,15 @@ body {
 
 /* Chat message bubble styles */
 .chat-bubble-sent {
-  background: #3CB371;
+  background: #3cb371;
   color: white;
   border-radius: 16px 16px 4px 16px;
   padding: 10px 16px;
   max-width: 70%;
 }
 .chat-bubble-received {
-  background: #F0F0F0;
-  color: #1A1A2E;
+  background: #f0f0f0;
+  color: #1a1a2e;
   border-radius: 16px 16px 16px 4px;
   padding: 10px 16px;
   max-width: 70%;
@@ -88,13 +98,13 @@ body {
 
 /* Sidebar active item left border */
 .ant-menu-item-selected::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 4px;
   bottom: 4px;
   width: 3px;
-  background: #3CB371;
+  background: #3cb371;
   border-radius: 0 2px 2px 0;
 }
 
@@ -149,23 +159,54 @@ body {
 
 /* ==================== RESPONSIVE UTILITIES ==================== */
 
+/* Mobile base font size — scales AntD rem units down on small screens */
+@media (max-width: 640px) {
+  html {
+    font-size: 12px;
+  }
+}
+
+/* Container padding utility */
+.container {
+  padding-left: 16px;
+  padding-right: 16px;
+  box-sizing: border-box;
+}
+@media (min-width: 768px) {
+  .container {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
 /* Images responsive */
-img { max-width: 100%; height: auto; }
+img {
+  max-width: 100%;
+  height: auto;
+}
 
 /* Safe area insets (iOS notch/home bar) */
-.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
-.safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
 
 /* Hide scrollbar utility */
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
 /* Prevent iOS zoom on input focus */
 @media (max-width: 767px) {
-  input, select, textarea {
+  input,
+  select,
+  textarea {
     font-size: 16px !important;
   }
 }
@@ -178,7 +219,9 @@ img { max-width: 100%; height: auto; }
   z-index: 999;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    visibility 0.3s ease;
 }
 .sidebar-backdrop.open {
   opacity: 1;
@@ -196,8 +239,10 @@ img { max-width: 100%; height: auto; }
   transform: translateX(-100%);
   visibility: hidden;
   pointer-events: none;
-  transition: transform 0.3s ease, visibility 0.3s ease;
-  background: #FFFFFF;
+  transition:
+    transform 0.3s ease,
+    visibility 0.3s ease;
+  background: #ffffff;
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
   overflow-y: auto;
 }
@@ -270,10 +315,13 @@ img { max-width: 100%; height: auto; }
     top: auto !important;
     height: auto;
     width: min(92vw, 420px) !important;
+    margin: auto !important;
   }
   .ant-modal-centered .ant-modal .ant-modal-content {
     min-height: auto;
-    border-radius: 16px 16px 0 0 !important;
+    border-radius: 16px !important;
+    max-height: 85dvh;
+    overflow-y: auto;
   }
 }
 

@@ -199,7 +199,9 @@ export default function VerifyOtpForm() {
                 inputMode="numeric"
                 maxLength={1}
                 style={{
-                  width: 46,
+                  flex: 1,
+                  minWidth: 0,
+                  maxWidth: 52,
                   height: 52,
                   textAlign: "center",
                   fontSize: 22,
