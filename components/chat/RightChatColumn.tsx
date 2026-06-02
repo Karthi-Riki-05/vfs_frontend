@@ -190,12 +190,19 @@ export default function RightChatColumn({
   isFullView = false,
 }: RightChatColumnProps) {
   const { user } = useAuth();
-  const { activeTeamId, isTeamContext } = useAppContext();
+  const { activeTeamId, isTeamContext, effectivePlan } = useAppContext();
   const { currentApp } = usePro();
-  // Pro app shell or active team context grants full chat. `hasPro` lifetime
-  // is intentionally NOT honored here — it only unlocks chat when the user
-  // is currently in the Pro app shell.
-  const hasChatAccess = currentApp === "pro" || isTeamContext;
+  // Pro app shell, active team context, OR a subscription-aware Team plan
+  // grants full chat. The `effectivePlan === "team"` clause covers a Team-plan
+  // purchaser who is still in personal context — team OWNERS are excluded from
+  // `availableTeams` (the switcher only lists invited teams), so `isTeamContext`
+  // stays false for them. Without this clause the chat column rendered a
+  // "Chat requires a team" lock while the Sidebar already showed Chat unlocked.
+  // Mirrors the Sidebar's `hasTeamFeatures` gate so every chat surface agrees.
+  // `hasPro` lifetime is intentionally NOT honored here — it only unlocks chat
+  // when the user is currently in the Pro app shell.
+  const hasChatAccess =
+    currentApp === "pro" || isTeamContext || effectivePlan === "team";
   const {
     getUnreadCount,
     markGroupAsRead,

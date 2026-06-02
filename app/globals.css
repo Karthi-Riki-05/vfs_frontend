@@ -309,39 +309,112 @@ img {
   }
 }
 
-/* ==================== MODAL RESPONSIVE ====================
-   Full-screen on mobile, bottom-sheet for centered modals.
-   Responsive width cap for small-width centered modals (chat-locked, upgrade prompts).
+/* ==================== MODAL / POPUP RESPONSIVE ====================
+   PHONE STRATEGY (≤767px): every content/form modal opens TRUE FULL-SCREEN —
+   edge-to-edge, 100dvh tall — with a pinned header, a single internal scroll
+   area (body), and a pinned footer. This removes the "cramped card + the page
+   scrolls behind it" problem entirely: there is exactly one scroll region and
+   the primary action button is always on screen.
+
+   Exceptions kept compact + centered:
+     • .ant-modal-confirm  → Modal.confirm/info/success/error/warning dialogs
+       (a one-line "Are you sure?" should NOT take the whole screen).
+
+   Also here: side Drawers go full-width, and Popovers/Dropdowns are capped to
+   the viewport so panels like the notification list can never clip off-edge.
+
+   `.ant-modal-root` prefix + !important is required so these win over Ant
+   Design v5's runtime (cssinjs) styles.
 */
 @media (max-width: 767px) {
-  .ant-modal {
+  /* Lock background scroll while a full-screen modal is open. */
+  .ant-modal-root .ant-modal-wrap {
+    overflow: hidden !important;
+  }
+
+  /* ---- Full-screen content modals (everything except confirm dialogs) ---- */
+  .ant-modal-root .ant-modal:not(.ant-modal-confirm),
+  .ant-modal-root .ant-modal-centered .ant-modal:not(.ant-modal-confirm) {
+    width: 100vw !important;
     max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
     margin: 0 !important;
     top: 0 !important;
-    padding: 0 !important;
-    height: 100dvh;
+    padding-bottom: 0 !important;
+    vertical-align: top !important;
   }
-  .ant-modal .ant-modal-content {
+  .ant-modal-root .ant-modal:not(.ant-modal-confirm) .ant-modal-content {
     border-radius: 0 !important;
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding-bottom: 0 !important;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px)) !important;
+    overflow-x: hidden !important;
   }
-  .ant-modal .ant-modal-body {
-    flex: 1;
-    overflow-y: auto;
+  .ant-modal-root .ant-modal:not(.ant-modal-confirm) .ant-modal-header {
+    flex: 0 0 auto;
+    margin-bottom: 12px;
   }
-  .ant-modal-centered .ant-modal {
-    top: auto !important;
-    height: auto;
-    width: min(92vw, 420px) !important;
-    margin: auto !important;
+  /* Single scroll region — vertical only. `overflow-x: hidden` kills the
+     stray horizontal scrollbar (AntD `Row` negative gutter margins / wide
+     content). Clears any per-modal inline max-height (e.g. Add Shape sets body
+     maxHeight:70dvh) so the body uses the full screen height. */
+  .ant-modal-root .ant-modal:not(.ant-modal-confirm) .ant-modal-body {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    max-height: none !important;
+    -webkit-overflow-scrolling: touch;
   }
-  .ant-modal-centered .ant-modal .ant-modal-content {
-    min-height: auto;
-    border-radius: 16px !important;
-    max-height: 85dvh;
-    overflow-y: auto;
+  /* Footer pinned at the bottom, above the iOS home bar. */
+  .ant-modal-root .ant-modal:not(.ant-modal-confirm) .ant-modal-footer {
+    flex: 0 0 auto;
+    margin-top: 0 !important;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    border-top: 1px solid #f0f0f0;
+    background: #fff;
+  }
+  .ant-modal-root .ant-modal-close {
+    inset-inline-end: 8px;
+    top: calc(12px + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  /* ---- Keep confirm/alert dialogs compact + centered ---- */
+  .ant-modal-root .ant-modal.ant-modal-confirm {
+    width: calc(100vw - 32px) !important;
+    max-width: 360px !important;
+    margin: 0 auto !important;
+  }
+
+  /* ---- Side drawers → full width on phones ---- */
+  .ant-drawer-left .ant-drawer-content-wrapper,
+  .ant-drawer-right .ant-drawer-content-wrapper {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+
+  /* ---- Popovers / dropdowns never exceed the viewport ---- */
+  .ant-popover,
+  .ant-popover .ant-popover-inner,
+  .ant-dropdown {
+    max-width: calc(100vw - 12px) !important;
+  }
+
+  /* Notification panel: pin edge-to-edge so the right-anchored popover can't
+     push its left edge (and the "Notifications" title) off-screen. */
+  .vc-notif-popover.ant-popover {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+  .vc-notif-popover .ant-popover-inner,
+  .vc-notif-popover .ant-popover-inner > div {
+    width: 100% !important;
+    max-width: 100% !important;
   }
 }
 

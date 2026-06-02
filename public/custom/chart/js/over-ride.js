@@ -1874,6 +1874,31 @@ function extendApp() {
           this.defaultFilename = __vcDefaultName;
           this.defaultLibraryName = "valuechart-library";
         } catch (e) {}
+        // On phones/tablets the Format panel opens by default and covers half
+        // the canvas. Collapse it on small viewports so the diagram is the
+        // primary surface; the user can still re-open it from the toolbar.
+        try {
+          var __vcVw =
+            window.innerWidth || document.documentElement.clientWidth || 0;
+          if (__vcVw > 0 && __vcVw < 768) {
+            var __vcUi = this;
+            var __vcCloseFormat = function () {
+              try {
+                if (
+                  typeof __vcUi.toggleFormatPanel === "function" &&
+                  __vcUi.formatWidth > 0
+                ) {
+                  __vcUi.toggleFormatPanel(false);
+                }
+              } catch (e) {}
+            };
+            // Run after draw.io finishes building its own layout (it sets the
+            // format width asynchronously during boot), and once more as a
+            // safety net for the lazy-mounted sketch UI.
+            window.setTimeout(__vcCloseFormat, 0);
+            window.setTimeout(__vcCloseFormat, 400);
+          }
+        } catch (e) {}
         // Replace the registered exportPdf action's funct so menu clicks
         // that go via this.actions.get('exportPdf') trigger print.
         try {

@@ -143,9 +143,18 @@ export default function BillingPage() {
       title: "Amount",
       key: "amount",
       render: (_: any, record: any) => {
-        const cents = record.amountCharged ?? record.amount_charged ?? 0;
+        // amountCharged is stored in cents (Int). Tolerate snake_case and a
+        // few legacy field names; guard against null/undefined so the cell
+        // never renders "$NaN" / a blank "USD $" (the reported bug).
+        const raw =
+          record.amountCharged ??
+          record.amount_charged ??
+          record.amount ??
+          null;
         const currency = (record.currency || "usd").toUpperCase();
-        return `${currency} $${(cents / 100).toFixed(2)}`;
+        if (raw === null || raw === undefined || Number.isNaN(Number(raw)))
+          return `${currency} —`;
+        return `${currency} $${(Number(raw) / 100).toFixed(2)}`;
       },
     },
     {
@@ -214,24 +223,28 @@ export default function BillingPage() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: "wrap",
+            gap: 16,
           }}
         >
-          <div>
-            <Space>
+          <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+            <Space align="start">
               <CrownOutlined style={{ fontSize: 24, color: "#4F46E5" }} />
-              <div>
-                <Title level={4} style={{ margin: 0 }}>
+              <div style={{ minWidth: 0 }}>
+                <Title level={4} style={{ margin: 0, wordBreak: "break-word" }}>
                   {subscription?.plan?.name || "Free Plan"}
                 </Title>
                 <Text type="secondary">
                   {subscription
-                    ? `Renews ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
+                    ? subscription.expiresAt || subscription.currentPeriodEnd
+                      ? `Renews ${new Date(subscription.expiresAt || subscription.currentPeriodEnd).toLocaleDateString()}`
+                      : "Active subscription"
                     : "No active subscription"}
                 </Text>
               </div>
             </Space>
           </div>
-          <Space>
+          <Space wrap>
             {subscription && (
               <Button danger onClick={cancel}>
                 Cancel Subscription
@@ -246,18 +259,33 @@ export default function BillingPage() {
         {subscription?.plan && (
           <>
             <Divider />
-            <Descriptions column={2} size="small">
+            <Descriptions column={{ xs: 1, sm: 2 }} size="small">
               <Descriptions.Item label="Plan">
                 {subscription.plan.name}
               </Descriptions.Item>
               <Descriptions.Item label="Price">
-                ${(subscription.plan.price / 100).toFixed(2)}/mo
+                {/* subscription.price is the ACTUAL recurring charge in
+                    dollars (seats × per-seat for team). plan.price is also
+                    dollars — neither is in cents, so do NOT divide by 100
+                    (that produced the "$0.05" bug). */}
+                $
+                {Number(
+                  subscription.price ?? subscription.plan?.price ?? 0,
+                ).toFixed(2)}
+                /mo
               </Descriptions.Item>
               <Descriptions.Item label="Status">
                 <Tag color="green">{subscription.status}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Started">
-                {new Date(subscription.createdAt).toLocaleDateString()}
+                {/* Use the subscription's real start (startedAt = Stripe
+                    current_period_start), not the DB row's createdAt which
+                    showed a stale/seeded date. */}
+                {subscription.startedAt || subscription.createdAt
+                  ? new Date(
+                      subscription.startedAt || subscription.createdAt,
+                    ).toLocaleDateString()
+                  : "—"}
               </Descriptions.Item>
             </Descriptions>
           </>
@@ -271,6 +299,7 @@ export default function BillingPage() {
           rowKey="id"
           loading={txLoading}
           pagination={{ pageSize: 10 }}
+          scroll={{ x: "max-content" }}
           locale={{ emptyText: <Empty description="No transactions yet" /> }}
         />
       </Card>
@@ -282,6 +311,7 @@ export default function BillingPage() {
           rowKey="id"
           loading={historyLoading}
           pagination={{ pageSize: 10 }}
+          scroll={{ x: "max-content" }}
           locale={{
             emptyText: <Empty description="No previous subscriptions" />,
           }}

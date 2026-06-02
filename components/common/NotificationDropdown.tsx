@@ -103,7 +103,7 @@ export default function NotificationDropdown() {
   };
 
   const content = (
-    <div style={{ width: 360 }}>
+    <div style={{ width: "min(360px, calc(100vw - 24px))", maxWidth: "100vw" }}>
       <div
         style={{
           display: "flex",
@@ -204,6 +204,7 @@ export default function NotificationDropdown() {
       onOpenChange={setOpen}
       placement="bottomRight"
       arrow={false}
+      rootClassName="vc-notif-popover"
       styles={{
         body: { padding: 0, borderRadius: 12, overflow: "hidden" },
         root: { zIndex: 1100 },
