@@ -17,6 +17,7 @@ import {
   useIsTablet,
   useIsWideMobile,
 } from "@/hooks/useMediaQuery";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
 const { Content } = Layout;
 
@@ -63,18 +64,12 @@ export default function DashboardLayout({
     try {
       mode = sessionStorage.getItem("vc_forced_app_mode");
     } catch {}
-    console.log("[DashboardLayout] forced-switch effect:", {
-      proLoading,
-      forcedMode: mode,
-      currentApp,
-      hasPro,
-      done: forcedSwitchDone.current,
-    });
+    // console.log("[DashboardLayout] forced-switch effect:", { proLoading, forcedMode: mode, currentApp, hasPro, done: forcedSwitchDone.current });
     if (!mode || (mode !== "team" && mode !== "pro")) return;
     const target = mode === "pro" ? ("pro" as const) : ("free" as const);
     if (target === "pro" && !(hasPro && proPurchasedAt)) {
       // Grant not yet completed — ProGuard is handling it. Skip switch.
-      console.log("[DashboardLayout] skipping pro switch — awaiting Pro grant");
+      // console.log("[DashboardLayout] skipping pro switch — awaiting Pro grant");
       forcedSwitchDone.current = true;
       return;
     }
@@ -167,7 +162,7 @@ export default function DashboardLayout({
             display: chatFullView && chatOpen ? "none" : undefined,
           }}
         >
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
         </div>
 
         {/* AI Assistant for editor */}
@@ -285,7 +280,7 @@ export default function DashboardLayout({
           }}
         >
           <EnableNotificationsBanner />
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
           <AIAssistant contentLeft={0} contentRight={0} />
         </Content>
         <FloatingActionButton />
@@ -319,7 +314,7 @@ export default function DashboardLayout({
             }}
           >
             <EnableNotificationsBanner />
-            {children}
+            <ErrorBoundary>{children}</ErrorBoundary>
             <AIAssistant
               contentLeft={siderWidth}
               contentRight={chatColumnWidth}

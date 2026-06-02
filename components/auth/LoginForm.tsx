@@ -75,7 +75,7 @@ export default function LoginForm() {
   const [copied, setCopied] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const verified = searchParams.get("verified");
+  const verified = searchParams?.get("verified") ?? null;
 
   useEffect(() => {
     if (verified === "1") setInfo("Your email is verified. Please log in.");
@@ -83,7 +83,7 @@ export default function LoginForm() {
 
   // Pre-fill email when redirected from registration duplicate-account flow
   useEffect(() => {
-    const emailParam = searchParams.get("email");
+    const emailParam = searchParams?.get("email");
     if (emailParam) setEmail(decodeURIComponent(emailParam));
   }, [searchParams]);
 

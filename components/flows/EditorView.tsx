@@ -38,6 +38,7 @@ import CustomShapesPanel, {
 import ShareFlowModal from "@/components/flows/ShareFlowModal";
 import AiCreditsDisplay from "@/components/ai/AiCreditsDisplay";
 import { useSession } from "next-auth/react";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
 const HIDE_AI_CSS = `
   /* Hide draw.io AI/Gemini/Save&Exit affordances */
@@ -209,30 +210,12 @@ const attachClickSpy = (
           "a,button,div.geBtn,div.geBigButton,.geToolbarButton,[role='button']",
         ) || (target as HTMLElement);
 
-      // eslint-disable-next-line no-console
-      console.log("[VC click]", {
-        selector: describe(actionable),
-        title: actionable.getAttribute("title"),
-        ariaLabel: actionable.getAttribute("aria-label"),
-        dataAction: actionable.getAttribute("data-action"),
-        parent: describe(actionable.parentElement),
-        sidebar:
-          actionable.closest(".geVerticalToolbar")?.className ||
-          actionable.closest(".geToolbarContainer")?.className ||
-          actionable.closest(".geSidebarContainer")?.className ||
-          actionable.closest(".geFooterToolbar")?.className ||
-          "(not inside a known sidebar)",
-        path: pathOf(actionable),
-        rawTarget: describe(target),
-      });
+      // console.log("[VC click]", { selector: describe(actionable), title: actionable.getAttribute("title"), ariaLabel: actionable.getAttribute("aria-label"), dataAction: actionable.getAttribute("data-action"), parent: describe(actionable.parentElement), path: pathOf(actionable), rawTarget: describe(target) });
     },
     true, // capture phase — we fire BEFORE draw.io handlers
   );
 
-  // eslint-disable-next-line no-console
-  console.log(
-    "[VC] Click spy attached. Click any icon in the draw.io iframe to log its selector. Disable: window.__vcClickSpy='off'",
-  );
+  // console.log("[VC] Click spy attached. Click any icon in the draw.io iframe to log its selector. Disable: window.__vcClickSpy='off'");
 };
 
 const injectEditorCustomisations = (iframe: HTMLIFrameElement | null) => {
@@ -733,14 +716,9 @@ export default function EditorView({
   useEffect(() => {
     function handleAiXml(e: CustomEvent) {
       const { xml } = e.detail || {};
-      console.log(
-        "[EditorView] aiXmlReady received, xml length:",
-        xml?.length,
-        "iframe:",
-        !!iframeRef.current?.contentWindow,
-      );
+      // console.log("[EditorView] aiXmlReady received, xml length:", xml?.length, "iframe:", !!iframeRef.current?.contentWindow);
       if (xml && iframeRef.current?.contentWindow) {
-        console.log("[EditorView] Sending mergeAiXml to iframe");
+        // console.log("[EditorView] Sending mergeAiXml to iframe");
         iframeRef.current.contentWindow.postMessage(
           JSON.stringify({
             action: "mergeAiXml",
@@ -1033,945 +1011,970 @@ export default function EditorView({
   if (!isMounted) return null;
 
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100dvh",
-        display: "flex",
-        flexDirection: "column",
-      }}
+    <ErrorBoundary
+      fallback={
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100dvh",
+          }}
+        >
+          <div style={{ textAlign: "center" }}>
+            <p style={{ fontSize: 16, marginBottom: 12 }}>
+              Editor failed to load
+            </p>
+            <button onClick={() => window.location.reload()}>Reload</button>
+          </div>
+        </div>
+      }
     >
-      {/* Permission banner */}
-      {isReadOnly && (
-        <div
-          style={{
-            height: 36,
-            background: "#FFF7E6",
-            borderBottom: "1px solid #FFD591",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            fontSize: 13,
-            color: "#AD6800",
-          }}
-        >
-          <LockOutlined /> View only — You can view this flow but cannot edit it
-        </div>
-      )}
-      {isSharedEdit && (
-        <div
-          style={{
-            height: 36,
-            background: "#F6FFED",
-            borderBottom: "1px solid #B7EB8F",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            fontSize: 13,
-            color: "#389E0D",
-          }}
-        >
-          <EditOutlined /> Shared flow — You have edit access
-        </div>
-      )}
-
-      {/* TOP BAR FOR NAME EDITING */}
       <div
         style={{
-          minHeight: 50,
-          background: "#f3f3f3",
+          width: "100%",
+          height: "100dvh",
           display: "flex",
-          alignItems: "center",
-          padding: isMobile ? "0 8px" : "0 15px",
-          borderBottom: "1px solid #ddd",
-          gap: isMobile ? 6 : 12,
-          flexWrap: "nowrap",
-          overflow: "hidden",
+          flexDirection: "column",
         }}
       >
-        <Button icon={<ArrowLeftOutlined />} onClick={handleExit} type="text" />
-
-        <Input
-          value={flowName}
-          onChange={(e) => setFlowName(e.target.value)}
-          style={{
-            flex: 1,
-            minWidth: 80,
-            maxWidth: isMobile ? "100%" : 300,
-            fontWeight: "bold",
-            fontSize: isMobile ? 13 : 14,
-          }}
-          variant="borderless"
-          placeholder="Diagram Name"
-          disabled={isReadOnly}
-        />
-
-        <div style={{ flex: 1 }} />
-
-        {!isMobile && (saveStatus !== "idle" || lastSavedAt) && (
+        {/* Permission banner */}
+        {isReadOnly && (
           <div
             style={{
+              height: 36,
+              background: "#FFF7E6",
+              borderBottom: "1px solid #FFD591",
               display: "flex",
               alignItems: "center",
-              gap: 6,
-              fontSize: 12,
-              color: saveStatus === "saved" ? "#3CB371" : "#888",
-              minWidth: 110,
-              justifyContent: "flex-end",
+              justifyContent: "center",
+              gap: 8,
+              fontSize: 13,
+              color: "#AD6800",
             }}
           >
-            {saveStatus === "saving" && (
-              <>
-                <LoadingOutlined /> <span>Saving…</span>
-              </>
-            )}
-            {saveStatus === "saved" && lastSavedAt && (
-              <>
-                <CheckCircleFilled style={{ color: "#3CB371" }} />
-                <span>{formatSaveTime(lastSavedAt)}</span>
-              </>
-            )}
-            {saveStatus === "idle" && lastSavedAt && (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  fontSize: 12,
-                  color: "#888",
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: "#52c41a",
-                    display: "inline-block",
-                  }}
-                />
-                {!isMobile && "Autosave on · "}
-                {formatSaveTime(lastSavedAt)}
-              </span>
-            )}
+            <LockOutlined /> View only — You can view this flow but cannot edit
+            it
           </div>
         )}
-
-        {/* Templates moved to floating left-sidebar icon (Phase 2) */}
-        {/* Doc → Diagram moved to AI Chat paperclip (Phase 3) */}
-
-        {isViewMode && (
-          <Tag
-            color="blue"
-            icon={<EyeOutlined />}
-            style={{ borderRadius: 10, fontSize: 11, margin: 0 }}
-          >
-            View Only
-          </Tag>
-        )}
-
-        {!isViewMode && permission === "owner" && (
-          <Button
-            icon={<HistoryOutlined />}
-            onClick={() => {
-              setVersionsOpen(true);
-              loadVersions();
-            }}
-            type="text"
-            style={{ fontSize: 13, color: "#555" }}
-          >
-            {!isMobile && "History"}
-          </Button>
-        )}
-
-        {!isViewMode && <AiCreditsDisplay compact={isMobile} />}
-
-        {!isViewMode && !isReadOnly && (
-          <Button
-            icon={<SaveOutlined />}
-            onClick={triggerExport}
-            loading={saveStatus === "saving"}
-            type="primary"
-            style={{ background: "#3CB371", borderColor: "#3CB371" }}
-          >
-            {!isMobile && "Save"}
-          </Button>
-        )}
-
-        <Button
-          onClick={handleExit}
-          type="default"
-          icon={isMobile ? <CloseOutlined /> : undefined}
-          title={isViewMode ? "Close" : "Exit"}
-        >
-          {!isMobile && (isViewMode ? "Close" : "Exit")}
-        </Button>
-      </div>
-
-      {/* IFRAME EDITOR — Templates icon is injected inside draw.io sidebar via injectEditorCustomisations */}
-      <div style={{ flex: 1, position: "relative" }}>
-        {loading && (
+        {isSharedEdit && (
           <div
             style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-            }}
-          >
-            <Spin size="large" tip="Loading Editor..." />
-          </div>
-        )}
-        <iframe
-          ref={iframeRef}
-          src={
-            isViewMode
-              ? `/draw_io/index.html?embed=1&proto=json&spin=1&noExitBtn=1&noSaveBtn=1&sketch=1&ui=sketch&lightbox=1&chrome=0&edit=_blank&toolbar=0&nav=1`
-              : `/draw_io/index.html?embed=1&proto=json&spin=1&noExitBtn=1&noSaveBtn=1&sketch=1&ui=sketch`
-          }
-          style={{ width: "100%", height: "100%", border: "none" }}
-          onLoad={() => {
-            setLoading(false);
-            injectEditorCustomisations(iframeRef.current);
-            // Belt-and-braces: also flip graph.setEnabled(false) once the
-            // editor is ready so any edit gesture is blocked even if a
-            // lightbox URL param is missed.
-            if (isViewMode) {
-              const tryLock = () => {
-                try {
-                  const ui = (iframeRef.current?.contentWindow as any)
-                    ?.__editorUi;
-                  if (ui?.editor?.graph?.setEnabled) {
-                    ui.editor.graph.setEnabled(false);
-                    return true;
-                  }
-                } catch {}
-                return false;
-              };
-              if (!tryLock()) {
-                let n = 0;
-                const t = setInterval(() => {
-                  if (tryLock() || ++n > 30) clearInterval(t);
-                }, 200);
-              }
-            }
-          }}
-        />
-      </div>
-
-      {/* Template Browser — merge into canvas (manual open) */}
-      <TemplateBrowser
-        isOpen={templateBrowserOpen}
-        onClose={() => setTemplateBrowserOpen(false)}
-        onInsert={(xml: string, name: string) => {
-          if (iframeRef.current?.contentWindow) {
-            iframeRef.current.contentWindow.postMessage(
-              JSON.stringify({
-                action: "mergeAiXml",
-                xml,
-              }),
-              "*",
-            );
-            message.success(`Template "${name}" inserted`);
-          }
-          setTemplateBrowserOpen(false);
-        }}
-      />
-
-      {/* Custom Shapes drawer — opened by the Shapes sidebar icon inside
-          draw.io. Mirrors the Templates drawer above. */}
-      <CustomShapesPanel
-        open={customShapesOpen}
-        onClose={() => setCustomShapesOpen(false)}
-        onInsert={handleCustomShapeInsert}
-      />
-
-      {/* Collaborative Share modal — opened by the Share sidebar icon
-          inside draw.io (installVcShareBtn in over-ride.js). Owner-only. */}
-      <ShareFlowModal
-        open={flowShareModalOpen}
-        flow={flowShareModalOpen ? { id: flowId, name: flowName } : null}
-        onClose={() => setFlowShareModalOpen(false)}
-        onSuccess={() => setFlowShareModalOpen(false)}
-      />
-
-      {/* Custom "Save As" modal — replaces draw.io's native save dialog.
-          Triggered by App.prototype.saveFile(true) interception in
-          over-ride.js → 'showSaveDialog' postMessage. */}
-      <Modal
-        open={saveModalOpen}
-        onCancel={() => setSaveModalOpen(false)}
-        title={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <SaveOutlined style={{ color: "#3CB371" }} />
-            <span>Save Diagram</span>
-          </div>
-        }
-        footer={null}
-        width={440}
-        centered
-      >
-        <div style={{ padding: "8px 0" }}>
-          <div
-            style={{
-              background: "#f0f9f4",
-              border: "1px solid #b7eb8f",
-              borderRadius: 6,
-              padding: "8px 12px",
-              marginBottom: 16,
-              fontSize: 12,
-              color: "#389e0d",
+              height: 36,
+              background: "#F6FFED",
+              borderBottom: "1px solid #B7EB8F",
               display: "flex",
               alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <CheckCircleOutlined />
-            Your diagram is automatically saved to ValueCharts
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 12,
-                color: "#666",
-                marginBottom: 4,
-                fontWeight: 500,
-              }}
-            >
-              File name
-            </label>
-            <Input
-              value={saveFileName}
-              onChange={(e) => setSaveFileName(e.target.value)}
-              placeholder="valuechart-flow"
-              suffix={
-                <span style={{ color: "#999", fontSize: 11 }}>
-                  {saveTarget === "device" ? ".html" : ""}
-                </span>
-              }
-            />
-          </div>
-
-          <div style={{ marginBottom: 20 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 12,
-                color: "#666",
-                marginBottom: 8,
-                fontWeight: 500,
-              }}
-            >
-              Save to
-            </label>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 8,
-              }}
-            >
-              <div
-                onClick={() => setSaveTarget("cloud")}
-                style={{
-                  border: `2px solid ${
-                    saveTarget === "cloud" ? "#3CB371" : "#e8e8e8"
-                  }`,
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                  cursor: "pointer",
-                  background: saveTarget === "cloud" ? "#f0f9f4" : "white",
-                  textAlign: "center",
-                  transition: "all 0.2s",
-                }}
-              >
-                <CloudOutlined
-                  style={{
-                    fontSize: 20,
-                    color: saveTarget === "cloud" ? "#3CB371" : "#999",
-                    display: "block",
-                    marginBottom: 4,
-                  }}
-                />
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: saveTarget === "cloud" ? "#3CB371" : "#666",
-                  }}
-                >
-                  ValueCharts
-                </div>
-                <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>
-                  Cloud (auto-saved)
-                </div>
-              </div>
-
-              <div
-                onClick={() => setSaveTarget("device")}
-                style={{
-                  border: `2px solid ${
-                    saveTarget === "device" ? "#3CB371" : "#e8e8e8"
-                  }`,
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                  cursor: "pointer",
-                  background: saveTarget === "device" ? "#f0f9f4" : "white",
-                  textAlign: "center",
-                  transition: "all 0.2s",
-                }}
-              >
-                <DownloadOutlined
-                  style={{
-                    fontSize: 20,
-                    color: saveTarget === "device" ? "#3CB371" : "#999",
-                    display: "block",
-                    marginBottom: 4,
-                  }}
-                />
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: saveTarget === "device" ? "#3CB371" : "#666",
-                  }}
-                >
-                  My Device
-                </div>
-                <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>
-                  Download file
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
+              justifyContent: "center",
               gap: 8,
-              justifyContent: "flex-end",
+              fontSize: 13,
+              color: "#389E0D",
             }}
           >
-            <Button onClick={() => setSaveModalOpen(false)}>Cancel</Button>
-            <Button
-              type="primary"
-              loading={saveLoading}
-              style={{ background: "#3CB371", borderColor: "#3CB371" }}
-              onClick={async () => {
-                const cleanName =
-                  (saveFileName || "").trim() || "valuechart-flow";
-                setSaveLoading(true);
-                try {
-                  if (saveTarget === "device") {
-                    const html =
-                      "<!DOCTYPE html>\n" +
-                      "<!-- ValueFlowSoft Diagram -->\n" +
-                      `<!-- Name: ${cleanName} -->\n` +
-                      "<html><body>\n" +
-                      saveModalXml +
-                      "\n</body></html>";
-                    const blob = new Blob([html], {
-                      type: "text/html;charset=utf-8",
-                    });
-                    downloadBlob(blob, `${cleanName}.html`);
-                    message.success("Downloaded!");
-                  } else {
-                    setFlowName(cleanName);
-                    try {
-                      await fetch("/api/save-diagram", {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                          flowId,
-                          name: cleanName,
-                          xml: saveModalXml,
-                        }),
-                      });
-                    } catch {}
-                    setLastSavedAt(new Date());
-                    iframeRef.current?.contentWindow?.postMessage(
-                      JSON.stringify({
-                        action: "status",
-                        message: "",
-                        modified: false,
-                      }),
-                      "*",
-                    );
-                    message.success("Saved to ValueCharts");
-                  }
-                  setSaveModalOpen(false);
-                } finally {
-                  setSaveLoading(false);
-                }
-              }}
-            >
-              {saveTarget === "device" ? "Download" : "Done"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Custom Share modal — replaces draw.io's "Publish Link" /
-          diagrams.net viewer URLs. Triggered by
-          EditorUi.prototype.showPublishLinkDialog interception. */}
-      <Modal
-        open={shareModalOpen}
-        onCancel={() => setShareModalOpen(false)}
-        title={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <ShareAltOutlined style={{ color: "#3CB371" }} />
-            <span>Share Diagram</span>
-          </div>
-        }
-        footer={null}
-        width={480}
-        centered
-      >
-        <div style={{ padding: "8px 0" }}>
-          <div style={{ marginBottom: 16 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 12,
-                color: "#666",
-                marginBottom: 6,
-                fontWeight: 500,
-              }}
-            >
-              Share link (view only)
-            </label>
-            <Space.Compact style={{ width: "100%" }}>
-              <Input
-                value={
-                  typeof window !== "undefined"
-                    ? `${window.location.origin}/dashboard/flows/${flowId}?view=true`
-                    : ""
-                }
-                readOnly
-              />
-              <Button
-                icon={<CopyOutlined />}
-                onClick={() => {
-                  navigator.clipboard.writeText(
-                    `${window.location.origin}/dashboard/flows/${flowId}?view=true`,
-                  );
-                  message.success("Link copied!");
-                }}
-              >
-                Copy
-              </Button>
-            </Space.Compact>
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 12,
-                color: "#666",
-                marginBottom: 6,
-                fontWeight: 500,
-              }}
-            >
-              Edit link (requires login)
-            </label>
-            <Space.Compact style={{ width: "100%" }}>
-              <Input
-                value={
-                  typeof window !== "undefined"
-                    ? `${window.location.origin}/dashboard/flows/${flowId}`
-                    : ""
-                }
-                readOnly
-              />
-              <Button
-                icon={<CopyOutlined />}
-                onClick={() => {
-                  navigator.clipboard.writeText(
-                    `${window.location.origin}/dashboard/flows/${flowId}`,
-                  );
-                  message.success("Link copied!");
-                }}
-              >
-                Copy
-              </Button>
-            </Space.Compact>
-          </div>
-
-          <div
-            style={{
-              background: "#fffbe6",
-              border: "1px solid #ffe58f",
-              borderRadius: 6,
-              padding: "8px 12px",
-              fontSize: 12,
-              color: "#ad6800",
-            }}
-          >
-            Anyone with the view link can see this diagram. Edit link requires a
-            ValueCharts account.
-          </div>
-        </div>
-      </Modal>
-
-      {/* Custom Import modal — replaces draw.io's native open/import file
-          picker. Triggered by EditorUi.prototype.importLocalFile +
-          App.prototype.pickFile interception in over-ride.js. */}
-      <Modal
-        open={importModalOpen}
-        onCancel={() => {
-          setImportModalOpen(false);
-          importFileRef.current = null;
-          setImportFileName("");
-        }}
-        title={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <ImportOutlined style={{ color: "#3CB371" }} />
-            <span>Import Diagram</span>
-          </div>
-        }
-        footer={null}
-        width={480}
-        centered
-      >
-        <div style={{ padding: "8px 0" }}>
-          <div style={{ marginBottom: 16, fontSize: 12, color: "#666" }}>
-            Supported formats:
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                marginTop: 8,
-              }}
-            >
-              {[
-                ".drawio",
-                ".xml",
-                ".svg",
-                ".png",
-                ".jpg",
-                ".html",
-                ".json",
-              ].map((fmt) => (
-                <Tag key={fmt} style={{ margin: 0 }}>
-                  {fmt}
-                </Tag>
-              ))}
-            </div>
-          </div>
-
-          <Upload.Dragger
-            name="file"
-            multiple={false}
-            showUploadList={false}
-            beforeUpload={(file) => {
-              importFileRef.current = file;
-              setImportFileName(file.name);
-              return false;
-            }}
-            accept=".drawio,.xml,.svg,.png,.jpg,.jpeg,.gif,.webp,.html,.json"
-            style={{ marginBottom: 16 }}
-          >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined style={{ color: "#3CB371", fontSize: 40 }} />
-            </p>
-            <p style={{ fontSize: 14, fontWeight: 500 }}>
-              {importFileName
-                ? `Selected: ${importFileName}`
-                : "Click or drag file to import"}
-            </p>
-            <p style={{ fontSize: 12, color: "#999" }}>
-              Supports all diagram formats
-            </p>
-          </Upload.Dragger>
-
-          <div
-            style={{
-              background: "#fffbe6",
-              border: "1px solid #ffe58f",
-              borderRadius: 6,
-              padding: "8px 12px",
-              fontSize: 12,
-              color: "#ad6800",
-              marginBottom: 16,
-            }}
-          >
-            Importing will replace the current diagram content. This action can
-            be undone with Ctrl+Z inside the editor.
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              justifyContent: "flex-end",
-            }}
-          >
-            <Button
-              onClick={() => {
-                setImportModalOpen(false);
-                importFileRef.current = null;
-                setImportFileName("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="primary"
-              loading={importLoading}
-              icon={<ImportOutlined />}
-              style={{ background: "#3CB371", borderColor: "#3CB371" }}
-              onClick={async () => {
-                const file = importFileRef.current;
-                if (!file) {
-                  message.warning("Please select a file first");
-                  return;
-                }
-                setImportLoading(true);
-                try {
-                  await handleImportFile(file);
-                  setImportModalOpen(false);
-                  importFileRef.current = null;
-                  setImportFileName("");
-                  message.success("Diagram imported");
-                } catch (err) {
-                  message.error(
-                    "Import failed. Check file format and try again.",
-                  );
-                } finally {
-                  setImportLoading(false);
-                }
-              }}
-            >
-              Import
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Template chooser — auto-shown on new/empty flow */}
-      <TemplateBrowser
-        isOpen={showTemplateChooser}
-        onClose={() => setShowTemplateChooser(false)}
-        showStartBlank={true}
-        onStartBlank={() => setShowTemplateChooser(false)}
-        onInsert={(xml: string, name: string) => {
-          setShowTemplateChooser(false);
-          if (iframeRef.current?.contentWindow) {
-            iframeRef.current.contentWindow.postMessage(
-              JSON.stringify({
-                action: "mergeAiXml",
-                xml,
-              }),
-              "*",
-            );
-          }
-          // Save to DB
-          fetch(`/api/save-diagram`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ flowId, xml, name: name || undefined }),
-          }).catch(console.error);
-        }}
-      />
-
-      <Drawer
-        title="Version History"
-        open={versionsOpen}
-        onClose={() => setVersionsOpen(false)}
-        width={340}
-        placement="right"
-      >
-        {versionsLoading ? (
-          <div style={{ textAlign: "center", padding: 40 }}>
-            <Spin />
-          </div>
-        ) : versions.length === 0 ? (
-          <div style={{ color: "#888", textAlign: "center", padding: 40 }}>
-            No saved versions yet
-          </div>
-        ) : (
-          <div>
-            {versions.map((v: any) => (
-              <div
-                key={v.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "10px 0",
-                  borderBottom: "1px solid #f0f0f0",
-                }}
-              >
-                {v.thumbnail ? (
-                  <div
-                    onClick={() => setPreviewVersion(v)}
-                    style={{
-                      width: 72,
-                      height: 54,
-                      borderRadius: 4,
-                      border: "1px solid #eee",
-                      overflow: "hidden",
-                      cursor: "pointer",
-                      flexShrink: 0,
-                      background: "#fafafa",
-                    }}
-                  >
-                    <img
-                      src={v.thumbnail}
-                      alt="preview"
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      width: 72,
-                      height: 54,
-                      borderRadius: 4,
-                      background: "#f5f5f5",
-                      color: "#bbb",
-                      fontSize: 11,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    No preview
-                  </div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500 }}>
-                    {formatVersionTime(v.createdAt)}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#888",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {v.savedBy?.name || v.savedBy?.email || "Unknown"}
-                  </div>
-                </div>
-                <Button
-                  size="small"
-                  disabled={restoring}
-                  onClick={() => handleRestore(v.id)}
-                >
-                  Restore
-                </Button>
-              </div>
-            ))}
+            <EditOutlined /> Shared flow — You have edit access
           </div>
         )}
-      </Drawer>
 
-      {previewVersion && (
+        {/* TOP BAR FOR NAME EDITING */}
         <div
-          onClick={() => setPreviewVersion(null)}
           style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.7)",
-            zIndex: 2000,
+            minHeight: 50,
+            background: "#f3f3f3",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            padding: isMobile ? "0 8px" : "0 15px",
+            borderBottom: "1px solid #ddd",
+            gap: isMobile ? 6 : 12,
+            flexWrap: "nowrap",
+            overflow: "hidden",
           }}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={handleExit}
+            type="text"
+          />
+
+          <Input
+            value={flowName}
+            onChange={(e) => setFlowName(e.target.value)}
             style={{
-              background: "#fff",
-              borderRadius: 8,
-              padding: 16,
-              maxWidth: "80vw",
-              maxHeight: "80vh",
-              display: "flex",
-              flexDirection: "column",
+              flex: 1,
+              minWidth: 80,
+              maxWidth: isMobile ? "100%" : 300,
+              fontWeight: "bold",
+              fontSize: isMobile ? 13 : 14,
             }}
-          >
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 500,
-                marginBottom: 12,
-                color: "#333",
-              }}
-            >
-              {formatVersionTime(previewVersion.createdAt)} — Saved by{" "}
-              {previewVersion.savedBy?.name ||
-                previewVersion.savedBy?.email ||
-                "Unknown"}
-            </div>
-            {previewVersion.thumbnail ? (
-              <img
-                src={previewVersion.thumbnail}
-                alt="Version preview"
-                style={{
-                  maxWidth: "75vw",
-                  maxHeight: "60vh",
-                  objectFit: "contain",
-                  borderRadius: 4,
-                  background: "#fafafa",
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: 400,
-                  height: 200,
-                  background: "#f5f5f5",
-                  borderRadius: 4,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#999",
-                }}
-              >
-                No thumbnail stored for this version
-              </div>
-            )}
+            variant="borderless"
+            placeholder="Diagram Name"
+            disabled={isReadOnly}
+          />
+
+          <div style={{ flex: 1 }} />
+
+          {!isMobile && (saveStatus !== "idle" || lastSavedAt) && (
             <div
               style={{
                 display: "flex",
-                gap: 8,
-                marginTop: 12,
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                color: saveStatus === "saved" ? "#3CB371" : "#888",
+                minWidth: 110,
                 justifyContent: "flex-end",
               }}
             >
-              <Button onClick={() => setPreviewVersion(null)}>Close</Button>
-              <Button
-                type="primary"
-                loading={restoring}
-                style={{ background: "#3CB371", borderColor: "#3CB371" }}
-                onClick={() => {
-                  const id = previewVersion.id;
-                  setPreviewVersion(null);
-                  handleRestore(id);
+              {saveStatus === "saving" && (
+                <>
+                  <LoadingOutlined /> <span>Saving…</span>
+                </>
+              )}
+              {saveStatus === "saved" && lastSavedAt && (
+                <>
+                  <CheckCircleFilled style={{ color: "#3CB371" }} />
+                  <span>{formatSaveTime(lastSavedAt)}</span>
+                </>
+              )}
+              {saveStatus === "idle" && lastSavedAt && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    color: "#888",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "#52c41a",
+                      display: "inline-block",
+                    }}
+                  />
+                  {!isMobile && "Autosave on · "}
+                  {formatSaveTime(lastSavedAt)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Templates moved to floating left-sidebar icon (Phase 2) */}
+          {/* Doc → Diagram moved to AI Chat paperclip (Phase 3) */}
+
+          {isViewMode && (
+            <Tag
+              color="blue"
+              icon={<EyeOutlined />}
+              style={{ borderRadius: 10, fontSize: 11, margin: 0 }}
+            >
+              View Only
+            </Tag>
+          )}
+
+          {!isViewMode && permission === "owner" && (
+            <Button
+              icon={<HistoryOutlined />}
+              onClick={() => {
+                setVersionsOpen(true);
+                loadVersions();
+              }}
+              type="text"
+              style={{ fontSize: 13, color: "#555" }}
+            >
+              {!isMobile && "History"}
+            </Button>
+          )}
+
+          {!isViewMode && <AiCreditsDisplay compact={isMobile} />}
+
+          {!isViewMode && !isReadOnly && (
+            <Button
+              icon={<SaveOutlined />}
+              onClick={triggerExport}
+              loading={saveStatus === "saving"}
+              type="primary"
+              style={{ background: "#3CB371", borderColor: "#3CB371" }}
+            >
+              {!isMobile && "Save"}
+            </Button>
+          )}
+
+          <Button
+            onClick={handleExit}
+            type="default"
+            icon={isMobile ? <CloseOutlined /> : undefined}
+            title={isViewMode ? "Close" : "Exit"}
+          >
+            {!isMobile && (isViewMode ? "Close" : "Exit")}
+          </Button>
+        </div>
+
+        {/* IFRAME EDITOR — Templates icon is injected inside draw.io sidebar via injectEditorCustomisations */}
+        <div style={{ flex: 1, position: "relative" }}>
+          {loading && (
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+              }}
+            >
+              <Spin size="large" tip="Loading Editor..." />
+            </div>
+          )}
+          <iframe
+            ref={iframeRef}
+            src={
+              isViewMode
+                ? `/draw_io/index.html?embed=1&proto=json&spin=1&noExitBtn=1&noSaveBtn=1&sketch=1&ui=sketch&lightbox=1&chrome=0&edit=_blank&toolbar=0&nav=1`
+                : `/draw_io/index.html?embed=1&proto=json&spin=1&noExitBtn=1&noSaveBtn=1&sketch=1&ui=sketch`
+            }
+            style={{ width: "100%", height: "100%", border: "none" }}
+            onLoad={() => {
+              setLoading(false);
+              injectEditorCustomisations(iframeRef.current);
+              // Belt-and-braces: also flip graph.setEnabled(false) once the
+              // editor is ready so any edit gesture is blocked even if a
+              // lightbox URL param is missed.
+              if (isViewMode) {
+                const tryLock = () => {
+                  try {
+                    const ui = (iframeRef.current?.contentWindow as any)
+                      ?.__editorUi;
+                    if (ui?.editor?.graph?.setEnabled) {
+                      ui.editor.graph.setEnabled(false);
+                      return true;
+                    }
+                  } catch {}
+                  return false;
+                };
+                if (!tryLock()) {
+                  let n = 0;
+                  const t = setInterval(() => {
+                    if (tryLock() || ++n > 30) clearInterval(t);
+                  }, 200);
+                }
+              }
+            }}
+          />
+        </div>
+
+        {/* Template Browser — merge into canvas (manual open) */}
+        <TemplateBrowser
+          isOpen={templateBrowserOpen}
+          onClose={() => setTemplateBrowserOpen(false)}
+          onInsert={(xml: string, name: string) => {
+            if (iframeRef.current?.contentWindow) {
+              iframeRef.current.contentWindow.postMessage(
+                JSON.stringify({
+                  action: "mergeAiXml",
+                  xml,
+                }),
+                "*",
+              );
+              message.success(`Template "${name}" inserted`);
+            }
+            setTemplateBrowserOpen(false);
+          }}
+        />
+
+        {/* Custom Shapes drawer — opened by the Shapes sidebar icon inside
+          draw.io. Mirrors the Templates drawer above. */}
+        <CustomShapesPanel
+          open={customShapesOpen}
+          onClose={() => setCustomShapesOpen(false)}
+          onInsert={handleCustomShapeInsert}
+        />
+
+        {/* Collaborative Share modal — opened by the Share sidebar icon
+          inside draw.io (installVcShareBtn in over-ride.js). Owner-only. */}
+        <ShareFlowModal
+          open={flowShareModalOpen}
+          flow={flowShareModalOpen ? { id: flowId, name: flowName } : null}
+          onClose={() => setFlowShareModalOpen(false)}
+          onSuccess={() => setFlowShareModalOpen(false)}
+        />
+
+        {/* Custom "Save As" modal — replaces draw.io's native save dialog.
+          Triggered by App.prototype.saveFile(true) interception in
+          over-ride.js → 'showSaveDialog' postMessage. */}
+        <Modal
+          open={saveModalOpen}
+          onCancel={() => setSaveModalOpen(false)}
+          title={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <SaveOutlined style={{ color: "#3CB371" }} />
+              <span>Save Diagram</span>
+            </div>
+          }
+          footer={null}
+          width={440}
+          centered
+        >
+          <div style={{ padding: "8px 0" }}>
+            <div
+              style={{
+                background: "#f0f9f4",
+                border: "1px solid #b7eb8f",
+                borderRadius: 6,
+                padding: "8px 12px",
+                marginBottom: 16,
+                fontSize: 12,
+                color: "#389e0d",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <CheckCircleOutlined />
+              Your diagram is automatically saved to ValueCharts
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: "#666",
+                  marginBottom: 4,
+                  fontWeight: 500,
                 }}
               >
-                Restore This Version
+                File name
+              </label>
+              <Input
+                value={saveFileName}
+                onChange={(e) => setSaveFileName(e.target.value)}
+                placeholder="valuechart-flow"
+                suffix={
+                  <span style={{ color: "#999", fontSize: 11 }}>
+                    {saveTarget === "device" ? ".html" : ""}
+                  </span>
+                }
+              />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: "#666",
+                  marginBottom: 8,
+                  fontWeight: 500,
+                }}
+              >
+                Save to
+              </label>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 8,
+                }}
+              >
+                <div
+                  onClick={() => setSaveTarget("cloud")}
+                  style={{
+                    border: `2px solid ${
+                      saveTarget === "cloud" ? "#3CB371" : "#e8e8e8"
+                    }`,
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    cursor: "pointer",
+                    background: saveTarget === "cloud" ? "#f0f9f4" : "white",
+                    textAlign: "center",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <CloudOutlined
+                    style={{
+                      fontSize: 20,
+                      color: saveTarget === "cloud" ? "#3CB371" : "#999",
+                      display: "block",
+                      marginBottom: 4,
+                    }}
+                  />
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: saveTarget === "cloud" ? "#3CB371" : "#666",
+                    }}
+                  >
+                    ValueCharts
+                  </div>
+                  <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>
+                    Cloud (auto-saved)
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setSaveTarget("device")}
+                  style={{
+                    border: `2px solid ${
+                      saveTarget === "device" ? "#3CB371" : "#e8e8e8"
+                    }`,
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    cursor: "pointer",
+                    background: saveTarget === "device" ? "#f0f9f4" : "white",
+                    textAlign: "center",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <DownloadOutlined
+                    style={{
+                      fontSize: 20,
+                      color: saveTarget === "device" ? "#3CB371" : "#999",
+                      display: "block",
+                      marginBottom: 4,
+                    }}
+                  />
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: saveTarget === "device" ? "#3CB371" : "#666",
+                    }}
+                  >
+                    My Device
+                  </div>
+                  <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>
+                    Download file
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                justifyContent: "flex-end",
+              }}
+            >
+              <Button onClick={() => setSaveModalOpen(false)}>Cancel</Button>
+              <Button
+                type="primary"
+                loading={saveLoading}
+                style={{ background: "#3CB371", borderColor: "#3CB371" }}
+                onClick={async () => {
+                  const cleanName =
+                    (saveFileName || "").trim() || "valuechart-flow";
+                  setSaveLoading(true);
+                  try {
+                    if (saveTarget === "device") {
+                      const html =
+                        "<!DOCTYPE html>\n" +
+                        "<!-- ValueFlowSoft Diagram -->\n" +
+                        `<!-- Name: ${cleanName} -->\n` +
+                        "<html><body>\n" +
+                        saveModalXml +
+                        "\n</body></html>";
+                      const blob = new Blob([html], {
+                        type: "text/html;charset=utf-8",
+                      });
+                      downloadBlob(blob, `${cleanName}.html`);
+                      message.success("Downloaded!");
+                    } else {
+                      setFlowName(cleanName);
+                      try {
+                        await fetch("/api/save-diagram", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            flowId,
+                            name: cleanName,
+                            xml: saveModalXml,
+                          }),
+                        });
+                      } catch {}
+                      setLastSavedAt(new Date());
+                      iframeRef.current?.contentWindow?.postMessage(
+                        JSON.stringify({
+                          action: "status",
+                          message: "",
+                          modified: false,
+                        }),
+                        "*",
+                      );
+                      message.success("Saved to ValueCharts");
+                    }
+                    setSaveModalOpen(false);
+                  } finally {
+                    setSaveLoading(false);
+                  }
+                }}
+              >
+                {saveTarget === "device" ? "Download" : "Done"}
               </Button>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        </Modal>
+
+        {/* Custom Share modal — replaces draw.io's "Publish Link" /
+          diagrams.net viewer URLs. Triggered by
+          EditorUi.prototype.showPublishLinkDialog interception. */}
+        <Modal
+          open={shareModalOpen}
+          onCancel={() => setShareModalOpen(false)}
+          title={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <ShareAltOutlined style={{ color: "#3CB371" }} />
+              <span>Share Diagram</span>
+            </div>
+          }
+          footer={null}
+          width={480}
+          centered
+        >
+          <div style={{ padding: "8px 0" }}>
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: "#666",
+                  marginBottom: 6,
+                  fontWeight: 500,
+                }}
+              >
+                Share link (view only)
+              </label>
+              <Space.Compact style={{ width: "100%" }}>
+                <Input
+                  value={
+                    typeof window !== "undefined"
+                      ? `${window.location.origin}/dashboard/flows/${flowId}?view=true`
+                      : ""
+                  }
+                  readOnly
+                />
+                <Button
+                  icon={<CopyOutlined />}
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `${window.location.origin}/dashboard/flows/${flowId}?view=true`,
+                    );
+                    message.success("Link copied!");
+                  }}
+                >
+                  Copy
+                </Button>
+              </Space.Compact>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: "#666",
+                  marginBottom: 6,
+                  fontWeight: 500,
+                }}
+              >
+                Edit link (requires login)
+              </label>
+              <Space.Compact style={{ width: "100%" }}>
+                <Input
+                  value={
+                    typeof window !== "undefined"
+                      ? `${window.location.origin}/dashboard/flows/${flowId}`
+                      : ""
+                  }
+                  readOnly
+                />
+                <Button
+                  icon={<CopyOutlined />}
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `${window.location.origin}/dashboard/flows/${flowId}`,
+                    );
+                    message.success("Link copied!");
+                  }}
+                >
+                  Copy
+                </Button>
+              </Space.Compact>
+            </div>
+
+            <div
+              style={{
+                background: "#fffbe6",
+                border: "1px solid #ffe58f",
+                borderRadius: 6,
+                padding: "8px 12px",
+                fontSize: 12,
+                color: "#ad6800",
+              }}
+            >
+              Anyone with the view link can see this diagram. Edit link requires
+              a ValueCharts account.
+            </div>
+          </div>
+        </Modal>
+
+        {/* Custom Import modal — replaces draw.io's native open/import file
+          picker. Triggered by EditorUi.prototype.importLocalFile +
+          App.prototype.pickFile interception in over-ride.js. */}
+        <Modal
+          open={importModalOpen}
+          onCancel={() => {
+            setImportModalOpen(false);
+            importFileRef.current = null;
+            setImportFileName("");
+          }}
+          title={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <ImportOutlined style={{ color: "#3CB371" }} />
+              <span>Import Diagram</span>
+            </div>
+          }
+          footer={null}
+          width={480}
+          centered
+        >
+          <div style={{ padding: "8px 0" }}>
+            <div style={{ marginBottom: 16, fontSize: 12, color: "#666" }}>
+              Supported formats:
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  marginTop: 8,
+                }}
+              >
+                {[
+                  ".drawio",
+                  ".xml",
+                  ".svg",
+                  ".png",
+                  ".jpg",
+                  ".html",
+                  ".json",
+                ].map((fmt) => (
+                  <Tag key={fmt} style={{ margin: 0 }}>
+                    {fmt}
+                  </Tag>
+                ))}
+              </div>
+            </div>
+
+            <Upload.Dragger
+              name="file"
+              multiple={false}
+              showUploadList={false}
+              beforeUpload={(file) => {
+                importFileRef.current = file;
+                setImportFileName(file.name);
+                return false;
+              }}
+              accept=".drawio,.xml,.svg,.png,.jpg,.jpeg,.gif,.webp,.html,.json"
+              style={{ marginBottom: 16 }}
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined style={{ color: "#3CB371", fontSize: 40 }} />
+              </p>
+              <p style={{ fontSize: 14, fontWeight: 500 }}>
+                {importFileName
+                  ? `Selected: ${importFileName}`
+                  : "Click or drag file to import"}
+              </p>
+              <p style={{ fontSize: 12, color: "#999" }}>
+                Supports all diagram formats
+              </p>
+            </Upload.Dragger>
+
+            <div
+              style={{
+                background: "#fffbe6",
+                border: "1px solid #ffe58f",
+                borderRadius: 6,
+                padding: "8px 12px",
+                fontSize: 12,
+                color: "#ad6800",
+                marginBottom: 16,
+              }}
+            >
+              Importing will replace the current diagram content. This action
+              can be undone with Ctrl+Z inside the editor.
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                justifyContent: "flex-end",
+              }}
+            >
+              <Button
+                onClick={() => {
+                  setImportModalOpen(false);
+                  importFileRef.current = null;
+                  setImportFileName("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="primary"
+                loading={importLoading}
+                icon={<ImportOutlined />}
+                style={{ background: "#3CB371", borderColor: "#3CB371" }}
+                onClick={async () => {
+                  const file = importFileRef.current;
+                  if (!file) {
+                    message.warning("Please select a file first");
+                    return;
+                  }
+                  setImportLoading(true);
+                  try {
+                    await handleImportFile(file);
+                    setImportModalOpen(false);
+                    importFileRef.current = null;
+                    setImportFileName("");
+                    message.success("Diagram imported");
+                  } catch (err) {
+                    message.error(
+                      "Import failed. Check file format and try again.",
+                    );
+                  } finally {
+                    setImportLoading(false);
+                  }
+                }}
+              >
+                Import
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Template chooser — auto-shown on new/empty flow */}
+        <TemplateBrowser
+          isOpen={showTemplateChooser}
+          onClose={() => setShowTemplateChooser(false)}
+          showStartBlank={true}
+          onStartBlank={() => setShowTemplateChooser(false)}
+          onInsert={(xml: string, name: string) => {
+            setShowTemplateChooser(false);
+            if (iframeRef.current?.contentWindow) {
+              iframeRef.current.contentWindow.postMessage(
+                JSON.stringify({
+                  action: "mergeAiXml",
+                  xml,
+                }),
+                "*",
+              );
+            }
+            // Save to DB
+            fetch(`/api/save-diagram`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ flowId, xml, name: name || undefined }),
+            }).catch(console.error);
+          }}
+        />
+
+        <Drawer
+          title="Version History"
+          open={versionsOpen}
+          onClose={() => setVersionsOpen(false)}
+          width={340}
+          placement="right"
+        >
+          {versionsLoading ? (
+            <div style={{ textAlign: "center", padding: 40 }}>
+              <Spin />
+            </div>
+          ) : versions.length === 0 ? (
+            <div style={{ color: "#888", textAlign: "center", padding: 40 }}>
+              No saved versions yet
+            </div>
+          ) : (
+            <div>
+              {versions.map((v: any) => (
+                <div
+                  key={v.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 0",
+                    borderBottom: "1px solid #f0f0f0",
+                  }}
+                >
+                  {v.thumbnail ? (
+                    <div
+                      onClick={() => setPreviewVersion(v)}
+                      style={{
+                        width: 72,
+                        height: 54,
+                        borderRadius: 4,
+                        border: "1px solid #eee",
+                        overflow: "hidden",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                        background: "#fafafa",
+                      }}
+                    >
+                      <img
+                        src={v.thumbnail}
+                        alt="preview"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: 72,
+                        height: 54,
+                        borderRadius: 4,
+                        background: "#f5f5f5",
+                        color: "#bbb",
+                        fontSize: 11,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      No preview
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 500 }}>
+                      {formatVersionTime(v.createdAt)}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#888",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {v.savedBy?.name || v.savedBy?.email || "Unknown"}
+                    </div>
+                  </div>
+                  <Button
+                    size="small"
+                    disabled={restoring}
+                    onClick={() => handleRestore(v.id)}
+                  >
+                    Restore
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Drawer>
+
+        {previewVersion && (
+          <div
+            onClick={() => setPreviewVersion(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.7)",
+              zIndex: 2000,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "#fff",
+                borderRadius: 8,
+                padding: 16,
+                maxWidth: "80vw",
+                maxHeight: "80vh",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 500,
+                  marginBottom: 12,
+                  color: "#333",
+                }}
+              >
+                {formatVersionTime(previewVersion.createdAt)} — Saved by{" "}
+                {previewVersion.savedBy?.name ||
+                  previewVersion.savedBy?.email ||
+                  "Unknown"}
+              </div>
+              {previewVersion.thumbnail ? (
+                <img
+                  src={previewVersion.thumbnail}
+                  alt="Version preview"
+                  style={{
+                    maxWidth: "75vw",
+                    maxHeight: "60vh",
+                    objectFit: "contain",
+                    borderRadius: 4,
+                    background: "#fafafa",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 400,
+                    height: 200,
+                    background: "#f5f5f5",
+                    borderRadius: 4,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#999",
+                  }}
+                >
+                  No thumbnail stored for this version
+                </div>
+              )}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  marginTop: 12,
+                  justifyContent: "flex-end",
+                }}
+              >
+                <Button onClick={() => setPreviewVersion(null)}>Close</Button>
+                <Button
+                  type="primary"
+                  loading={restoring}
+                  style={{ background: "#3CB371", borderColor: "#3CB371" }}
+                  onClick={() => {
+                    const id = previewVersion.id;
+                    setPreviewVersion(null);
+                    handleRestore(id);
+                  }}
+                >
+                  Restore This Version
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }

@@ -13,8 +13,8 @@ const api = axios.create({
 
 // Override timeout for AI diagram generation (Gemini can be slow)
 api.interceptors.request.use((config) => {
-  if (config.url?.includes('generate-diagram')) {
-    config.timeout = 90000; // 90 seconds for diagram generation
+  if (config.url?.includes("generate-diagram")) {
+    config.timeout = 120000; // 120s for diagram generation (Gemini can be slow)
   }
   return config;
 });
@@ -55,18 +55,20 @@ api.interceptors.response.use(
     }
 
     // Retry up to 3 times for AI diagram generation (timeouts or network errors)
-    const isDiagramRequest = config?.url?.includes('generate-diagram');
+    const isDiagramRequest = config?.url?.includes("generate-diagram");
     const retryCount = (config as any)._retryCount || 0;
     const maxRetries = isDiagramRequest ? 3 : 1;
 
     // Retry on network error, timeout, or 503 (service unavailable)
     if (
       retryCount < maxRetries &&
-      (!error.response || error.code === 'ECONNABORTED' || error.response?.status === 503)
+      (!error.response ||
+        error.code === "ECONNABORTED" ||
+        error.response?.status === 503)
     ) {
       (config as any)._retryCount = retryCount + 1;
       // Exponential backoff: 1s, 2s, 4s
-      await new Promise(r => setTimeout(r, Math.pow(2, retryCount) * 1000));
+      await new Promise((r) => setTimeout(r, Math.pow(2, retryCount) * 1000));
       return api(config);
     }
 

@@ -19,7 +19,7 @@ const labelStyle: React.CSSProperties = {
 export default function VerifyOtpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const emailFromQuery = searchParams.get("email") || "";
+  const emailFromQuery = searchParams?.get("email") || "";
 
   const [email, setEmail] = useState(emailFromQuery);
   const [digits, setDigits] = useState<string[]>(Array(OTP_LEN).fill(""));

@@ -1370,11 +1370,9 @@ function RowActions({
       key: "view",
       label: <Link href={`/super-admin/users/${user.id}`}>View details</Link>,
     },
-    !user.emailVerified && {
-      key: "verify",
-      label: "Verify Email",
-      onClick: handleManualVerify,
-    },
+    !user.emailVerified
+      ? { key: "verify", label: "Verify Email", onClick: handleManualVerify }
+      : null,
     user.suspendedAt
       ? { key: "reactivate", label: "Reactivate", onClick: handleReactivate }
       : {

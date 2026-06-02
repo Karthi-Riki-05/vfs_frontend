@@ -840,13 +840,27 @@ export default function AIAssistant({
 
       {showHistory && (
         <div
+          onClick={() => setShowHistory(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.25)",
+            zIndex: 299,
+          }}
+        />
+      )}
+      {showHistory && (
+        <div
           style={{
             position: "absolute",
             top: "100%",
             left: 12,
             marginTop: 6,
-            width: 280,
-            maxHeight: 400,
+            // Mobile: stretch to a clean sheet instead of a narrow box that
+            // visually overlaps the messages behind it (H5).
+            width: isMobile ? "calc(100vw - 24px)" : 280,
+            maxWidth: "calc(100vw - 24px)",
+            maxHeight: isMobile ? "60vh" : 400,
             background: "#fff",
             border: "1px solid #E8E8E8",
             borderRadius: 10,

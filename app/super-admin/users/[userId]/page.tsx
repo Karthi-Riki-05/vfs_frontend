@@ -20,6 +20,7 @@ import {
   Tabs,
   Tag,
   Timeline,
+  Tooltip as AntdTooltip,
   Typography,
   message,
 } from "antd";
@@ -66,7 +67,8 @@ const NAVY = "#1F3864";
 const { Title, Text, Paragraph } = Typography;
 
 export default function UserDetailPage() {
-  const { userId } = useParams<{ userId: string }>();
+  const params = useParams<{ userId: string }>();
+  const userId = params?.userId ?? "";
   const router = useRouter();
 
   const [user, setUser] = useState<UserDetail | null>(null);
@@ -867,7 +869,7 @@ export default function UserDetailPage() {
                               title: "Archived",
                               dataIndex: "archivedAt",
                               render: (v: string) => (
-                                <Tooltip
+                                <AntdTooltip
                                   title={dayjs(v).format("YYYY-MM-DD HH:mm")}
                                 >
                                   <Text
@@ -876,7 +878,7 @@ export default function UserDetailPage() {
                                   >
                                     {dayjs(v).fromNow()}
                                   </Text>
-                                </Tooltip>
+                                </AntdTooltip>
                               ),
                             },
                           ]}

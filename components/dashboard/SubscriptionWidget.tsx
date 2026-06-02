@@ -20,12 +20,12 @@ interface SubInfo {
   plan: string;
   is_active: boolean;
   is_pro?: boolean;
+  tier?: number;
+  app_context?: "free" | "pro" | "team";
   expires_at: string | null;
   billing_period_days?: number;
   messages_used?: number;
   messages_limit?: number;
-  storage_used_mb?: number;
-  storage_limit_mb?: number;
   notifications_count?: number;
 }
 
@@ -180,20 +180,25 @@ export default function SubscriptionWidget() {
           value={
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
               {sub.plan || "Free"}
-              {sub.is_pro && (
-                <span
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 700,
-                    background: "#FEF3C7",
-                    color: "#D97706",
-                    padding: "1px 6px",
-                    borderRadius: 999,
-                  }}
-                >
-                  PRO
-                </span>
-              )}
+              {/* PRO badge only inside the Pro app — never on a Team plan.
+                  Team plans report app_context="team" / tier>=2. */}
+              {sub.is_pro &&
+                sub.app_context !== "team" &&
+                (sub.tier ?? 0) < 2 &&
+                !/team/i.test(sub.plan || "") && (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      background: "#FEF3C7",
+                      color: "#D97706",
+                      padding: "1px 6px",
+                      borderRadius: 999,
+                    }}
+                  >
+                    PRO
+                  </span>
+                )}
             </span>
           }
         />
@@ -324,13 +329,6 @@ export default function SubscriptionWidget() {
             );
           })()}
         <Row label="AI Chat" value="Unlimited" />
-
-        {sub.storage_used_mb !== undefined && (
-          <Row
-            label="Storage"
-            value={`${sub.storage_used_mb} MB / ${sub.storage_limit_mb ?? "\u221E"} MB`}
-          />
-        )}
 
         {sub.notifications_count !== undefined &&
           sub.notifications_count > 0 && (

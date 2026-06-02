@@ -160,7 +160,7 @@ function UpgradeProContent() {
         textAlign: "center",
       }}
     >
-      <BackToDashboard router={router} />
+      <BackToDashboard router={router} backUrl="/dashboard" />
 
       {wasCancelled && (
         <Alert
