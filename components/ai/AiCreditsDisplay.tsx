@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Tooltip } from "antd";
 import { ThunderboltFilled } from "@ant-design/icons";
 import { aiApi } from "@/api/ai.api";
-import { useAppContext } from "@/context/AppContext";
+import { useAiBilling } from "@/context/AiBillingContext";
 
 interface CreditBalance {
   planCredits: number;
@@ -14,8 +14,12 @@ interface CreditBalance {
   source?: "self" | "team";
 }
 
-export default function AiCreditsDisplay({ compact = false }: { compact?: boolean }) {
-  const { activeTeamId } = useAppContext();
+export default function AiCreditsDisplay({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
+  const { activeBillingTeamId } = useAiBilling();
   const [balance, setBalance] = useState<CreditBalance | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -31,11 +35,11 @@ export default function AiCreditsDisplay({ compact = false }: { compact?: boolea
     }
   }, []);
 
-  // Re-fetch whenever the workspace context changes — the same user can
-  // see different balances in personal vs each team context.
+  // Re-fetch whenever the AI-billing context changes — the same user can see
+  // different balances for personal vs each team's shared credit pool.
   useEffect(() => {
     fetchBalance();
-  }, [fetchBalance, activeTeamId]);
+  }, [fetchBalance, activeBillingTeamId]);
 
   useEffect(() => {
     const handler = () => fetchBalance();

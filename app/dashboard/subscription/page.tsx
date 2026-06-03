@@ -1333,6 +1333,21 @@ export default function SubscriptionPage() {
           >
             {buttonLabel}
           </Button>
+          {isCurrent &&
+            status?.status === "active" &&
+            !status?.cancelAtPeriodEnd && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  marginTop: 10,
+                }}
+              >
+                <Button type="link" danger onClick={handleCancel}>
+                  Cancel Subscription
+                </Button>
+              </div>
+            )}
         </div>
       </div>
     );
@@ -1545,11 +1560,6 @@ export default function SubscriptionPage() {
             >
               Manage Billing & Invoices
             </Button>
-            {status.status === "active" && !status.cancelAtPeriodEnd && (
-              <Button type="link" danger onClick={handleCancel}>
-                Cancel Subscription
-              </Button>
-            )}
           </div>
         )}
 

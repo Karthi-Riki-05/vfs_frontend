@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { message } from "antd";
 import { aiApi } from "@/api/ai.api";
 import { useSession } from "next-auth/react";
-import { useAppContext } from "@/context/AppContext";
+import { useAiBilling } from "@/context/AiBillingContext";
 
 export interface AiResponse {
   message: string;
@@ -18,7 +18,7 @@ export interface AiResponse {
 
 export function useAi() {
   const { data: session } = useSession();
-  const { activeTeamId } = useAppContext();
+  const { activeBillingTeamId } = useAiBilling();
   // Stable primitive — prevents refetch loop on every next-auth silent refresh.
   const userKey =
     (session?.user as any)?.id || (session?.user as any)?.email || null;
@@ -39,7 +39,7 @@ export function useAi() {
         setHasConsent(!!d.consented);
       })
       .catch(() => setHasConsent(false));
-  }, [userKey, activeTeamId]);
+  }, [userKey, activeBillingTeamId]);
 
   // Fetch user context when consent is confirmed
   useEffect(() => {
@@ -53,7 +53,7 @@ export function useAi() {
       .catch(() => {
         userContextRef.current = null;
       });
-  }, [userKey, hasConsent, activeTeamId]);
+  }, [userKey, hasConsent, activeBillingTeamId]);
 
   const acceptConsent = useCallback(async () => {
     try {

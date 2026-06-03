@@ -8,6 +8,7 @@ import {
   TeamOutlined,
   MessageOutlined,
   CrownOutlined,
+  CloseOutlined,
 } from "@ant-design/icons";
 import api from "@/lib/axios";
 
@@ -87,8 +88,18 @@ export default function NotificationDropdown() {
 
   const markAllRead = () => {
     api.put("/notifications/read-all").catch(() => {});
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setNotifications([]);
     setUnreadCount(0);
+  };
+
+  const handleDismiss = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    api.put(`/notifications/${id}/read`).catch(() => {});
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setUnreadCount((c) => {
+      const item = notifications.find((n) => n.id === id);
+      return item && !item.isRead ? Math.max(0, c - 1) : c;
+    });
   };
 
   const handleClick = async (n: Notification) => {
@@ -116,23 +127,46 @@ export default function NotificationDropdown() {
         <Text strong style={{ fontSize: 16 }}>
           Notifications
         </Text>
-        {unreadCount > 0 && (
-          <Button
-            type="link"
-            size="small"
-            onClick={markAllRead}
-            style={{ color: "#3CB371" }}
-          >
-            Mark all as read
-          </Button>
-        )}
+        <div style={{ display: "flex", gap: 4 }}>
+          {unreadCount > 0 && (
+            <Button
+              type="link"
+              size="small"
+              onClick={markAllRead}
+              style={{ color: "#3CB371", padding: "0 4px" }}
+            >
+              Mark all read
+            </Button>
+          )}
+          {notifications.length > 0 && (
+            <Button
+              type="link"
+              size="small"
+              onClick={markAllRead}
+              style={{ color: "#8C8C8C", padding: "0 4px" }}
+            >
+              Clear all
+            </Button>
+          )}
+        </div>
       </div>
       {notifications.length === 0 ? (
         <div style={{ padding: "40px 16px", textAlign: "center" }}>
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={<Text type="secondary">No notifications yet</Text>}
+          <BellOutlined
+            style={{ fontSize: 32, color: "#BFBFBF", marginBottom: 12 }}
           />
+          <div>
+            <Text
+              type="secondary"
+              style={{ display: "block", marginBottom: 4 }}
+            >
+              No notifications yet
+            </Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              You&apos;ll see alerts here when your flow packs are expiring or
+              your plan changes.
+            </Text>
+          </div>
         </div>
       ) : (
         <List
@@ -146,6 +180,7 @@ export default function NotificationDropdown() {
                 background: item.isRead ? "transparent" : "#F0FFF4",
                 cursor: "pointer",
                 borderBottom: "1px solid #F0F0F0",
+                alignItems: "flex-start",
               }}
             >
               <List.Item.Meta
@@ -178,17 +213,40 @@ export default function NotificationDropdown() {
                   </div>
                 }
               />
-              {!item.isRead && (
-                <span
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexShrink: 0,
+                  marginLeft: 8,
+                }}
+              >
+                {!item.isRead && (
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "#3CB371",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CloseOutlined style={{ fontSize: 10 }} />}
+                  onClick={(e) => handleDismiss(item.id, e)}
                   style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: "#3CB371",
-                    flexShrink: 0,
+                    color: "#BFBFBF",
+                    padding: 2,
+                    minWidth: 20,
+                    height: 20,
+                    lineHeight: 1,
                   }}
                 />
-              )}
+              </div>
             </List.Item>
           )}
         />

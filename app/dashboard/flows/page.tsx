@@ -498,17 +498,32 @@ export default function FlowsPage() {
               }}
               variant="borderless"
             />
-            <Select
-              value={sort}
-              onChange={setSort}
-              style={{ width: isMobile ? "100%" : 150 }}
-              options={[
-                { label: "Last Modified", value: "updatedAt" },
-                { label: "Name", value: "name" },
-                { label: "Created", value: "createdAt" },
-              ]}
-            />
-            <ViewToggle view={viewMode} onChange={handleViewChange} />
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                width: isMobile ? "100%" : "auto",
+                marginBottom: isMobile ? 4 : 0,
+              }}
+            >
+              <Select
+                value={sort}
+                onChange={setSort}
+                style={{
+                  width: isMobile ? "100%" : 150,
+                  flex: isMobile ? 1 : "none",
+                }}
+                options={[
+                  { label: "Last Modified", value: "updatedAt" },
+                  { label: "Name", value: "name" },
+                  { label: "Created", value: "createdAt" },
+                ]}
+              />
+              <div style={{ flexShrink: 0 }}>
+                <ViewToggle view={viewMode} onChange={handleViewChange} />
+              </div>
+            </div>
             <button
               onClick={handleNewFlow}
               style={{
@@ -798,9 +813,7 @@ export default function FlowsPage() {
       ) : (
         <EmptyState
           title="No flows yet"
-          description="Create your first flow to get started"
-          actionText="Create Flow"
-          onAction={handleNewFlow}
+          description="Use the New Flow button above to create your first flow"
         />
       )}
 

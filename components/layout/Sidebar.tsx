@@ -25,6 +25,7 @@ import { createNewFlow } from "@/lib/flow";
 import { flowsApi } from "@/api/flows.api";
 import { usePro } from "@/hooks/usePro";
 import { useAppContext } from "@/context/AppContext";
+import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
 import TeamUpgradeModal from "@/components/common/TeamUpgradeModal";
 
 const { Sider } = Layout;
@@ -45,6 +46,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const pathname = usePathname() || "";
   const router = useRouter();
+  const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
   const {
     hasPro,
     currentApp,
@@ -291,7 +294,14 @@ const Sidebar: React.FC<SidebarProps> = ({
             e.preventDefault();
             handleNavClick();
             if (hasTeamFeatures) {
-              (window as any).__toggleChat?.();
+              // Mobile/tablet have no docked chat column — navigate to the
+              // full-screen chat page (matches Header's chat behaviour).
+              // Desktop toggles the docked chat column.
+              if (isMobile || isTablet) {
+                router.push("/dashboard/chat");
+              } else {
+                (window as any).__toggleChat?.();
+              }
             } else {
               setUpgradeFeature("chat");
               setSubscriptionModalOpen(true);
@@ -478,8 +488,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* Navigation Menu */}
-          <div style={{ flex: 1, overflowY: "auto" }}>
+          {/* Navigation Menu — scrollable, scrollbar hidden (hide-scrollbar in globals.css) */}
+          <div
+            className="hide-scrollbar"
+            style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}
+          >
             <Menu
               mode="inline"
               selectedKeys={[getSelectedKey()]}

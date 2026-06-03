@@ -1,39 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import jwt from 'jsonwebtoken';
+import { createProxy } from "@/lib/proxy";
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://vc-backend:5000';
-
-
-export async function GET(req: NextRequest) {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    try {
-        const token = jwt.sign({ id: (session as any).user.id }, process.env.NEXTAUTH_SECRET!, { expiresIn: '1h' });
-        const response = await axios.get(`${BACKEND_URL}/api/shapes`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        return NextResponse.json(response.data);
-    } catch (error: any) {
-        return NextResponse.json(error.response?.data || { error: 'Internal Server Error' }, { status: error.response?.status || 500 });
-    }
-}
-
-export async function POST(req: NextRequest) {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    try {
-        const token = jwt.sign({ id: (session as any).user.id }, process.env.NEXTAUTH_SECRET!, { expiresIn: '1h' });
-        const body = await req.json();
-        const response = await axios.post(`${BACKEND_URL}/api/shapes`, body, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        return NextResponse.json(response.data, { status: 201 });
-    } catch (error: any) {
-        return NextResponse.json(error.response?.data || { error: 'Internal Server Error' }, { status: error.response?.status || 500 });
-    }
-}
+// Use the shared proxy so the workspace-scoping header (X-Team-Context) and
+// query params (groupId/search) are forwarded to the backend. The old manual
+// handler forwarded ONLY Authorization, so shapes were never team-scoped and
+// showed in every account.
+const { GET, POST } = createProxy("/api/shapes", ["GET", "POST"]);
+export { GET, POST };

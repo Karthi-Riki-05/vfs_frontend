@@ -9,6 +9,11 @@ import React, {
 } from "react";
 import { useSession } from "next-auth/react";
 import api from "@/lib/axios";
+import {
+  getAiBillingTeamId,
+  AI_BILLING_EVENT,
+  AI_BILLING_KEY,
+} from "@/lib/aiBilling";
 
 const STORAGE_KEY = "vc_active_context";
 const CHANGE_EVENT = "vc:context-change";
@@ -90,17 +95,10 @@ const DEFAULT: AppContextValue = {
 const AppContext = createContext<AppContextValue>(DEFAULT);
 
 function readStored(): ActiveContext {
-  if (typeof window === "undefined") return { type: "personal" };
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { type: "personal" };
-    const parsed = JSON.parse(raw);
-    if (parsed?.type === "team" && parsed.teamId)
-      return parsed as ActiveContext;
-    return { type: "personal" };
-  } catch {
-    return { type: "personal" };
-  }
+  // Unified ownership model: the app no longer has a switchable "team
+  // workspace". Every user operates in their own data scope, so the active
+  // context is always personal.
+  return { type: "personal" };
 }
 
 function writeStored(ctx: ActiveContext) {
@@ -131,12 +129,40 @@ export function AppContextProvider({
     currentVersion: "free",
     hasPro: false,
   });
+  // Private team buckets: the active DATA scope follows the one switcher
+  // selection (shared with AI billing via lib/aiBilling). null = personal
+  // (teamId=null) bucket; a teamId = that team's bucket. This drives which
+  // data the user sees, NOT their plan/entitlements (those stay personalPlan).
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   // Hydrate from localStorage on mount only — keeps SSR/CSR in sync.
   useEffect(() => {
     setActiveContext(readStored());
+    setActiveTeamId(getAiBillingTeamId());
     setHydrated(true);
+  }, []);
+
+  // Track the switcher selection so data lists re-scope + refetch on switch.
+  // AiBillingContext owns the source of truth (localStorage + server) and
+  // fires AI_BILLING_EVENT on every switch and server reconcile.
+  useEffect(() => {
+    const onBilling = (e: Event) => {
+      const detail = (e as CustomEvent<{ teamId: string | null }>).detail;
+      setActiveTeamId(detail ? detail.teamId : getAiBillingTeamId());
+    };
+    // Cross-tab: the editor opens in a NEW tab via window.open(). A switch in
+    // another tab updates localStorage and fires a 'storage' event here (but
+    // not the same-tab CustomEvent), so sync activeTeamId from it too.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === AI_BILLING_KEY) setActiveTeamId(getAiBillingTeamId());
+    };
+    window.addEventListener(AI_BILLING_EVENT, onBilling);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(AI_BILLING_EVENT, onBilling);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const refresh = useCallback(async () => {
@@ -151,10 +177,10 @@ export function AppContextProvider({
         params: { appContext: sessAppCtx },
       });
       const data = res.data?.data || res.data;
-      const teams: TeamContextOption[] = Array.isArray(data?.availableTeams)
-        ? data.availableTeams
-        : [];
-      setAvailableTeams(teams);
+      // Unified ownership model: no team workspaces to switch into. We still
+      // fetch this endpoint for the resolved personalPlan, but never expose
+      // switchable teams.
+      setAvailableTeams([]);
       if (data?.personalPlan) {
         setPersonalPlan({
           currentVersion: data.personalPlan.currentVersion || "free",
@@ -163,35 +189,8 @@ export function AppContextProvider({
         });
       }
 
-      // If the saved context references a team that no longer exists,
-      // fall back to personal so the UI doesn't lie.
-      setActiveContext((prev) => {
-        if (prev.type !== "team") return prev;
-        const stillExists = teams.some((t) => t.teamId === prev.teamId);
-        if (!stillExists) {
-          const next: ActiveContext = { type: "personal" };
-          writeStored(next);
-          return next;
-        }
-        // Refresh in-memory plan info from the freshly fetched team
-        const fresh = teams.find((t) => t.teamId === prev.teamId);
-        if (fresh) {
-          const next: ActiveTeamContext = {
-            type: "team",
-            teamId: fresh.teamId,
-            teamName: fresh.teamName,
-            ownerId: fresh.owner.id,
-            ownerName: fresh.owner.name,
-            plan: fresh.plan,
-            hasPro: fresh.hasPro,
-            proUnlimitedFlows: fresh.proUnlimitedFlows,
-            proFlowLimit: fresh.proFlowLimit,
-          };
-          writeStored(next);
-          return next;
-        }
-        return prev;
-      });
+      // Always personal — no team context to reconcile.
+      setActiveContext({ type: "personal" });
     } catch {
       // silent: non-critical
     }
@@ -224,20 +223,10 @@ export function AppContextProvider({
     writeStored(next);
   }, []);
 
-  const switchToTeam = useCallback((team: TeamContextOption) => {
-    const next: ActiveTeamContext = {
-      type: "team",
-      teamId: team.teamId,
-      teamName: team.teamName,
-      ownerId: team.owner.id,
-      ownerName: team.owner.name,
-      plan: team.plan,
-      hasPro: team.hasPro,
-      proUnlimitedFlows: team.proUnlimitedFlows,
-      proFlowLimit: team.proFlowLimit,
-    };
-    setActiveContext(next);
-    writeStored(next);
+  // Unified ownership model: team workspaces were removed. Kept as a stable
+  // no-op so any residual caller doesn't break; the context stays personal.
+  const switchToTeam = useCallback((_team: TeamContextOption) => {
+    void _team;
   }, []);
 
   // Derive effective plan/limits from active context. For PERSONAL context
@@ -272,7 +261,8 @@ export function AppContextProvider({
     effectiveHasPro,
     effectiveFlowLimit,
     isTeamContext: activeContext.type === "team",
-    activeTeamId: activeContext.type === "team" ? activeContext.teamId : null,
+    // Data scope follows the switcher selection (decoupled from entitlements).
+    activeTeamId,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

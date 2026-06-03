@@ -10,6 +10,7 @@ import {
   CodeOutlined,
 } from "@ant-design/icons";
 import api from "@/lib/axios";
+import { useAppContext } from "@/context/AppContext";
 
 // Matches Shape rows returned by GET /api/shapes (include: { group: true }).
 export interface EditorShape {
@@ -120,6 +121,8 @@ function ShapePreview({ shape }: { shape: EditorShape }) {
 }
 
 export default function CustomShapesPanel({ open, onClose, onInsert }: Props) {
+  // Re-scope the editor's shape library to the active account/team on switch.
+  const { activeTeamId } = useAppContext();
   const [shapes, setShapes] = useState<EditorShape[]>([]);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -147,7 +150,9 @@ export default function CustomShapesPanel({ open, onClose, onInsert }: Props) {
 
   useEffect(() => {
     if (open) fetchAll();
-  }, [open, fetchAll]);
+    // activeTeamId → refetch the library when the user switches account/team.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeTeamId]);
 
   // Organize shapes by group, including an "Ungrouped" bucket.
   const grouped: ShapeGroupDTO[] = useMemo(() => {

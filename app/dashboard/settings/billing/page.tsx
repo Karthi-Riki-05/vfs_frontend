@@ -5,15 +5,14 @@ import {
   Card,
   Typography,
   Button,
-  Table,
   Tag,
   Space,
   Descriptions,
-  Empty,
   Spin,
   Divider,
 } from "antd";
-import { CrownOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import HistoryAccordion from "@/components/billing/HistoryAccordion";
+import { CrownOutlined } from "@ant-design/icons";
 import { useSubscription } from "@/hooks/useSubscription";
 import { paymentsApi } from "@/api/payments.api";
 import { usePro } from "@/hooks/usePro";
@@ -22,7 +21,7 @@ import { useState, useEffect } from "react";
 const { Title, Text } = Typography;
 
 export default function BillingPage() {
-  const { subscription, plans, loading, cancel } = useSubscription();
+  const { subscription, loading, cancel } = useSubscription();
   const { currentApp, loading: proLoading } = usePro();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [txLoading, setTxLoading] = useState(true);
@@ -69,138 +68,6 @@ export default function BillingPage() {
       .finally(() => setHistoryLoading(false));
   }, [proLoading, currentApp]);
 
-  const historyColumns = [
-    {
-      title: "Plan",
-      dataIndex: "planName",
-      key: "planName",
-      render: (v: string) => v || "—",
-    },
-    {
-      title: "Price",
-      dataIndex: "price",
-      key: "price",
-      render: (v: number, r: any) =>
-        `${(r.currency || "USD").toUpperCase()} $${Number(v || 0).toFixed(2)}`,
-    },
-    {
-      title: "Started",
-      dataIndex: "startedAt",
-      key: "startedAt",
-      render: (d: string) => (d ? new Date(d).toLocaleDateString() : "—"),
-    },
-    {
-      title: "Ended",
-      dataIndex: "expiresAt",
-      key: "expiresAt",
-      render: (d: string) => (d ? new Date(d).toLocaleDateString() : "—"),
-    },
-    {
-      title: "Reason",
-      dataIndex: "archivedReason",
-      key: "archivedReason",
-      render: (r: string) => {
-        const map: Record<string, string> = {
-          replaced_by_stripe: "Replaced",
-          cancelled: "Cancelled",
-          expired: "Expired",
-        };
-        return <Tag>{map[r] || r || "—"}</Tag>;
-      },
-    },
-  ];
-
-  const columns = [
-    {
-      title: "Date",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      render: (d: string) =>
-        d
-          ? new Date(d).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-            })
-          : "—",
-    },
-    {
-      title: "Description",
-      key: "description",
-      render: (_: any, record: any) => {
-        const type = record.purchaseType || record.appType || "";
-        const plan = record.planName || "";
-        if (type === "ai_addon_credits") return "AI Credits Add-on";
-        if (type === "pro_upgrade")
-          return `Pro Plan${plan ? ` — ${plan}` : ""}`;
-        if (type === "pro_extra_flows") return "Pro — Extra Flows";
-        if (type === "team_subscription" || type === "enterprise")
-          return `Team Plan${plan ? ` — ${plan}` : ""}`;
-        return "Subscription Payment";
-      },
-    },
-    {
-      title: "Amount",
-      key: "amount",
-      render: (_: any, record: any) => {
-        // amountCharged is stored in cents (Int). Tolerate snake_case and a
-        // few legacy field names; guard against null/undefined so the cell
-        // never renders "$NaN" / a blank "USD $" (the reported bug).
-        const raw =
-          record.amountCharged ??
-          record.amount_charged ??
-          record.amount ??
-          null;
-        const currency = (record.currency || "usd").toUpperCase();
-        if (raw === null || raw === undefined || Number.isNaN(Number(raw)))
-          return `${currency} —`;
-        return `${currency} $${(Number(raw) / 100).toFixed(2)}`;
-      },
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      render: (status: string) => {
-        const isSuccess =
-          status === "success" || status === "succeeded" || status === "paid";
-        const isRefunded =
-          status === "refunded" || status === "partially_refunded";
-        const isFailed = status === "failed" || status === "payment_failed";
-        const color = isSuccess
-          ? "success"
-          : isRefunded
-            ? "warning"
-            : isFailed
-              ? "error"
-              : "default";
-        const label = isSuccess
-          ? "Paid"
-          : isRefunded
-            ? "Refunded"
-            : isFailed
-              ? "Failed"
-              : status || "Unknown";
-        return <Tag color={color}>{label}</Tag>;
-      },
-    },
-    {
-      title: "Transaction ID",
-      key: "txnId",
-      render: (_: any, record: any) => {
-        const id = record.txnId || record.chargeId;
-        if (!id) return "—";
-        return (
-          <span
-            style={{ fontFamily: "monospace", fontSize: 11, color: "#888" }}
-          >
-            {id.length > 24 ? `${id.substring(0, 20)}...` : id}
-          </span>
-        );
-      },
-    },
-  ];
-
   if (loading)
     return (
       <div style={{ textAlign: "center", padding: 100 }}>
@@ -217,7 +84,7 @@ export default function BillingPage() {
         <Text type="secondary">Manage your subscription and billing</Text>
       </div>
 
-      <Card style={{ marginBottom: 24 }}>
+      <Card style={{ marginBottom: 24 }} styles={{ body: { padding: 16 } }}>
         <div
           style={{
             display: "flex",
@@ -292,30 +159,91 @@ export default function BillingPage() {
         )}
       </Card>
 
-      <Card title="Transaction History" style={{ marginBottom: 24 }}>
-        <Table
-          dataSource={transactions}
-          columns={columns}
-          rowKey="id"
-          loading={txLoading}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: "max-content" }}
-          locale={{ emptyText: <Empty description="No transactions yet" /> }}
-        />
+      <Card
+        title="Transaction History"
+        style={{ marginBottom: 24 }}
+        styles={{ body: { padding: 16 } }}
+      >
+        {txLoading ? (
+          <div style={{ textAlign: "center", padding: "24px 0" }}>
+            <Spin />
+          </div>
+        ) : (
+          <HistoryAccordion
+            title="Transactions"
+            defaultOpen
+            items={transactions.map((r: any) => {
+              // date
+              const date = r.createdAt
+                ? new Date(r.createdAt).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
+                : "—";
+              // description (mirrors existing column logic)
+              const type = r.purchaseType || r.appType || "";
+              const plan = r.planName || "";
+              let description = "Subscription Payment";
+              if (type === "ai_addon_credits")
+                description = "AI Credits Add-on";
+              else if (type === "pro_upgrade")
+                description = `Pro Plan${plan ? ` — ${plan}` : ""}`;
+              else if (type === "pro_extra_flows")
+                description = "Pro — Extra Flows";
+              else if (type === "team_subscription" || type === "enterprise")
+                description = `Team Plan${plan ? ` — ${plan}` : ""}`;
+              // amount (stored in cents)
+              const raw =
+                r.amountCharged ?? r.amount_charged ?? r.amount ?? null;
+              const currency = (r.currency || "usd").toUpperCase();
+              const amount =
+                raw === null || raw === undefined || Number.isNaN(Number(raw))
+                  ? `${currency} —`
+                  : `${currency} $${(Number(raw) / 100).toFixed(2)}`;
+              return { date, description, amount, status: r.status };
+            })}
+          />
+        )}
       </Card>
 
-      <Card title="Subscription History">
-        <Table
-          dataSource={history}
-          columns={historyColumns}
-          rowKey="id"
-          loading={historyLoading}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: "max-content" }}
-          locale={{
-            emptyText: <Empty description="No previous subscriptions" />,
-          }}
-        />
+      <Card title="Subscription History" styles={{ body: { padding: 16 } }}>
+        {historyLoading ? (
+          <div style={{ textAlign: "center", padding: "24px 0" }}>
+            <Spin />
+          </div>
+        ) : (
+          <HistoryAccordion
+            title="Subscription History"
+            defaultOpen
+            items={history.map((r: any) => {
+              // date: use startedAt
+              const date = r.startedAt
+                ? new Date(r.startedAt).toLocaleDateString()
+                : "—";
+              // description: plan name + price
+              const currency = (r.currency || "USD").toUpperCase();
+              const price = `${currency} $${Number(r.price || 0).toFixed(2)}/mo`;
+              const description = r.planName
+                ? `${r.planName} — ${price}`
+                : price;
+              // amount: show ended date if available
+              const ended = r.expiresAt
+                ? `Ended ${new Date(r.expiresAt).toLocaleDateString()}`
+                : "—";
+              // status: archivedReason mapped to label
+              const reasonMap: Record<string, string> = {
+                replaced_by_stripe: "Replaced",
+                cancelled: "Cancelled",
+                expired: "Expired",
+              };
+              const status = r.archivedReason
+                ? reasonMap[r.archivedReason] || r.archivedReason
+                : undefined;
+              return { date, description, amount: ended, status };
+            })}
+          />
+        )}
       </Card>
     </div>
   );

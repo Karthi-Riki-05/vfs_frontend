@@ -36,6 +36,7 @@ import ShapeCard from "@/components/shapes/ShapeCard";
 import api from "@/lib/axios";
 import { RcFile } from "antd/es/upload";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useAppContext } from "@/context/AppContext";
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -43,9 +44,16 @@ const { Dragger } = Upload;
 
 const TEAL_COLOR = "#4ECDC4";
 
+// Backend caps shape content at 24M chars. base64 ≈ 1.33× the raw file,
+// so the largest safe raw image is ~18MB.
+const MAX_CONTENT_CHARS = 24_000_000;
+const MAX_IMAGE_MB = 18;
+
 function ShapesContent() {
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
+  // Re-scope shapes to the active account/team on switch (same as flows).
+  const { activeTeamId } = useAppContext();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [shapes, setShapes] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
@@ -66,7 +74,8 @@ function ShapesContent() {
   useEffect(() => {
     fetchShapes();
     fetchGroups();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTeamId]);
 
   useEffect(() => {
     if (searchParams?.get("action") === "new") {
@@ -229,6 +238,19 @@ function ShapesContent() {
         }
       }
 
+      // Size guard — backend caps content at 24M chars (~18MB raw file)
+      if (content && content.length > MAX_CONTENT_CHARS) {
+        form.setFields([
+          {
+            name: values.type === "image" ? "upload" : "content",
+            errors: [
+              `Too large (${(content.length / 1_000_000).toFixed(1)}M chars). Max is ${MAX_CONTENT_CHARS / 1_000_000}M.`,
+            ],
+          },
+        ]);
+        return;
+      }
+
       const payload = {
         name: values.name,
         type: values.type,
@@ -244,7 +266,18 @@ function ShapesContent() {
       fetchShapes();
     } catch (error: any) {
       console.error("Failed to add shape", error);
-      message.error("Failed to add shape");
+      // Surface the real server-side validation message inline / in toast
+      const err = error?.response?.data?.error;
+      const detail = Array.isArray(err?.details) ? err.details[0] : null;
+      if (detail) {
+        const fieldName = String(detail.field || "").replace(/^body\./, "");
+        if (fieldName) {
+          form.setFields([{ name: fieldName, errors: [detail.message] }]);
+        }
+        message.error(detail.message);
+      } else {
+        message.error(err?.message || "Failed to add shape");
+      }
     }
   };
 
@@ -280,9 +313,7 @@ function ShapesContent() {
       return (
         <EmptyState
           title="No shape groups"
-          description="Create a group to organize your shapes"
-          actionText="Create Group"
-          onAction={handleCreateGroupFromEmpty}
+          description="Use the Add Shape button above to create a shape and its first group"
         />
       );
     }
@@ -417,9 +448,7 @@ function ShapesContent() {
         ) : (
           <EmptyState
             title={`No shapes in ${selectedGroup.name}`}
-            description="Add a shape to this group to get started"
-            actionText="Add Shape"
-            onAction={showModal}
+            description="Use the Add Shape button above to add a shape to this group"
           />
         )}
       </>
@@ -447,11 +476,23 @@ function ShapesContent() {
               Add Shape
             </Button>
           ) : (
-            <>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+                width: isMobile ? "100%" : "auto",
+              }}
+            >
               <Select
                 placeholder="Filter by group"
                 allowClear
-                style={{ width: isMobile ? "100%" : 180, borderRadius: 8 }}
+                style={{
+                  flex: isMobile ? "1 1 100%" : "0 0 180px",
+                  minWidth: 0,
+                  borderRadius: 8,
+                }}
                 onChange={(value: string | undefined) =>
                   setFilterGroupId(value || null)
                 }
@@ -469,6 +510,7 @@ function ShapesContent() {
                 onClick={showModal}
                 block={isMobile}
                 style={{
+                  flexShrink: 0,
                   background: "#3CB371",
                   borderColor: "#3CB371",
                   borderRadius: 8,
@@ -476,7 +518,7 @@ function ShapesContent() {
               >
                 Add Shape
               </Button>
-            </>
+            </div>
           )
         }
       />
@@ -611,7 +653,15 @@ function ShapesContent() {
               <Dragger
                 name="files"
                 maxCount={1}
-                beforeUpload={() => false}
+                beforeUpload={(file) => {
+                  if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+                    message.error(
+                      `Image is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max is ${MAX_IMAGE_MB}MB.`,
+                    );
+                    return Upload.LIST_IGNORE;
+                  }
+                  return false;
+                }}
                 accept="image/*"
               >
                 <p className="ant-upload-drag-icon">
@@ -666,7 +716,13 @@ function ShapesContent() {
               <Form.Item
                 name="content"
                 label="Content (SVG/HTML/XML)"
-                rules={[{ required: true, message: "Please enter content" }]}
+                rules={[
+                  { required: true, message: "Please enter content" },
+                  {
+                    max: MAX_CONTENT_CHARS,
+                    message: `Content is too large (max ${MAX_CONTENT_CHARS / 1_000_000}M characters)`,
+                  },
+                ]}
                 help="Paste your SVG / HTML / mxGraph XML here, or upload a file above."
               >
                 <Input.TextArea rows={6} placeholder="<svg...>...</svg>" />

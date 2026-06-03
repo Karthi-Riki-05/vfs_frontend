@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { chatApi } from '@/api/chat.api';
-import { message } from 'antd';
+import { useState, useEffect, useCallback } from "react";
+import { chatApi } from "@/api/chat.api";
+import { useAppContext } from "@/context/AppContext";
+import { message } from "antd";
 
 export function useChat(groupId?: string) {
+  const { activeTeamId } = useAppContext();
   const [groups, setGroups] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
 
+  // activeTeamId in deps → re-scopes + refetches chat groups on team switch.
   const fetchGroups = useCallback(async () => {
     setLoading(true);
     try {
@@ -21,7 +24,8 @@ export function useChat(groupId?: string) {
     } finally {
       setLoading(false);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTeamId]);
 
   const fetchMessages = useCallback(async () => {
     if (!groupId) return;
@@ -37,8 +41,12 @@ export function useChat(groupId?: string) {
     }
   }, [groupId]);
 
-  useEffect(() => { fetchGroups(); }, [fetchGroups]);
-  useEffect(() => { fetchMessages(); }, [fetchMessages]);
+  useEffect(() => {
+    fetchGroups();
+  }, [fetchGroups]);
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
 
   const sendMessage = async (content: string) => {
     if (!groupId) return;
@@ -47,7 +55,7 @@ export function useChat(groupId?: string) {
       await chatApi.sendMessage(groupId, content);
       fetchMessages();
     } catch {
-      message.error('Failed to send message');
+      message.error("Failed to send message");
     } finally {
       setSendingMessage(false);
     }
@@ -56,13 +64,25 @@ export function useChat(groupId?: string) {
   // name param is the UI label; backend uses 'title'
   const createGroup = async (data: { name: string; memberIds: string[] }) => {
     try {
-      await chatApi.createGroup({ title: data.name, memberIds: data.memberIds });
-      message.success('Group created');
+      await chatApi.createGroup({
+        title: data.name,
+        memberIds: data.memberIds,
+      });
+      message.success("Group created");
       fetchGroups();
     } catch {
-      message.error('Failed to create group');
+      message.error("Failed to create group");
     }
   };
 
-  return { groups, messages, loading, sendingMessage, fetchGroups, fetchMessages, sendMessage, createGroup };
+  return {
+    groups,
+    messages,
+    loading,
+    sendingMessage,
+    fetchGroups,
+    fetchMessages,
+    sendMessage,
+    createGroup,
+  };
 }

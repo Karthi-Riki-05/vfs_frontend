@@ -14,7 +14,18 @@ import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const IS_EDITOR_RE = /^\/dashboard\/flows\/(?!new$)[a-zA-Z0-9_-]+$/;
 
-export default function FloatingActionButton() {
+// Pages where the FAB would overlap the page's primary CTA (e.g. the
+// post-checkout success screen's "Go to Dashboard" button).
+const HIDE_FAB_PATHS = [
+  "/dashboard/subscription/success",
+  "/upgrade-pro/success",
+];
+
+export default function FloatingActionButton({
+  hidden = false,
+}: {
+  hidden?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -23,6 +34,8 @@ export default function FloatingActionButton() {
 
   // Hide entirely on editor pages
   if (IS_EDITOR_RE.test(pathname ?? "")) return null;
+  // Hide on post-checkout success pages (would overlap the CTA)
+  if (HIDE_FAB_PATHS.some((p) => (pathname ?? "").startsWith(p))) return null;
 
   const buttonSize = isMobile ? 48 : 48;
   const iconSize = isMobile ? 20 : 20;
@@ -136,6 +149,11 @@ export default function FloatingActionButton() {
         bottom,
         right,
         zIndex: 1000,
+        // Fade out (matching the AI button) when the mobile sidebar is open.
+        opacity: hidden ? 0 : 1,
+        pointerEvents: hidden ? "none" : "auto",
+        transform: hidden ? "scale(0.9)" : "scale(1)",
+        transition: "opacity 0.3s ease, transform 0.3s ease",
       }}
     >
       {isMobile ? (

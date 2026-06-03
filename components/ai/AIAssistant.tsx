@@ -301,6 +301,11 @@ export default function AIAssistant({
   const isInEditor = /^\/dashboard\/flows\/(?!new$)[a-zA-Z0-9_-]+$/.test(
     pathname,
   );
+  // Hide the assistant on post-checkout success pages where its floating
+  // button would overlap the page's "Go to Dashboard" CTA.
+  const isOnCheckoutSuccess =
+    pathname.startsWith("/dashboard/subscription/success") ||
+    pathname.startsWith("/upgrade-pro/success");
 
   const visibleChips = useMemo(() => {
     const shuffled = [...SUGGESTION_CHIPS].sort(() => Math.random() - 0.5);
@@ -1389,6 +1394,8 @@ export default function AIAssistant({
   // =========================================
   // COLLAPSED
   // =========================================
+  if (isOnCheckoutSuccess) return null;
+
   if (state === "collapsed") {
     return (
       <>

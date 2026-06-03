@@ -463,9 +463,8 @@ export default function TeamsPage() {
       ) : (
         <EmptyState
           title="No teams yet"
-          description="Create a team to collaborate with others on value charts"
-          actionText="Create Team"
-          onAction={openCreateModal}
+          description='Create a team to collaborate with others on Value Charts. Use the "Create Team" button above to get started.'
+          icon={<TeamOutlined style={{ fontSize: 48, color: "#3CB371" }} />}
         />
       )}
 

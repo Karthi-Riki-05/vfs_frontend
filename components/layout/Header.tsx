@@ -33,6 +33,7 @@ import {
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
+import TeamContextSwitcher from "@/components/layout/TeamContextSwitcher";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import {
   useIsMobile,
@@ -79,7 +80,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     effectivePlan,
     isTeamContext,
   } = useAppContext();
-  const { currentApp, hasPro, forcedMode } = usePro();
+  const { currentApp, hasPro } = usePro();
 
   // Subscription-aware personal plan — wins over the stale JWT/session field.
   // (Backend `getTeamContext` resolves it from the active subscription row.)
@@ -208,111 +209,8 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   // ─────────── Account dropdown items (kept compact) ───────────
 
   const dropdownItems: MenuProps["items"] = [
-    // Context-switcher items are hidden in forced WebView mode — the user
-    // cannot change workspace when the app param is locked to team or pro.
-    ...(!forcedMode
-      ? [
-          {
-            key: "ctx-personal",
-            label: (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <UserOutlined />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>
-                    {truncateName(userName, isMobile ? 12 : 22)}{" "}
-                    <span
-                      style={{
-                        color: "#8C8C8C",
-                        fontWeight: 400,
-                        fontSize: 11,
-                      }}
-                    >
-                      (you)
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: "#8C8C8C" }}>
-                    Personal ·{" "}
-                    {inAppPlan === "team"
-                      ? "Team Plan"
-                      : inAppPlan === "pro"
-                        ? "Pro Plan"
-                        : "Free Plan"}
-                  </div>
-                </div>
-                {personalActive && (
-                  <CheckOutlined style={{ color: PRIMARY, fontSize: 12 }} />
-                )}
-              </div>
-            ),
-            onClick: () => {
-              if (!personalActive) {
-                switchToPersonal();
-                message.success("Switched to your personal account");
-              }
-            },
-          },
-          ...(availableTeams.length > 0
-            ? [
-                { type: "divider" as const },
-                ...availableTeams.map((t: TeamContextOption) => {
-                  const isActive =
-                    activeContext.type === "team" &&
-                    activeContext.teamId === t.teamId;
-                  return {
-                    key: `ctx-team-${t.teamId}`,
-                    label: (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <TeamOutlined style={{ color: "#7C3AED" }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 600,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              maxWidth: isMobile ? 140 : 220,
-                            }}
-                          >
-                            {truncateName(t.teamName, isMobile ? 12 : 22)}
-                          </div>
-                          <div style={{ fontSize: 11, color: "#8C8C8C" }}>
-                            {t.plan === "team"
-                              ? "Team Plan"
-                              : t.plan === "pro"
-                                ? "Pro Plan"
-                                : "Free Plan"}{" "}
-                            · {isActive ? "Active" : "Switch"}
-                          </div>
-                        </div>
-                        {isActive && (
-                          <CheckOutlined
-                            style={{ color: PRIMARY, fontSize: 12 }}
-                          />
-                        )}
-                      </div>
-                    ),
-                    onClick: () => {
-                      if (!isActive) {
-                        switchToTeam(t);
-                        message.success(
-                          `Switched to ${t.teamName || "team"} context`,
-                        );
-                      }
-                    },
-                  };
-                }),
-              ]
-            : []),
-          { type: "divider" as const },
-        ]
-      : []),
+    // Unified ownership model: no Personal/Team workspace switcher. The account
+    // menu is just account actions; the user's plan is shown as a badge.
     {
       key: "profile",
       icon: <UserOutlined />,
@@ -395,12 +293,12 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
               src={getLogoForApp(currentApp)}
               alt="ValueChart Logo"
               style={{
-                height: isMobile && !isWideMobile ? 32 : 40,
+                // Consistent 40px logo across navbar and sidebar (BUG 4).
+                height: 40,
                 width: "auto",
-                // On narrow mobile, crop the bottom tagline to keep the main logo crisp
-                objectFit: isMobile && !isWideMobile ? "cover" : "contain",
-                objectPosition: "top",
-                maxHeight: isMobile && !isWideMobile ? 22 : 40,
+                objectFit: "contain",
+                objectPosition: "left center",
+                maxHeight: 40,
               }}
             />
           </Link>
@@ -489,6 +387,23 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             overlayStyle={{
               maxWidth: isMobile ? "calc(100vw - 16px)" : undefined,
             }}
+            // Prepend the AI-billing account switcher above the account-action
+            // menu. Switching there changes AI-credit billing only — never the
+            // data the user sees (DATA-LOSS-001).
+            dropdownRender={(menu) => (
+              <div
+                style={{
+                  background: "#FFFFFF",
+                  borderRadius: 8,
+                  boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+                  overflow: "hidden",
+                  minWidth: 240,
+                }}
+              >
+                <TeamContextSwitcher />
+                {menu}
+              </div>
+            )}
           >
             <div
               style={{

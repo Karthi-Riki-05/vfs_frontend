@@ -260,7 +260,14 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Action buttons */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          marginBottom: 24,
+        }}
+      >
         <Button icon={<FileAddOutlined />} onClick={openAddModal}>
           Add Existing Flow
         </Button>
@@ -268,6 +275,7 @@ export default function ProjectDetailPage() {
           type="primary"
           icon={<PlusOutlined />}
           onClick={handleCreateNewFlow}
+          style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
         >
           Create New Flow
         </Button>
@@ -277,9 +285,7 @@ export default function ProjectDetailPage() {
       {flows.length === 0 ? (
         <EmptyState
           title="No flows in this project"
-          description="Add existing flows or create new ones"
-          actionText="Add Existing Flow"
-          onAction={openAddModal}
+          description="Use the buttons above to add or create flows."
           icon={<FileAddOutlined style={{ fontSize: 48, color: "#3CB371" }} />}
         />
       ) : (

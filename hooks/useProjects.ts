@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { projectsApi } from '@/api/projects.api';
-import { message } from 'antd';
+import { useState, useEffect, useCallback } from "react";
+import { projectsApi } from "@/api/projects.api";
+import { useAppContext } from "@/context/AppContext";
+import { message } from "antd";
 
 export interface Project {
   id: string;
@@ -16,33 +17,42 @@ export interface Project {
 }
 
 export function useProjects() {
+  const { activeTeamId, hydrated } = useAppContext();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchProjects = useCallback(async (search?: string) => {
-    setLoading(true);
-    try {
-      const res = await projectsApi.list({ search });
-      const d = res.data?.data || res.data;
-      setProjects(Array.isArray(d) ? d : []);
-    } catch {
-      setProjects([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // activeTeamId in deps → re-scopes + refetches the project bucket on switch.
+  const fetchProjects = useCallback(
+    async (search?: string) => {
+      setLoading(true);
+      try {
+        const res = await projectsApi.list({ search });
+        const d = res.data?.data || res.data;
+        setProjects(Array.isArray(d) ? d : []);
+      } catch {
+        setProjects([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeTeamId],
+  );
 
-  useEffect(() => { fetchProjects(); }, [fetchProjects]);
+  useEffect(() => {
+    if (!hydrated) return;
+    fetchProjects();
+  }, [fetchProjects, hydrated]);
 
   const createProject = async (name: string) => {
     try {
       const res = await projectsApi.create({ name });
       const project = res.data?.data || res.data;
-      message.success('Project created');
+      message.success("Project created");
       fetchProjects();
       return project;
     } catch {
-      message.error('Failed to create project');
+      message.error("Failed to create project");
       return null;
     }
   };
@@ -50,25 +60,32 @@ export function useProjects() {
   const deleteProject = async (id: string) => {
     try {
       await projectsApi.delete(id);
-      message.success('Project deleted');
+      message.success("Project deleted");
       fetchProjects();
     } catch {
-      message.error('Failed to delete project');
+      message.error("Failed to delete project");
     }
   };
 
-  const updateProject = async (id: string, data: { name?: string; description?: string | null }) => {
+  const updateProject = async (
+    id: string,
+    data: { name?: string; description?: string | null },
+  ) => {
     try {
       await projectsApi.update(id, data);
-      message.success('Project updated');
+      message.success("Project updated");
       fetchProjects();
     } catch {
-      message.error('Failed to update project');
+      message.error("Failed to update project");
     }
   };
 
   return {
-    projects, loading, fetchProjects,
-    createProject, deleteProject, updateProject,
+    projects,
+    loading,
+    fetchProjects,
+    createProject,
+    deleteProject,
+    updateProject,
   };
 }

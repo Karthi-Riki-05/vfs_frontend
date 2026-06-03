@@ -1,6 +1,7 @@
 import axios from "axios";
 import { signOut } from "next-auth/react";
 import { message } from "antd";
+import { getAiBillingTeamId } from "@/lib/aiBilling";
 
 // Create a custom instance
 const api = axios.create({
@@ -22,23 +23,21 @@ api.interceptors.request.use((config) => {
 // Prevent multiple signOut calls from cascading 401 responses
 let isSigningOut = false;
 
-// Auto-scope every request to the user's active workspace (personal / team).
-// The backend reads req.headers['x-team-context'] (or ?teamId=) to decide
-// which workspace's data to return. Keeping this in one place means every
-// API call — flows, chat, dashboard, projects — inherits the scope without
-// touching individual callers.
+// Private team buckets: ONE active-context selection (the profile switcher)
+// drives BOTH data scope and AI-credit billing. We attach X-Team-Context to
+// every API request. The backend scopes every data list by ownerId AND teamId
+// (never teamId alone), so this can't leak another user's rows (DATA-LOSS-001),
+// and AI controllers route the deduction via resolveBillingUser. Personal
+// selection (null) sends no header → the teamId=null bucket / personal pool.
 api.interceptors.request.use((config) => {
-  if (typeof window === "undefined") return config;
   try {
-    const raw = localStorage.getItem("vc_active_context");
-    if (!raw) return config;
-    const ctx = JSON.parse(raw);
-    if (ctx?.type === "team" && ctx?.teamId) {
+    const teamId = getAiBillingTeamId();
+    if (teamId) {
       config.headers = config.headers || {};
-      (config.headers as any)["X-Team-Context"] = ctx.teamId;
+      (config.headers as Record<string, string>)["X-Team-Context"] = teamId;
     }
   } catch {
-    // localStorage unavailable or JSON malformed — ignore
+    // localStorage blocked — personal scope (no header).
   }
   return config;
 });

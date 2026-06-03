@@ -1,10 +1,29 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Card, Typography, Button, Table, Modal, Form, Input, Select, Avatar, Space, Tag, Popconfirm, message, Spin } from 'antd';
-import { UserOutlined, PlusOutlined, DeleteOutlined, MailOutlined, ArrowLeftOutlined } from '@ant-design/icons';
-import { teamsApi } from '@/api/teams.api';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  Typography,
+  Button,
+  List,
+  Modal,
+  Form,
+  Input,
+  Avatar,
+  Tag,
+  Popconfirm,
+  message,
+  Spin,
+} from "antd";
+import {
+  UserOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  MailOutlined,
+  ArrowLeftOutlined,
+} from "@ant-design/icons";
+import { teamsApi } from "@/api/teams.api";
+import { useParams, useRouter } from "next/navigation";
 
 const { Title, Text } = Typography;
 
@@ -21,15 +40,14 @@ export default function TeamDetailPage() {
 
   useEffect(() => {
     if (!teamId) return;
-    Promise.all([
-      teamsApi.get(teamId),
-      teamsApi.listMembers(teamId),
-    ]).then(([teamRes, membersRes]) => {
-      const teamData = teamRes.data?.data || teamRes.data;
-      setTeam(teamData);
-      const mData = membersRes.data?.data || membersRes.data;
-      setMembers(Array.isArray(mData) ? mData : []);
-    }).catch(() => message.error('Failed to load team'))
+    Promise.all([teamsApi.get(teamId), teamsApi.listMembers(teamId)])
+      .then(([teamRes, membersRes]) => {
+        const teamData = teamRes.data?.data || teamRes.data;
+        setTeam(teamData);
+        const mData = membersRes.data?.data || membersRes.data;
+        setMembers(Array.isArray(mData) ? mData : []);
+      })
+      .catch(() => message.error("Failed to load team"))
       .finally(() => setLoading(false));
   }, [teamId]);
 
@@ -38,7 +56,7 @@ export default function TeamDetailPage() {
       const values = await form.validateFields();
       setInviting(true);
       await teamsApi.invite({ email: values.email, teamId });
-      message.success('Invitation sent');
+      message.success("Invitation sent");
       form.resetFields();
       setInviteOpen(false);
       // Refresh members
@@ -46,7 +64,10 @@ export default function TeamDetailPage() {
       const mData = res.data?.data || res.data;
       setMembers(Array.isArray(mData) ? mData : []);
     } catch (err: any) {
-      const errMsg = err?.response?.data?.error?.message || err?.response?.data?.message || 'Failed to invite';
+      const errMsg =
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        "Failed to invite";
       message.error(errMsg);
     } finally {
       setInviting(false);
@@ -56,85 +77,158 @@ export default function TeamDetailPage() {
   const handleRemove = async (userId: string) => {
     try {
       await teamsApi.removeMember(teamId, userId);
-      message.success('Member removed');
-      setMembers(prev => prev.filter(m => m.userId !== userId && m.id !== userId));
+      message.success("Member removed");
+      setMembers((prev) =>
+        prev.filter((m) => m.userId !== userId && m.id !== userId),
+      );
     } catch {
-      message.error('Failed to remove member');
+      message.error("Failed to remove member");
     }
   };
 
-  const columns = [
-    {
-      title: 'Member',
-      dataIndex: 'user',
-      key: 'member',
-      render: (user: any, record: any) => (
-        <Space>
-          <Avatar icon={<UserOutlined />} src={user?.image} size="small" />
-          <div>
-            <Text strong>{user?.name || record.email}</Text>
-            <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>{user?.email || record.email}</Text>
-          </div>
-        </Space>
-      ),
-    },
-    {
-      title: 'Role',
-      dataIndex: 'role',
-      key: 'role',
-      render: (role: string) => {
-        const displayRole = role || 'MEMBER';
-        const color = displayRole === 'OWNER' ? 'gold' : displayRole === 'ADMIN' ? 'blue' : 'default';
-        return <Tag color={color}>{displayRole}</Tag>;
-      },
-    },
-    {
-      title: 'Joined',
-      dataIndex: 'createdAt',
-      key: 'joined',
-      render: (d: string) => d ? new Date(d).toLocaleDateString() : '-',
-    },
-    {
-      title: '',
-      key: 'actions',
-      render: (_: any, record: any) => (record.role || 'MEMBER') !== 'OWNER' && (
-        <Popconfirm title="Remove this member?" onConfirm={() => handleRemove(record.userId || record.id)}>
-          <Button type="text" danger icon={<DeleteOutlined />} size="small" />
-        </Popconfirm>
-      ),
-    },
-  ];
+  const roleLabel = (role?: string) => {
+    const r = (role || "MEMBER").toUpperCase();
+    return r === "OWNER" ? "Owner" : r === "ADMIN" ? "Admin" : "Member";
+  };
 
-  if (loading) return <div style={{ textAlign: 'center', padding: 100 }}><Spin size="large" /></div>;
+  if (loading)
+    return (
+      <div style={{ textAlign: "center", padding: 100 }}>
+        <Spin size="large" />
+      </div>
+    );
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 16px' }}>
-      <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => router.push('/dashboard/teams')} style={{ marginBottom: 16 }}>
+    <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 16px" }}>
+      <Button
+        type="text"
+        icon={<ArrowLeftOutlined />}
+        onClick={() => router.push("/dashboard/teams")}
+        style={{ marginBottom: 16 }}
+      >
         Back to Teams
       </Button>
 
-      <Card style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      {/* Team header card */}
+      <Card style={{ marginBottom: 16, borderRadius: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
           <div style={{ flex: 1, minWidth: 0 }}>
-            <Title level={3} style={{ margin: 0 }}>{team?.name || `Team #${team?.id?.slice(-6) || ''}`}</Title>
-            <Text type="secondary">{team?.description || 'No description'}</Text>
+            <Title
+              level={3}
+              style={{ margin: 0 }}
+              ellipsis={{ tooltip: team?.name }}
+            >
+              {team?.name || `Team #${team?.id?.slice(-6) || ""}`}
+            </Title>
+            {team?.description ? (
+              <Text type="secondary">{team.description}</Text>
+            ) : (
+              <Text italic style={{ color: "#BFBFBF" }}>
+                No description
+              </Text>
+            )}
           </div>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setInviteOpen(true)}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setInviteOpen(true)}
+            style={{
+              background: "#3CB371",
+              borderColor: "#3CB371",
+              borderRadius: 8,
+            }}
+          >
             Invite Member
           </Button>
         </div>
+        <div
+          style={{
+            marginTop: 16,
+            paddingTop: 16,
+            borderTop: "1px solid #F0F0F0",
+          }}
+        >
+          <Text strong style={{ fontSize: 18 }}>
+            {members.length}
+          </Text>{" "}
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            {members.length === 1 ? "Member" : "Members"}
+          </Text>
+        </div>
       </Card>
 
-      <Card title={`Members (${members.length})`}>
-        <div style={{ overflowX: 'auto' }}>
-          <Table
-            dataSource={members}
-            columns={columns}
-            rowKey={(r) => r.userId || r.id}
-            pagination={false}
-          />
-        </div>
+      {/* Members list */}
+      <Card
+        title={`Members (${members.length})`}
+        style={{ borderRadius: 16 }}
+        styles={{ body: { padding: 0 } }}
+      >
+        <List
+          dataSource={members}
+          locale={{ emptyText: "No members yet" }}
+          renderItem={(m: any) => {
+            const role = (m.role || "MEMBER").toUpperCase();
+            const isOwner = role === "OWNER";
+            const name = m.user?.name || m.email || "Team Member";
+            return (
+              <List.Item
+                style={{ padding: "12px 16px" }}
+                actions={[
+                  <Tag
+                    key="role"
+                    color={
+                      isOwner ? "green" : role === "ADMIN" ? "blue" : "default"
+                    }
+                    style={{ marginInlineEnd: 0 }}
+                  >
+                    {roleLabel(role)}
+                  </Tag>,
+                  ...(isOwner
+                    ? []
+                    : [
+                        <Popconfirm
+                          key="remove"
+                          title="Remove this member?"
+                          onConfirm={() => handleRemove(m.userId || m.id)}
+                        >
+                          <Button
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                            size="small"
+                          />
+                        </Popconfirm>,
+                      ]),
+                ]}
+              >
+                <List.Item.Meta
+                  avatar={
+                    <Avatar
+                      src={m.user?.image}
+                      style={{ backgroundColor: "#E8F5E9", color: "#3CB371" }}
+                    >
+                      {name?.[0]?.toUpperCase() || <UserOutlined />}
+                    </Avatar>
+                  }
+                  title={<Text strong>{name}</Text>}
+                  description={
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {m.user?.email || m.email}
+                    </Text>
+                  }
+                />
+              </List.Item>
+            );
+          }}
+        />
       </Card>
 
       <Modal
@@ -145,7 +239,17 @@ export default function TeamDetailPage() {
         confirmLoading={inviting}
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="email" label="Email Address" rules={[{ required: true, type: 'email', message: 'Please enter a valid email address' }]}>
+          <Form.Item
+            name="email"
+            label="Email Address"
+            rules={[
+              {
+                required: true,
+                type: "email",
+                message: "Please enter a valid email address",
+              },
+            ]}
+          >
             <Input prefix={<MailOutlined />} placeholder="member@example.com" />
           </Form.Item>
         </Form>

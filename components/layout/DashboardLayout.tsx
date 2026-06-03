@@ -10,6 +10,7 @@ import AIAssistant from "../ai/AIAssistant";
 import RightChatColumn from "../chat/RightChatColumn";
 import EnableNotificationsBanner from "../common/EnableNotificationsBanner";
 import FloatingActionButton from "./FloatingActionButton";
+import MobileBackButton from "@/components/shared/MobileBackButton";
 import { usePro } from "@/hooks/usePro";
 import { getLogoForApp } from "@/lib/getLogo";
 import {
@@ -240,10 +241,11 @@ export default function DashboardLayout({
               src={getLogoForApp(currentApp)}
               alt="ValueChart"
               style={{
-                height: isMobile && !isWideMobile ? 32 : 40,
-                objectFit: isMobile && !isWideMobile ? "cover" : "contain",
-                objectPosition: "top",
-                maxHeight: isMobile && !isWideMobile ? 22 : 40,
+                height: 40,
+                width: "auto",
+                objectFit: "contain",
+                objectPosition: "left center",
+                maxHeight: 40,
               }}
             />
             <button
@@ -280,10 +282,11 @@ export default function DashboardLayout({
           }}
         >
           <EnableNotificationsBanner />
+          <MobileBackButton />
           <ErrorBoundary>{children}</ErrorBoundary>
           <AIAssistant contentLeft={0} contentRight={0} />
         </Content>
-        <FloatingActionButton />
+        <FloatingActionButton hidden={mobileOpen} />
       </Layout>
     );
   }

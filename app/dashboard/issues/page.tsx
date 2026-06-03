@@ -19,11 +19,14 @@ import {
 import { PlusOutlined, BugOutlined, DeleteOutlined } from "@ant-design/icons";
 import { issuesApi } from "@/api/issues.api";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useAppContext } from "@/context/AppContext";
 
 const { Title, Text } = Typography;
 
 export default function IssuesPage() {
   const isMobile = useIsMobile();
+  // Re-scope issues to the active account/team on switch (same as flows).
+  const { activeTeamId } = useAppContext();
   const [issues, setIssues] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -40,7 +43,8 @@ export default function IssuesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTeamId]);
 
   useEffect(() => {
     fetchIssues();
