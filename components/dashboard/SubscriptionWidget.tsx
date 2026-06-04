@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Skeleton, Typography } from "antd";
+import { Skeleton, Typography, Tooltip } from "antd";
 import { aiApi } from "@/api/ai.api";
 
 const { Text } = Typography;
@@ -255,10 +255,6 @@ export default function SubscriptionWidget() {
             );
             const pct =
               planLimit > 0 ? Math.min(100, (used / planLimit) * 100) : 0;
-            // Show "{planCredits} credits" (no denominator) when balance
-            // exceeds the normal plan cap — prevents the nonsensical
-            // "296 / 100" display.
-            const exceedsCap = aiCredits.planCredits > planLimit;
             return (
               <div>
                 <div
@@ -281,14 +277,29 @@ export default function SubscriptionWidget() {
                       gap: 6,
                     }}
                   >
-                    {exceedsCap
-                      ? `${aiCredits.planCredits} credits`
-                      : `${aiCredits.planCredits} / ${planLimit}`}
-                    {aiCredits.addonCredits > 0 && (
-                      <span style={{ fontSize: 10, color: "#3CB371" }}>
-                        +{aiCredits.addonCredits} addon
+                    {/* Headline = plan + addon COMBINED total. Breakdown lives
+                        in the tooltip so users see one clear number. */}
+                    <Tooltip
+                      title={
+                        <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+                          <div>Plan credits: {aiCredits.planCredits}</div>
+                          <div>Addon credits: {aiCredits.addonCredits}</div>
+                          <div>Total: {aiCredits.totalCredits}</div>
+                          {aiCredits.planResetsAt && (
+                            <div style={{ marginTop: 4, opacity: 0.85 }}>
+                              Plan resets:{" "}
+                              {new Date(
+                                aiCredits.planResetsAt,
+                              ).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      }
+                    >
+                      <span style={{ cursor: "default" }}>
+                        {aiCredits.totalCredits} credits
                       </span>
-                    )}
+                    </Tooltip>
                     {!sub.is_pro && (
                       <a
                         href="/upgrade-pro"

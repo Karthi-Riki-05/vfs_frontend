@@ -9,6 +9,10 @@ import {
   MessageOutlined,
   CrownOutlined,
   CloseOutlined,
+  UserAddOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import api from "@/lib/axios";
 
@@ -48,8 +52,15 @@ const iconMap: Record<string, React.ReactNode> = {
   flows_restored: <FileTextOutlined style={{ color: "#3CB371" }} />,
   flow: <FileTextOutlined style={{ color: "#3CB371" }} />,
   team: <TeamOutlined style={{ color: "#1890FF" }} />,
+  team_invite: <TeamOutlined style={{ color: "#1890FF" }} />,
+  team_member_joined: <UserAddOutlined style={{ color: "#3CB371" }} />,
   chat: <MessageOutlined style={{ color: "#3CB371" }} />,
   subscription: <CrownOutlined style={{ color: "#FAAD14" }} />,
+  subscription_activated: <CheckCircleOutlined style={{ color: "#3CB371" }} />,
+  subscription_cancelled: <CloseCircleOutlined style={{ color: "#FA8C16" }} />,
+  subscription_expired: (
+    <ExclamationCircleOutlined style={{ color: "#cf1322" }} />
+  ),
   system: <BellOutlined style={{ color: "#8C8C8C" }} />,
 };
 
@@ -57,6 +68,27 @@ export default function NotificationDropdown() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Mobile (< 768px) renders a full-screen overlay; desktop keeps the popover.
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Lock body scroll while the full-screen mobile overlay is open.
+  useEffect(() => {
+    if (isMobile && open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobile, open]);
 
   // Poll unread count every 60s. Cheap GET, returns just a number.
   const refreshCount = () => {
@@ -113,6 +145,122 @@ export default function NotificationDropdown() {
     if (n.actionUrl) window.location.href = n.actionUrl;
   };
 
+  const emptyState = (
+    <div style={{ padding: "40px 16px", textAlign: "center" }}>
+      <BellOutlined
+        style={{ fontSize: 32, color: "#BFBFBF", marginBottom: 12 }}
+      />
+      <div>
+        <Text type="secondary" style={{ display: "block", marginBottom: 4 }}>
+          No notifications yet
+        </Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          You&apos;ll see alerts here when your flow packs are expiring or your
+          plan changes.
+        </Text>
+      </div>
+    </div>
+  );
+
+  const renderItem = (item: Notification) => (
+    <List.Item
+      onClick={() => handleClick(item)}
+      style={{
+        padding: "12px 16px",
+        background: item.isRead ? "transparent" : "#F0FFF4",
+        cursor: "pointer",
+        borderBottom: "1px solid #F0F0F0",
+        alignItems: "flex-start",
+      }}
+    >
+      <List.Item.Meta
+        avatar={
+          <Avatar
+            size={36}
+            style={{ background: "#F8F9FA" }}
+            icon={iconMap[item.type] || iconMap.system}
+          />
+        }
+        title={
+          <Text style={{ fontSize: 13, fontWeight: item.isRead ? 400 : 600 }}>
+            {item.title}
+          </Text>
+        }
+        description={
+          <div>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {item.message}
+            </Text>
+            <br />
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {timeAgo(item.createdAt)}
+            </Text>
+          </div>
+        }
+      />
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          flexShrink: 0,
+          marginLeft: 8,
+        }}
+      >
+        {!item.isRead && (
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "#3CB371",
+              flexShrink: 0,
+            }}
+          />
+        )}
+        <Button
+          type="text"
+          size="small"
+          icon={<CloseOutlined style={{ fontSize: 10 }} />}
+          onClick={(e) => handleDismiss(item.id, e)}
+          style={{
+            color: "#BFBFBF",
+            padding: 2,
+            minWidth: 20,
+            height: 20,
+            lineHeight: 1,
+          }}
+        />
+      </div>
+    </List.Item>
+  );
+
+  const actionLinks = (
+    <div style={{ display: "flex", gap: 4 }}>
+      {unreadCount > 0 && (
+        <Button
+          type="link"
+          size="small"
+          onClick={markAllRead}
+          style={{ color: "#3CB371", padding: "0 4px" }}
+        >
+          Mark all read
+        </Button>
+      )}
+      {notifications.length > 0 && (
+        <Button
+          type="link"
+          size="small"
+          onClick={markAllRead}
+          style={{ color: "#8C8C8C", padding: "0 4px" }}
+        >
+          Clear all
+        </Button>
+      )}
+    </div>
+  );
+
+  // Desktop popover content (unchanged layout).
   const content = (
     <div style={{ width: "min(360px, calc(100vw - 24px))", maxWidth: "100vw" }}>
       <div
@@ -127,133 +275,95 @@ export default function NotificationDropdown() {
         <Text strong style={{ fontSize: 16 }}>
           Notifications
         </Text>
-        <div style={{ display: "flex", gap: 4 }}>
-          {unreadCount > 0 && (
-            <Button
-              type="link"
-              size="small"
-              onClick={markAllRead}
-              style={{ color: "#3CB371", padding: "0 4px" }}
-            >
-              Mark all read
-            </Button>
-          )}
-          {notifications.length > 0 && (
-            <Button
-              type="link"
-              size="small"
-              onClick={markAllRead}
-              style={{ color: "#8C8C8C", padding: "0 4px" }}
-            >
-              Clear all
-            </Button>
-          )}
-        </div>
+        {actionLinks}
       </div>
       {notifications.length === 0 ? (
-        <div style={{ padding: "40px 16px", textAlign: "center" }}>
-          <BellOutlined
-            style={{ fontSize: 32, color: "#BFBFBF", marginBottom: 12 }}
-          />
-          <div>
-            <Text
-              type="secondary"
-              style={{ display: "block", marginBottom: 4 }}
-            >
-              No notifications yet
-            </Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              You&apos;ll see alerts here when your flow packs are expiring or
-              your plan changes.
-            </Text>
-          </div>
-        </div>
+        emptyState
       ) : (
         <List
           dataSource={notifications.slice(0, 8)}
           style={{ maxHeight: 400, overflowY: "auto" }}
-          renderItem={(item) => (
-            <List.Item
-              onClick={() => handleClick(item)}
-              style={{
-                padding: "12px 16px",
-                background: item.isRead ? "transparent" : "#F0FFF4",
-                cursor: "pointer",
-                borderBottom: "1px solid #F0F0F0",
-                alignItems: "flex-start",
-              }}
-            >
-              <List.Item.Meta
-                avatar={
-                  <Avatar
-                    size={36}
-                    style={{ background: "#F8F9FA" }}
-                    icon={iconMap[item.type] || iconMap.system}
-                  />
-                }
-                title={
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: item.isRead ? 400 : 600,
-                    }}
-                  >
-                    {item.title}
-                  </Text>
-                }
-                description={
-                  <div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      {item.message}
-                    </Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: 11 }}>
-                      {timeAgo(item.createdAt)}
-                    </Text>
-                  </div>
-                }
-              />
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  flexShrink: 0,
-                  marginLeft: 8,
-                }}
-              >
-                {!item.isRead && (
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: "#3CB371",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<CloseOutlined style={{ fontSize: 10 }} />}
-                  onClick={(e) => handleDismiss(item.id, e)}
-                  style={{
-                    color: "#BFBFBF",
-                    padding: 2,
-                    minWidth: 20,
-                    height: 20,
-                    lineHeight: 1,
-                  }}
-                />
-              </div>
-            </List.Item>
-          )}
+          renderItem={renderItem}
         />
       )}
     </div>
   );
 
+  const bell = (
+    <Badge count={unreadCount} size="small">
+      <BellOutlined
+        style={{ fontSize: 20, color: "#8C8C8C", cursor: "pointer" }}
+      />
+    </Badge>
+  );
+
+  // ── Mobile: full-screen overlay with an explicit close (X) ──────────────
+  if (isMobile) {
+    return (
+      <>
+        <span onClick={() => setOpen(true)}>{bell}</span>
+        {open && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 1200,
+              background: "#fff",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 16px",
+                borderBottom: "1px solid #F0F0F0",
+                position: "sticky",
+                top: 0,
+                background: "#fff",
+                zIndex: 1,
+              }}
+            >
+              <Text strong style={{ fontSize: 18 }}>
+                Notifications
+              </Text>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                {unreadCount > 0 && (
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={markAllRead}
+                    style={{ color: "#3CB371", padding: "0 4px" }}
+                  >
+                    Mark all read
+                  </Button>
+                )}
+                <Button
+                  type="text"
+                  shape="circle"
+                  aria-label="Close notifications"
+                  onClick={() => setOpen(false)}
+                  icon={<CloseOutlined style={{ fontSize: 18 }} />}
+                  style={{ width: 40, height: 40 }}
+                />
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {notifications.length === 0 ? (
+                emptyState
+              ) : (
+                <List dataSource={notifications} renderItem={renderItem} />
+              )}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // ── Desktop: keep the existing popover dropdown ─────────────────────────
   return (
     <Popover
       content={content}
@@ -268,11 +378,7 @@ export default function NotificationDropdown() {
         root: { zIndex: 1100 },
       }}
     >
-      <Badge count={unreadCount} size="small">
-        <BellOutlined
-          style={{ fontSize: 20, color: "#8C8C8C", cursor: "pointer" }}
-        />
-      </Badge>
+      {bell}
     </Popover>
   );
 }
