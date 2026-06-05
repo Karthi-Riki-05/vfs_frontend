@@ -31,6 +31,7 @@ import SectionHeader from "@/components/common/SectionHeader";
 import EmptyState from "@/components/common/EmptyState";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeams } from "@/hooks/useTeams";
+import { useTabFocus } from "@/hooks/useTabFocus";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { teamsApi } from "@/api/teams.api";
 import { usePro } from "@/hooks/usePro";
@@ -45,6 +46,7 @@ export default function TeamsPage() {
   const { user } = useAuth();
   const { teams, loading, createTeam, deleteTeam, updateTeam, fetchTeams } =
     useTeams();
+  useTabFocus(fetchTeams);
   const { currentApp, loading: proLoading } = usePro();
   const { isTeamContext } = useAppContext();
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);

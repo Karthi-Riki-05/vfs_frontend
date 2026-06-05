@@ -1032,9 +1032,7 @@ function extendApp() {
 
       // Adds help icon to title bar
       if (!editorUi.isOffline()) {
-        var icon = editorUi.createHelpIcon(
-          "https://www.drawio.com/doc/faq/configure-ai-options",
-        );
+        var icon = editorUi.createHelpIcon("");
         icon.style.cursor = "help";
         icon.style.opacity = "0.5";
         this.window.buttons.insertBefore(icon, this.window.buttons.firstChild);
@@ -1943,6 +1941,10 @@ function extendApp() {
       //     Same logic — only intercept when no export server is configured.
       var __vcOrigSaveRequest = EditorUi.prototype.saveRequest;
       EditorUi.prototype.saveRequest = function (filename, format) {
+        if (filename && typeof filename === "string") {
+          filename = filename.replace(/drawio/gi, "valuechart");
+          arguments[0] = filename;
+        }
         var fmt = (format || "").toString().toLowerCase();
         if (fmt === "pdf" && !__vcExportServerConfigured) {
           __vcRouteToPrint(this);
@@ -1950,6 +1952,20 @@ function extendApp() {
         }
         if (__vcOrigSaveRequest) {
           return __vcOrigSaveRequest.apply(this, arguments);
+        }
+      };
+
+      // 3c) saveData path — client-side downloads (PNG, HTML, SVG, etc.).
+      //     draw.io calls saveData(title, format, data, mime) which sets the
+      //     download anchor filename from title. Sanitise here so the browser
+      //     Save-As dialog shows "valuechart.png" not "drawio.png".
+      var __vcOrigSaveData = EditorUi.prototype.saveData;
+      EditorUi.prototype.saveData = function (title, format, data, mime) {
+        if (title && typeof title === "string") {
+          title = title.replace(/drawio/gi, "valuechart");
+        }
+        if (__vcOrigSaveData) {
+          return __vcOrigSaveData.call(this, title, format, data, mime);
         }
       };
     }
@@ -2078,6 +2094,172 @@ function extendApp() {
         }, 200);
       }
     })();
+    // ────────────────────────────────────────────────────────────────
+
+    // ── Help menu: hide unwanted items ──────────────────────────────────
+    // Two-layer approach:
+    //  1) mxPopupMenu.prototype.showMenu override — fires synchronously
+    //     the instant draw.io renders any popup, before it is visible.
+    //  2) MutationObserver on body (subtree) as fallback — catches any
+    //     popup draw.io adds asynchronously or via a different code path.
+    (function vcHideHelpMenuItems() {
+      if (window.__vcHelpMenuObserver) {
+        try {
+          window.__vcHelpMenuObserver.disconnect();
+        } catch (e) {}
+      }
+
+      var HIDE_PATTERNS = [
+        /quick\s*start/i,
+        /get\s*desktop/i,
+        /\bdesktop\b/i,
+        /\bsupport\b/i,
+        /v\d+\.\d+\.\d+/,
+        /\bsearch\b/i,
+      ];
+
+      function prunePopup(root) {
+        if (!root || !root.querySelectorAll) return;
+        // Handle both table-row (gePopupMenu) and div (sketch) item styles
+        var items = root.querySelectorAll("tr, .geItem, [role='menuitem']");
+        if (!items.length) return;
+
+        // Only act on the Help popup — identified by "Keyboard Shortcuts"
+        var hasKeyboard = false;
+        items.forEach(function (item) {
+          if (/keyboard/i.test(item.textContent || "")) hasKeyboard = true;
+        });
+        if (!hasKeyboard) return;
+
+        items.forEach(function (item) {
+          var text = (item.textContent || "").trim();
+          if (
+            HIDE_PATTERNS.some(function (re) {
+              return re.test(text);
+            })
+          ) {
+            item.style.cssText = "display:none !important";
+            console.log("[VC] Help item hidden:", text.slice(0, 40));
+          }
+        });
+      }
+
+      // Layer 1 — prototype override on mxPopupMenu (runs before paint)
+      if (typeof mxPopupMenu !== "undefined" && mxPopupMenu.prototype) {
+        var __vcOrigShowMenu = mxPopupMenu.prototype.showMenu;
+        mxPopupMenu.prototype.showMenu = function () {
+          var r = __vcOrigShowMenu && __vcOrigShowMenu.apply(this, arguments);
+          try {
+            prunePopup(this.div || this.table || this.element);
+          } catch (e) {}
+          return r;
+        };
+        console.log("[VC] mxPopupMenu.showMenu patched");
+      }
+
+      // Layer 2 — MutationObserver fallback (subtree catches wrapper divs)
+      function sweepPopups() {
+        [
+          ".gePopupMenu",
+          ".mxPopupMenu",
+          "table[class*='Popup']",
+          "div[class*='Popup']",
+          "div[class*='opupMenu']",
+        ].forEach(function (sel) {
+          try {
+            document.querySelectorAll(sel).forEach(prunePopup);
+          } catch (e) {}
+        });
+      }
+
+      window.__vcHelpMenuObserver = new MutationObserver(function (mutations) {
+        var hasAdds = false;
+        mutations.forEach(function (m) {
+          if (m.addedNodes.length) hasAdds = true;
+        });
+        if (hasAdds) sweepPopups();
+      });
+
+      window.__vcHelpMenuObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+
+      console.log("[VC] Help menu observer installed (subtree)");
+    })();
+    // ────────────────────────────────────────────────────────────────
+
+    // ── Keyboard Shortcuts dialog: replace draw.io logo ──────────────
+    // draw.io opens keyboard shortcuts as an mxWindow inside the iframe.
+    // Inject CSS to hide draw.io branding, then use a MutationObserver
+    // to swap the logo cell content with ValueChart branding on open.
+    (function vcFixShortcutsLogo() {
+      // Global CSS — hides draw.io logo/links in any mxWindow or dialog
+      var s = document.createElement("style");
+      s.id = "vc-shortcuts-logo";
+      s.textContent =
+        ".mxWindow a[href*='draw'], .mxWindow a[href*='diagrams'] " +
+        "{ pointer-events:none !important; }" +
+        ".mxWindow a[href*='draw'] img, .mxWindow a[href*='diagrams'] img," +
+        ".mxWindow img[src*='drawio'], .mxWindow img[src*='draw-io']," +
+        ".mxWindow img[alt*='draw'], .mxWindow img[alt*='Draw']," +
+        ".geDialog img[src*='drawio'], .geLightbox img[src*='drawio']" +
+        "{ display:none !important; }";
+      document.head.appendChild(s);
+
+      function patchWindow(win) {
+        if (win.__vcLogoPatch) return;
+        win.__vcLogoPatch = true;
+
+        // Hide any remaining draw.io anchors / images
+        win
+          .querySelectorAll(
+            "a[href*='draw'], a[href*='diagrams'], " +
+              "img[src*='drawio'], img[src*='draw-io'], img[alt*='draw']",
+          )
+          .forEach(function (el) {
+            el.style.display = "none";
+          });
+
+        // Replace the first logo cell (top-left td with an img or a[href])
+        var logoCell = win.querySelector(
+          "td:first-child a, td:first-child img, .mxWindowTitle",
+        );
+        if (logoCell) {
+          var parent = logoCell.closest
+            ? logoCell.closest("td") || logoCell
+            : logoCell;
+          parent.innerHTML =
+            '<span style="font-weight:700;font-size:15px;color:#3CB371;' +
+            'font-family:Helvetica,Arial,sans-serif;letter-spacing:-.3px;">' +
+            "ValueChart</span>";
+        }
+        console.log("[VC] Keyboard shortcuts logo patched");
+      }
+
+      var winObserver = new MutationObserver(function (mutations) {
+        mutations.forEach(function (m) {
+          m.addedNodes.forEach(function (node) {
+            if (node.nodeType !== 1) return;
+            var wins = [];
+            if (node.classList && node.classList.contains("mxWindow")) {
+              wins.push(node);
+            } else if (node.querySelectorAll) {
+              wins = Array.prototype.slice.call(
+                node.querySelectorAll(".mxWindow"),
+              );
+            }
+            wins.forEach(function (win) {
+              if (/keyboard/i.test(win.textContent || "")) {
+                patchWindow(win);
+              }
+            });
+          });
+        });
+      });
+      winObserver.observe(document.body, { childList: true, subtree: true });
+    })();
+    // ────────────────────────────────────────────────────────────────
   } else {
     // Retry after a short delay if App is not yet defined
     setTimeout(extendApp, 100);

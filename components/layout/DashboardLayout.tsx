@@ -63,7 +63,7 @@ export default function DashboardLayout({
     if (proLoading || forcedSwitchDone.current) return;
     let mode: string | null = null;
     try {
-      mode = sessionStorage.getItem("vc_forced_app_mode");
+      mode = localStorage.getItem("vc_app_context");
     } catch {}
     // console.log("[DashboardLayout] forced-switch effect:", { proLoading, forcedMode: mode, currentApp, hasPro, done: forcedSwitchDone.current });
     if (!mode || (mode !== "team" && mode !== "pro")) return;

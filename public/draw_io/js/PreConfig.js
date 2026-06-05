@@ -43,11 +43,11 @@ window.DRAWIO_CONFIG = {
     // "claudeApiKey": "your-claude-key",
     myCustomApiKey: "your-internal-api-key",
     create:
-      "You are a diagram expert. Generate ONLY the <mxGraphModel> content for draw.io. DO NOT include <mxfile>, <diagram>, or any other wrappers. Start directly with <mxGraphModel> and end with </mxGraphModel>.",
+      "You are a diagram expert. Generate ONLY the <mxGraphModel> content for ValueChart. DO NOT include <mxfile>, <diagram>, or any other wrappers. Start directly with <mxGraphModel> and end with </mxGraphModel>.",
     update:
-      "You are a helpful assistant that helps with the following draw.io diagram and returns an updated draw.io diagram XML if needed.",
+      "You are a helpful assistant that helps with the following diagram and returns updated diagram XML if needed.",
     assist:
-      "You are a helpful assistant that creates XML for draw.io diagrams or helps with the draw.io diagram editor.",
+      "You are a helpful assistant that creates XML diagrams or helps with the ValueChart editor.",
   },
 
   // 4. அனைத்து மாடல்களையும் பட்டியலிடுதல்

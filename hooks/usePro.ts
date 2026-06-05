@@ -32,11 +32,18 @@ export function usePro() {
 
   useEffect(() => {
     try {
-      const stored = sessionStorage.getItem("vc_forced_app_mode");
-      console.log("[usePro] forcedMode from sessionStorage:", stored);
+      let stored = localStorage.getItem("vc_app_context");
+      if (!stored && typeof sessionStorage !== "undefined") {
+        stored = sessionStorage.getItem("vc_forced_app_mode");
+        if (stored === "pro" || stored === "team") {
+          localStorage.setItem("vc_app_context", stored);
+          sessionStorage.removeItem("vc_forced_app_mode");
+        }
+      }
+      console.log("[usePro] forcedMode from localStorage:", stored);
       if (stored === "team" || stored === "pro") setForcedMode(stored);
     } catch {
-      // sessionStorage blocked
+      // localStorage blocked
     }
   }, []);
 
@@ -100,6 +107,18 @@ export function usePro() {
         );
       } catch {
         /* localStorage may be blocked */
+      }
+
+      // Keep X-App-Context header in sync with the new app mode so all
+      // subsequent API calls hit the correct server-side appContext bucket.
+      try {
+        if (app === "pro") {
+          localStorage.setItem("vc_app_context", "pro");
+        } else {
+          localStorage.removeItem("vc_app_context");
+        }
+      } catch {
+        /* localStorage may be blocked in restricted WebViews */
       }
 
       setStatus((prev) => (prev ? { ...prev, currentApp: app } : prev));

@@ -24,6 +24,9 @@ export const proApi = {
       "/pro/grant-from-mobile",
       {},
       {
+        // Identify the call as coming from the Pro app. The backend no longer
+        // gates on this header (the ?app=pro context is trusted), but it is
+        // kept for logging / potential future use.
         headers: { "X-App-Source": "pro-mobile-app" },
       },
     ),

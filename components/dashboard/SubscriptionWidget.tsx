@@ -33,6 +33,15 @@ export default function SubscriptionWidget() {
   const [sub, setSub] = useState<SubInfo | null>(null);
   const [aiCredits, setAiCredits] = useState<AiCredits | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isProApp, setIsProApp] = useState(false);
+
+  useEffect(() => {
+    try {
+      setIsProApp(localStorage.getItem("vc_app_context") === "pro");
+    } catch {
+      // sessionStorage blocked — default to false (not pro app)
+    }
+  }, []);
 
   const fetchCredits = () => {
     aiApi
@@ -180,9 +189,10 @@ export default function SubscriptionWidget() {
           value={
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
               {sub.plan || "Free"}
-              {/* PRO badge only inside the Pro app — never on a Team plan.
-                  Team plans report app_context="team" / tier>=2. */}
-              {sub.is_pro &&
+              {/* PRO badge only inside the Pro app — never on a Team plan
+                  or when the user is in the Team app context. */}
+              {isProApp &&
+                sub.is_pro &&
                 sub.app_context !== "team" &&
                 (sub.tier ?? 0) < 2 &&
                 !/team/i.test(sub.plan || "") && (

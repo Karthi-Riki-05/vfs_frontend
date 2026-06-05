@@ -57,11 +57,11 @@ export function createProxy(
         const headers: Record<string, string> = {
           Authorization: `Bearer ${token}`,
         };
-        // Forward the workspace-scoping header set by the browser's axios
-        // request interceptor (lib/axios.tsx). Backend controllers read it
-        // as `req.headers['x-team-context']` to scope flows/chat/etc.
+        // Forward workspace-scoping headers set by the browser's axios interceptor.
         const teamCtx = req.headers.get("x-team-context");
         if (teamCtx) headers["X-Team-Context"] = teamCtx;
+        const appCtx = req.headers.get("x-app-context");
+        if (appCtx) headers["X-App-Context"] = appCtx;
         const { searchParams } = new URL(req.url);
 
         let response;
@@ -88,7 +88,15 @@ export function createProxy(
           });
         }
 
-        return NextResponse.json(response.data, { status: response.status });
+        return NextResponse.json(response.data, {
+          status: response.status,
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            Vary: "X-App-Context, X-Team-Context",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+        });
       } catch (error: any) {
         return errorResponse(error);
       }

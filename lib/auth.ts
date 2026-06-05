@@ -113,6 +113,7 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role;
         token.hasPro = (user as any).hasPro;
         token.currentVersion = (user as any).currentVersion;
+        token.hasTeamAccess = (user as any).hasTeamAccess ?? false;
       }
 
       // Re-fetch user data from DB when session is explicitly updated
@@ -146,6 +147,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).role = token.role;
         (session.user as any).hasPro = token.hasPro;
         (session.user as any).currentVersion = token.currentVersion;
+        (session.user as any).hasTeamAccess = token.hasTeamAccess ?? false;
       }
       return session;
     },

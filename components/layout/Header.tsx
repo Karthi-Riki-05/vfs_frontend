@@ -235,7 +235,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       icon: <LogoutOutlined style={{ color: "#FF4D4F" }} />,
       label: <span style={{ color: "#FF4D4F" }}>Log out</span>,
       onClick: () => {
-        // Keep vc_forced_app_mode in sessionStorage so forced mode (WebView)
+        // Keep vc_app_context in localStorage so forced mode (WebView)
         // is restored automatically when the user logs back in on the same tab.
         signOut({ callbackUrl: "/login" });
       },

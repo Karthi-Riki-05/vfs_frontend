@@ -23,14 +23,22 @@ import {
 import SectionHeader from "@/components/common/SectionHeader";
 import EmptyState from "@/components/common/EmptyState";
 import { useProjects } from "@/hooks/useProjects";
+import { useTabFocus } from "@/hooks/useTabFocus";
 import { useRouter } from "next/navigation";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Text } = Typography;
 
 export default function ProjectsPage() {
-  const { projects, loading, createProject, deleteProject, updateProject } =
-    useProjects();
+  const {
+    projects,
+    loading,
+    fetchProjects,
+    createProject,
+    deleteProject,
+    updateProject,
+  } = useProjects();
+  useTabFocus(fetchProjects);
   const router = useRouter();
   const isMobile = useIsMobile();
   const [createModalOpen, setCreateModalOpen] = useState(false);

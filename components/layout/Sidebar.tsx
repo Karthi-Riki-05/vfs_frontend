@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { Layout, Menu, Typography, message } from "antd";
 import {
   CrownOutlined,
@@ -56,6 +57,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     forcedMode,
   } = usePro();
   const { isTeamContext, effectivePlan } = useAppContext();
+  const { data: session } = useSession();
+  const sessionHasTeamAccess = (session?.user as any)?.hasTeamAccess ?? false;
   // Lock is driven by the ACTIVE context, not by whether invitations exist.
   // Spec:
   //   • Pro app                                       → never locked
@@ -78,8 +81,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   // In the Team app (ValueChart shell), `hasPro` lifetime DOES NOT unlock
   // Teams/Chat — access requires an active team subscription or being inside
   // a team context. `hasPro` only matters when the user is in the Pro app.
+  // `sessionHasTeamAccess` is set by the login endpoint (live subscription
+  // check) and persisted in the JWT, providing a fast initial render signal
+  // before the AppContext resolves effectivePlan from the backend.
   const hasTeamFeatures =
-    proLoading || isProApp || isTeamContext || effectivePlan === "team";
+    proLoading ||
+    isProApp ||
+    isTeamContext ||
+    effectivePlan === "team" ||
+    sessionHasTeamAccess;
   const [starredFlows, setStarredFlows] = useState<any[]>([]);
   const [switching, setSwitching] = useState(false);
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
@@ -390,7 +400,9 @@ const Sidebar: React.FC<SidebarProps> = ({
           {/* App Switch or Upgrade — hidden in forced WebView mode */}
           {!forcedMode && (
             <div style={{ padding: "12px 16px 0" }}>
-              {hasPro ? (
+              {hasPro && isProApp ? (
+                // Pro app: ValueChart tab (inactive) ↔ PRO tab (active).
+                // currentApp is always "pro" in this branch — styles hardcoded.
                 <div
                   style={{
                     display: "flex",
@@ -406,14 +418,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                       flex: 1,
                       textAlign: "center",
                       padding: "6px 0",
-                      cursor: currentApp === "free" ? "default" : "pointer",
-                      background: currentApp === "free" ? "#3CB371" : "#fff",
-                      color: currentApp === "free" ? "#fff" : "#595959",
+                      cursor: "pointer",
+                      background: "#fff",
+                      color: "#595959",
                       transition: "all 0.2s",
                     }}
-                    onClick={() =>
-                      currentApp !== "free" && handleAppSwitch("free")
-                    }
+                    onClick={() => handleAppSwitch("free")}
                   >
                     ValueChart
                   </div>
@@ -422,24 +432,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                       flex: 1,
                       textAlign: "center",
                       padding: "6px 0",
-                      cursor: currentApp === "pro" ? "default" : "pointer",
-                      background: currentApp === "pro" ? "#F59E0B" : "#fff",
-                      color: currentApp === "pro" ? "#fff" : "#595959",
+                      cursor: "default",
+                      background: "#F59E0B",
+                      color: "#fff",
                       transition: "all 0.2s",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       gap: 4,
                     }}
-                    onClick={() =>
-                      currentApp !== "pro" && handleAppSwitch("pro")
-                    }
                   >
                     <CrownOutlined style={{ fontSize: 11 }} />
                     PRO
                   </div>
                 </div>
-              ) : (
+              ) : hasPro ? null : (
                 <div
                   style={{
                     display: "flex",
@@ -568,7 +575,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Top: App Switch or Upgrade — hidden in forced WebView mode */}
         {!collapsed && !forcedMode && (
           <div style={{ padding: "12px 16px 0" }}>
-            {hasPro ? (
+            {hasPro && isProApp ? (
+              // Pro app: show ValueChart ↔ PRO switcher
               <div
                 style={{
                   display: "flex",
@@ -579,19 +587,18 @@ const Sidebar: React.FC<SidebarProps> = ({
                   fontWeight: 600,
                 }}
               >
+                {/* currentApp is always "pro" in this branch — styles hardcoded */}
                 <div
                   style={{
                     flex: 1,
                     textAlign: "center",
                     padding: "6px 0",
-                    cursor: currentApp === "free" ? "default" : "pointer",
-                    background: currentApp === "free" ? "#3CB371" : "#fff",
-                    color: currentApp === "free" ? "#fff" : "#595959",
+                    cursor: "pointer",
+                    background: "#fff",
+                    color: "#595959",
                     transition: "all 0.2s",
                   }}
-                  onClick={() =>
-                    currentApp !== "free" && handleAppSwitch("free")
-                  }
+                  onClick={() => handleAppSwitch("free")}
                 >
                   ValueChart
                 </div>
@@ -600,22 +607,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                     flex: 1,
                     textAlign: "center",
                     padding: "6px 0",
-                    cursor: currentApp === "pro" ? "default" : "pointer",
-                    background: currentApp === "pro" ? "#F59E0B" : "#fff",
-                    color: currentApp === "pro" ? "#fff" : "#595959",
+                    cursor: "default",
+                    background: "#F59E0B",
+                    color: "#fff",
                     transition: "all 0.2s",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 4,
                   }}
-                  onClick={() => currentApp !== "pro" && handleAppSwitch("pro")}
                 >
                   <CrownOutlined style={{ fontSize: 11 }} />
                   PRO
                 </div>
               </div>
-            ) : (
+            ) : hasPro ? null : (
               <div
                 style={{
                   display: "flex",

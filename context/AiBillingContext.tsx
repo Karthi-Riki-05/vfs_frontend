@@ -129,8 +129,19 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
       const serverTeamId = ctxRes?.data?.data?.teamId ?? undefined;
       const localTeamId = getAiBillingTeamId();
       const candidate = serverTeamId !== undefined ? serverTeamId : localTeamId;
+      // Trust the server value without options-list validation ONLY when the
+      // user is currently inside the Pro app. The Pro team is an owned team
+      // (excluded from the switchable list by design), so it never appears in
+      // nextOptions — but it IS valid when forcedMode='pro'. In any other app
+      // (Team app, web) a server-saved proTeamId must be dropped so the team
+      // app doesn't inherit Pro app context (cross-app isolation).
+      const isInProApp =
+        typeof window !== "undefined" &&
+        localStorage.getItem("vc_app_context") === "pro";
       const valid =
-        candidate == null || nextOptions.some((o) => o.teamId === candidate);
+        (serverTeamId !== undefined && isInProApp) ||
+        candidate == null ||
+        nextOptions.some((o) => o.teamId === candidate);
       const resolved = valid ? candidate : null;
 
       setActive(resolved);

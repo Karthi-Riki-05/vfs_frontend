@@ -22,11 +22,18 @@ export function getIconForApp(app: "pro" | "free" | "team" | null): string {
   return app === "pro" ? LOGOS.proIcon : LOGOS.standard;
 }
 
-/** Read the forced-app mode from sessionStorage (client-side only). */
+/** Read the forced-app mode from localStorage (client-side only). */
 export function getForcedMode(): "pro" | "team" | null {
-  if (typeof sessionStorage === "undefined") return null;
+  if (typeof localStorage === "undefined") return null;
   try {
-    const v = sessionStorage.getItem("vc_forced_app_mode");
+    let v = localStorage.getItem("vc_app_context");
+    if (!v && typeof sessionStorage !== "undefined") {
+      v = sessionStorage.getItem("vc_forced_app_mode");
+      if (v === "pro" || v === "team") {
+        localStorage.setItem("vc_app_context", v);
+        sessionStorage.removeItem("vc_forced_app_mode");
+      }
+    }
     if (v === "pro" || v === "team") return v;
   } catch {}
   return null;

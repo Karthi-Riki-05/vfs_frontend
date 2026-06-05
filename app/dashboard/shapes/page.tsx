@@ -37,6 +37,7 @@ import api from "@/lib/axios";
 import { RcFile } from "antd/es/upload";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useAppContext } from "@/context/AppContext";
+import { useTabFocus } from "@/hooks/useTabFocus";
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -95,6 +96,7 @@ function ShapesContent() {
       setLoading(false);
     }
   };
+  useTabFocus(fetchShapes);
 
   const fetchGroups = async () => {
     try {

@@ -6,22 +6,26 @@ import jwt from "jsonwebtoken";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://vc-backend:5000";
 
-// Forward auth + workspace-scoping header from the browser to the Express
-// backend. The browser's axios interceptor attaches `X-Team-Context`
-// (teamId) based on the active workspace in localStorage.
 function buildHeaders(session: any, req: NextRequest) {
   const token = jwt.sign(
     { id: session.user.id },
     process.env.NEXTAUTH_SECRET!,
-    {
-      expiresIn: "1h",
-    },
+    { expiresIn: "1h" },
   );
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
   const teamCtx = req.headers.get("x-team-context");
   if (teamCtx) headers["X-Team-Context"] = teamCtx;
+  const appCtx = req.headers.get("x-app-context");
+  if (appCtx) headers["X-App-Context"] = appCtx;
   return headers;
 }
+
+const NO_CACHE = {
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  Vary: "X-App-Context, X-Team-Context",
+  Pragma: "no-cache",
+  Expires: "0",
+};
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -34,7 +38,7 @@ export async function GET(req: NextRequest) {
       params: Object.fromEntries(searchParams),
       headers: buildHeaders(session, req),
     });
-    return NextResponse.json(response.data);
+    return NextResponse.json(response.data, { headers: NO_CACHE });
   } catch (error: any) {
     return NextResponse.json(
       error.response?.data || { error: "Internal Server Error" },

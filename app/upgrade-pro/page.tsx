@@ -53,6 +53,7 @@ function UpgradeProContent() {
   const { pricing, loading: pricingLoading } = usePricing();
   const [purchasing, setPurchasing] = useState(false);
   const [returnedFromStripe, setReturnedFromStripe] = useState(false);
+  const [forcedMode, setForcedMode] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
   const wasCancelled = searchParams?.get("cancelled") === "true";
@@ -86,6 +87,42 @@ function UpgradeProContent() {
     }
   }, [wasCancelled]);
 
+  // Read the persisted Pro-app flag (set by ?app=pro on the entry page).
+  useEffect(() => {
+    try {
+      setForcedMode(localStorage.getItem("vc_app_context"));
+    } catch {
+      // sessionStorage blocked — fall back to the URL param only.
+    }
+  }, []);
+
+  // A Pro-app user (?app=pro) or an already-purchased Pro user must NEVER see
+  // this payment page → send them to the dashboard. ProGuard handles the
+  // auto-grant for un-granted Pro-app users. proPurchasedAt (not bare hasPro)
+  // keeps Team-plan users — hasPro=true, proPurchasedAt=null — able to buy Pro
+  // from a normal browser. Skipped right after a Stripe round-trip, where
+  // proPurchasedAt may be momentarily stale.
+  const inProApp = forcedMode === "pro" || isFromProApp;
+  useEffect(() => {
+    if (wasCancelled || returnedFromStripe) return;
+    if (inProApp) {
+      router.replace(backUrl);
+      return;
+    }
+    if (hasPro && proPurchasedAt !== null && !proLoading) {
+      router.replace(backUrl);
+    }
+  }, [
+    inProApp,
+    hasPro,
+    proPurchasedAt,
+    proLoading,
+    wasCancelled,
+    returnedFromStripe,
+    backUrl,
+    router,
+  ]);
+
   const proMonthly = pricing?.prices.pro_monthly;
 
   const handlePurchase = async () => {
@@ -110,7 +147,9 @@ function UpgradeProContent() {
     }
   };
 
-  if (proLoading) {
+  // Spinner while loading, or while a Pro-app user is being redirected out —
+  // so the payment UI never flashes for them.
+  if (proLoading || (inProApp && !wasCancelled && !returnedFromStripe)) {
     return (
       <div style={{ textAlign: "center", padding: 100 }}>
         <Spin size="large" />

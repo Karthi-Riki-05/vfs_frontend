@@ -135,7 +135,7 @@ export default function LoginForm() {
         const role = sess?.user?.role;
         if (role === "super_admin") {
           try {
-            sessionStorage.removeItem("vc_forced_app_mode");
+            localStorage.removeItem("vc_app_context");
           } catch {
             // sessionStorage may be blocked
           }

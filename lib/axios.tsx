@@ -23,18 +23,47 @@ api.interceptors.request.use((config) => {
 // Prevent multiple signOut calls from cascading 401 responses
 let isSigningOut = false;
 
+// Attach X-App-Context header so the backend knows which app (pro/team)
+// the request originates from. Reads from localStorage where the entry
+// page stores the ?app= param. Defaults to "team" (website default).
+// _appctx is also added as a query param so the URL itself is unique per
+// context — browser caches key on URL only, ignoring custom headers.
+api.interceptors.request.use((config) => {
+  try {
+    if (typeof window !== "undefined") {
+      let appMode = localStorage.getItem("vc_app_context");
+      if (!appMode && typeof sessionStorage !== "undefined") {
+        appMode = sessionStorage.getItem("vc_forced_app_mode");
+        if (appMode === "pro" || appMode === "team") {
+          localStorage.setItem("vc_app_context", appMode);
+          sessionStorage.removeItem("vc_forced_app_mode");
+        }
+      }
+      appMode = appMode || "team";
+      config.headers = config.headers || {};
+      (config.headers as Record<string, string>)["X-App-Context"] = appMode;
+      config.params = { ...config.params, _appctx: appMode };
+    }
+  } catch {
+    // sessionStorage may be blocked in restricted WebViews
+  }
+  return config;
+});
+
 // Private team buckets: ONE active-context selection (the profile switcher)
 // drives BOTH data scope and AI-credit billing. We attach X-Team-Context to
 // every API request. The backend scopes every data list by ownerId AND teamId
 // (never teamId alone), so this can't leak another user's rows (DATA-LOSS-001),
 // and AI controllers route the deduction via resolveBillingUser. Personal
 // selection (null) sends no header → the teamId=null bucket / personal pool.
+// _tc added as query param for the same URL-cache-key reason as _appctx above.
 api.interceptors.request.use((config) => {
   try {
     const teamId = getAiBillingTeamId();
     if (teamId) {
       config.headers = config.headers || {};
       (config.headers as Record<string, string>)["X-Team-Context"] = teamId;
+      config.params = { ...config.params, _tc: teamId };
     }
   } catch {
     // localStorage blocked — personal scope (no header).

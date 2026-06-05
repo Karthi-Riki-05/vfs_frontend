@@ -39,6 +39,7 @@ import FlowCard from "@/components/flows/FlowCard";
 import ShareFlowModal from "@/components/flows/ShareFlowModal";
 import AssignProjectModal from "@/components/flows/AssignProjectModal";
 import { useFlows } from "@/hooks/useFlows";
+import { useTabFocus } from "@/hooks/useTabFocus";
 import { createNewFlow } from "@/lib/flow";
 import api from "@/lib/axios";
 import { message } from "antd";
@@ -96,6 +97,7 @@ export default function FlowsPage() {
     favoriteFlow,
     removeSharedFlow,
   } = useFlows();
+  useTabFocus(fetchFlows);
   const router = useRouter();
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
