@@ -12,6 +12,7 @@ import {
   Modal,
   Space,
   Upload,
+  Tooltip,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -1095,20 +1096,27 @@ export default function EditorView({
             type="text"
           />
 
-          <Input
-            value={flowName}
-            onChange={(e) => setFlowName(e.target.value)}
-            style={{
-              flex: 1,
-              minWidth: 80,
-              maxWidth: isMobile ? "100%" : 300,
-              fontWeight: "bold",
-              fontSize: isMobile ? 13 : 14,
-            }}
-            variant="borderless"
-            placeholder="Diagram Name"
-            disabled={isReadOnly}
-          />
+          <Tooltip
+            title={flowName || undefined}
+            placement="bottom"
+            trigger={["hover", "focus"]}
+            mouseEnterDelay={0.3}
+          >
+            <Input
+              value={flowName}
+              onChange={(e) => setFlowName(e.target.value)}
+              style={{
+                flex: 1,
+                minWidth: 80,
+                maxWidth: isMobile ? "100%" : 300,
+                fontWeight: "bold",
+                fontSize: isMobile ? 13 : 14,
+              }}
+              variant="borderless"
+              placeholder="Diagram Name"
+              disabled={isReadOnly}
+            />
+          </Tooltip>
 
           <div style={{ flex: 1 }} />
 

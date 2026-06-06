@@ -8,6 +8,7 @@ import {
   Avatar,
   Upload,
   message,
+  Modal,
   Typography,
   Divider,
   Spin,
@@ -36,6 +37,7 @@ export default function SettingsPage() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string>("");
   const [initialLoading, setInitialLoading] = useState(true);
   const { deleteAllData: deleteAiData } = useAi();
 
@@ -49,6 +51,7 @@ export default function SettingsPage() {
           email: data.email || "",
           contactNo: data.contactNo || "",
         });
+        setDisplayName(data.name || user?.name || "");
         if (data.image || data.avatar || data.photo) {
           setAvatarUrl(data.image || data.avatar || data.photo);
         }
@@ -59,6 +62,7 @@ export default function SettingsPage() {
             name: user.name || "",
             email: user.email || "",
           });
+          setDisplayName(user.name || "");
         }
       })
       .finally(() => setInitialLoading(false));
@@ -71,6 +75,7 @@ export default function SettingsPage() {
         name: values.name,
         contactNo: values.contactNo,
       });
+      setDisplayName(values.name);
       message.success("Profile updated successfully");
     } catch {
       message.error("Failed to update profile");
@@ -98,19 +103,34 @@ export default function SettingsPage() {
   };
 
   const handleAvatarUpload = (file: File) => {
-    const formData = new FormData();
-    formData.append("avatar", file);
-    api
-      .post("/users/me", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
-      .then((res) => {
-        message.success("Avatar updated");
-        if (res.data?.image || res.data?.avatar) {
-          setAvatarUrl(res.data.image || res.data.avatar);
-        }
-      })
-      .catch(() => message.error("Avatar upload failed"));
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 200;
+      const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const base64 = canvas.toDataURL("image/jpeg", 0.85);
+      URL.revokeObjectURL(objectUrl);
+      api
+        .put("/users/me", { photo: base64 })
+        .then((res) => {
+          const photo =
+            res.data?.data?.user?.photo || res.data?.data?.photo || base64;
+          setAvatarUrl(photo);
+          message.success("Avatar updated");
+        })
+        .catch(() => message.error("Avatar upload failed"));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      message.error("Failed to read image");
+    };
+    img.src = objectUrl;
     return false;
   };
 
@@ -165,7 +185,7 @@ export default function SettingsPage() {
               whiteSpace: "nowrap",
             }}
           >
-            {user?.name || "User"}
+            {displayName || user?.name || "User"}
           </div>
           <Text
             type="secondary"
@@ -412,13 +432,16 @@ export default function SettingsPage() {
           danger
           icon={<DeleteOutlined />}
           onClick={() => {
-            if (
-              window.confirm(
+            Modal.confirm({
+              title: "Delete AI Data",
+              content:
                 "Delete all your AI conversation history? This cannot be undone.",
-              )
-            ) {
-              deleteAiData();
-            }
+              okText: "Delete",
+              okButtonProps: { danger: true },
+              cancelText: "Cancel",
+              centered: true,
+              onOk: () => deleteAiData(),
+            });
           }}
           style={{ borderRadius: 8 }}
         >

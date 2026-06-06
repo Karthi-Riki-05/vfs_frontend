@@ -80,7 +80,8 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     effectivePlan,
     isTeamContext,
   } = useAppContext();
-  const { currentApp, hasPro } = usePro();
+  const { currentApp, proLoading } = usePro();
+  const sessionHasTeamAccess = (session?.user as any)?.hasTeamAccess ?? false;
 
   // Subscription-aware personal plan — wins over the stale JWT/session field.
   // (Backend `getTeamContext` resolves it from the active subscription row.)
@@ -115,10 +116,16 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const hasTeamContext = availableTeams.length > 0;
   const activeTeamName =
     activeContext.type === "team" ? activeContext.teamName : "";
-  // Chat unlocks for any user with the Pro lifetime entitlement, an
-  // active Pro/Team plan in this app, or who's switched into a team
-  // context. Pro purchase = all Team features (product spec).
-  const hasChatAccess = hasPro || isPro || isTeamContext;
+  // Same gate as Sidebar's hasTeamFeatures — keeps both surfaces consistent.
+  // hasPro (lifetime $1) is excluded: Pro lifetime only unlocks Pro-app features,
+  // not Team-app chat. Team-app chat access requires isTeamContext, an active
+  // team subscription (effectivePlan === "team"), or a JWT-cached team flag.
+  const hasChatAccess =
+    proLoading ||
+    isProApp ||
+    isTeamContext ||
+    effectivePlan === "team" ||
+    sessionHasTeamAccess;
 
   // ─────────── Switch button click handler ───────────
 
