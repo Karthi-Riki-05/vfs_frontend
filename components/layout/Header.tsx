@@ -80,7 +80,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     effectivePlan,
     isTeamContext,
   } = useAppContext();
-  const { currentApp, proLoading } = usePro();
+  const { currentApp, loading: proLoading } = usePro();
   const sessionHasTeamAccess = (session?.user as any)?.hasTeamAccess ?? false;
 
   // Subscription-aware personal plan — wins over the stale JWT/session field.
