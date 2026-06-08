@@ -268,7 +268,10 @@ export default function CustomShapesPanel({ open, onClose, onInsert }: Props) {
               <div
                 key={shape.id}
                 title={`Click to insert "${shape.name}"`}
-                onClick={() => onInsert(shape)}
+                onClick={() => {
+                  onInsert(shape);
+                  onClose();
+                }}
                 style={{
                   cursor: "pointer",
                   borderRadius: 8,

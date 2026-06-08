@@ -252,6 +252,9 @@ export default function AIAssistant({
   const { status: proStatus, currentApp } = usePro();
   const isMobile = useIsMobile();
   const pathname = usePathname() || "";
+  const isEditorPage = /^\/dashboard\/flows\/(?!new$)[a-zA-Z0-9_-]+$/.test(
+    pathname,
+  );
 
   const [state, setState] = useState<ViewState>("collapsed");
   const [input, setInput] = useState("");
@@ -1452,7 +1455,12 @@ export default function AIAssistant({
         )}
         {isMobile && (
           <div
-            style={{ position: "fixed", bottom: 24, right: 20, zIndex: 200 }}
+            style={{
+              position: "fixed",
+              bottom: isEditorPage ? 60 : 24,
+              right: 20,
+              zIndex: 200,
+            }}
           >
             <div
               style={{

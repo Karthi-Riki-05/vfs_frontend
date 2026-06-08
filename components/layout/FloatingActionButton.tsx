@@ -32,18 +32,6 @@ export default function FloatingActionButton({
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
 
-  // Hide entirely on editor pages
-  if (IS_EDITOR_RE.test(pathname ?? "")) return null;
-  // Hide on post-checkout success pages (would overlap the CTA)
-  if (HIDE_FAB_PATHS.some((p) => (pathname ?? "").startsWith(p))) return null;
-
-  const buttonSize = isMobile ? 48 : 48;
-  const iconSize = isMobile ? 20 : 20;
-  // On mobile the AI assistant button sits at bottom:24 right:20 (48px tall).
-  // Stack the FAB above it: 24 + 48 + 12 = 84px from bottom.
-  const bottom = isMobile ? 84 : 24;
-  const right = isMobile ? 20 : 24;
-
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key === "Enter" || e.key === " ") {
@@ -67,6 +55,18 @@ export default function FloatingActionButton({
     window.addEventListener("keydown", onWindowKeyDown);
     return () => window.removeEventListener("keydown", onWindowKeyDown);
   }, [open]);
+
+  // Hide entirely on editor pages
+  if (IS_EDITOR_RE.test(pathname ?? "")) return null;
+  // Hide on post-checkout success pages (would overlap the CTA)
+  if (HIDE_FAB_PATHS.some((p) => (pathname ?? "").startsWith(p))) return null;
+
+  const buttonSize = isMobile ? 48 : 48;
+  const iconSize = isMobile ? 20 : 20;
+  // On mobile the AI assistant button sits at bottom:24 right:20 (48px tall).
+  // Stack the FAB above it: 24 + 48 + 12 = 84px from bottom.
+  const bottom = isMobile ? 84 : 24;
+  const right = isMobile ? 20 : 24;
 
   const menuItems: MenuProps["items"] = [
     {
