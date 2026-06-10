@@ -4,6 +4,7 @@ import { Spin } from "antd";
 import { usePro } from "@/hooks/usePro";
 import { proApi } from "@/api/pro.api";
 import { getAiBillingTeamId, setAiBillingTeamId } from "@/lib/aiBilling";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
 export function ProGuard({ children }: { children: React.ReactNode }) {
   const { hasPro, proPurchasedAt, loading, forcedMode } = usePro();
@@ -65,10 +66,13 @@ export function ProGuard({ children }: { children: React.ReactNode }) {
           // requests without waiting for AiBillingContext.refresh().
           setAiBillingTeamId(result.proTeamId);
           // Non-blocking: best-effort persist of active context server-side.
+          // appMode:'pro' is required — this raw fetch bypasses the axios
+          // interceptor that normally attaches X-App-Context, so without it the
+          // backend would write the proTeamId into the Team app's context.
           fetch("/api/users/active-context", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ teamId: result.proTeamId }),
+            body: JSON.stringify({ teamId: result.proTeamId, appMode: "pro" }),
           }).catch(() => {});
         }
 
@@ -88,9 +92,13 @@ export function ProGuard({ children }: { children: React.ReactNode }) {
       });
   }, [loading, forcedMode, hasPro, proPurchasedAt]);
 
-  // Show a spinner while Pro status is loading or while the grant is running.
-  // After that, always render children — a ?app=pro user never sees payment.
-  if (forcedMode === "pro" && (loading || granting)) {
+  // Only block render while the grant API is in-flight. usePro.loading is no
+  // longer gating the Spin — with sync proTeamId init (AiBillingContext lazy
+  // state), the correct X-Team-Context header is available from frame 1, so
+  // we can render the dashboard immediately and let billing fill in async.
+  // First-time grants (granting=true) still show a spinner because the reload
+  // they trigger is needed to pick up proPurchasedAt.
+  if (forcedMode === "pro" && granting) {
     return (
       <div style={{ textAlign: "center", paddingTop: 120 }}>
         <Spin size="large" />
@@ -98,5 +106,5 @@ export function ProGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return <ErrorBoundary>{children}</ErrorBoundary>;
 }

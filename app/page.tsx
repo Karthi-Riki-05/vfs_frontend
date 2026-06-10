@@ -7,22 +7,54 @@ export default function RootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Capture ?app= before any redirect swallows it.
-    // localStorage persists through same-origin redirects in the same tab,
-    // so writing it here survives the /dashboard → /login middleware redirect.
+    // Read ?app= param before any redirect swallows it.
+    const params = new URLSearchParams(window.location.search);
+    const app = params.get("app");
+
+    // Persist app context to storage. localStorage persists through same-origin
+    // redirects, so writing here survives the /dashboard → /login middleware redirect.
+    // The try guards against restricted WebViews where storage access throws.
     try {
-      const params = new URLSearchParams(window.location.search);
-      const app = params.get("app");
       // Default context is 'team'. Only upgrade to 'pro' on explicit ?app=pro.
       const appContext = app === "pro" ? "pro" : "team";
-      localStorage.setItem("vc_app_context", appContext);
+      // sessionStorage is per-tab — prevents cross-tab collisions when the
+      // same user opens ?app=team and ?app=pro in separate tabs.
+      sessionStorage.setItem("vc_app_context", appContext);
+
+      // Store the EXPLICIT ?app= param separately (vc_app_context defaults to
+      // "team" even for plain web visits, so it can't distinguish web vs the
+      // team mobile app). LoginForm uses this to land on /dashboard/pro or
+      // /dashboard/team directly after login — avoids the team→pro data flash.
+      if (app === "pro" || app === "team") {
+        sessionStorage.setItem("vc_app_param", app);
+      } else {
+        sessionStorage.removeItem("vc_app_param");
+      }
+
+      if (app === "pro") {
+        // Clear any team-app billing teamId so the axios interceptor doesn't
+        // send the old X-Team-Context on the first Pro app requests. ProGuard
+        // will restore the correct proTeamId synchronously before the first
+        // render (vc_pro_team_id → vc_ai_billing_team via setAiBillingTeamId).
+        localStorage.removeItem("vc_ai_billing_team");
+      } else {
+        // Entering team app — clear stale Pro team id so the Pro billing context
+        // doesn't bleed into team app requests if the user switches apps.
+        localStorage.removeItem("vc_pro_team_id");
+      }
     } catch {
       // localStorage may be blocked in restricted WebViews
     }
 
-    // Always redirect to /dashboard. If unauthenticated, middleware redirects
-    // to /login — localStorage is already written by then.
-    router.replace("/dashboard");
+    // Route to the app-specific dashboard. If unauthenticated, middleware
+    // redirects to /login — localStorage is already written by then.
+    if (app === "pro") {
+      router.replace("/dashboard/pro");
+    } else if (app === "team") {
+      router.replace("/dashboard/team");
+    } else {
+      router.replace("/dashboard");
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Return an empty fragment — NOT null.

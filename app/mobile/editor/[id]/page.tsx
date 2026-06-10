@@ -565,6 +565,7 @@ function MobileEditorInner() {
           borderBottom: "1px solid #ddd",
           gap: 10,
           flexShrink: 0,
+          overflowX: "auto",
         }}
       >
         <Input

@@ -800,7 +800,7 @@ function ProSubscriptionContent() {
                 </Title>
                 <div
                   style={{
-                    fontSize: 28,
+                    fontSize: "clamp(20px, 4.5vw, 28px)",
                     fontWeight: 700,
                     color: "#3CB371",
                     marginBottom: 2,
@@ -1140,6 +1140,7 @@ export default function SubscriptionPage() {
               alignItems: "center",
               gap: 8,
               marginBottom: 4,
+              paddingRight: plan === "yearly" ? 84 : 0,
             }}
           >
             <CrownOutlined
@@ -1167,10 +1168,12 @@ export default function SubscriptionPage() {
                 top: 16,
                 right: 16,
                 fontWeight: 700,
-                fontSize: 12,
-                padding: "2px 10px",
+                fontSize: "clamp(9px, 2.6vw, 12px)",
+                padding: "1px 8px",
                 borderRadius: 20,
                 border: "none",
+                margin: 0,
+                lineHeight: 1.6,
               }}
             >
               SAVE 17%
@@ -1249,7 +1252,7 @@ export default function SubscriptionPage() {
           <div style={{ marginBottom: 20 }}>
             <span
               style={{
-                fontSize: 32,
+                fontSize: "clamp(22px, 5vw, 32px)",
                 fontWeight: 800,
                 color: "#1A1A2E",
                 lineHeight: 1,

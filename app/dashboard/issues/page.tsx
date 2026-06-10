@@ -39,7 +39,8 @@ export default function IssuesPage() {
       const res = await issuesApi.list();
       const data = res.data?.data?.issues || res.data?.data || res.data;
       setIssues(Array.isArray(data) ? data : []);
-    } catch {
+    } catch (err) {
+      console.error("[Issues] fetch failed", err);
     } finally {
       setLoading(false);
     }
@@ -135,7 +136,15 @@ export default function IssuesPage() {
           danger
           icon={<DeleteOutlined />}
           size="small"
+          aria-label="Delete issue"
           onClick={() => handleDelete(record.id)}
+          style={{
+            minWidth: 44,
+            minHeight: 44,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         />
       ),
     },

@@ -40,7 +40,14 @@ function BackToDashboard({
         type="text"
         icon={<ArrowLeftOutlined />}
         onClick={() => router.push(backUrl)}
-        style={{ color: "#8C8C8C", paddingLeft: 0, fontSize: 14 }}
+        style={{
+          color: "#8C8C8C",
+          paddingLeft: 0,
+          fontSize: 14,
+          minHeight: 44,
+          display: "inline-flex",
+          alignItems: "center",
+        }}
       >
         Back to Dashboard
       </Button>
@@ -90,7 +97,7 @@ function UpgradeProContent() {
   // Read the persisted Pro-app flag (set by ?app=pro on the entry page).
   useEffect(() => {
     try {
-      setForcedMode(localStorage.getItem("vc_app_context"));
+      setForcedMode(sessionStorage.getItem("vc_app_context"));
     } catch {
       // sessionStorage blocked — fall back to the URL param only.
     }

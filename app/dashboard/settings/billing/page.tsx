@@ -17,12 +17,14 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { paymentsApi } from "@/api/payments.api";
 import { usePro } from "@/hooks/usePro";
 import { useState, useEffect } from "react";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Title, Text } = Typography;
 
 export default function BillingPage() {
   const { subscription, loading, cancel } = useSubscription();
   const { currentApp, loading: proLoading } = usePro();
+  const isMobile = useIsMobile();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [txLoading, setTxLoading] = useState(true);
   const [history, setHistory] = useState<any[]>([]);
@@ -76,7 +78,13 @@ export default function BillingPage() {
     );
 
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto" }}>
+    <div
+      style={{
+        maxWidth: 800,
+        margin: "0 auto",
+        padding: isMobile ? "0 12px" : "0 16px",
+      }}
+    >
       <div style={{ marginBottom: 24 }}>
         <Title level={3} style={{ margin: 0 }}>
           Billing
@@ -96,7 +104,7 @@ export default function BillingPage() {
         >
           <div style={{ flex: "1 1 220px", minWidth: 0 }}>
             <Space align="start">
-              <CrownOutlined style={{ fontSize: 24, color: "#4F46E5" }} />
+              <CrownOutlined style={{ fontSize: 24, color: "#3CB371" }} />
               <div style={{ minWidth: 0 }}>
                 <Title level={4} style={{ margin: 0, wordBreak: "break-word" }}>
                   {subscription?.plan?.name || "Free Plan"}

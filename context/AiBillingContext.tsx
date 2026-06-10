@@ -11,6 +11,7 @@ import { useSession } from "next-auth/react";
 import api from "@/lib/axios";
 import {
   AI_BILLING_EVENT,
+  AI_BILLING_KEY,
   getAiBillingTeamId,
   setAiBillingTeamId,
 } from "@/lib/aiBilling";
@@ -72,17 +73,25 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
     (session?.user as any)?.id || (session?.user as any)?.email || null;
 
   const [options, setOptions] = useState<BillingOption[]>([PERSONAL_FALLBACK]);
-  // Start null on server + client to avoid hydration mismatch; the effect
-  // below reads localStorage after mount.
-  const [activeBillingTeamId, setActive] = useState<string | null>(null);
+  // Lazy initializer runs once synchronously on mount — gives the correct
+  // teamId from frame 1, before any async API call. In the Pro app we prefer
+  // vc_pro_team_id over the generic billing key (which page.tsx clears on
+  // ?app=pro entry so the old team-app teamId doesn't pollute first requests).
+  const [activeBillingTeamId, setActive] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const appMode =
+        sessionStorage.getItem("vc_app_context") ||
+        sessionStorage.getItem("vc_forced_app_mode");
+      if (appMode === "pro") {
+        return localStorage.getItem("vc_pro_team_id") || null;
+      }
+      return getAiBillingTeamId();
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
-
-  // Hydrate the selection synchronously from localStorage after mount. The
-  // axios interceptor already reads the same key, so requests are correctly
-  // billed even before this runs.
-  useEffect(() => {
-    setActive(getAiBillingTeamId());
-  }, []);
 
   const refresh = useCallback(async () => {
     if (!userKey) {
@@ -137,7 +146,18 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
       // app doesn't inherit Pro app context (cross-app isolation).
       const isInProApp =
         typeof window !== "undefined" &&
-        localStorage.getItem("vc_app_context") === "pro";
+        (() => {
+          try {
+            // sessionStorage is per-tab — immune to cross-tab overwrites from
+            // another tab opening ?app=pro concurrently (Fix 4).
+            return (
+              sessionStorage.getItem("vc_app_context") === "pro" ||
+              sessionStorage.getItem("vc_forced_app_mode") === "pro"
+            );
+          } catch {
+            return false;
+          }
+        })();
       const valid =
         (serverTeamId !== undefined && isInProApp) ||
         candidate == null ||
@@ -154,6 +174,9 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
       setActive(null);
     } finally {
       setLoading(false);
+      try {
+        window.dispatchEvent(new CustomEvent("vc-context-ready"));
+      } catch {}
     }
   }, [userKey]);
 
@@ -175,7 +198,18 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
     // 3. Persist server-side (WebView-safe). Non-blocking — localStorage is
     //    the fallback if this fails.
     try {
-      await api.post("/users/active-context", { teamId: teamId || null });
+      // appMode tells the backend which context field to write so the Pro app's
+      // selection lands in lastActiveProTeamId, not the Team app's context.
+      // (axios also attaches X-App-Context; body value takes precedence.)
+      const appMode =
+        (typeof window !== "undefined" &&
+          (sessionStorage.getItem("vc_app_context") ||
+            sessionStorage.getItem("vc_forced_app_mode"))) ||
+        "team";
+      await api.post("/users/active-context", {
+        teamId: teamId || null,
+        appMode,
+      });
     } catch {
       /* ignore — selection still active for this session */
     }
@@ -187,9 +221,21 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
       const detail = (e as CustomEvent<{ teamId: string | null }>).detail;
       if (detail) setActive(detail.teamId);
     };
+    // Another tab wrote to AI_BILLING_KEY — re-derive the correct context for
+    // THIS tab (don't blindly accept the new value; this tab may be in a
+    // different app mode). refresh() re-runs the isInProApp check against
+    // this tab's sessionStorage and returns the correct billing team.
+    const onStorageChange = (e: StorageEvent) => {
+      if (e.key !== AI_BILLING_KEY) return;
+      refresh();
+    };
     window.addEventListener(AI_BILLING_EVENT, onChange);
-    return () => window.removeEventListener(AI_BILLING_EVENT, onChange);
-  }, []);
+    window.addEventListener("storage", onStorageChange);
+    return () => {
+      window.removeEventListener(AI_BILLING_EVENT, onChange);
+      window.removeEventListener("storage", onStorageChange);
+    };
+  }, [refresh]);
 
   const activeOption =
     options.find((o) => o.teamId === activeBillingTeamId) || options[0];

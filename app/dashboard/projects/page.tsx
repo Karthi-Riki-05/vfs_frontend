@@ -147,7 +147,19 @@ export default function ProjectsPage() {
                     }}
                     trigger={["click"]}
                   >
-                    <Button type="text" icon={<MoreOutlined />} size="small" />
+                    <Button
+                      type="text"
+                      icon={<MoreOutlined />}
+                      size="small"
+                      aria-label="Project actions"
+                      style={{
+                        minWidth: 44,
+                        minHeight: 44,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    />
                   </Dropdown>
                 </div>
                 <div

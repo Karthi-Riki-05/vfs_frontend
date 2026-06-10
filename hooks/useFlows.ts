@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { flowsApi } from "@/api/flows.api";
 import { useDebounce } from "./useDebounce";
 import { useAppContext } from "@/context/AppContext";
@@ -16,6 +16,7 @@ export function useFlows() {
   const [pageSize, setPageSize] = useState(12);
   const [total, setTotal] = useState(0);
   const [sort, setSort] = useState("updatedAt");
+  const flowsReadyFiredRef = useRef(false);
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -38,6 +39,12 @@ export function useFlows() {
       // Error handled by axios interceptor
     } finally {
       setLoading(false);
+      if (!flowsReadyFiredRef.current) {
+        flowsReadyFiredRef.current = true;
+        try {
+          window.dispatchEvent(new CustomEvent("vc-flows-ready"));
+        } catch {}
+      }
     }
   }, [page, pageSize, debouncedSearch, sort, activeTeamId]);
 

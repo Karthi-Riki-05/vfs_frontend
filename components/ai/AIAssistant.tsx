@@ -617,6 +617,25 @@ export default function AIAssistant({
     }
   }
 
+  // Poll an async diagram job until done/error. Throws on error/timeout so the
+  // caller's catch shows the right message (timeout reuses the 408 copy).
+  async function pollDiagramJob(jobId: string): Promise<any> {
+    const maxAttempts = 60; // 60 × 2s = 2 minutes
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const res = await aiApi.getDiagramJob(jobId);
+      const d = res.data?.data || res.data || {};
+      if (d.status === "done") return d;
+      if (d.status === "error") {
+        throw new Error(d.error || "Diagram generation failed");
+      }
+      // pending | processing → keep polling
+    }
+    const timeoutErr: any = new Error("Diagram generation timed out");
+    timeoutErr.code = "ECONNABORTED";
+    throw timeoutErr;
+  }
+
   async function handleGenerateFromSuggestion(msgId: string, prompt: string) {
     if (generatingId) return;
     setGeneratingId(msgId);
@@ -632,8 +651,11 @@ export default function AIAssistant({
         }
       }
 
-      const res = await aiApi.generateDiagramGated(prompt, true, convId, msgId);
-      const data = res.data?.data || res.data || {};
+      // Async job: start (returns immediately, no gateway 504) then poll.
+      const startRes = await aiApi.startDiagramJob(prompt, true, convId, msgId);
+      const jobId = startRes.data?.data?.jobId || startRes.data?.jobId || null;
+      if (!jobId) throw new Error("Failed to start diagram generation");
+      const data = await pollDiagramJob(jobId);
       if (data.conversationId && data.conversationId !== convId) {
         setActiveConversationId(data.conversationId);
         localStorage.setItem(ACTIVE_CONV_KEY, data.conversationId);

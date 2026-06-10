@@ -32,18 +32,19 @@ export function usePro() {
 
   useEffect(() => {
     try {
-      let stored = localStorage.getItem("vc_app_context");
-      if (!stored && typeof sessionStorage !== "undefined") {
+      // Read from sessionStorage (per-tab) — prevents cross-tab overwrites (Fix 2).
+      let stored = sessionStorage.getItem("vc_app_context");
+      if (!stored) {
+        // Migrate from legacy vc_forced_app_mode (set by upgrade-pro page).
         stored = sessionStorage.getItem("vc_forced_app_mode");
         if (stored === "pro" || stored === "team") {
-          localStorage.setItem("vc_app_context", stored);
+          sessionStorage.setItem("vc_app_context", stored);
           sessionStorage.removeItem("vc_forced_app_mode");
         }
       }
-      console.log("[usePro] forcedMode from localStorage:", stored);
       if (stored === "team" || stored === "pro") setForcedMode(stored);
     } catch {
-      // localStorage blocked
+      // sessionStorage blocked
     }
   }, []);
 
@@ -111,14 +112,15 @@ export function usePro() {
 
       // Keep X-App-Context header in sync with the new app mode so all
       // subsequent API calls hit the correct server-side appContext bucket.
+      // Write to sessionStorage (per-tab) — does not affect sibling tabs (Fix 2).
       try {
         if (app === "pro") {
-          localStorage.setItem("vc_app_context", "pro");
+          sessionStorage.setItem("vc_app_context", "pro");
         } else {
-          localStorage.removeItem("vc_app_context");
+          sessionStorage.removeItem("vc_app_context");
         }
       } catch {
-        /* localStorage may be blocked in restricted WebViews */
+        /* sessionStorage may be blocked in restricted WebViews */
       }
 
       setStatus((prev) => (prev ? { ...prev, currentApp: app } : prev));

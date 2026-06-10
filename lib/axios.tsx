@@ -31,11 +31,14 @@ let isSigningOut = false;
 api.interceptors.request.use((config) => {
   try {
     if (typeof window !== "undefined") {
-      let appMode = localStorage.getItem("vc_app_context");
-      if (!appMode && typeof sessionStorage !== "undefined") {
+      // Read from sessionStorage (per-tab) — prevents Tab B's ?app=pro from
+      // overwriting Tab A's ?app=team context in the shared localStorage (Fix 2).
+      let appMode = sessionStorage.getItem("vc_app_context");
+      if (!appMode) {
+        // Migrate from legacy vc_forced_app_mode key.
         appMode = sessionStorage.getItem("vc_forced_app_mode");
         if (appMode === "pro" || appMode === "team") {
-          localStorage.setItem("vc_app_context", appMode);
+          sessionStorage.setItem("vc_app_context", appMode);
           sessionStorage.removeItem("vc_forced_app_mode");
         }
       }

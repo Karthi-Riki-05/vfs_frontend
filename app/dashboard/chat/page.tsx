@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import RightChatColumn from '@/components/chat/RightChatColumn';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import RightChatColumn from "@/components/chat/RightChatColumn";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 /**
  * /dashboard/chat
@@ -11,34 +12,36 @@ import RightChatColumn from '@/components/chat/RightChatColumn';
  */
 export default function ChatPage() {
   const router = useRouter();
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const mobile = window.innerWidth < 768;
-    setIsMobile(mobile);
+    // `ready` gates the first paint to match SSR (null) and avoid a
+    // hydration mismatch; the redirect runs once the hook has resolved.
     setReady(true);
 
-    if (!mobile) {
+    if (!isMobile) {
       (window as any).__openChat?.();
-      router.replace('/dashboard');
+      router.replace("/dashboard");
     }
-  }, [router]);
+  }, [router, isMobile]);
 
   if (!ready || !isMobile) return null;
 
   // Mobile: full-screen chat using single-column mode (isFullView=false)
   // CSS override forces the 430px column to fill the screen width
   return (
-    <div style={{
-      position: 'fixed',
-      top: 56,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      zIndex: 80,
-      background: '#fff',
-    }}>
+    <div
+      style={{
+        position: "fixed",
+        top: 56,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 80,
+        background: "#fff",
+      }}
+    >
       <style>{`
         .mobile-chat-wrap .right-chat-column {
           width: 100% !important;
@@ -51,7 +54,10 @@ export default function ChatPage() {
           display: none !important;
         }
       `}</style>
-      <div className="mobile-chat-wrap" style={{ width: '100%', height: '100%' }}>
+      <div
+        className="mobile-chat-wrap"
+        style={{ width: "100%", height: "100%" }}
+      >
         <RightChatColumn
           onClose={() => router.back()}
           onFullView={() => {}}

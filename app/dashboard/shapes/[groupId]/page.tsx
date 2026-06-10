@@ -8,12 +8,14 @@ import { shapeGroupsApi } from "@/api/shape-groups.api";
 import ShapeCard from "@/components/shapes/ShapeCard";
 import { useParams, useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Title, Text } = Typography;
 
 export default function ShapeGroupDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const { activeTeamId } = useAppContext();
   const groupId = params?.groupId as string;
   const [group, setGroup] = useState<any>(null);
@@ -28,7 +30,8 @@ export default function ShapeGroupDetailPage() {
     ])
       .then(([groupRes, shapesRes]) => {
         setGroup(groupRes.data);
-        setShapes(shapesRes.data || []);
+        const shapesData = shapesRes.data?.data || shapesRes.data;
+        setShapes(Array.isArray(shapesData) ? shapesData : []);
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -52,7 +55,13 @@ export default function ShapeGroupDetailPage() {
     );
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+    <div
+      style={{
+        maxWidth: 1200,
+        margin: "0 auto",
+        padding: isMobile ? "0 12px" : "0 16px",
+      }}
+    >
       <Button
         type="text"
         icon={<ArrowLeftOutlined />}
@@ -71,9 +80,9 @@ export default function ShapeGroupDetailPage() {
         </Text>
       </div>
 
-      {shapes.length > 0 ? (
+      {(Array.isArray(shapes) ? shapes : []).length > 0 ? (
         <Row gutter={[16, 16]}>
-          {shapes.map((shape: any) => (
+          {(Array.isArray(shapes) ? shapes : []).map((shape: any) => (
             <Col xs={24} sm={12} md={8} lg={6} xl={4} key={shape.id}>
               <ShapeCard shape={shape} onDelete={handleDelete} />
             </Col>

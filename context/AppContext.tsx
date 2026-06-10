@@ -194,7 +194,7 @@ export function AppContextProvider({
     } catch {
       // silent: non-critical
     }
-  }, [userKey, session?.user]);
+  }, [userKey, (session?.user as any)?.currentVersion]);
 
   useEffect(() => {
     refresh();

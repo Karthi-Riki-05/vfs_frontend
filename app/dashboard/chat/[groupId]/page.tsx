@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 /**
  * /dashboard/chat/:groupId
@@ -10,15 +11,16 @@ import { useRouter } from 'next/navigation';
  */
 export default function ChatGroupRedirect() {
   const router = useRouter();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
-    if (window.innerWidth < 768) {
-      router.replace('/dashboard/chat');
+    if (isMobile) {
+      router.replace("/dashboard/chat");
     } else {
       (window as any).__openChat?.();
-      router.replace('/dashboard');
+      router.replace("/dashboard");
     }
-  }, [router]);
+  }, [router, isMobile]);
 
   return null;
 }

@@ -67,6 +67,24 @@ export const aiApi = {
       messageId: messageId || undefined,
     }),
 
+  // Async diagram generation — start a job (returns jobId immediately, no 504),
+  // then poll getDiagramJob until status is done/error.
+  startDiagramJob: (
+    message: string,
+    confirmed: boolean,
+    conversationId?: string | null,
+    messageId?: string | null,
+  ) =>
+    api.post("/ai/generate-diagram-job", {
+      message,
+      confirmed,
+      conversationId: conversationId || undefined,
+      messageId: messageId || undefined,
+    }),
+
+  getDiagramJob: (jobId: string) =>
+    api.get(`/ai/generate-diagram-job/${jobId}`),
+
   updateConversationTitle: (conversationId: string, title: string) =>
     api.put(`/ai-assistant/conversations/${conversationId}/title`, { title }),
 

@@ -49,6 +49,7 @@ export default function TeamsPage() {
   useTabFocus(fetchTeams);
   const { currentApp, loading: proLoading } = usePro();
   const { isTeamContext } = useAppContext();
+  const isMobile = useIsMobile();
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -484,6 +485,8 @@ export default function TeamsPage() {
           style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
         }}
         okText="Create"
+        width={isMobile ? "95vw" : 480}
+        centered
       >
         <Form form={createForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
@@ -522,6 +525,8 @@ export default function TeamsPage() {
           style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
         }}
         okText="Save"
+        width={isMobile ? "95vw" : 480}
+        centered
       >
         <Form form={editForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
@@ -559,6 +564,8 @@ export default function TeamsPage() {
           style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
         }}
         okText="Send Invite"
+        width={isMobile ? "95vw" : 480}
+        centered
       >
         <Form form={inviteForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item

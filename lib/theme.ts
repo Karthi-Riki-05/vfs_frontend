@@ -1,38 +1,43 @@
 // ValueChart Design System — Green Theme
 // Based on the design system specification
 
+// Brand color tokens — canonical green. Use these instead of hardcoded hex.
+export const BRAND_GREEN = "#3CB371";
+export const BRAND_GREEN_HOVER = "#2ea562";
+export const BRAND_GREEN_LIGHT = "#e8f7ef";
+
 export const colors = {
   // Primary
-  primary: '#3CB371',         // Medium Sea Green — buttons, active states, links, badges
-  primaryDark: '#2E8B57',     // Sea Green — hover states
-  primaryLight: '#F0FFF4',    // Very light green — selected backgrounds
+  primary: "#3CB371", // Medium Sea Green — buttons, active states, links, badges
+  primaryDark: "#2E8B57", // Sea Green — hover states
+  primaryLight: "#F0FFF4", // Very light green — selected backgrounds
 
   // Backgrounds
-  background: '#FFFFFF',      // Main content area
-  sidebarBg: '#FFFFFF',       // Sidebar background
-  cardBg: '#F8F9FA',          // Card hover background
-  inputBg: '#F8F9FA',         // Search input background
+  background: "#FFFFFF", // Main content area
+  sidebarBg: "#FFFFFF", // Sidebar background
+  cardBg: "#F8F9FA", // Card hover background
+  inputBg: "#F8F9FA", // Search input background
 
   // Text
-  text: '#1A1A2E',            // Headings, body text
-  textSecondary: '#8C8C8C',   // Timestamps, subtitles, labels
-  textMuted: '#BFBFBF',       // Placeholders
+  text: "#1A1A2E", // Headings, body text
+  textSecondary: "#8C8C8C", // Timestamps, subtitles, labels
+  textMuted: "#BFBFBF", // Placeholders
 
   // Borders
-  border: '#F0F0F0',          // Card borders, dividers
+  border: "#F0F0F0", // Card borders, dividers
 
   // Accent Colors
-  starYellow: '#FAAD14',      // Favorite star icon
-  deleteRed: '#FF4D4F',       // Delete actions, logout text
-  badgeBlue: '#1890FF',       // Unread count badge
-  onlineGreen: '#52C41A',     // Online status dot
+  starYellow: "#FAAD14", // Favorite star icon
+  deleteRed: "#FF4D4F", // Delete actions, logout text
+  badgeBlue: "#1890FF", // Unread count badge
+  onlineGreen: "#52C41A", // Online status dot
 
   // Legacy compatibility
-  success: '#3CB371',
-  warning: '#FAAD14',
-  danger: '#FF4D4F',
-  info: '#1890FF',
-  surface: '#FFFFFF',
+  success: "#3CB371",
+  warning: "#FAAD14",
+  danger: "#FF4D4F",
+  info: "#1890FF",
+  surface: "#FFFFFF",
 };
 
 export const spacing = {
@@ -52,7 +57,8 @@ export const borderRadius = {
   full: 9999,
 };
 
-export const fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+export const fontFamily =
+  "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
 // Ant Design ConfigProvider theme override
 export const antdTheme = {
@@ -84,7 +90,7 @@ export const antdTheme = {
       paddingLG: 0,
     },
     Menu: {
-      itemBg: 'transparent',
+      itemBg: "transparent",
       itemSelectedBg: colors.primaryLight,
       itemSelectedColor: colors.primary,
       itemHoverBg: colors.cardBg,

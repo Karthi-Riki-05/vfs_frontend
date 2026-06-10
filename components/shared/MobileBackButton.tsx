@@ -72,7 +72,7 @@ export default function MobileBackButton({
         cursor: "pointer",
         minHeight: 44,
         touchAction: "manipulation",
-        WebkitTapHighlightColor: "transparent",
+        WebkitTapHighlightColor: "rgba(61,179,113,0.15)",
       }}
     >
       <LeftOutlined style={{ fontSize: 16 }} />

@@ -5,7 +5,7 @@ import { message } from "antd";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-const GREEN = "#4CAF50";
+const GREEN = "#3CB371";
 const NAVY = "#1F3864";
 
 const inputBase: React.CSSProperties = {

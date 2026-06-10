@@ -120,7 +120,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (pathname.startsWith("/dashboard/projects")) return "projects";
     if (pathname.startsWith("/dashboard/trash")) return "trash";
     if (pathname.startsWith("/dashboard/support")) return "support";
-    if (pathname === "/dashboard") return "dashboard";
+    if (pathname === "/dashboard" || pathname === "/dashboard/team")
+      return "dashboard";
     return "";
   };
 
@@ -221,7 +222,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       key: "dashboard",
       icon: <HomeOutlined />,
       label: (
-        <Link href="/dashboard" onClick={handleNavClick}>
+        <Link href="/dashboard/team" onClick={handleNavClick}>
           Dashboard
         </Link>
       ),
@@ -417,7 +418,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                     style={{
                       flex: 1,
                       textAlign: "center",
-                      padding: "6px 0",
+                      minHeight: 44,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       cursor: "pointer",
                       background: "#fff",
                       color: "#595959",
@@ -431,7 +435,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     style={{
                       flex: 1,
                       textAlign: "center",
-                      padding: "6px 0",
+                      minHeight: 44,
                       cursor: "default",
                       background: "#F59E0B",
                       color: "#fff",
@@ -461,7 +465,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                     style={{
                       flex: 1,
                       textAlign: "center",
-                      padding: "6px 0",
+                      minHeight: 44,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       background: "#3CB371",
                       color: "#fff",
                     }}
@@ -476,7 +483,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     style={{
                       flex: 1,
                       textAlign: "center",
-                      padding: "6px 0",
+                      minHeight: 44,
                       cursor: "pointer",
                       background: "linear-gradient(135deg, #F59E0B, #D97706)",
                       color: "#fff",
@@ -592,7 +599,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                   style={{
                     flex: 1,
                     textAlign: "center",
-                    padding: "6px 0",
+                    minHeight: 44,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     cursor: "pointer",
                     background: "#fff",
                     color: "#595959",
@@ -606,7 +616,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   style={{
                     flex: 1,
                     textAlign: "center",
-                    padding: "6px 0",
+                    minHeight: 44,
                     cursor: "default",
                     background: "#F59E0B",
                     color: "#fff",
@@ -636,7 +646,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                   style={{
                     flex: 1,
                     textAlign: "center",
-                    padding: "6px 0",
+                    minHeight: 44,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     background: "#3CB371",
                     color: "#fff",
                   }}
@@ -648,7 +661,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   style={{
                     flex: 1,
                     textAlign: "center",
-                    padding: "6px 0",
+                    minHeight: 44,
                     cursor: "pointer",
                     background: "linear-gradient(135deg, #F59E0B, #D97706)",
                     color: "#fff",

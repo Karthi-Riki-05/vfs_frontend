@@ -43,7 +43,7 @@ const { Option } = Select;
 const { Text } = Typography;
 const { Dragger } = Upload;
 
-const TEAL_COLOR = "#4ECDC4";
+const TEAL_COLOR = "#3CB371";
 
 // Backend caps shape content at 24M chars. base64 ≈ 1.33× the raw file,
 // so the largest safe raw image is ~18MB.
@@ -542,6 +542,8 @@ function ShapesContent() {
           style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
         }}
         okText="Save"
+        width={isMobile ? "95vw" : 480}
+        centered
       >
         <Form form={editGroupForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
@@ -564,8 +566,15 @@ function ShapesContent() {
         open={isModalVisible}
         onCancel={handleCancel}
         footer={null}
-        width={isMobile ? "100%" : 700}
-        styles={{ body: { maxHeight: "70dvh", overflowY: "auto" } }}
+        width={isMobile ? "95vw" : 700}
+        centered
+        styles={{
+          body: {
+            maxHeight: isMobile ? "calc(100dvh - 200px)" : "70dvh",
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+          },
+        }}
       >
         <Form
           form={form}

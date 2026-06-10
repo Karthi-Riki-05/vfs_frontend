@@ -25,6 +25,7 @@ import { projectsApi } from "@/api/projects.api";
 import { flowsApi } from "@/api/flows.api";
 import { useRouter, useParams } from "next/navigation";
 import api from "@/lib/axios";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Title, Text } = Typography;
 
@@ -50,6 +51,7 @@ interface ProjectFlow {
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const projectId = params?.id as string;
 
   const [project, setProject] = useState<any>(null);
@@ -224,7 +226,7 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: isMobile ? "0 12px" : "0 16px" }}>
       {/* Header */}
       <div
         style={{
@@ -318,7 +320,8 @@ export default function ProjectDetailPage() {
         okText={`Add Selected (${selectedFlowIds.length})`}
         okButtonProps={{ disabled: selectedFlowIds.length === 0 }}
         confirmLoading={addLoading}
-        width={520}
+        width={isMobile ? "95vw" : 520}
+        centered
       >
         <Input
           prefix={<SearchOutlined />}

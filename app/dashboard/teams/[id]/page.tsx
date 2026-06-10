@@ -204,6 +204,14 @@ export default function TeamDetailPage() {
                             danger
                             icon={<DeleteOutlined />}
                             size="small"
+                            aria-label="Remove member"
+                            style={{
+                              minWidth: 44,
+                              minHeight: 44,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
                           />
                         </Popconfirm>,
                       ]),

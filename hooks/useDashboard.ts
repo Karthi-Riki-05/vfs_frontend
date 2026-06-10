@@ -35,7 +35,11 @@ interface TeamActivity {
   timestamp: string;
 }
 
-export function useDashboard() {
+interface UseDashboardOptions {
+  fetchTeamActivity?: boolean;
+}
+
+export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
   const { activeTeamId, hydrated } = useAppContext();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activity, setActivity] = useState<ActivityDay[]>([]);
@@ -46,11 +50,19 @@ export function useDashboard() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      // Team Activity is workspace-scoped: only fetch when the user is
-      // actually inside a team context. Personal context = hide entirely.
-      const teamPromise = activeTeamId
+      // Determine whether to fetch team activity:
+      // - fetchTeamActivity=true  → always fetch (team dashboard)
+      // - fetchTeamActivity=false → never fetch (pro dashboard)
+      // - fetchTeamActivity=undefined → only when activeTeamId exists (existing behavior)
+      const shouldFetchTeam =
+        fetchTeamActivity !== undefined
+          ? fetchTeamActivity && !!activeTeamId
+          : !!activeTeamId;
+
+      const teamPromise = shouldFetchTeam
         ? dashboardApi.getTeamActivity(10, activeTeamId).catch(() => null)
         : Promise.resolve(null);
+
       const [statsRes, activityRes, recentRes, teamRes] = await Promise.all([
         dashboardApi.getStats(activeTeamId).catch(() => null),
         dashboardApi.getActivity(activeTeamId).catch(() => null),
@@ -79,7 +91,7 @@ export function useDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeTeamId]);
+  }, [activeTeamId, fetchTeamActivity]);
 
   useEffect(() => {
     if (!hydrated) return;

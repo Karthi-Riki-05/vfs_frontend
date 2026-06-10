@@ -242,8 +242,8 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       icon: <LogoutOutlined style={{ color: "#FF4D4F" }} />,
       label: <span style={{ color: "#FF4D4F" }}>Log out</span>,
       onClick: () => {
-        // Keep vc_app_context in localStorage so forced mode (WebView)
-        // is restored automatically when the user logs back in on the same tab.
+        // vc_app_context lives in sessionStorage (per-tab) — it persists through
+        // the redirect so forced mode is automatically restored on the same tab.
         signOut({ callbackUrl: "/login" });
       },
     },
@@ -361,10 +361,21 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
           {/* Plan badge — reflects in-app plan (Pro app shows Pro state,
               Team app shows Team-subscription state — they don't bleed).
-              Free users see a "Free Plan" tag that links to upgrade. */}
+              Free users see a "Free Plan" tag that links to upgrade.
+              Skeleton shown while proLoading to prevent Free Plan flash (Fix 5). */}
           {!isMobile && (
             <span className="plan-badge">
-              {isPro ? (
+              {proLoading ? (
+                <div
+                  style={{
+                    width: 68,
+                    height: 22,
+                    background: "#f0f0f0",
+                    borderRadius: 4,
+                    display: "inline-block",
+                  }}
+                />
+              ) : isPro ? (
                 <Tag
                   color={hydrated && inAppPlan === "team" ? "purple" : "gold"}
                   style={{ marginRight: 0 }}

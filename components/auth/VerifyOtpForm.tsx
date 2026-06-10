@@ -5,7 +5,7 @@ import { message } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "@/lib/axios";
 
-const GREEN = "#4CAF50";
+const GREEN = "#3CB371";
 const OTP_LEN = 6;
 
 const labelStyle: React.CSSProperties = {
@@ -174,7 +174,6 @@ export default function VerifyOtpForm() {
               border: "1.5px solid #DBEAFE",
               borderRadius: 10,
               fontSize: 14,
-              outline: "none",
               color: "#1a1a2e",
               fontFamily: "inherit",
             }}
@@ -184,7 +183,13 @@ export default function VerifyOtpForm() {
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>Verification Code</label>
           <div
-            style={{ display: "flex", gap: 8, justifyContent: "space-between" }}
+            style={{
+              display: "flex",
+              gap: 8,
+              justifyContent: "space-between",
+              width: "100%",
+              maxWidth: 320,
+            }}
           >
             {digits.map((d, i) => (
               <input
@@ -202,7 +207,8 @@ export default function VerifyOtpForm() {
                   flex: 1,
                   minWidth: 0,
                   maxWidth: 52,
-                  height: 52,
+                  aspectRatio: "1",
+                  boxSizing: "border-box",
                   textAlign: "center",
                   fontSize: 22,
                   fontWeight: 600,
@@ -210,7 +216,6 @@ export default function VerifyOtpForm() {
                   border: "1.5px solid #DBEAFE",
                   borderRadius: 10,
                   backgroundColor: "#EFF6FF",
-                  outline: "none",
                   fontFamily: "inherit",
                 }}
                 onFocus={(e) => {
@@ -269,7 +274,7 @@ export default function VerifyOtpForm() {
           disabled={resending || cooldown > 0}
           style={{
             width: "100%",
-            height: 40,
+            minHeight: 44,
             borderRadius: 10,
             marginTop: 12,
             background: "#F0FDF4",

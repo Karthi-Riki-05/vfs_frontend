@@ -37,7 +37,7 @@ export default function SubscriptionWidget() {
 
   useEffect(() => {
     try {
-      setIsProApp(localStorage.getItem("vc_app_context") === "pro");
+      setIsProApp(sessionStorage.getItem("vc_app_context") === "pro");
     } catch {
       // sessionStorage blocked — default to false (not pro app)
     }

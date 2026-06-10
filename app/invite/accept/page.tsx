@@ -11,6 +11,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import api from "@/lib/axios";
+import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -18,6 +19,8 @@ function AcceptInvitationContent() {
   const searchParams = useSearchParams();
   const token = searchParams?.get("token");
   const { data: session, status: sessionStatus } = useSession();
+  const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
 
   const [pageStatus, setPageStatus] = useState<
     "loading" | "valid" | "expired" | "accepted" | "error"
@@ -201,7 +204,7 @@ function AcceptInvitationContent() {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        minHeight: "100vh",
+        minHeight: "100dvh",
         background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
         padding: 24,
       }}
@@ -220,7 +223,7 @@ function AcceptInvitationContent() {
         <div
           style={{
             backgroundColor: brandColor,
-            padding: "32px 40px",
+            padding: isMobile ? "20px" : isTablet ? "24px 28px" : "32px 40px",
             textAlign: "center",
           }}
         >
@@ -236,7 +239,11 @@ function AcceptInvitationContent() {
         </div>
 
         {/* Body */}
-        <div style={{ padding: "32px 40px" }}>
+        <div
+          style={{
+            padding: isMobile ? "20px" : isTablet ? "24px 28px" : "32px 40px",
+          }}
+        >
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <Title level={4} style={{ margin: "0 0 8px 0" }}>
               You've been invited!
@@ -283,7 +290,9 @@ function AcceptInvitationContent() {
                   INVITED EMAIL
                 </Text>
                 <div>
-                  <Text strong>{invitation?.email}</Text>
+                  <Text strong style={{ wordBreak: "break-all" }}>
+                    {invitation?.email}
+                  </Text>
                 </div>
               </div>
               <div>
@@ -343,8 +352,10 @@ function AcceptInvitationContent() {
                   }}
                 >
                   This invitation was sent to{" "}
-                  <strong>{invitation?.email}</strong>. Please log in with that
-                  email to accept.
+                  <strong style={{ wordBreak: "break-all" }}>
+                    {invitation?.email}
+                  </strong>
+                  . Please log in with that email to accept.
                 </div>
               )}
               <Button

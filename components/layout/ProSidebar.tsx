@@ -22,6 +22,7 @@ import Link from "next/link";
 import { createNewFlow } from "@/lib/flow";
 import { flowsApi } from "@/api/flows.api";
 import { usePro } from "@/hooks/usePro";
+import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
 
 const { Sider } = Layout;
 const { Text } = Typography;
@@ -41,6 +42,8 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
 }) => {
   const pathname = usePathname() || "";
   const router = useRouter();
+  const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
   const { currentApp, switchApp, forcedMode } = usePro();
   const [starredFlows, setStarredFlows] = useState<any[]>([]);
   const [switching, setSwitching] = useState(false);
@@ -68,7 +71,8 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
     if (pathname.startsWith("/dashboard/projects")) return "projects";
     if (pathname.startsWith("/dashboard/trash")) return "trash";
     if (pathname.startsWith("/dashboard/support")) return "support";
-    if (pathname === "/dashboard") return "dashboard";
+    if (pathname === "/dashboard" || pathname === "/dashboard/pro")
+      return "dashboard";
     return "";
   };
 
@@ -132,7 +136,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
       key: "dashboard",
       icon: <HomeOutlined />,
       label: (
-        <Link href="/dashboard" onClick={handleNavClick}>
+        <Link href="/dashboard/pro" onClick={handleNavClick}>
           Dashboard
         </Link>
       ),
@@ -194,7 +198,14 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
           onClick={(e) => {
             e.preventDefault();
             handleNavClick();
-            (window as any).__toggleChat?.();
+            // Mobile/tablet have no docked chat column — navigate to the
+            // full-screen chat page (matches Sidebar + Header behaviour).
+            // Desktop toggles the docked chat column.
+            if (isMobile || isTablet) {
+              router.push("/dashboard/chat");
+            } else {
+              (window as any).__toggleChat?.();
+            }
           }}
           style={{ cursor: "pointer" }}
         >
@@ -396,7 +407,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
         borderRight: "1px solid #F0F0F0",
         display: "flex",
         flexDirection: "column",
-        height: "calc(100vh - 56px)",
+        height: "calc(100dvh - 56px)",
         position: "fixed",
         top: 56,
         left: 0,

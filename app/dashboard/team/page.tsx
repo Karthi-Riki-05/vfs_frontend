@@ -1,33 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, message } from "antd";
+import { Button } from "antd";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
-import SubscriptionWidget from "@/components/dashboard/SubscriptionWidget";
 import { DashGreeting } from "@/components/dashboard/DashGreeting";
-import { FlowUsageBar } from "@/components/dashboard/FlowUsageBar";
 import { DashKPICards } from "@/components/dashboard/DashKPICards";
 import { DashActivityChart } from "@/components/dashboard/DashActivityChart";
 import { DashRecentFlows } from "@/components/dashboard/DashRecentFlows";
 import { TeamActivityFeed } from "@/components/dashboard/TeamActivityFeed";
-import { useAuth } from "@/hooks/useAuth";
-import { usePro } from "@/hooks/usePro";
+import SubscriptionWidget from "@/components/dashboard/SubscriptionWidget";
 import { useDashboard } from "@/hooks/useDashboard";
-import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 
-// ──────── Main Dashboard ────────
-
-export default function DashboardPage() {
+export default function TeamDashboardPage() {
   const { user } = useAuth();
-  const { currentApp, proFlows, status } = usePro();
-  const { stats, activity, recentFlows, teamActivity, loading } =
-    useDashboard();
-  const router = useRouter();
   const isMobile = useIsMobile();
-
-  const isProApp = currentApp === "pro";
-  const isUnlimited = status?.isUnlimited ?? false;
 
   const [subStatus, setSubStatus] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -48,36 +36,15 @@ export default function DashboardPage() {
       const data = await res.json();
       if (data.success && data.data?.url) {
         window.location.href = data.data.url;
-      } else {
-        message.error(data.error?.message || "Could not open billing portal");
       }
-    } catch {
-      message.error("Failed to open billing portal");
     } finally {
       setPortalLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const success = params.get("addon_success");
-    const cancelled = params.get("addon_cancelled");
-
-    if (success === "true") {
-      const credits = params.get("credits");
-      message.success(
-        credits
-          ? `${credits} AI credits added to your account!`
-          : "AI credits added to your account!",
-      );
-      window.dispatchEvent(new CustomEvent("aiCreditsChanged"));
-      window.history.replaceState({}, "", "/dashboard");
-    } else if (cancelled === "true") {
-      message.info("Credit purchase cancelled");
-      window.history.replaceState({}, "", "/dashboard");
-    }
-  }, []);
+  const { stats, activity, recentFlows, teamActivity, loading } = useDashboard({
+    fetchTeamActivity: true,
+  });
 
   return (
     <div
@@ -88,6 +55,7 @@ export default function DashboardPage() {
       }}
     >
       <DashGreeting userName={user?.name} />
+
       {subStatus === "past_due" && (
         <div
           style={{
@@ -119,14 +87,11 @@ export default function DashboardPage() {
           </Button>
         </div>
       )}
-      {isProApp && (
-        <FlowUsageBar
-          proFlows={proFlows}
-          isUnlimited={isUnlimited}
-          onBuyMore={() => router.push("/dashboard/subscription")}
-        />
-      )}
-      <DashKPICards stats={stats} loading={loading} />
+
+      {/* NO FlowUsageBar — team app does not use flow limits */}
+
+      <DashKPICards stats={stats} loading={loading} showTeamMembers={true} />
+
       <div
         style={{
           display: "grid",
@@ -140,7 +105,10 @@ export default function DashboardPage() {
         </div>
         <SubscriptionWidget />
       </div>
+
       <DashRecentFlows flows={recentFlows} loading={loading} />
+
+      {/* Team activity feed — always shown in team dashboard */}
       <TeamActivityFeed activity={teamActivity} loading={loading} />
     </div>
   );

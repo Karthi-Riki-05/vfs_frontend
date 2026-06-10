@@ -3,30 +3,24 @@
 import { useEffect, useState } from "react";
 import { Button, message } from "antd";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
-import SubscriptionWidget from "@/components/dashboard/SubscriptionWidget";
 import { DashGreeting } from "@/components/dashboard/DashGreeting";
 import { FlowUsageBar } from "@/components/dashboard/FlowUsageBar";
 import { DashKPICards } from "@/components/dashboard/DashKPICards";
 import { DashActivityChart } from "@/components/dashboard/DashActivityChart";
 import { DashRecentFlows } from "@/components/dashboard/DashRecentFlows";
-import { TeamActivityFeed } from "@/components/dashboard/TeamActivityFeed";
-import { useAuth } from "@/hooks/useAuth";
-import { usePro } from "@/hooks/usePro";
+import SubscriptionWidget from "@/components/dashboard/SubscriptionWidget";
 import { useDashboard } from "@/hooks/useDashboard";
-import { useRouter } from "next/navigation";
+import { usePro } from "@/hooks/usePro";
+import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useRouter } from "next/navigation";
 
-// ──────── Main Dashboard ────────
-
-export default function DashboardPage() {
+export default function ProDashboardPage() {
   const { user } = useAuth();
-  const { currentApp, proFlows, status } = usePro();
-  const { stats, activity, recentFlows, teamActivity, loading } =
-    useDashboard();
+  const { proFlows, status } = usePro();
   const router = useRouter();
   const isMobile = useIsMobile();
 
-  const isProApp = currentApp === "pro";
   const isUnlimited = status?.isUnlimited ?? false;
 
   const [subStatus, setSubStatus] = useState<string | null>(null);
@@ -38,25 +32,6 @@ export default function DashboardPage() {
       .then((d) => setSubStatus(d?.data?.status ?? null))
       .catch(() => {});
   }, []);
-
-  const openCustomerPortal = async () => {
-    setPortalLoading(true);
-    try {
-      const res = await fetch("/api/subscription/customer-portal", {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (data.success && data.data?.url) {
-        window.location.href = data.data.url;
-      } else {
-        message.error(data.error?.message || "Could not open billing portal");
-      }
-    } catch {
-      message.error("Failed to open billing portal");
-    } finally {
-      setPortalLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -72,12 +47,31 @@ export default function DashboardPage() {
           : "AI credits added to your account!",
       );
       window.dispatchEvent(new CustomEvent("aiCreditsChanged"));
-      window.history.replaceState({}, "", "/dashboard");
+      window.history.replaceState({}, "", "/dashboard/pro");
     } else if (cancelled === "true") {
       message.info("Credit purchase cancelled");
-      window.history.replaceState({}, "", "/dashboard");
+      window.history.replaceState({}, "", "/dashboard/pro");
     }
   }, []);
+
+  const openCustomerPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/subscription/customer-portal", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        window.location.href = data.data.url;
+      }
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  const { stats, activity, recentFlows, loading } = useDashboard({
+    fetchTeamActivity: false,
+  });
 
   return (
     <div
@@ -88,6 +82,7 @@ export default function DashboardPage() {
       }}
     >
       <DashGreeting userName={user?.name} />
+
       {subStatus === "past_due" && (
         <div
           style={{
@@ -119,14 +114,16 @@ export default function DashboardPage() {
           </Button>
         </div>
       )}
-      {isProApp && (
-        <FlowUsageBar
-          proFlows={proFlows}
-          isUnlimited={isUnlimited}
-          onBuyMore={() => router.push("/dashboard/subscription")}
-        />
-      )}
-      <DashKPICards stats={stats} loading={loading} />
+
+      {/* Flow usage bar — always shown in pro dashboard */}
+      <FlowUsageBar
+        proFlows={proFlows}
+        isUnlimited={isUnlimited}
+        onBuyMore={() => router.push("/dashboard/subscription")}
+      />
+
+      <DashKPICards stats={stats} loading={loading} showTeamMembers={false} />
+
       <div
         style={{
           display: "grid",
@@ -140,8 +137,10 @@ export default function DashboardPage() {
         </div>
         <SubscriptionWidget />
       </div>
+
       <DashRecentFlows flows={recentFlows} loading={loading} />
-      <TeamActivityFeed activity={teamActivity} loading={loading} />
+
+      {/* NO TeamActivityFeed — pro is a solo app */}
     </div>
   );
 }
