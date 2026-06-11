@@ -8,7 +8,8 @@ import { FlowUsageBar } from "@/components/dashboard/FlowUsageBar";
 import { DashKPICards } from "@/components/dashboard/DashKPICards";
 import { DashActivityChart } from "@/components/dashboard/DashActivityChart";
 import { DashRecentFlows } from "@/components/dashboard/DashRecentFlows";
-import SubscriptionWidget from "@/components/dashboard/SubscriptionWidget";
+import ProSubscriptionWidget from "@/components/dashboard/ProSubscriptionWidget";
+import { aiApi } from "@/api/ai.api";
 import { useDashboard } from "@/hooks/useDashboard";
 import { usePro } from "@/hooks/usePro";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,13 +42,27 @@ export default function ProDashboardPage() {
 
     if (success === "true") {
       const credits = params.get("credits");
-      message.success(
-        credits
-          ? `${credits} AI credits added to your account!`
-          : "AI credits added to your account!",
-      );
-      window.dispatchEvent(new CustomEvent("aiCreditsChanged"));
+      const sessionId = params.get("session_id");
       window.history.replaceState({}, "", "/dashboard/pro");
+      // Verify the Stripe session server-side — this also GRANTS the credits
+      // when the webhook hasn't reached the backend (idempotent, so it's
+      // safe when the webhook already processed it).
+      const finish = async () => {
+        if (sessionId) {
+          try {
+            await aiApi.verifyAddonPurchase(sessionId);
+          } catch {
+            // Silent — webhook may have already credited
+          }
+        }
+        message.success(
+          credits
+            ? `${credits} AI credits added to your account!`
+            : "AI credits added to your account!",
+        );
+        window.dispatchEvent(new CustomEvent("aiCreditsChanged"));
+      };
+      finish();
     } else if (cancelled === "true") {
       message.info("Credit purchase cancelled");
       window.history.replaceState({}, "", "/dashboard/pro");
@@ -135,7 +150,7 @@ export default function ProDashboardPage() {
         <div style={{ gridColumn: isMobile ? "1" : "1 / 3" }}>
           <DashActivityChart activity={activity} loading={loading} />
         </div>
-        <SubscriptionWidget />
+        <ProSubscriptionWidget />
       </div>
 
       <DashRecentFlows flows={recentFlows} loading={loading} />

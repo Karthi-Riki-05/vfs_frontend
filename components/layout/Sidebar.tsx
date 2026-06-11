@@ -24,6 +24,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createNewFlow } from "@/lib/flow";
 import { flowsApi } from "@/api/flows.api";
+import { AI_BILLING_EVENT } from "@/lib/aiBilling";
 import { usePro } from "@/hooks/usePro";
 import { useAppContext } from "@/context/AppContext";
 import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
@@ -112,6 +113,14 @@ const Sidebar: React.FC<SidebarProps> = ({
     fetchStarred();
   }, [fetchStarred]);
 
+  // Refetch when the workspace/team context switches — favorites are
+  // workspace-scoped on the backend (X-Team-Context via axios interceptor).
+  useEffect(() => {
+    const handler = () => fetchStarred();
+    window.addEventListener(AI_BILLING_EVENT, handler);
+    return () => window.removeEventListener(AI_BILLING_EVENT, handler);
+  }, [fetchStarred]);
+
   const getSelectedKey = () => {
     if (pathname.startsWith("/dashboard/recents")) return "recents";
     if (pathname.startsWith("/dashboard/flows")) return "flows";
@@ -187,24 +196,49 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  // Cap the favorites shown inline — with 20+ favorites the menu would grow
+  // unbounded (the nav container scrolls as a whole, pushing Support/footer
+  // far below the fold). Overflow collapses into a "View all" link.
+  const MAX_SIDEBAR_FAVORITES = 10;
+  const visibleStarred = starredFlows.slice(0, MAX_SIDEBAR_FAVORITES);
+  const hiddenStarredCount = starredFlows.length - visibleStarred.length;
+
   const starredChildren =
     starredFlows.length > 0
-      ? starredFlows.map((flow) => ({
-          key: `starred-${flow.id}`,
-          icon: <HeartFilled style={{ color: "#FF4D6A", fontSize: 12 }} />,
-          label: (
-            <span
-              onClick={(e) => {
-                e.preventDefault();
-                window.open(`/dashboard/flows/${flow.id}`, "_blank");
-                handleNavClick();
-              }}
-              style={{ cursor: "pointer", fontSize: 13 }}
-            >
-              {flow.name}
-            </span>
-          ),
-        }))
+      ? [
+          ...visibleStarred.map((flow) => ({
+            key: `starred-${flow.id}`,
+            icon: <HeartFilled style={{ color: "#FF4D6A", fontSize: 12 }} />,
+            label: (
+              <span
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.open(`/dashboard/flows/${flow.id}`, "_blank");
+                  handleNavClick();
+                }}
+                style={{ cursor: "pointer", fontSize: 13 }}
+              >
+                {flow.name}
+              </span>
+            ),
+          })),
+          ...(hiddenStarredCount > 0
+            ? [
+                {
+                  key: "starred-view-all",
+                  label: (
+                    <Link
+                      href="/dashboard/flows"
+                      onClick={handleNavClick}
+                      style={{ fontSize: 12, color: "#3CB371" }}
+                    >
+                      View all favorites (+{hiddenStarredCount} more)
+                    </Link>
+                  ),
+                },
+              ]
+            : []),
+        ]
       : [
           {
             key: "starred-placeholder",

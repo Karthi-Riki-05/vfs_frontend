@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { getLogoForApp } from "@/lib/getLogo";
+import { getLogoForApp, getForcedMode } from "@/lib/getLogo";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
@@ -95,6 +95,21 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   // the badge/locks must reflect Team-app state only (active team sub or
   // membership), not the Pro flag.
   const isProApp = currentApp === "pro";
+  // Forced app mode (sessionStorage) — read after mount to avoid an SSR
+  // hydration mismatch on the logo Link href.
+  const [forcedAppMode, setForcedAppMode] = useState<"pro" | "team" | null>(
+    null,
+  );
+  useEffect(() => {
+    setForcedAppMode(getForcedMode());
+  }, []);
+  // Logo click lands on the app-specific home (matches post-login redirect).
+  const logoHref =
+    isProApp || forcedAppMode === "pro"
+      ? "/dashboard/pro"
+      : forcedAppMode === "team"
+        ? "/dashboard/team"
+        : "/dashboard";
   const inAppPlan: "free" | "pro" | "team" = isProApp
     ? // Pro app: Pro entitlement is the only signal
       personalPlanInfo.hasPro
@@ -289,7 +304,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           )}
 
           <Link
-            href="/dashboard"
+            href={logoHref}
             style={{
               textDecoration: "none",
               display: "flex",

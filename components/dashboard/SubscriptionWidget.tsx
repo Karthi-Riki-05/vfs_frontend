@@ -11,8 +11,11 @@ interface AiCredits {
   totalCredits: number;
   planResetsAt: string | null;
   appContext?: "free" | "pro" | "team";
+  // Seat-scaled full grant from the backend (e.g. 5-seat Team Yearly = 4000).
+  planLimit?: number;
 }
 
+// Fallback only — backend now returns the seat-scaled planLimit.
 // Matches backend PLAN_CREDITS (aiCredit.service.js)
 const PLAN_LIMITS: Record<string, number> = { free: 20, pro: 100, team: 300 };
 
@@ -256,7 +259,8 @@ export default function SubscriptionWidget() {
             // Derive the user's plan tier from the balance's appContext
             // (falls back to is_pro so free + legacy pro records still work).
             const tier = aiCredits.appContext || (sub.is_pro ? "pro" : "free");
-            const planLimit = PLAN_LIMITS[tier] ?? PLAN_LIMITS.free;
+            const planLimit =
+              aiCredits.planLimit ?? PLAN_LIMITS[tier] ?? PLAN_LIMITS.free;
             // If planCredits > planLimit (admin grant / extra top-up),
             // cap "used" at 0 so the progress bar doesn't break.
             const used = Math.max(

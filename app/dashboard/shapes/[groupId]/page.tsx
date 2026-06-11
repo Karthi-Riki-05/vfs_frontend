@@ -64,11 +64,22 @@ export default function ShapeGroupDetailPage() {
     >
       <Button
         type="text"
+        shape={isMobile ? "circle" : "default"}
         icon={<ArrowLeftOutlined />}
         onClick={() => router.push("/dashboard/shapes")}
-        style={{ marginBottom: 16 }}
+        aria-label="Back to Shapes"
+        style={
+          isMobile
+            ? {
+                marginBottom: 16,
+                border: "1px solid #F0F0F0",
+                background: "#FFFFFF",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+              }
+            : { marginBottom: 16 }
+        }
       >
-        Back to Shapes
+        {isMobile ? null : "Back to Shapes"}
       </Button>
 
       <div style={{ marginBottom: 24 }}>

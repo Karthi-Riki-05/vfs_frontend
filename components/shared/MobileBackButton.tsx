@@ -7,6 +7,8 @@ import { LeftOutlined } from "@ant-design/icons";
 // Root/top-level pages reachable from the sidebar — no back button here.
 const ROOT_PATHS = [
   "/dashboard",
+  "/dashboard/pro",
+  "/dashboard/team",
   "/dashboard/flows",
   "/dashboard/teams",
   "/dashboard/chat",
@@ -21,6 +23,7 @@ const ROOT_PATHS = [
 ];
 
 interface MobileBackButtonProps {
+  /** @deprecated icon-only design — label is no longer rendered */
   label?: string;
   className?: string;
 }
@@ -32,7 +35,6 @@ interface MobileBackButtonProps {
  * otherwise be stuck.
  */
 export default function MobileBackButton({
-  label = "Back",
   className = "",
 }: MobileBackButtonProps) {
   const router = useRouter();
@@ -59,24 +61,22 @@ export default function MobileBackButton({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 4,
+        justifyContent: "center",
         marginBottom: 12,
-        padding: "8px 10px 8px 4px",
-        marginLeft: -4,
-        background: "none",
-        border: "none",
-        borderRadius: 8,
+        width: 40,
+        height: 40,
+        padding: 0,
+        background: "#FFFFFF",
+        border: "1px solid #F0F0F0",
+        borderRadius: "50%",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
         color: "#595959",
-        fontSize: 14,
-        fontWeight: 500,
         cursor: "pointer",
-        minHeight: 44,
         touchAction: "manipulation",
         WebkitTapHighlightColor: "rgba(61,179,113,0.15)",
       }}
     >
       <LeftOutlined style={{ fontSize: 16 }} />
-      <span>{label}</span>
     </button>
   );
 }

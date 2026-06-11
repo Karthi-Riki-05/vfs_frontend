@@ -58,11 +58,9 @@ export function DashKPICards({
     ? KPI_CONFIG
     : KPI_CONFIG.filter((k) => k.key !== "teamMembers");
 
-  const columns = isMobile
-    ? kpis.length === 3
-      ? "repeat(3, 1fr)"
-      : "repeat(2, 1fr)"
-    : `repeat(${kpis.length}, 1fr)`;
+  // Mobile is always 2-up — 3 cards in one row squeeze the labels into
+  // 3-line wraps (pro dashboard), unlike the 2x2 grid on /dashboard.
+  const columns = isMobile ? "repeat(2, 1fr)" : `repeat(${kpis.length}, 1fr)`;
   const gap = isMobile ? 10 : 16;
 
   return (

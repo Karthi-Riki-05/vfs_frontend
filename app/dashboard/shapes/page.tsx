@@ -431,11 +431,22 @@ function ShapesContent() {
         <div style={{ marginBottom: 20 }}>
           <Button
             type="text"
+            shape={isMobile ? "circle" : "default"}
             icon={<ArrowLeftOutlined />}
             onClick={() => setSelectedGroup(null)}
-            style={{ padding: "4px 8px", color: "#8C8C8C", fontSize: 14 }}
+            aria-label="Back to Groups"
+            style={
+              isMobile
+                ? {
+                    border: "1px solid #F0F0F0",
+                    background: "#FFFFFF",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                    color: "#8C8C8C",
+                  }
+                : { padding: "4px 8px", color: "#8C8C8C", fontSize: 14 }
+            }
           >
-            Back to Groups
+            {isMobile ? null : "Back to Groups"}
           </Button>
         </div>
 

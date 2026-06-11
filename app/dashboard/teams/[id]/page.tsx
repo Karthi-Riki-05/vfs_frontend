@@ -24,12 +24,14 @@ import {
 } from "@ant-design/icons";
 import { teamsApi } from "@/api/teams.api";
 import { useParams, useRouter } from "next/navigation";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 const { Title, Text } = Typography;
 
 export default function TeamDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const teamId = params?.id as string;
   const [team, setTeam] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
@@ -102,11 +104,22 @@ export default function TeamDetailPage() {
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 16px" }}>
       <Button
         type="text"
+        shape={isMobile ? "circle" : "default"}
         icon={<ArrowLeftOutlined />}
         onClick={() => router.push("/dashboard/teams")}
-        style={{ marginBottom: 16 }}
+        aria-label="Back to Teams"
+        style={
+          isMobile
+            ? {
+                marginBottom: 16,
+                border: "1px solid #F0F0F0",
+                background: "#FFFFFF",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+              }
+            : { marginBottom: 16 }
+        }
       >
-        Back to Teams
+        {isMobile ? null : "Back to Teams"}
       </Button>
 
       {/* Team header card */}

@@ -47,6 +47,9 @@ export const aiApi = {
   createAddonCheckout: (packType: "starter" | "standard" | "proppack") =>
     api.post("/ai/addon/checkout", { packType }),
 
+  verifyAddonPurchase: (sessionId: string) =>
+    api.get(`/ai/addon/verify?session_id=${encodeURIComponent(sessionId)}`),
+
   listConversations: () => api.get("/ai-assistant/conversations"),
 
   createConversation: () => api.post("/ai-assistant/conversations"),

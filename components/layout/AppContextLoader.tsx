@@ -172,14 +172,10 @@ export function AppContextLoader({
                 justifyContent: "center",
               }}
             >
+              {/* Square brand symbol only — the wordmark PNGs (500x150) get
+                  squeezed and show the full "ValueChart Pro" logo in the ring */}
               <img
-                src={
-                  appMode === "pro"
-                    ? "/images/vc_pro.png"
-                    : appMode === "team"
-                      ? "/images/vc_team.png"
-                      : "/Logo/logo.png"
-                }
+                src="/Logo/Symbol.png"
                 alt="ValueChart"
                 style={{ width: "40px", height: "40px", objectFit: "contain" }}
                 onError={(e) => {

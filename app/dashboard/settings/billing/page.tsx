@@ -23,7 +23,10 @@ const { Title, Text } = Typography;
 
 export default function BillingPage() {
   const { subscription, loading, cancel } = useSubscription();
-  const { currentApp, loading: proLoading } = usePro();
+  const { currentApp, loading: proLoading, status: proStatus } = usePro();
+  // Pro app billing must NEVER surface the Team subscription (separate
+  // product): show the Pro one-time purchase instead.
+  const isProApp = !proLoading && currentApp === "pro";
   const isMobile = useIsMobile();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [txLoading, setTxLoading] = useState(true);
@@ -70,7 +73,9 @@ export default function BillingPage() {
       .finally(() => setHistoryLoading(false));
   }, [proLoading, currentApp]);
 
-  if (loading)
+  // Wait for usePro too — otherwise the Team subscription card flashes
+  // inside the Pro app before currentApp resolves.
+  if (loading || proLoading)
     return (
       <div style={{ textAlign: "center", padding: 100 }}>
         <Spin size="large" />
@@ -89,7 +94,11 @@ export default function BillingPage() {
         <Title level={3} style={{ margin: 0 }}>
           Billing
         </Title>
-        <Text type="secondary">Manage your subscription and billing</Text>
+        <Text type="secondary">
+          {isProApp
+            ? "Manage your plan and billing"
+            : "Manage your subscription and billing"}
+        </Text>
       </div>
 
       <Card style={{ marginBottom: 24 }} styles={{ body: { padding: 16 } }}>
@@ -107,31 +116,66 @@ export default function BillingPage() {
               <CrownOutlined style={{ fontSize: 24, color: "#3CB371" }} />
               <div style={{ minWidth: 0 }}>
                 <Title level={4} style={{ margin: 0, wordBreak: "break-word" }}>
-                  {subscription?.plan?.name || "Free Plan"}
+                  {isProApp
+                    ? proStatus?.hasPro
+                      ? "ValueChart Pro"
+                      : "Free Plan"
+                    : subscription?.plan?.name || "Free Plan"}
                 </Title>
                 <Text type="secondary">
-                  {subscription
-                    ? subscription.expiresAt || subscription.currentPeriodEnd
-                      ? `Renews ${new Date(subscription.expiresAt || subscription.currentPeriodEnd).toLocaleDateString()}`
-                      : "Active subscription"
-                    : "No active subscription"}
+                  {isProApp
+                    ? proStatus?.hasPro
+                      ? `One-time purchase${
+                          proStatus?.proPurchasedAt
+                            ? ` · ${new Date(proStatus.proPurchasedAt).toLocaleDateString()}`
+                            : ""
+                        }`
+                      : "Pro not purchased"
+                    : subscription
+                      ? subscription.expiresAt || subscription.currentPeriodEnd
+                        ? `Renews ${new Date(subscription.expiresAt || subscription.currentPeriodEnd).toLocaleDateString()}`
+                        : "Active subscription"
+                      : "No active subscription"}
                 </Text>
               </div>
             </Space>
           </div>
           <Space wrap>
-            {subscription && (
+            {!isProApp && subscription && (
               <Button danger onClick={cancel}>
                 Cancel Subscription
               </Button>
             )}
             <Button type="primary" href="/dashboard/subscription">
-              {subscription ? "Change Plan" : "Upgrade"}
+              {isProApp
+                ? "Manage Plan"
+                : subscription
+                  ? "Change Plan"
+                  : "Upgrade"}
             </Button>
           </Space>
         </div>
 
-        {subscription?.plan && (
+        {isProApp && proStatus?.hasPro && (
+          <>
+            <Divider />
+            <Descriptions column={{ xs: 1, sm: 2 }} size="small">
+              <Descriptions.Item label="Plan">Pro</Descriptions.Item>
+              <Descriptions.Item label="Flows">
+                {proStatus.isUnlimited
+                  ? "Unlimited"
+                  : `${proStatus.proFlows?.used ?? 0} / ${proStatus.proFlows?.max ?? 0} used`}
+              </Descriptions.Item>
+              <Descriptions.Item label="Purchased">
+                {proStatus.proPurchasedAt
+                  ? new Date(proStatus.proPurchasedAt).toLocaleDateString()
+                  : "—"}
+              </Descriptions.Item>
+            </Descriptions>
+          </>
+        )}
+
+        {!isProApp && subscription?.plan && (
           <>
             <Divider />
             <Descriptions column={{ xs: 1, sm: 2 }} size="small">
@@ -215,44 +259,47 @@ export default function BillingPage() {
         )}
       </Card>
 
-      <Card title="Subscription History" styles={{ body: { padding: 16 } }}>
-        {historyLoading ? (
-          <div style={{ textAlign: "center", padding: "24px 0" }}>
-            <Spin />
-          </div>
-        ) : (
-          <HistoryAccordion
-            title="Subscription History"
-            defaultOpen
-            items={history.map((r: any) => {
-              // date: use startedAt
-              const date = r.startedAt
-                ? new Date(r.startedAt).toLocaleDateString()
-                : "—";
-              // description: plan name + price
-              const currency = (r.currency || "USD").toUpperCase();
-              const price = `${currency} $${Number(r.price || 0).toFixed(2)}/mo`;
-              const description = r.planName
-                ? `${r.planName} — ${price}`
-                : price;
-              // amount: show ended date if available
-              const ended = r.expiresAt
-                ? `Ended ${new Date(r.expiresAt).toLocaleDateString()}`
-                : "—";
-              // status: archivedReason mapped to label
-              const reasonMap: Record<string, string> = {
-                replaced_by_stripe: "Replaced",
-                cancelled: "Cancelled",
-                expired: "Expired",
-              };
-              const status = r.archivedReason
-                ? reasonMap[r.archivedReason] || r.archivedReason
-                : undefined;
-              return { date, description, amount: ended, status };
-            })}
-          />
-        )}
-      </Card>
+      {/* Team-app only — Pro lifetime has no subscription history */}
+      {!isProApp && (
+        <Card title="Subscription History" styles={{ body: { padding: 16 } }}>
+          {historyLoading ? (
+            <div style={{ textAlign: "center", padding: "24px 0" }}>
+              <Spin />
+            </div>
+          ) : (
+            <HistoryAccordion
+              title="Subscription History"
+              defaultOpen
+              items={history.map((r: any) => {
+                // date: use startedAt
+                const date = r.startedAt
+                  ? new Date(r.startedAt).toLocaleDateString()
+                  : "—";
+                // description: plan name + price
+                const currency = (r.currency || "USD").toUpperCase();
+                const price = `${currency} $${Number(r.price || 0).toFixed(2)}/mo`;
+                const description = r.planName
+                  ? `${r.planName} — ${price}`
+                  : price;
+                // amount: show ended date if available
+                const ended = r.expiresAt
+                  ? `Ended ${new Date(r.expiresAt).toLocaleDateString()}`
+                  : "—";
+                // status: archivedReason mapped to label
+                const reasonMap: Record<string, string> = {
+                  replaced_by_stripe: "Replaced",
+                  cancelled: "Cancelled",
+                  expired: "Expired",
+                };
+                const status = r.archivedReason
+                  ? reasonMap[r.archivedReason] || r.archivedReason
+                  : undefined;
+                return { date, description, amount: ended, status };
+              })}
+            />
+          )}
+        </Card>
+      )}
     </div>
   );
 }

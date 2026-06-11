@@ -28,7 +28,6 @@ import {
   CloseOutlined,
   SendOutlined,
   ArrowLeftOutlined,
-  PlusOutlined,
   CompressOutlined,
   ExpandOutlined,
   PaperClipOutlined,
@@ -615,8 +614,7 @@ export default function RightChatColumn({
   };
 
   const fetchCreateGroupMembers = useCallback(async () => {
-    if (!sidebarData?.teams?.length) return;
-    const teamGroups: TeamGroup[] = sidebarData.teams.map((t) => ({
+    const teamGroups: TeamGroup[] = (sidebarData?.teams || []).map((t) => ({
       teamId: t.id,
       teamName: t.name || "Unnamed Team",
       members: (t.members || [])
@@ -627,6 +625,26 @@ export default function RightChatColumn({
           email: m.email || "",
         })),
     }));
+    // Contacts not covered by a visible team (e.g. DM partners) are still
+    // valid group members — without this, users whose only team is a hidden
+    // system workspace would have nobody to pick.
+    const teamMemberIds = new Set(
+      teamGroups.flatMap((g) => g.members.map((m) => m.userId)),
+    );
+    const extraContacts = (sidebarData?.contacts || []).filter(
+      (c) => c.id !== user?.id && !teamMemberIds.has(c.id),
+    );
+    if (extraContacts.length) {
+      teamGroups.push({
+        teamId: "__contacts__",
+        teamName: "Contacts",
+        members: extraContacts.map((c) => ({
+          userId: c.id,
+          name: c.name || c.email || "Unknown",
+          email: c.email || "",
+        })),
+      });
+    }
     setCreateGroupMembers(teamGroups);
   }, [sidebarData, user?.id]);
 
@@ -1895,32 +1913,6 @@ export default function RightChatColumn({
                   renderAccordion(selectedGroupId)
                 )}
               </div>
-              {/* New Chat */}
-              <div
-                style={{
-                  padding: "8px 12px",
-                  borderTop: `1px solid ${BORDER}`,
-                  flexShrink: 0,
-                }}
-              >
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  block
-                  size="small"
-                  onClick={() => {
-                    setModalOpen(true);
-                    fetchCreateGroupMembers();
-                  }}
-                  style={{
-                    background: PRIMARY,
-                    borderColor: PRIMARY,
-                    borderRadius: 6,
-                  }}
-                >
-                  New Chat
-                </Button>
-              </div>
             </div>
 
             {/* RIGHT: Messages */}
@@ -2082,33 +2074,6 @@ export default function RightChatColumn({
             ) : (
               renderAccordion()
             )}
-          </div>
-
-          {/* New Chat */}
-          <div
-            style={{
-              padding: "8px 12px",
-              borderTop: `1px solid ${BORDER}`,
-              flexShrink: 0,
-            }}
-          >
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              block
-              size="small"
-              onClick={() => {
-                setModalOpen(true);
-                fetchCreateGroupMembers();
-              }}
-              style={{
-                background: PRIMARY,
-                borderColor: PRIMARY,
-                borderRadius: 6,
-              }}
-            >
-              New Chat
-            </Button>
           </div>
         </div>
         {renderCreateModal()}

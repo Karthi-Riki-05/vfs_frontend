@@ -10,6 +10,7 @@ import { DashKPICards } from "@/components/dashboard/DashKPICards";
 import { DashActivityChart } from "@/components/dashboard/DashActivityChart";
 import { DashRecentFlows } from "@/components/dashboard/DashRecentFlows";
 import { TeamActivityFeed } from "@/components/dashboard/TeamActivityFeed";
+import { aiApi } from "@/api/ai.api";
 import { useAuth } from "@/hooks/useAuth";
 import { usePro } from "@/hooks/usePro";
 import { useDashboard } from "@/hooks/useDashboard";
@@ -66,13 +67,27 @@ export default function DashboardPage() {
 
     if (success === "true") {
       const credits = params.get("credits");
-      message.success(
-        credits
-          ? `${credits} AI credits added to your account!`
-          : "AI credits added to your account!",
-      );
-      window.dispatchEvent(new CustomEvent("aiCreditsChanged"));
+      const sessionId = params.get("session_id");
       window.history.replaceState({}, "", "/dashboard");
+      // Verify the Stripe session server-side — this also GRANTS the credits
+      // when the webhook hasn't reached the backend (idempotent, so it's
+      // safe when the webhook already processed it).
+      const finish = async () => {
+        if (sessionId) {
+          try {
+            await aiApi.verifyAddonPurchase(sessionId);
+          } catch {
+            // Silent — webhook may have already credited
+          }
+        }
+        message.success(
+          credits
+            ? `${credits} AI credits added to your account!`
+            : "AI credits added to your account!",
+        );
+        window.dispatchEvent(new CustomEvent("aiCreditsChanged"));
+      };
+      finish();
     } else if (cancelled === "true") {
       message.info("Credit purchase cancelled");
       window.history.replaceState({}, "", "/dashboard");

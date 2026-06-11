@@ -529,7 +529,7 @@ function ProSubscriptionContent() {
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "16px" }}>
       <Title level={3} style={{ marginBottom: 24, fontSize: 20 }}>
         <CrownOutlined style={{ color: "#F59E0B", marginRight: 8 }} />
-        Pro Subscription
+        Pro Plan
       </Title>
 
       <Card
@@ -841,14 +841,14 @@ function ProSubscriptionContent() {
                     height: 44,
                   }}
                 >
-                  Subscribe &mdash; $10/month
+                  $10/month
                 </Button>
               </div>
               <div
                 style={{
                   flex: 1,
                   minWidth: 220,
-                  border: "2px solid #F59E0B",
+                  border: "2px solid #3CB371",
                   borderRadius: 12,
                   padding: "24px",
                   display: "flex",
@@ -856,14 +856,14 @@ function ProSubscriptionContent() {
                   alignItems: "center",
                   textAlign: "center",
                   position: "relative",
-                  background: "#FFFBEB",
+                  background: "#F0FFF4",
                 }}
               >
                 <div
                   style={{
                     position: "absolute",
                     top: -12,
-                    background: "#F59E0B",
+                    background: "linear-gradient(135deg, #3CB371, #2d8a56)",
                     color: "#fff",
                     fontSize: 11,
                     fontWeight: 700,
@@ -881,7 +881,7 @@ function ProSubscriptionContent() {
                   style={{
                     fontSize: 28,
                     fontWeight: 700,
-                    color: "#F59E0B",
+                    color: "#3CB371",
                     marginBottom: 2,
                   }}
                 >
@@ -919,14 +919,14 @@ function ProSubscriptionContent() {
                   disabled={!!purchasing}
                   onClick={() => handleAddonSubscribe("unlimited")}
                   style={{
-                    backgroundColor: "#F59E0B",
-                    borderColor: "#F59E0B",
+                    backgroundColor: "#3CB371",
+                    borderColor: "#3CB371",
                     borderRadius: 8,
                     fontWeight: 600,
                     height: 44,
                   }}
                 >
-                  Subscribe &mdash; $20/month
+                  $20/month
                 </Button>
               </div>
             </div>
