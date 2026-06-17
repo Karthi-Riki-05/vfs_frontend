@@ -7,21 +7,15 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+import { Badge, Spin, Button, message, Popconfirm, Image } from "antd";
 import {
-  Input,
-  Badge,
-  Spin,
-  Button,
-  Form,
-  Modal,
-  Checkbox,
-  message,
-  Popconfirm,
-  Image,
-} from "antd";
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
 import {
   SearchOutlined,
-  TeamOutlined,
   MessageOutlined,
   UserOutlined,
   RightOutlined,
@@ -41,6 +35,24 @@ import {
   UserAddOutlined,
   LockOutlined,
 } from "@ant-design/icons";
+import {
+  Search,
+  Hash,
+  Check,
+  ArrowLeft,
+  Users,
+  Paperclip,
+  Send,
+  Plus,
+  UserPlus,
+  MessageSquare,
+  Lock,
+  X,
+  Maximize2,
+  Minimize2,
+  Trash2,
+  LogOut,
+} from "lucide-react";
 import api from "@/lib/axios";
 import { upload } from "@/lib/axios";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
@@ -57,6 +69,40 @@ const TEAM_AVATAR_BG = "#7C3AED";
 const CONTACT_AVATAR_BG = "#3B82F6";
 const INPUT_BG = "#F8F9FA";
 const COLUMN_WIDTH = 430;
+
+// Mobile redesign tokens (DESIGN.md) — only used when `mobileRestyle` is set
+const M_PRIMARY = "#34A881";
+const M_TINT = "#E7F6F0";
+const M_BG = "#F5F7F6";
+const M_BORDER = "#E5EBE8";
+const M_TEXT = "#1F2937";
+const M_TEXT_SEC = "#6B7280";
+const TEAM_COLORS = [
+  "#34A881",
+  "#006AA8",
+  "#FF9A30",
+  "#1F7D5E",
+  "#F85729",
+  "#7C3AED",
+];
+const hashColor = (s: string) =>
+  TEAM_COLORS[
+    Array.from(s).reduce((a, c) => a + c.charCodeAt(0), 0) % TEAM_COLORS.length
+  ];
+
+// Compact relative time for the mobile list ("2m", "1h", "Mon")
+function shortTime(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  if (hrs < 168) return d.toLocaleDateString([], { weekday: "short" });
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 
 interface SidebarTeam {
   id: string;
@@ -85,7 +131,7 @@ interface ChatGroup {
   teamId?: string;
   userId?: string;
   messages?: Array<{ message?: string; content?: string }>;
-  lastMessage?: { message?: string; content?: string };
+  lastMessage?: { message?: string; content?: string; createdAt?: string };
   unreadCount?: number;
   members?: Array<{
     id: string;
@@ -147,6 +193,10 @@ interface RightChatColumnProps {
   onClose: () => void;
   onFullView: () => void;
   isFullView?: boolean;
+  /** Mobile (<1024px) redesign — only the standalone /dashboard/chat page
+   *  sets this. The unified `.tw` layout renders the same at all widths now,
+   *  so this prop no longer changes styling (kept for compatibility). */
+  mobileRestyle?: boolean;
 }
 
 // Prefer the per-user displayName the backend computes for DM groups
@@ -187,6 +237,7 @@ export default function RightChatColumn({
   onClose,
   onFullView,
   isFullView = false,
+  mobileRestyle = false,
 }: RightChatColumnProps) {
   const { user } = useAuth();
   const { activeTeamId, isTeamContext, effectivePlan } = useAppContext();
@@ -211,6 +262,8 @@ export default function RightChatColumn({
 
   // View state
   const [view, setView] = useState<"list" | "messages">("list");
+  // Conversation tab (prototype Projects/Group/Direct) maps to teams/groups/contacts
+  const [tab, setTab] = useState<"team" | "group" | "direct">("team");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedGroupName, setSelectedGroupName] = useState("");
   const [selectedGroupAvatarBg, setSelectedGroupAvatarBg] = useState(PRIMARY);
@@ -237,12 +290,11 @@ export default function RightChatColumn({
   const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Create group modal
   const [modalOpen, setModalOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [form] = Form.useForm();
+  const [createGroupName, setCreateGroupName] = useState("");
   const [createGroupMembers, setCreateGroupMembers] = useState<TeamGroup[]>([]);
   const [createSelectedMemberIds, setCreateSelectedMemberIds] = useState<
     Set<string>
@@ -499,7 +551,7 @@ export default function RightChatColumn({
       openConversation(
         team.conversationId,
         team.name || "Team Chat",
-        TEAM_AVATAR_BG,
+        hashColor(team.name || "Team Chat"),
       );
       return;
     }
@@ -512,7 +564,11 @@ export default function RightChatColumn({
       });
       const newGroup = res.data?.data;
       if (newGroup?.id) {
-        openConversation(newGroup.id, team.name || "Team Chat", TEAM_AVATAR_BG);
+        openConversation(
+          newGroup.id,
+          team.name || "Team Chat",
+          hashColor(team.name || "Team Chat"),
+        );
         fetchSidebar();
       }
     } catch {
@@ -524,12 +580,9 @@ export default function RightChatColumn({
 
   // Contact chat open
   const handleContactChatOpen = async (contact: SidebarContact) => {
+    const name = contact.name || contact.email || "DM";
     if (contact.conversationId) {
-      openConversation(
-        contact.conversationId,
-        contact.name || contact.email || "DM",
-        CONTACT_AVATAR_BG,
-      );
+      openConversation(contact.conversationId, name, hashColor(name));
       return;
     }
     try {
@@ -541,11 +594,7 @@ export default function RightChatColumn({
       });
       const newGroup = res.data?.data;
       if (newGroup?.id) {
-        openConversation(
-          newGroup.id,
-          contact.name || contact.email || "DM",
-          CONTACT_AVATAR_BG,
-        );
+        openConversation(newGroup.id, name, hashColor(name));
         fetchSidebar();
       }
     } catch {
@@ -581,31 +630,34 @@ export default function RightChatColumn({
 
   // Create group
   const handleCreateGroup = async () => {
+    const name = createGroupName.trim();
+    if (!name) {
+      message.error("Please enter a group name");
+      return;
+    }
     try {
-      const values = await form.validateFields();
       setCreating(true);
       const memberIds = Array.from(createSelectedMemberIds);
       const res = await api.post("/chat/groups", {
-        title: values.name,
+        title: name,
         memberIds,
         isDirect: false,
       });
       const newGroup = res.data?.data;
       message.success("Group created");
-      form.resetFields();
+      setCreateGroupName("");
       setCreateSelectedMemberIds(new Set());
       setModalOpen(false);
       fetchSidebar();
       if (newGroup?.id) {
-        openConversation(newGroup.id, values.name, PRIMARY);
+        openConversation(newGroup.id, name, hashColor(name));
       }
     } catch (err: any) {
       // Surface real errors instead of swallowing them silently
       const apiMsg = err?.response?.data?.error?.message;
       if (apiMsg) {
         message.error(apiMsg);
-      } else if (!err?.errorFields) {
-        // not a Form validation error
+      } else {
         message.error("Failed to create group");
       }
     } finally {
@@ -714,10 +766,6 @@ export default function RightChatColumn({
     } finally {
       setAddingMembers(false);
     }
-  };
-
-  const toggleSection = (key: string) => {
-    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   // ---- FILTERED DATA ----
@@ -871,229 +919,172 @@ export default function RightChatColumn({
     return <div>{msgText}</div>;
   };
 
-  // ---- RENDER: Section header ----
-  const renderSectionHeader = (
-    title: string,
-    sectionKey: string,
-    icon: React.ReactNode,
-    count: number,
-    action?: { label: string; onClick: () => void },
-  ) => (
+  // ===============================================================
+  // UNIFIED .tw RENDERERS (new_design prototype — both breakpoints)
+  // ===============================================================
+
+  const TABS_DEF: Array<{ id: "team" | "group" | "direct"; label: string }> = [
+    { id: "team", label: "Projects" },
+    { id: "group", label: "Group" },
+    { id: "direct", label: "Direct" },
+  ];
+
+  // Colored round avatar with initial (prototype Avatar atom)
+  const twAvatar = (name: string, size = 48) => (
     <div
-      key={`section-${sectionKey}`}
+      className="rounded-full overflow-hidden shrink-0 flex items-center justify-center text-white font-bold"
       style={{
-        display: "flex",
-        alignItems: "center",
-        padding: "6px 12px",
-        cursor: "pointer",
-        userSelect: "none",
-        background: "#FAFAFA",
-        borderBottom: `1px solid ${BORDER}`,
+        width: size,
+        height: size,
+        background: hashColor(name || "?"),
+        fontSize: Math.round(size * 0.32),
       }}
-      onClick={() => toggleSection(sectionKey)}
     >
-      <RightOutlined
-        style={{
-          fontSize: 9,
-          color: TEXT_SECONDARY,
-          transition: "transform 0.2s",
-          transform: expandedSections[sectionKey]
-            ? "rotate(90deg)"
-            : "rotate(0deg)",
-          marginRight: 6,
-        }}
-      />
-      {icon}
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color: TEXT,
-          marginLeft: 4,
-          flex: 1,
-        }}
-      >
-        {title}
-      </span>
-      <span
-        style={{
-          fontSize: 10,
-          color: TEXT_SECONDARY,
-          marginRight: action ? 6 : 0,
-        }}
-      >
-        {count}
-      </span>
-      {action && (
-        <span
-          onClick={(e) => {
-            e.stopPropagation();
-            action.onClick();
-          }}
-          style={{
-            fontSize: 11,
-            color: PRIMARY,
-            cursor: "pointer",
-            fontWeight: 500,
-          }}
-        >
-          {action.label}
-        </span>
-      )}
+      {(name || "?").trim().charAt(0).toUpperCase()}
     </div>
   );
 
-  // ---- RENDER: Conversation list item ----
-  const renderItem = (
-    key: string,
-    name: string,
-    subtitle: string,
-    avatarBg: string,
-    initial: string,
-    unread: number,
-    onClick: () => void,
-    isSelected?: boolean,
-    contextActions?: { onDelete?: () => void; onLeave?: () => void },
-  ) => (
+  // Locked placeholder (personal context / non-member)
+  const twLock = () => (
+    <div className="px-5 py-12 text-center">
+      <div className="w-14 h-14 mx-auto rounded-2xl bg-secondary flex items-center justify-center mb-3">
+        <Lock className="w-6 h-6 text-muted-foreground" />
+      </div>
+      <div className="font-bold text-sm text-foreground mb-1">
+        Chat requires a team
+      </div>
+      <div className="text-xs text-muted-foreground">
+        Switch to a team context to start messaging teammates.
+      </div>
+    </div>
+  );
+
+  const twEmpty = (label: string) => (
+    <div className="py-10 text-center text-sm text-muted-foreground">
+      {label}
+    </div>
+  );
+
+  // Search bar (prototype SearchBar atom)
+  const twSearch = () => (
+    <div className="flex items-center gap-2 h-11 px-3 rounded-2xl bg-card border border-border mb-4">
+      <Search className="w-4 h-4 text-muted-foreground" />
+      <input
+        id="right-chat-search"
+        placeholder="Search conversations"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="flex-1 bg-transparent outline-none text-sm border-0 p-0"
+      />
+    </div>
+  );
+
+  // Segmented tabs (prototype Tabs atom)
+  const twTabs = () => (
+    <div className="flex p-1 rounded-2xl bg-secondary">
+      {TABS_DEF.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => setTab(t.id)}
+          className={`flex-1 h-10 rounded-xl text-sm font-semibold transition border-0 cursor-pointer appearance-none ${
+            tab === t.id
+              ? "bg-card text-primary-deep shadow-sm"
+              : "bg-transparent text-muted-foreground"
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  // One conversation row (prototype list item)
+  const twRow = (opts: {
+    key: string;
+    name: string;
+    subtitle: string;
+    time?: string;
+    unread?: number;
+    hash?: boolean;
+    online?: boolean;
+    onClick: () => void;
+    onLeave?: () => void;
+    onDelete?: () => void;
+  }) => (
     <div
-      key={key}
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "6px 12px",
-        cursor: "pointer",
-        transition: "background 0.15s",
-        background: isSelected ? "#F0FFF0" : "transparent",
-        borderLeft: isSelected
-          ? `3px solid ${PRIMARY}`
-          : "3px solid transparent",
-      }}
-      onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.background = "#F8F9FA";
-      }}
-      onMouseLeave={(e) => {
-        if (!isSelected) e.currentTarget.style.background = "transparent";
-      }}
+      key={opts.key}
+      onClick={opts.onClick}
+      className="group w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-card transition text-left cursor-pointer"
     >
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: "50%",
-          background: avatarBg,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#fff",
-          fontSize: 13,
-          fontWeight: 600,
-          flexShrink: 0,
-        }}
-      >
-        {initial}
+      <div className="relative shrink-0">
+        {twAvatar(opts.name)}
+        {opts.hash && (
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-primary-tint border-2 border-background flex items-center justify-center">
+            <Hash className="w-2.5 h-2.5 text-primary-deep" />
+          </div>
+        )}
+        {opts.online && (
+          <span
+            className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background"
+            style={{ background: "#22c55e" }}
+          />
+        )}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 500,
-            color: TEXT,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {name}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-semibold text-sm truncate">{opts.name}</div>
+          {opts.time && (
+            <div className="text-[10px] text-muted-foreground shrink-0">
+              {opts.time}
+            </div>
+          )}
         </div>
-        <div
-          style={{
-            fontSize: 11,
-            color: TEXT_SECONDARY,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {subtitle}
+        <div className="flex items-center justify-between mt-0.5 gap-2">
+          <div className="text-[12px] text-muted-foreground truncate flex-1">
+            {opts.subtitle}
+          </div>
+          {opts.unread ? (
+            <span className="ml-2 text-[10px] font-bold bg-primary text-white px-1.5 py-0.5 rounded-full shrink-0">
+              {opts.unread}
+            </span>
+          ) : null}
         </div>
       </div>
-      {unread > 0 && (
-        <Badge
-          count={unread}
-          size="small"
-          style={{ backgroundColor: PRIMARY }}
-        />
-      )}
-      {contextActions && (
+      {(opts.onLeave || opts.onDelete) && (
         <div
           onClick={(e) => e.stopPropagation()}
-          style={{ display: "flex", gap: 2, flexShrink: 0 }}
+          className="hidden group-hover:flex items-center gap-1 shrink-0"
         >
-          {contextActions.onLeave && (
+          {opts.onLeave && (
             <Popconfirm
               title="Leave this group?"
-              onConfirm={contextActions.onLeave}
+              onConfirm={opts.onLeave}
               okText="Leave"
               cancelText="Cancel"
             >
               <button
-                style={{
-                  width: 22,
-                  height: 22,
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  color: TEXT_SECONDARY,
-                  borderRadius: 4,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 11,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#F5F5F5";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                }}
                 title="Leave group"
+                className="w-8 h-8 rounded-lg border-0 cursor-pointer flex items-center justify-center appearance-none"
+                style={{ background: "#eff6ff", color: "#006AA8" }}
               >
-                ↩
+                <LogOut className="w-4 h-4" />
               </button>
             </Popconfirm>
           )}
-          {contextActions.onDelete && (
+          {opts.onDelete && (
             <Popconfirm
               title="Delete this group?"
-              onConfirm={contextActions.onDelete}
+              onConfirm={opts.onDelete}
               okText="Delete"
               cancelText="Cancel"
               okButtonProps={{ danger: true }}
             >
               <button
-                style={{
-                  width: 22,
-                  height: 22,
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  color: "#ff4d4f",
-                  borderRadius: 4,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#FFF1F0";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                }}
                 title="Delete group"
+                className="w-8 h-8 rounded-lg border-0 cursor-pointer flex items-center justify-center appearance-none"
+                style={{ background: "#fef2f2", color: "#F85729" }}
               >
-                <DeleteOutlined style={{ fontSize: 11 }} />
+                <Trash2 className="w-4 h-4" />
               </button>
             </Popconfirm>
           )}
@@ -1102,169 +1093,75 @@ export default function RightChatColumn({
     </div>
   );
 
-  // ---- RENDER: Accordion list ----
-  const renderAccordion = (highlightId?: string | null) => {
-    // Personal context (or non-member of the target team) → locked placeholder.
-    // Pro users ($1 lifetime) and Pro app users have unconditional chat access,
-    // so suppress the backend's "requires a team" lock for them.
-    if (sidebarData?.locked && !hasChatAccess) {
+  // Conversation list (search + tabs + rows) — used in column, mobile, and full-view left pane
+  const renderTwListInner = () => {
+    if (sidebarData?.locked && !hasChatAccess) return twLock();
+
+    // Flat-group fallback (no sidebar payload) — single list, no tabs.
+    if (!sidebarData) {
       return (
-        <div
-          style={{
-            padding: "32px 20px",
-            textAlign: "center",
-            color: TEXT_SECONDARY,
-          }}
-        >
-          <LockOutlined
-            style={{ fontSize: 32, color: "#D9D9D9", marginBottom: 12 }}
-          />
-          <div
-            style={{
-              fontWeight: 600,
-              fontSize: 13,
-              color: TEXT,
-              marginBottom: 6,
-            }}
-          >
-            Chat requires a team
-          </div>
-          <div style={{ fontSize: 12 }}>
-            Switch to a team context to start messaging teammates.
-          </div>
+        <div className="px-4 pt-3">
+          {twSearch()}
+          {filteredFlatGroups.length === 0 ? (
+            twEmpty("No conversations yet")
+          ) : (
+            <div className="mt-1 space-y-1">
+              {filteredFlatGroups.map((group) => {
+                const lastMsg =
+                  group.messages?.[0]?.message ||
+                  group.lastMessage?.message ||
+                  "No messages";
+                const unread = group.unreadCount || getUnreadCount(group.id);
+                const name = groupName(group);
+                return twRow({
+                  key: group.id,
+                  name,
+                  subtitle: lastMsg,
+                  time: shortTime(group.lastMessage?.createdAt),
+                  unread,
+                  hash: !group.isDirect,
+                  onClick: () =>
+                    openConversation(group.id, name, hashColor(name)),
+                  onLeave: () => handleLeaveGroup(group.id),
+                  onDelete:
+                    group.userId === user?.id
+                      ? () => handleDeleteGroup(group.id)
+                      : undefined,
+                });
+              })}
+            </div>
+          )}
         </div>
       );
     }
-    if (!sidebarData) {
-      if (filteredFlatGroups.length === 0) {
-        return (
-          <div
-            style={{
-              padding: 16,
-              fontSize: 12,
-              color: TEXT_SECONDARY,
-              textAlign: "center",
-            }}
-          >
-            No conversations yet
-          </div>
-        );
-      }
-      return filteredFlatGroups.map((group) => {
-        const lastMsg =
-          group.messages?.[0]?.message ||
-          group.lastMessage?.message ||
-          "No messages";
-        const count =
-          group.memberCount ??
-          group._count?.members ??
-          group.members?.length ??
-          0;
-        const subtitle = group.isDirect
-          ? lastMsg
-          : `${count} member${count === 1 ? "" : "s"} · ${lastMsg}`;
-        const unread = group.unreadCount || getUnreadCount(group.id);
-        const name = groupName(group);
-        return renderItem(
-          group.id,
-          name,
-          subtitle,
-          PRIMARY,
-          name.charAt(0).toUpperCase(),
-          unread,
-          () => openConversation(group.id, name, PRIMARY),
-          highlightId === group.id,
-          {
-            onLeave: () => handleLeaveGroup(group.id),
-            onDelete:
-              group.userId === user?.id
-                ? () => handleDeleteGroup(group.id)
-                : undefined,
-          },
-        );
-      });
-    }
 
-    return (
-      <>
-        {renderSectionHeader(
-          "Teams",
-          "teams",
-          <TeamOutlined style={{ fontSize: 12, color: TEAM_AVATAR_BG }} />,
-          filteredTeams.length,
-        )}
-        <div
-          style={{
-            maxHeight: expandedSections.teams ? 9999 : 0,
-            overflow: "hidden",
-            transition: "max-height 0.25s ease-in-out",
-          }}
-        >
-          {filteredTeams.length === 0 ? (
-            <div
-              style={{
-                padding: "8px 12px",
-                fontSize: 11,
-                color: TEXT_SECONDARY,
-                textAlign: "center",
-              }}
-            >
-              No teams
-            </div>
-          ) : (
-            filteredTeams.map((team) => {
+    // Tabbed (Projects / Group / Direct)
+    let rows: React.ReactNode;
+    if (tab === "team") {
+      rows =
+        filteredTeams.length === 0
+          ? twEmpty("No projects yet")
+          : filteredTeams.map((team) => {
+              const name = team.name || "Unnamed Team";
               const subtitle =
                 team.lastMessage?.message ||
                 `${team.memberCount} member${team.memberCount !== 1 ? "s" : ""}`;
-              const name = team.name || "Unnamed Team";
               const cid = team.conversationId || `team-${team.id}`;
-              return renderItem(
-                cid,
+              return twRow({
+                key: cid,
                 name,
                 subtitle,
-                TEAM_AVATAR_BG,
-                name.charAt(0).toUpperCase(),
-                team.unreadCount,
-                () => handleTeamChatOpen(team),
-                highlightId === cid || highlightId === team.conversationId,
-              );
-            })
-          )}
-        </div>
-
-        {renderSectionHeader(
-          "Groups",
-          "groups",
-          <MessageOutlined style={{ fontSize: 12, color: PRIMARY }} />,
-          filteredGroups.length,
-          {
-            label: "+ Create",
-            onClick: () => {
-              setModalOpen(true);
-              fetchCreateGroupMembers();
-            },
-          },
-        )}
-        <div
-          style={{
-            maxHeight: expandedSections.groups ? 9999 : 0,
-            overflow: "hidden",
-            transition: "max-height 0.25s ease-in-out",
-          }}
-        >
-          {filteredGroups.length === 0 ? (
-            <div
-              style={{
-                padding: "8px 12px",
-                fontSize: 11,
-                color: TEXT_SECONDARY,
-                textAlign: "center",
-              }}
-            >
-              No groups
-            </div>
-          ) : (
-            filteredGroups.map((group) => {
+                time: shortTime(team.lastMessage?.createdAt),
+                unread: team.unreadCount,
+                hash: true,
+                onClick: () => handleTeamChatOpen(team),
+              });
+            });
+    } else if (tab === "group") {
+      rows =
+        filteredGroups.length === 0
+          ? twEmpty("No groups yet")
+          : filteredGroups.map((group) => {
               const lastMsg =
                 group.messages?.[0]?.message ||
                 group.lastMessage?.message ||
@@ -1277,802 +1174,540 @@ export default function RightChatColumn({
               const subtitle = `${count} member${count === 1 ? "" : "s"} · ${lastMsg}`;
               const unread = group.unreadCount || getUnreadCount(group.id);
               const name = groupName(group);
-              return renderItem(
-                group.id,
+              return twRow({
+                key: group.id,
                 name,
                 subtitle,
-                PRIMARY,
-                name.charAt(0).toUpperCase(),
+                time: shortTime(group.lastMessage?.createdAt),
                 unread,
-                () => openConversation(group.id, name, PRIMARY),
-                highlightId === group.id,
-                {
-                  onLeave: () => handleLeaveGroup(group.id),
-                  onDelete:
-                    group.userId === user?.id
-                      ? () => handleDeleteGroup(group.id)
-                      : undefined,
-                },
-              );
-            })
-          )}
-        </div>
-
-        {renderSectionHeader(
-          "Members",
-          "members",
-          <UserOutlined style={{ fontSize: 12, color: CONTACT_AVATAR_BG }} />,
-          filteredContacts.length,
-        )}
-        <div
-          style={{
-            maxHeight: expandedSections.members ? 9999 : 0,
-            overflow: "hidden",
-            transition: "max-height 0.25s ease-in-out",
-          }}
-        >
-          {filteredContacts.length === 0 ? (
-            <div
-              style={{
-                padding: "8px 12px",
-                fontSize: 11,
-                color: TEXT_SECONDARY,
-                textAlign: "center",
-              }}
-            >
-              No contacts
+                hash: true,
+                onClick: () =>
+                  openConversation(group.id, name, hashColor(name)),
+                onLeave: () => handleLeaveGroup(group.id),
+                onDelete:
+                  group.userId === user?.id
+                    ? () => handleDeleteGroup(group.id)
+                    : undefined,
+              });
+            });
+    } else {
+      rows =
+        filteredContacts.length === 0 ? (
+          <div className="py-8 text-center">
+            <div className="text-2xl mb-2">👥</div>
+            <div className="text-xs text-muted-foreground mb-3">
+              No contacts yet
             </div>
-          ) : (
-            filteredContacts.map((contact) => {
-              const name = contact.name || contact.email || "Unknown";
-              const subtitle =
-                contact.lastMessage?.message || contact.email || "";
-              const cid = contact.conversationId || `contact-${contact.id}`;
-              return renderItem(
-                cid,
-                name,
-                subtitle,
-                CONTACT_AVATAR_BG,
-                name.charAt(0).toUpperCase(),
-                contact.unreadCount,
-                () => handleContactChatOpen(contact),
-                highlightId === cid || highlightId === contact.conversationId,
-              );
-            })
-          )}
-        </div>
-      </>
+            <button
+              onClick={() => {
+                window.location.href = "/dashboard/teams";
+              }}
+              className="inline-flex items-center bg-primary-tint text-primary-deep rounded-full px-3.5 py-1.5 text-[11px] font-bold border-0 cursor-pointer appearance-none"
+            >
+              Invite Teammate
+            </button>
+          </div>
+        ) : (
+          filteredContacts.map((contact) => {
+            const name = contact.name || contact.email || "Unknown";
+            const subtitle =
+              contact.lastMessage?.message || contact.email || "";
+            const cid = contact.conversationId || `contact-${contact.id}`;
+            return twRow({
+              key: cid,
+              name,
+              subtitle,
+              time: shortTime(contact.lastMessage?.createdAt),
+              unread: contact.unreadCount,
+              hash: false,
+              onClick: () => handleContactChatOpen(contact),
+            });
+          })
+        );
+    }
+
+    return (
+      <div className="px-4 pt-3">
+        {twSearch()}
+        {twTabs()}
+        {tab === "group" && (
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => {
+                setModalOpen(true);
+                fetchCreateGroupMembers();
+              }}
+              className="flex-1 h-11 rounded-2xl bg-primary text-white font-semibold text-sm inline-flex items-center justify-center gap-2 border-0 cursor-pointer appearance-none"
+            >
+              <Plus className="w-4 h-4" /> Create Group
+            </button>
+          </div>
+        )}
+        <div className="mt-4 space-y-1">{rows}</div>
+      </div>
     );
   };
 
-  // ---- RENDER: Input bar (shared between column and full view) ----
-  const renderInputBar = () => (
+  // One message bubble (prototype ChatMsg)
+  const twMsg = (msg: ChatMessage) => {
+    const own = isOwnMessage(msg);
+    const time = new Date(msg.createdAt).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    if (own) {
+      return (
+        <div key={msg.id} className="flex flex-col items-end">
+          <div className="max-w-[78%] bg-primary text-white px-4 py-3 rounded-2xl rounded-br-md text-[14px] leading-snug break-words">
+            {renderMessageContent(msg, true)}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-1 mr-1">
+            {time}
+            {msg._status === "sending" && " ⏳"}
+            {msg._status === "failed" && " ❌"}
+          </div>
+        </div>
+      );
+    }
+    const who = getSenderName(msg);
+    return (
+      <div key={msg.id}>
+        <div className="text-[12px] font-semibold text-muted-foreground ml-11 mb-1">
+          {who}
+        </div>
+        <div className="flex items-start gap-2">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 mt-1"
+            style={{ background: selectedGroupAvatarBg }}
+          >
+            {who.charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="max-w-[80%] bg-card border border-border px-4 py-3 rounded-2xl rounded-tl-md text-[14px] leading-snug text-foreground break-words">
+              {renderMessageContent(msg, false)}
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-1 ml-1">
+              {time}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Input bar (prototype ChatThread footer)
+  const renderTwInputBar = () => (
     <div
+      className="p-3 border-t border-border bg-card flex items-center gap-2 shrink-0"
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "8px 12px",
-        paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
-        borderTop: `1px solid ${BORDER}`,
-        flexShrink: 0,
-        background: "#fff",
+        paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
       }}
     >
-      {/* File attach */}
       <label
-        style={{
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 30,
-          height: 30,
-          borderRadius: 6,
-          color: TEXT_SECONDARY,
-          flexShrink: 0,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "#F5F5F5";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "transparent";
-        }}
+        className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center cursor-pointer shrink-0"
         title="Attach file"
       >
         <input
           type="file"
           ref={fileInputRef}
-          style={{ display: "none" }}
+          className="hidden"
           onChange={handleFileUpload}
           accept="*/*"
         />
-        <PaperClipOutlined style={{ fontSize: 16 }} />
+        <Paperclip className="w-4 h-4 text-muted-foreground" />
       </label>
-      {/* Image upload */}
-      <label
-        style={{
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 30,
-          height: 30,
-          borderRadius: 6,
-          color: TEXT_SECONDARY,
-          flexShrink: 0,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "#F5F5F5";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "transparent";
-        }}
-        title="Upload image"
-      >
+      <div className="flex-1 flex items-center gap-2 h-11 px-4 rounded-full bg-secondary">
         <input
-          type="file"
-          ref={imageInputRef}
-          style={{ display: "none" }}
-          onChange={handleFileUpload}
-          accept="image/*"
-        />
-        <PictureOutlined style={{ fontSize: 16 }} />
-      </label>
-      {/* Text input */}
-      <Input
-        placeholder="Type a message..."
-        value={messageInput}
-        onChange={(e) => setMessageInput(e.target.value)}
-        onPressEnter={handleSend}
-        size="small"
-        style={{ borderRadius: 6, fontSize: 12, flex: 1 }}
-        disabled={sendingMessage || uploading}
-      />
-      {/* Send */}
-      <Button
-        type="primary"
-        size="small"
-        icon={<SendOutlined />}
-        onClick={handleSend}
-        loading={sendingMessage || uploading}
-        style={{ background: PRIMARY, borderColor: PRIMARY, borderRadius: 6 }}
-      />
-    </div>
-  );
-
-  // ---- RENDER: Messages area ----
-  const renderMessagesArea = () => (
-    <div
-      style={{
-        flex: 1,
-        overflowY: "auto",
-        padding: "8px 12px",
-        background: isFullView ? "#FAFAFA" : "#fff",
-      }}
-    >
-      {loadingMessages ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 24 }}>
-          <Spin size="small" />
-        </div>
-      ) : messages.length === 0 ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: 24,
-            color: TEXT_SECONDARY,
-            fontSize: 12,
+          placeholder="Type a message…"
+          value={messageInput}
+          onChange={(e) => setMessageInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSend();
           }}
-        >
-          No messages yet. Start the conversation!
-        </div>
-      ) : (
-        messages.map((msg) => {
-          const own = isOwnMessage(msg);
-          return (
-            <div
-              key={msg.id}
-              style={{
-                display: "flex",
-                justifyContent: own ? "flex-end" : "flex-start",
-                marginBottom: 6,
-              }}
-            >
-              {!own && (
-                <div
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: "50%",
-                    background: selectedGroupAvatarBg,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
-                    fontSize: 10,
-                    fontWeight: 600,
-                    flexShrink: 0,
-                    marginRight: 6,
-                    alignSelf: "flex-end",
-                  }}
-                >
-                  {getSenderName(msg).charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div
-                style={{
-                  maxWidth: isFullView ? "60%" : "80%",
-                  background: own ? PRIMARY : INPUT_BG,
-                  color: own ? "#fff" : TEXT,
-                  padding: "6px 10px",
-                  borderRadius: own
-                    ? "12px 12px 2px 12px"
-                    : "12px 12px 12px 2px",
-                  fontSize: 12,
-                  wordBreak: "break-word",
-                }}
-              >
-                {!own && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: PRIMARY,
-                      marginBottom: 2,
-                    }}
-                  >
-                    {getSenderName(msg)}
-                  </div>
-                )}
-                {renderMessageContent(msg, own)}
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: own ? "rgba(255,255,255,0.6)" : TEXT_SECONDARY,
-                    textAlign: "right",
-                    marginTop: 2,
-                  }}
-                >
-                  {new Date(msg.createdAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                  {msg._status === "sending" && " ⏳"}
-                  {msg._status === "failed" && " ❌"}
-                </div>
-              </div>
-            </div>
-          );
-        })
-      )}
-      <div ref={messagesEndRef} />
+          disabled={sendingMessage || uploading}
+          className="flex-1 bg-transparent outline-none text-sm border-0 p-0"
+        />
+      </div>
+      <button
+        onClick={handleSend}
+        disabled={sendingMessage || uploading}
+        className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center border-0 cursor-pointer appearance-none disabled:opacity-60"
+      >
+        <Send className="w-4 h-4" />
+      </button>
     </div>
   );
 
-  // ---- RENDER: Header buttons (add members + full view + close) ----
-  const renderHeaderButtons = () => {
-    // Show "Add members" only inside an open group chat (not on list view,
-    // not on auto-DMs which are 1-on-1 by definition).
+  // Conversation thread (prototype ChatThread). `withBack` shows the back arrow
+  // (single-column: column view + mobile). Full-view keeps the list visible.
+  const renderTwThread = (withBack: boolean) => {
     const openedGroup = selectedGroupId
       ? flatGroups.find((g) => g.id === selectedGroupId) ||
         sidebarData?.groups?.find((g) => g.id === selectedGroupId)
       : null;
     const canAddMembers =
       !!selectedGroupId && !!openedGroup && !openedGroup.isDirect;
+    const memberCount =
+      openedGroup?.memberCount ??
+      openedGroup?._count?.members ??
+      openedGroup?.members?.length;
+
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-        {canAddMembers && (
-          <button
-            onClick={openAddMembersModal}
-            title="Add members"
-            style={{
-              width: 28,
-              height: 28,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 6,
-              border: "none",
-              background: "transparent",
-              cursor: "pointer",
-              color: TEXT_SECONDARY,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#F5F5F5";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
+      <div className="h-full flex flex-col bg-background">
+        {/* Thread header */}
+        <div className="h-16 px-3 flex items-center gap-3 bg-card border-b border-border shrink-0">
+          {withBack && (
+            <button
+              onClick={backToList}
+              className="w-9 h-9 rounded-xl hover:bg-secondary flex items-center justify-center bg-transparent border-0 cursor-pointer appearance-none"
+            >
+              <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+            </button>
+          )}
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0"
+            style={{ background: selectedGroupAvatarBg }}
           >
-            <UserAddOutlined style={{ fontSize: 14 }} />
-          </button>
-        )}
+            {selectedGroupName ? (
+              <span className="text-sm font-bold">
+                {selectedGroupName.charAt(0).toUpperCase()}
+              </span>
+            ) : (
+              <Users className="w-5 h-5" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-[15px] truncate">
+              {selectedGroupName}
+            </div>
+            {memberCount != null && (
+              <div className="text-[11px] text-muted-foreground">
+                {memberCount} member{memberCount === 1 ? "" : "s"}
+              </div>
+            )}
+          </div>
+          {canAddMembers && (
+            <button
+              onClick={openAddMembersModal}
+              title="Add members"
+              className="w-9 h-9 rounded-xl hover:bg-secondary flex items-center justify-center bg-transparent border-0 cursor-pointer appearance-none"
+            >
+              <UserPlus className="w-5 h-5 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 no-scrollbar bg-background">
+          {loadingMessages ? (
+            <div className="flex justify-center py-6">
+              <Spin size="small" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="text-center py-10 text-sm text-muted-foreground">
+              No messages yet. Start the conversation!
+            </div>
+          ) : (
+            messages.map((msg) => twMsg(msg))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+        {renderTwInputBar()}
+      </div>
+    );
+  };
+
+  // Column header (Chat title + new-group / full-view / close)
+  const renderTwColumnHeader = () => (
+    <div className="h-14 px-4 flex items-center justify-between bg-card border-b border-border shrink-0">
+      <div className="flex items-center gap-2">
+        <MessageSquare className="w-[18px] h-[18px] text-primary" />
+        <span className="text-base font-bold text-foreground">Chat</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => {
+            setModalOpen(true);
+            fetchCreateGroupMembers();
+          }}
+          title="New group"
+          className="w-9 h-9 rounded-xl bg-secondary text-primary flex items-center justify-center border-0 cursor-pointer appearance-none hover:bg-primary-tint"
+        >
+          <Plus className="w-[18px] h-[18px]" />
+        </button>
         <button
           onClick={onFullView}
           title={isFullView ? "Collapse" : "Full view"}
-          style={{
-            width: 28,
-            height: 28,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 6,
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            color: TEXT_SECONDARY,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#F5F5F5";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-          }}
+          className="w-9 h-9 rounded-xl bg-secondary text-muted-foreground flex items-center justify-center border-0 cursor-pointer appearance-none hover:bg-primary-tint"
         >
           {isFullView ? (
-            <CompressOutlined style={{ fontSize: 14 }} />
+            <Minimize2 className="w-[18px] h-[18px]" />
           ) : (
-            <ExpandOutlined style={{ fontSize: 14 }} />
+            <Maximize2 className="w-[18px] h-[18px]" />
           )}
         </button>
         <button
           onClick={onClose}
           title="Close chat"
-          style={{
-            width: 28,
-            height: 28,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 6,
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            color: TEXT_SECONDARY,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#F5F5F5";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-          }}
+          className="w-9 h-9 rounded-xl bg-secondary text-muted-foreground flex items-center justify-center border-0 cursor-pointer appearance-none hover:bg-primary-tint"
         >
-          <CloseOutlined style={{ fontSize: 13 }} />
+          <X className="w-[18px] h-[18px]" />
         </button>
       </div>
+    </div>
+  );
+
+  // ---- RENDER: Create group modal (new_design ModalShell, prototype 1723–1757) ----
+  const renderCreateModal = () => {
+    const closeCreate = () => {
+      setModalOpen(false);
+      setCreateGroupName("");
+      setCreateSelectedMemberIds(new Set());
+    };
+    const toggle = (id: string) => {
+      const next = new Set(createSelectedMemberIds);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setCreateSelectedMemberIds(next);
+    };
+    return (
+      <ModalShell open={modalOpen} onClose={closeCreate}>
+        <ModalHeader title="Create Group" close={closeCreate} />
+        <div className="px-5 pb-5 space-y-4">
+          <Field label="Group Name" required>
+            <FieldInput
+              placeholder="e.g. Launch War Room"
+              icon={<Hash className="w-4 h-4" />}
+              autoFocus
+              value={createGroupName}
+              onChange={(e) => setCreateGroupName(e.target.value)}
+            />
+          </Field>
+          <div>
+            <label className="text-xs font-semibold">Add members</label>
+            <div className="mt-1.5 rounded-xl border border-border overflow-hidden max-h-64 overflow-y-auto">
+              {createGroupMembers.length === 0 ? (
+                <div className="p-5 text-center text-sm text-muted-foreground">
+                  No team members found.
+                </div>
+              ) : (
+                createGroupMembers.map((tg) => (
+                  <div key={tg.teamId}>
+                    <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <Users className="w-3 h-3" /> {tg.teamName}
+                    </div>
+                    {tg.members.map((m) => {
+                      const picked = createSelectedMemberIds.has(m.userId);
+                      return (
+                        <button
+                          key={m.userId}
+                          type="button"
+                          onClick={() => toggle(m.userId)}
+                          className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-full flex items-center gap-3 p-3 hover:bg-secondary text-left"
+                        >
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                            style={{ background: hashColor(m.name) }}
+                          >
+                            {(m.name || m.email || "?").charAt(0).toUpperCase()}
+                          </div>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-semibold truncate">
+                              {m.name}
+                            </span>
+                            <span className="block text-[11px] text-muted-foreground truncate">
+                              {m.email}
+                            </span>
+                          </span>
+                          <span
+                            className={`w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${
+                              picked
+                                ? "bg-primary border-primary"
+                                : "border-border"
+                            }`}
+                          >
+                            {picked && (
+                              <Check className="w-3.5 h-3.5 text-white" />
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground mt-1.5">
+              {createSelectedMemberIds.size} selected
+            </div>
+          </div>
+        </div>
+        <ModalFooter
+          close={closeCreate}
+          primary={handleCreateGroup}
+          primaryLabel="Create Group"
+          loading={creating}
+        />
+      </ModalShell>
     );
   };
 
-  // ---- RENDER: Create group modal ----
-  const renderCreateModal = () => (
-    <Modal
-      title="Create New Group"
-      open={modalOpen}
-      onCancel={() => {
-        setModalOpen(false);
-        form.resetFields();
-        setCreateSelectedMemberIds(new Set());
-      }}
-      onOk={handleCreateGroup}
-      confirmLoading={creating}
-      okText="Create Group"
-      okButtonProps={{ style: { background: PRIMARY, borderColor: PRIMARY } }}
-      zIndex={1100}
-    >
-      <Form form={form} layout="vertical">
-        <Form.Item
-          name="name"
-          label="Group Name"
-          rules={[{ required: true, message: "Please enter a group name" }]}
-        >
-          <Input placeholder="e.g. Project Discussion" />
-        </Form.Item>
-      </Form>
-      <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14 }}>
-        Add Members from Teams:
-      </div>
-      <div
-        style={{
-          maxHeight: 250,
-          overflowY: "auto",
-          border: `1px solid ${BORDER}`,
-          borderRadius: 8,
-          padding: 8,
-        }}
-      >
-        {createGroupMembers.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: 20,
-              color: TEXT_SECONDARY,
-              fontSize: 13,
-            }}
-          >
-            No team members found.
-          </div>
-        ) : (
-          createGroupMembers.map((tg) => (
-            <div key={tg.teamId} style={{ marginBottom: 8 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: TEXT_SECONDARY,
-                  padding: "4px 0",
-                }}
-              >
-                <TeamOutlined style={{ fontSize: 11, marginRight: 4 }} />{" "}
-                {tg.teamName}
+  // ---- RENDER: Add Members modal (new_design ModalShell, prototype 1759–1771) ----
+  const renderAddMembersModal = () => {
+    const closeAdd = () => {
+      setAddMembersOpen(false);
+      setAddMembersSelected(new Set());
+    };
+    const toggle = (id: string) => {
+      const next = new Set(addMembersSelected);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setAddMembersSelected(next);
+    };
+    return (
+      <ModalShell open={addMembersOpen} onClose={closeAdd}>
+        <ModalHeader
+          title={`Add Users to ${selectedGroupName || "Group"}`}
+          close={closeAdd}
+        />
+        <div className="px-5 pb-5 space-y-2">
+          <label className="text-xs font-semibold">Select members</label>
+          <div className="rounded-xl border border-border overflow-hidden max-h-80 overflow-y-auto">
+            {addMembersLoading ? (
+              <div className="flex justify-center p-6">
+                <Spin size="small" />
               </div>
-              {tg.members.map((m) => (
-                <label
-                  key={m.userId}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "6px 8px",
-                    cursor: "pointer",
-                    borderRadius: 6,
-                  }}
-                >
-                  <Checkbox
-                    checked={createSelectedMemberIds.has(m.userId)}
-                    onChange={(e) => {
-                      const next = new Set(createSelectedMemberIds);
-                      if (e.target.checked) next.add(m.userId);
-                      else next.delete(m.userId);
-                      setCreateSelectedMemberIds(next);
-                    }}
-                  />
-                  <span style={{ fontSize: 13 }}>
-                    {m.name}{" "}
-                    <span style={{ color: TEXT_SECONDARY }}>— {m.email}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          ))
-        )}
-      </div>
-    </Modal>
-  );
-
-  // ---- RENDER: Add Members to existing group modal ----
-  const renderAddMembersModal = () => (
-    <Modal
-      title={`Add Members to ${selectedGroupName || "Group"}`}
-      open={addMembersOpen}
-      onCancel={() => {
-        setAddMembersOpen(false);
-        setAddMembersSelected(new Set());
-      }}
-      onOk={handleAddMembers}
-      confirmLoading={addingMembers}
-      okText="Add Selected"
-      okButtonProps={{
-        style: { background: PRIMARY, borderColor: PRIMARY },
-        disabled: addMembersSelected.size === 0,
-      }}
-      zIndex={1100}
-    >
-      <div
-        style={{
-          maxHeight: 320,
-          overflowY: "auto",
-          border: `1px solid ${BORDER}`,
-          borderRadius: 8,
-          padding: 8,
-        }}
-      >
-        {addMembersLoading ? (
-          <div
-            style={{ display: "flex", justifyContent: "center", padding: 24 }}
-          >
-            <Spin size="small" />
-          </div>
-        ) : addMembersGroups.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: 20,
-              color: TEXT_SECONDARY,
-              fontSize: 13,
-            }}
-          >
-            No additional team members available to add.
-          </div>
-        ) : (
-          addMembersGroups.map((tg) => (
-            <div key={tg.teamId} style={{ marginBottom: 8 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: TEXT_SECONDARY,
-                  padding: "4px 0",
-                }}
-              >
-                <TeamOutlined style={{ fontSize: 11, marginRight: 4 }} />{" "}
-                {tg.teamName}
+            ) : addMembersGroups.length === 0 ? (
+              <div className="p-5 text-center text-sm text-muted-foreground">
+                No additional team members available to add.
               </div>
-              {tg.members.map((m) => (
-                <label
-                  key={m.userId}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "6px 8px",
-                    cursor: "pointer",
-                    borderRadius: 6,
-                  }}
-                >
-                  <Checkbox
-                    checked={addMembersSelected.has(m.userId)}
-                    onChange={(e) => {
-                      const next = new Set(addMembersSelected);
-                      if (e.target.checked) next.add(m.userId);
-                      else next.delete(m.userId);
-                      setAddMembersSelected(next);
-                    }}
-                  />
-                  <span style={{ fontSize: 13 }}>
-                    {m.name}{" "}
-                    <span style={{ color: TEXT_SECONDARY }}>— {m.email}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          ))
-        )}
-      </div>
-    </Modal>
-  );
+            ) : (
+              addMembersGroups.map((tg) => (
+                <div key={tg.teamId}>
+                  <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <Users className="w-3 h-3" /> {tg.teamName}
+                  </div>
+                  {tg.members.map((m) => {
+                    const picked = addMembersSelected.has(m.userId);
+                    return (
+                      <button
+                        key={m.userId}
+                        type="button"
+                        onClick={() => toggle(m.userId)}
+                        className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-full flex items-center gap-3 p-3 hover:bg-secondary text-left"
+                      >
+                        <div
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                          style={{ background: hashColor(m.name) }}
+                        >
+                          {(m.name || m.email || "?").charAt(0).toUpperCase()}
+                        </div>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-semibold truncate">
+                            {m.name}
+                          </span>
+                          <span className="block text-[11px] text-muted-foreground truncate">
+                            {m.email}
+                          </span>
+                        </span>
+                        <span
+                          className={`w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${
+                            picked
+                              ? "bg-primary border-primary"
+                              : "border-border"
+                          }`}
+                        >
+                          {picked && (
+                            <Check className="w-3.5 h-3.5 text-white" />
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))
+            )}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            New members will see prior messages once they join.
+          </div>
+        </div>
+        <ModalFooter
+          close={closeAdd}
+          primary={handleAddMembers}
+          primaryLabel="Add"
+          loading={addingMembers}
+          disabled={addMembersSelected.size === 0}
+        />
+      </ModalShell>
+    );
+  };
 
   // ===============================================================
-  // FULL VIEW: Two-column layout (list left + messages right)
+  // FULL VIEW: Two-column layout (list left + thread right)
   // ===============================================================
   if (isFullView) {
     return (
       <>
-        <div
-          className="right-chat-column"
-          style={{
-            width: "100%",
-            height: "100%",
-            background: "#FFFFFF",
-            borderLeft: `1px solid ${BORDER}`,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}
-        >
-          {/* Full view header */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 16px",
-              borderBottom: `1px solid ${BORDER}`,
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <MessageOutlined style={{ fontSize: 15, color: PRIMARY }} />
-              <span style={{ fontSize: 14, fontWeight: 600, color: TEXT }}>
-                Chat
-              </span>
-            </div>
-            {renderHeaderButtons()}
-          </div>
-
-          {/* Two-column body */}
-          <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-            {/* LEFT: Conversation list */}
-            <div
-              style={{
-                width: 300,
-                minWidth: 300,
-                borderRight: `1px solid ${BORDER}`,
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-              }}
-            >
-              {/* Search */}
-              <div style={{ padding: "8px 12px", flexShrink: 0 }}>
-                <Input
-                  placeholder="Search..."
-                  prefix={
-                    <SearchOutlined
-                      style={{ color: TEXT_SECONDARY, fontSize: 13 }}
-                    />
-                  }
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  size="small"
-                  style={{ borderRadius: 6, fontSize: 12 }}
-                />
-              </div>
-              {/* Accordion */}
-              <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+        <div className="tw right-chat-column w-full h-full bg-card border-l border-border flex flex-col overflow-hidden">
+          {renderTwColumnHeader()}
+          <div className="flex flex-1 overflow-hidden">
+            {/* LEFT: conversation list */}
+            <div className="w-[320px] min-w-[320px] border-r border-border flex flex-col overflow-hidden bg-card">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar">
                 {loadingSidebar ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "center",
-                      padding: 24,
-                    }}
-                  >
+                  <div className="flex justify-center py-6">
                     <Spin size="small" />
                   </div>
                 ) : (
-                  renderAccordion(selectedGroupId)
+                  renderTwListInner()
                 )}
               </div>
             </div>
-
-            {/* RIGHT: Messages */}
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-                background: "#FAFAFA",
-              }}
-            >
+            {/* RIGHT: thread */}
+            <div className="flex-1 flex flex-col overflow-hidden bg-background">
               {!selectedGroupId ? (
-                <div
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <div style={{ textAlign: "center", color: TEXT_SECONDARY }}>
-                    <MessageOutlined
-                      style={{
-                        fontSize: 40,
-                        color: "#E0E0E0",
-                        marginBottom: 12,
-                      }}
-                    />
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center text-muted-foreground">
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-secondary flex items-center justify-center mb-3">
+                      <MessageSquare className="w-7 h-7 text-muted-foreground" />
+                    </div>
+                    <div className="text-sm font-semibold text-foreground">
                       Select a conversation
                     </div>
-                    <div style={{ fontSize: 12, marginTop: 4 }}>
+                    <div className="text-xs mt-1">
                       Choose from your chats on the left
                     </div>
                   </div>
                 </div>
               ) : (
-                <>
-                  {/* Message header */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "10px 16px",
-                      borderBottom: `1px solid ${BORDER}`,
-                      flexShrink: 0,
-                      background: "#fff",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: "50%",
-                        background: selectedGroupAvatarBg,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#fff",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {selectedGroupName.charAt(0).toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{ fontSize: 14, fontWeight: 600, color: TEXT }}
-                      >
-                        {selectedGroupName}
-                      </div>
-                    </div>
-                  </div>
-                  {renderMessagesArea()}
-                  {renderInputBar()}
-                </>
+                renderTwThread(false)
               )}
             </div>
           </div>
         </div>
         {renderCreateModal()}
+        {renderAddMembersModal()}
       </>
     );
   }
 
   // ===============================================================
-  // COLUMN VIEW: Single column (430px)
+  // COLUMN / MOBILE — single column (parent sets 430px or full width)
   // ===============================================================
 
   // LIST VIEW
   if (view === "list") {
     return (
       <>
-        <div
-          className="right-chat-column"
-          style={{
-            width: COLUMN_WIDTH,
-            minWidth: COLUMN_WIDTH,
-            height: "100%",
-            background: "#FFFFFF",
-            borderLeft: `1px solid ${BORDER}`,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 12px",
-              borderBottom: `1px solid ${BORDER}`,
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <MessageOutlined style={{ fontSize: 15, color: PRIMARY }} />
-              <span style={{ fontSize: 14, fontWeight: 600, color: TEXT }}>
-                Chat
-              </span>
-            </div>
-            {renderHeaderButtons()}
-          </div>
-
-          {/* Search */}
-          <div style={{ padding: "8px 12px", flexShrink: 0 }}>
-            <Input
-              placeholder="Search..."
-              prefix={
-                <SearchOutlined
-                  style={{ color: TEXT_SECONDARY, fontSize: 13 }}
-                />
-              }
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              size="small"
-              style={{ borderRadius: 6, fontSize: 12 }}
-              id="right-chat-search"
-            />
-          </div>
-
-          {/* Accordion */}
-          <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+        <div className="tw right-chat-column w-full h-full bg-background flex flex-col overflow-hidden border-l border-border">
+          {renderTwColumnHeader()}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar">
             {loadingSidebar ? (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  padding: 24,
-                }}
-              >
+              <div className="flex justify-center py-6">
                 <Spin size="small" />
               </div>
             ) : (
-              renderAccordion()
+              renderTwListInner()
             )}
           </div>
         </div>
@@ -2081,96 +1716,12 @@ export default function RightChatColumn({
     );
   }
 
-  // MESSAGE VIEW (column)
+  // MESSAGE VIEW
   return (
-    <>
-      <div
-        className="right-chat-column"
-        style={{
-          width: COLUMN_WIDTH,
-          minWidth: COLUMN_WIDTH,
-          height: "100%",
-          background: "#FFFFFF",
-          borderLeft: `1px solid ${BORDER}`,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        {/* Message header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "8px 12px",
-            borderBottom: `1px solid ${BORDER}`,
-            flexShrink: 0,
-          }}
-        >
-          <button
-            onClick={backToList}
-            style={{
-              width: 28,
-              height: 28,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 6,
-              border: "none",
-              background: "transparent",
-              cursor: "pointer",
-              color: TEXT_SECONDARY,
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#F5F5F5";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
-          >
-            <ArrowLeftOutlined style={{ fontSize: 13 }} />
-          </button>
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: "50%",
-              background: selectedGroupAvatarBg,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
-              fontSize: 12,
-              fontWeight: 600,
-              flexShrink: 0,
-            }}
-          >
-            {selectedGroupName.charAt(0).toUpperCase()}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: TEXT,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {selectedGroupName}
-            </div>
-          </div>
-          {renderHeaderButtons()}
-        </div>
-
-        {renderMessagesArea()}
-        {renderInputBar()}
-      </div>
+    <div className="tw right-chat-column w-full h-full flex flex-col overflow-hidden border-l border-border bg-background">
+      {renderTwThread(true)}
       {renderCreateModal()}
       {renderAddMembersModal()}
-    </>
+    </div>
   );
 }

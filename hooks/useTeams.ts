@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { teamsApi } from '@/api/teams.api';
-import { message } from 'antd';
+import { useState, useEffect, useCallback } from "react";
+import { teamsApi } from "@/api/teams.api";
+import { onWorkspaceFlush } from "@/lib/workspaceCache";
+import { message } from "antd";
 
 export function useTeams() {
   const [teams, setTeams] = useState<any[]>([]);
@@ -21,17 +22,23 @@ export function useTeams() {
     }
   }, []);
 
-  useEffect(() => { fetchTeams(); }, [fetchTeams]);
+  useEffect(() => {
+    fetchTeams();
+  }, [fetchTeams]);
+
+  // Drop stale team list immediately on context switch to prevent ghost-renders.
+  useEffect(() => onWorkspaceFlush(() => setTeams([])), []);
 
   const createTeam = async (data: { name: string; description?: string }) => {
     try {
       await teamsApi.create(data);
-      message.success('Team created');
+      message.success("Team created");
       fetchTeams();
     } catch (err: any) {
       const errorCode = err?.response?.data?.error?.code;
-      const errorMsg = err?.response?.data?.error?.message || 'Failed to create team';
-      if (errorCode === 'SUBSCRIPTION_REQUIRED') {
+      const errorMsg =
+        err?.response?.data?.error?.message || "Failed to create team";
+      if (errorCode === "SUBSCRIPTION_REQUIRED") {
         message.warning(errorMsg);
       } else {
         message.error(errorMsg);
@@ -43,20 +50,23 @@ export function useTeams() {
   const deleteTeam = async (id: string) => {
     try {
       await teamsApi.delete(id);
-      message.success('Team deleted');
+      message.success("Team deleted");
       fetchTeams();
     } catch {
-      message.error('Failed to delete team');
+      message.error("Failed to delete team");
     }
   };
 
-  const updateTeam = async (id: string, data: { name?: string; description?: string }) => {
+  const updateTeam = async (
+    id: string,
+    data: { name?: string; description?: string },
+  ) => {
     try {
       await teamsApi.update(id, data);
-      message.success('Team updated');
+      message.success("Team updated");
       fetchTeams();
     } catch {
-      message.error('Failed to update team');
+      message.error("Failed to update team");
     }
   };
 

@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Modal, Radio, Input, Button, Typography, Spin, Space, message } from 'antd';
-import { PlusOutlined, SearchOutlined, FolderOutlined } from '@ant-design/icons';
-import { projectsApi } from '@/api/projects.api';
-import { flowsApi } from '@/api/flows.api';
-
-const { Text } = Typography;
+import React, { useState, useEffect } from "react";
+import { message } from "antd";
+import { Search, Plus, FolderKanban, Check, FolderInput } from "lucide-react";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
+import { projectsApi } from "@/api/projects.api";
+import { flowsApi } from "@/api/flows.api";
 
 interface Project {
   id: string;
@@ -22,23 +26,35 @@ interface AssignProjectModalProps {
   onSuccess: () => void;
 }
 
+// Deterministic tile tone per project name (matches prototype coloured tiles).
+const TONES = ["#34A881", "#006AA8", "#FF9A30", "#F85729"];
+const toneFor = (name: string) =>
+  TONES[(name?.charCodeAt(0) || 0) % TONES.length];
+
 export default function AssignProjectModal({
-  open, flowId, currentProjectId, onClose, onSuccess,
+  open,
+  flowId,
+  currentProjectId,
+  onClose,
+  onSuccess,
 }: AssignProjectModalProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null,
+  );
+  const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
   const [showCreateInput, setShowCreateInput] = useState(false);
 
   useEffect(() => {
     if (open) {
       setSelectedProjectId(currentProjectId || null);
-      setSearch('');
+      setSearch("");
       setShowCreateInput(false);
-      setNewProjectName('');
+      setNewProjectName("");
       fetchProjects();
     }
   }, [open, currentProjectId]);
@@ -58,21 +74,22 @@ export default function AssignProjectModal({
 
   const handleAssign = async () => {
     if (!flowId) return;
-
+    setAssigning(true);
     try {
       if (selectedProjectId === null) {
-        // Unassign: set projectId to null via flow update
         await flowsApi.update(flowId, { projectId: null } as any);
-        message.success('Flow removed from project');
+        message.success("Flow removed from project");
       } else {
         await projectsApi.assignFlow(selectedProjectId, flowId);
-        const project = projects.find(p => p.id === selectedProjectId);
+        const project = projects.find((p) => p.id === selectedProjectId);
         message.success(`Flow assigned to "${project?.name}"`);
       }
       onSuccess();
       onClose();
     } catch {
-      message.error('Failed to assign flow');
+      message.error("Failed to assign flow");
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -89,96 +106,142 @@ export default function AssignProjectModal({
         onClose();
       }
     } catch {
-      message.error('Failed to create project');
+      message.error("Failed to create project");
     } finally {
       setCreating(false);
     }
   };
 
-  const filteredProjects = projects.filter(p =>
-    !search || p.name.toLowerCase().includes(search.toLowerCase())
+  const filteredProjects = projects.filter(
+    (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
   );
 
-  return (
-    <Modal
-      title="Assign to Project"
-      open={open}
-      onCancel={onClose}
-      onOk={handleAssign}
-      okText="Assign"
-      width={420}
-    >
-      <Input
-        prefix={<SearchOutlined />}
-        placeholder="Search projects..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ marginBottom: 16 }}
-      />
-
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
-      ) : (
-        <Radio.Group
-          value={selectedProjectId}
-          onChange={(e) => setSelectedProjectId(e.target.value)}
-          style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}
+  const Row = ({
+    id,
+    name,
+    color,
+    current,
+  }: {
+    id: string | null;
+    name: string;
+    color?: string;
+    current?: boolean;
+  }) => {
+    const selected = selectedProjectId === id;
+    return (
+      <button
+        type="button"
+        onClick={() => setSelectedProjectId(id)}
+        className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-secondary text-left"
+      >
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={
+            color
+              ? { background: `${color}1f`, color }
+              : {
+                  background: "var(--secondary)",
+                  color: "var(--muted-foreground)",
+                }
+          }
         >
-          <Radio value={null} style={{ padding: '6px 0' }}>
-            <Text>None (Individual flow)</Text>
-          </Radio>
-          {filteredProjects.map((project) => (
-            <Radio key={project.id} value={project.id} style={{ padding: '6px 0' }}>
-              <Space size={4}>
-                <FolderOutlined style={{ color: '#FFC107' }} />
-                <Text>{project.name}</Text>
-                {project.id === currentProjectId && (
-                  <Text type="secondary" style={{ fontSize: 11 }}>(Current)</Text>
-                )}
-              </Space>
-            </Radio>
-          ))}
-        </Radio.Group>
-      )}
+          {color ? (
+            <FolderKanban className="w-4 h-4" />
+          ) : (
+            <FolderInput className="w-4 h-4" />
+          )}
+        </div>
+        <span className="flex-1 min-w-0 text-sm font-semibold truncate">
+          {name}
+          {current && (
+            <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+              (Current)
+            </span>
+          )}
+        </span>
+        <span
+          className={`w-5 h-5 rounded-full flex items-center justify-center border shrink-0 ${
+            selected ? "bg-primary border-primary" : "border-border"
+          }`}
+        >
+          {selected && <Check className="w-3.5 h-3.5 text-white" />}
+        </span>
+      </button>
+    );
+  };
 
-      <div style={{ borderTop: '1px solid #F0F0F0', marginTop: 12, paddingTop: 12 }}>
-        {showCreateInput ? (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Input
-              placeholder="New project name"
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              onPressEnter={handleCreateAndAssign}
-              autoFocus
-              size="small"
-            />
-            <Button
-              type="primary"
-              size="small"
-              onClick={handleCreateAndAssign}
-              loading={creating}
-              disabled={!newProjectName.trim()}
+  return (
+    <ModalShell open={open} onClose={onClose}>
+      <ModalHeader title="Assign to Project" close={onClose} />
+      <div className="px-5 pb-3 space-y-3">
+        <Field label="Search">
+          <FieldInput
+            placeholder="Search projects…"
+            icon={<Search className="w-4 h-4" />}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </Field>
+        <div className="-mx-2 max-h-72 overflow-y-auto px-2">
+          {loading ? (
+            <div className="p-6 text-center text-sm text-muted-foreground">
+              Loading…
+            </div>
+          ) : (
+            <>
+              <Row id={null} name="None (Individual flow)" />
+              {filteredProjects.map((p) => (
+                <Row
+                  key={p.id}
+                  id={p.id}
+                  name={p.name}
+                  color={toneFor(p.name)}
+                  current={p.id === currentProjectId}
+                />
+              ))}
+            </>
+          )}
+        </div>
+        <div className="border-t border-border pt-3">
+          {showCreateInput ? (
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <FieldInput
+                  placeholder="New project name"
+                  autoFocus
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && handleCreateAndAssign()
+                  }
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleCreateAndAssign}
+                disabled={!newProjectName.trim() || creating}
+                className="appearance-none cursor-pointer outline-none border-0 h-11 px-4 rounded-xl bg-primary text-white font-bold text-sm disabled:opacity-60"
+              >
+                {creating ? "…" : "Create"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowCreateInput(true)}
+              className="appearance-none cursor-pointer outline-none border-0 bg-transparent inline-flex items-center gap-2 text-sm font-bold text-primary-deep"
             >
-              Create
-            </Button>
-            <Button
-              size="small"
-              onClick={() => { setShowCreateInput(false); setNewProjectName(''); }}
-            >
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <Button
-            type="link"
-            icon={<PlusOutlined />}
-            onClick={() => setShowCreateInput(true)}
-            style={{ padding: 0 }}
-          >
-            Create New Project
-          </Button>
-        )}
+              <Plus className="w-4 h-4" /> Create New Project
+            </button>
+          )}
+        </div>
       </div>
-    </Modal>
+      <ModalFooter
+        close={onClose}
+        primary={handleAssign}
+        primaryLabel="Assign"
+        loading={assigning}
+      />
+    </ModalShell>
   );
 }

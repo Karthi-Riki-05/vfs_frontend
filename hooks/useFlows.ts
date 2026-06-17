@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { flowsApi } from "@/api/flows.api";
 import { useDebounce } from "./useDebounce";
 import { useAppContext } from "@/context/AppContext";
+import { onWorkspaceFlush } from "@/lib/workspaceCache";
 import { message } from "antd";
 
 export function useFlows() {
@@ -17,6 +18,8 @@ export function useFlows() {
   const [total, setTotal] = useState(0);
   const [sort, setSort] = useState("updatedAt");
   const flowsReadyFiredRef = useRef(false);
+  // Guards against setState after unmount (fire-and-forget refetch on nav).
+  const mountedRef = useRef(true);
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -32,13 +35,15 @@ export function useFlows() {
       });
       const d = res.data?.data || res.data || {};
       const list = d.flows || (Array.isArray(d) ? d : []);
-      setFlows(list);
-      setTotal(d.total || list.length || 0);
-      setSharedFlows(Array.isArray(d.shared) ? d.shared : []);
+      if (mountedRef.current) {
+        setFlows(list);
+        setTotal(d.total || list.length || 0);
+        setSharedFlows(Array.isArray(d.shared) ? d.shared : []);
+      }
     } catch {
       // Error handled by axios interceptor
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
       if (!flowsReadyFiredRef.current) {
         flowsReadyFiredRef.current = true;
         try {
@@ -49,11 +54,30 @@ export function useFlows() {
   }, [page, pageSize, debouncedSearch, sort, activeTeamId]);
 
   useEffect(() => {
+    mountedRef.current = true;
     // Wait for AppContext to hydrate so we don't fire once with teamId=null
     // and then a second time once localStorage is read.
     if (!hydrated) return;
     fetchFlows();
+    return () => {
+      mountedRef.current = false;
+    };
   }, [fetchFlows, hydrated]);
+
+  // Immediately discard stale workspace data when the team context switches.
+  // Runs synchronously in the same batch as the switch so users never see
+  // ghost-renders of the previous team's flows during the in-flight fetch.
+  useEffect(
+    () =>
+      onWorkspaceFlush(() => {
+        if (!mountedRef.current) return;
+        setFlows([]);
+        setSharedFlows([]);
+        setTotal(0);
+        setPage(1);
+      }),
+    [],
+  );
 
   const deleteFlow = async (id: string) => {
     try {

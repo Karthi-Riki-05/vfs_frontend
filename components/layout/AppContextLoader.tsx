@@ -1,9 +1,40 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const MIN_DISPLAY_MS = 1200; // always show at least 1.2s — prevents jarring flash
 const MAX_WAIT_MS = 8000; // safety net
+
+// sessionStorage flag — gates the splash so it only shows on first page load
+// (fresh tab) and on app-context switch, NOT on normal route navigation.
+// The stored VALUE is the appMode: a mismatch means the context actually
+// changed (team↔pro), so the splash is re-shown after the switch reload.
+const CONTEXT_LOADED_KEY = "vc_context_loaded";
+
+function normalizeMode(appMode?: string | null): string {
+  return appMode ?? "";
+}
+
+// True when we've already shown the splash for THIS app context in this tab.
+function alreadyLoadedFor(appMode?: string | null): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return (
+      sessionStorage.getItem(CONTEXT_LOADED_KEY) === normalizeMode(appMode)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function markLoaded(appMode?: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(CONTEXT_LOADED_KEY, normalizeMode(appMode));
+  } catch {
+    /* sessionStorage unavailable (private mode / SSR) — splash just shows again */
+  }
+}
 
 interface AppContextLoaderProps {
   children: React.ReactNode;
@@ -20,6 +51,9 @@ export function AppContextLoader({
   isFlowsReady,
   appMode,
 }: AppContextLoaderProps) {
+  // Deterministic initial state — MUST be identical on server and client to
+  // avoid a hydration mismatch on this subtree (which previously left the
+  // splash wedged). The mount effect below reconciles the already-loaded case.
   const [showLoader, setShowLoader] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
@@ -32,26 +66,60 @@ export function AppContextLoader({
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // appMode is read via a ref so the hide/safety timers are NEVER reset when
+  // forcedMode resolves (null → 'team'/'pro'). Previously appMode was an effect
+  // dependency, so that single transition could clear and re-arm the timers and
+  // push dismissal back indefinitely if it churned.
+  const appModeRef = useRef(appMode);
+  appModeRef.current = appMode;
 
-  // Step 1: detect screen size on mount (sync, before any hide logic can run)
+  const dismiss = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    markLoaded(appModeRef.current);
+    setFadeOut(true);
+    fadeTimerRef.current = setTimeout(() => setShowLoader(false), 400);
+  }, []);
+
+  // Step 1: mount — detect size, reconcile the already-loaded case, and arm the
+  // ABSOLUTE safety net exactly once. The safety timer lives in this []-deps
+  // effect so nothing (appMode churn, re-renders, prop changes) can clear or
+  // reset it — the splash therefore can never hang past MAX_WAIT_MS.
   useEffect(() => {
     mountTimeRef.current = Date.now();
     setIsMobileOrTablet(window.innerWidth < 1024);
     setSizeChecked(true);
 
+    // Plain route navigation within an already-loaded context → no splash.
+    if (alreadyLoadedFor(appModeRef.current)) setShowLoader(false);
+
+    safetyTimerRef.current = setTimeout(dismiss, MAX_WAIT_MS);
+
     function onResize() {
       setIsMobileOrTablet(window.innerWidth < 1024);
     }
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    };
+  }, [dismiss]);
 
-  // Step 2: hide loader — only after size is known, respects MIN_DISPLAY_MS
+  // Step 2: hide loader once context/flows are ready (respects MIN_DISPLAY_MS).
+  // appMode is intentionally excluded from deps (read via appModeRef).
   useEffect(() => {
     if (!sizeChecked) return;
 
+    // Already played for this app context (plain route nav) → never show again.
+    if (alreadyLoadedFor(appModeRef.current)) {
+      setShowLoader(false);
+      return;
+    }
+
     if (!isMobileOrTablet) {
       // Desktop: dismiss immediately (the sizeChecked gate prevents premature firing)
+      markLoaded(appModeRef.current);
       setShowLoader(false);
       return;
     }
@@ -61,29 +129,9 @@ export function AppContextLoader({
       const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
 
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = setTimeout(() => {
-        if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
-        setFadeOut(true);
-        fadeTimerRef.current = setTimeout(() => setShowLoader(false), 400);
-      }, remaining);
+      hideTimerRef.current = setTimeout(dismiss, remaining);
     }
-  }, [isContextReady, isFlowsReady, isMobileOrTablet, sizeChecked]);
-
-  // Step 3: safety net — show page after MAX_WAIT_MS no matter what
-  useEffect(() => {
-    if (!sizeChecked || !isMobileOrTablet) return;
-
-    safetyTimerRef.current = setTimeout(() => {
-      setFadeOut(true);
-      fadeTimerRef.current = setTimeout(() => setShowLoader(false), 400);
-    }, MAX_WAIT_MS);
-
-    return () => {
-      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
-    };
-  }, [sizeChecked, isMobileOrTablet]);
+  }, [isContextReady, isFlowsReady, isMobileOrTablet, sizeChecked, dismiss]);
 
   // Desktop — render children without any wrapper overhead
   if (sizeChecked && !isMobileOrTablet) {
@@ -109,100 +157,50 @@ export function AppContextLoader({
 
       {showLoader && (
         <div
+          className="tw"
           data-testid="app-context-loader"
           style={{
             position: "fixed",
             inset: 0,
             zIndex: 9999,
-            backgroundColor: "#f0faf5",
-            background:
-              "linear-gradient(160deg, #f0faf5 0%, #e8f7ef 50%, #f5fff8 100%)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "20px",
             transition: "opacity 0.4s ease",
             opacity: fadeOut ? 0 : 1,
           }}
         >
-          {/* SVG circular progress with brand symbol in center */}
-          <div style={{ position: "relative", width: "96px", height: "96px" }}>
-            <svg
-              width="96"
-              height="96"
-              viewBox="0 0 96 96"
-              style={{
-                position: "absolute",
-                inset: 0,
-                animation: "vc-rotate 1.4s linear infinite",
-              }}
-            >
-              {/* Track circle */}
-              <circle
-                cx="48"
-                cy="48"
-                r="42"
-                fill="none"
-                stroke="#c6e8d5"
-                strokeWidth="5"
-              />
-              {/* Progress arc (brand green) — ~75% visible */}
-              <circle
-                cx="48"
-                cy="48"
-                r="42"
-                fill="none"
-                stroke="#3CB371"
-                strokeWidth="5"
-                strokeLinecap="round"
-                strokeDasharray="263.9"
-                strokeDashoffset="197.9"
-                transform="rotate(-90 48 48)"
-              />
-            </svg>
-
-            {/* Brand symbol in center */}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              {/* Square brand symbol only — the wordmark PNGs (500x150) get
-                  squeezed and show the full "ValueChart Pro" logo in the ring */}
+          <div className="h-full bg-gradient-to-br from-primary via-primary to-[#1F7D5E] flex flex-col items-center justify-center text-white">
+            {/* Logo — zoom-in on mount */}
+            <div className="animate-in zoom-in duration-700">
               <img
-                src="/Logo/Symbol.png"
-                alt="ValueChart"
-                style={{ width: "40px", height: "40px", objectFit: "contain" }}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
+                src="/Logo/logo.png"
+                alt="Value Charts"
+                style={{ width: 120, height: "auto", objectFit: "contain" }}
               />
             </div>
-          </div>
 
-          {/* Loading text */}
-          <div
-            style={{
-              fontSize: "12px",
-              color: "#9ca3af",
-              letterSpacing: "0.2px",
-              fontWeight: "500",
-            }}
-          >
-            Loading your workspace...
-          </div>
+            {/* Wordmark */}
+            <div className="mt-6 text-2xl font-extrabold tracking-tight">
+              Value Charts
+            </div>
+            <div className="mt-1 text-sm text-white/85">
+              We Add Value To Your Business
+            </div>
 
-          <style>{`
-            @keyframes vc-rotate {
-              from { transform: rotate(0deg); }
-              to { transform: rotate(360deg); }
-            }
-          `}</style>
+            {/* Pulsing dots */}
+            <div className="mt-12 flex gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="w-2 h-2 rounded-full bg-white/70 animate-pulse"
+                  style={{ animationDelay: `${i * 150}ms` }}
+                />
+              ))}
+            </div>
+
+            {/* Footer caption */}
+            <div className="absolute bottom-10 text-xs text-white/70">
+              Loading your workspace…
+            </div>
+          </div>
         </div>
       )}
     </>

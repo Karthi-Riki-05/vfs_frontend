@@ -39,20 +39,21 @@ export function DashGreeting({ userName }: DashGreetingProps) {
 
   return (
     <div style={{ marginBottom: isMobile ? 16 : 20 }}>
+      {/* Date sits above the greeting to match the new_design reference. */}
+      {dateStr && (
+        <Text style={{ fontSize: 13, color: "#8C8C8C" }}>{dateStr}</Text>
+      )}
       <h1
         style={{
           fontSize: isMobile ? 20 : 26,
           fontWeight: 700,
           color: "#1A1A2E",
-          margin: 0,
+          margin: dateStr ? "2px 0 0" : 0,
           fontFamily: "Inter, sans-serif",
         }}
       >
         {greeting}, {firstName}
       </h1>
-      {dateStr && (
-        <Text style={{ fontSize: 13, color: "#8C8C8C" }}>{dateStr}</Text>
-      )}
     </div>
   );
 }

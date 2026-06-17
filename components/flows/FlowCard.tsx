@@ -31,11 +31,13 @@ function timeAgo(dateStr: string): string {
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins} mins Ago`;
+  if (diffMins < 60)
+    return `${diffMins} ${diffMins === 1 ? "min" : "mins"} Ago`;
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours} hours Ago`;
+  if (diffHours < 24)
+    return `${diffHours} ${diffHours === 1 ? "hour" : "hours"} Ago`;
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays} days Ago`;
+  if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? "day" : "days"} Ago`;
   return date.toLocaleDateString("en-US", {
     day: "numeric",
     month: "short",

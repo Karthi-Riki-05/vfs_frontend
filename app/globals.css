@@ -1,5 +1,20 @@
+/* Layer order declared up-front. Tailwind's "base" (preflight) layer is
+   intentionally NOT imported so Ant Design's own resets stay intact. */
+@layer theme, base, components, utilities;
+
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
+/* Tailwind v4 — theme + utilities only (no preflight). */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+
+/* Limit class scanning to app/components — avoids the huge public/draw_io tree. */
+@source "../app";
+@source "../components";
+
+@custom-variant dark (&:is(.dark *));
 
 /* Prevent horizontal overflow without breaking scroll */
 html {
@@ -176,9 +191,18 @@ body {
 /* ==================== RESPONSIVE UTILITIES ==================== */
 
 /* Mobile base font size — scales AntD rem units down on small screens */
+/* Mobile root font-size.
+   Was 12px (a legacy hack to shrink Ant Design's rem units). The dashboard is
+   now on the ported shadcn/Tailwind (.tw) design, whose rem-based spacing assumes
+   the standard 16px base — at 12px every padding/margin/text token rendered at
+   75%, which is why the new design looked cramped/misaligned on mobile.
+   Tailwind v4 spacing is rem (root-anchored), so a per-page font-size wrapper
+   cannot scope this; the base must be correct at the root.
+   Verified 2026-06-15 against dashboard/flows/teams/chat/settings/subscription/
+   support — no regressions on the remaining AntD-leaning screens. */
 @media (max-width: 640px) {
   html {
-    font-size: 12px;
+    font-size: 16px;
   }
 }
 
@@ -250,7 +274,8 @@ img {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 280px;
+  width: 82%;
+  max-width: 340px;
   z-index: 1000;
   transform: translateX(-100%);
   visibility: hidden;
@@ -597,4 +622,93 @@ img {
 .responsive-content,
 .sidebar-drawer {
   -webkit-overflow-scrolling: touch;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   NEW DESIGN SYSTEM — tokens ported verbatim from new_design/src/styles.css
+   Drives Tailwind utilities (bg-primary, text-muted-foreground, rounded-2xl…)
+   and the shadcn/ui components copied into components/ui/.
+   ════════════════════════════════════════════════════════════════════ */
+@theme inline {
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-deep: var(--primary-deep);
+  --color-primary-tint: var(--primary-tint);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--primary-foreground);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--primary);
+  --color-blue: var(--blue);
+  --color-orange: var(--orange);
+  --color-coral: var(--coral);
+
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-card:
+    0 1px 2px rgba(16, 40, 32, 0.04), 0 8px 24px -8px rgba(16, 40, 32, 0.08);
+  --shadow-fab: 0 10px 24px -6px rgba(31, 125, 94, 0.45);
+}
+
+:root {
+  --background: #f5f7f6;
+  --foreground: #1f2937;
+  --card: #ffffff;
+  --card-foreground: #1f2937;
+  --primary: #34a881;
+  --primary-foreground: #ffffff;
+  --primary-deep: #1f7d5e;
+  --primary-tint: #e7f6f0;
+  --secondary: #e7f6f0;
+  --secondary-foreground: #1f7d5e;
+  --muted: #f1f4f3;
+  --muted-foreground: #6b7280;
+  --accent: #e7f6f0;
+  --accent-foreground: #1f7d5e;
+  --destructive: #f85729;
+  --border: #e5ebe8;
+  --blue: #006aa8;
+  --orange: #ff9a30;
+  --coral: #f85729;
+}
+
+/* Scoped base: only elements under a `.tw` root get Tailwind's box model and
+   default border color. Keeps Ant Design (outside `.tw`) completely untouched.
+   Wrap every migrated screen's root element in className="tw". */
+.tw,
+.tw *,
+.tw ::before,
+.tw ::after {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+.tw {
+  font-family: var(--font-sans);
+  color: var(--foreground);
+}
+.tw .no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.tw .no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

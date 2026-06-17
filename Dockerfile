@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Native build tools needed by canvas / sharp; curl needed for HEALTHCHECK
 RUN apk add --no-cache \

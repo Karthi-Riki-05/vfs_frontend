@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { projectsApi } from "@/api/projects.api";
 import { useAppContext } from "@/context/AppContext";
+import { onWorkspaceFlush } from "@/lib/workspaceCache";
 import { message } from "antd";
 
 export interface Project {
@@ -20,6 +21,8 @@ export function useProjects() {
   const { activeTeamId, hydrated } = useAppContext();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  // Guards against setState after unmount (fire-and-forget refetch on nav).
+  const mountedRef = useRef(true);
 
   // activeTeamId in deps → re-scopes + refetches the project bucket on switch.
   const fetchProjects = useCallback(
@@ -28,11 +31,11 @@ export function useProjects() {
       try {
         const res = await projectsApi.list({ search });
         const d = res.data?.data || res.data;
-        setProjects(Array.isArray(d) ? d : []);
+        if (mountedRef.current) setProjects(Array.isArray(d) ? d : []);
       } catch {
-        setProjects([]);
+        if (mountedRef.current) setProjects([]);
       } finally {
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -40,13 +43,28 @@ export function useProjects() {
   );
 
   useEffect(() => {
+    mountedRef.current = true;
     if (!hydrated) return;
     fetchProjects();
+    return () => {
+      mountedRef.current = false;
+    };
   }, [fetchProjects, hydrated]);
 
-  const createProject = async (name: string) => {
+  // Synchronously drop the previous workspace's projects on team switch so
+  // the old bucket never ghost-renders during the in-flight refetch.
+  useEffect(
+    () =>
+      onWorkspaceFlush(() => {
+        if (!mountedRef.current) return;
+        setProjects([]);
+      }),
+    [],
+  );
+
+  const createProject = async (name: string, description?: string) => {
     try {
-      const res = await projectsApi.create({ name });
+      const res = await projectsApi.create({ name, description });
       const project = res.data?.data || res.data;
       message.success("Project created");
       fetchProjects();

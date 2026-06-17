@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Card, Button, Tooltip, Typography, Tag, Modal, message } from "antd";
+import {
+  Card,
+  Button,
+  Tooltip,
+  Typography,
+  Tag,
+  Modal,
+  Dropdown,
+  message,
+} from "antd";
+import type { MenuProps } from "antd";
 import {
   DeleteOutlined,
   CopyOutlined,
@@ -10,6 +20,7 @@ import {
   CodeOutlined,
   Html5Outlined,
   AppstoreOutlined,
+  FolderOutlined,
 } from "@ant-design/icons";
 
 const { Text, Paragraph } = Typography;
@@ -17,6 +28,10 @@ const { Text, Paragraph } = Typography;
 interface ShapeCardProps {
   shape: any;
   onDelete: (id: string) => void;
+  /** Other groups to move this shape into (excludes its current group). */
+  moveGroups?: { id: string; name: string }[];
+  /** Move the shape to a target group. Enables the "Move" card action. */
+  onMove?: (shapeId: string, targetGroupId: string) => void;
 }
 
 // Visual style per type — color + icon used in badges and fallback states.
@@ -70,11 +85,18 @@ function isLikelyHtml(s: string): boolean {
   return /^<(?!svg|shape|stencil|mxgraph)[a-z]/i.test(t);
 }
 
-export default function ShapeCard({ shape, onDelete }: ShapeCardProps) {
+export default function ShapeCard({
+  shape,
+  onDelete,
+  moveGroups,
+  onMove,
+}: ShapeCardProps) {
   const type = getTypeKey(shape);
   const content = getRawContent(shape);
   const meta = TYPE_META[type] || TYPE_META.stencil;
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
+  const groupName = shape.category || shape.group?.name || "Uncategorized";
 
   // ─── Preview body ───
   const previewBody = useMemo(() => {
@@ -188,6 +210,15 @@ export default function ShapeCard({ shape, onDelete }: ShapeCardProps) {
     }
   };
 
+  const handleUseInDiagram = async () => {
+    try {
+      await navigator.clipboard.writeText(content || "");
+      message.success("Source copied — paste it into your open diagram");
+    } catch {
+      message.info("Open a flow and add this shape from the editor library");
+    }
+  };
+
   return (
     <>
       <Card
@@ -264,6 +295,34 @@ export default function ShapeCard({ shape, onDelete }: ShapeCardProps) {
               disabled={!content}
             />
           </Tooltip>,
+          ...(onMove
+            ? [
+                <Dropdown
+                  key="move"
+                  trigger={["click"]}
+                  menu={{
+                    items: (moveGroups && moveGroups.length
+                      ? moveGroups.map((g) => ({
+                          key: g.id,
+                          label: g.name,
+                          icon: <FolderOutlined />,
+                          onClick: () => onMove(shape.id, g.id),
+                        }))
+                      : [
+                          {
+                            key: "none",
+                            label: "No other groups",
+                            disabled: true,
+                          },
+                        ]) as MenuProps["items"],
+                  }}
+                >
+                  <Tooltip title="Move to group">
+                    <Button type="text" icon={<FolderOutlined />} />
+                  </Tooltip>
+                </Dropdown>,
+              ]
+            : []),
           <Tooltip title="Delete" key="delete">
             <Button
               type="text"
@@ -306,7 +365,10 @@ export default function ShapeCard({ shape, onDelete }: ShapeCardProps) {
           </span>
         }
         open={previewOpen}
-        onCancel={() => setPreviewOpen(false)}
+        onCancel={() => {
+          setPreviewOpen(false);
+          setShowRaw(false);
+        }}
         footer={[
           <Button
             key="copy"
@@ -317,33 +379,110 @@ export default function ShapeCard({ shape, onDelete }: ShapeCardProps) {
             Copy source
           </Button>,
           <Button
-            key="close"
-            onClick={() => setPreviewOpen(false)}
+            key="use"
             type="primary"
+            disabled={!content}
+            onClick={handleUseInDiagram}
+            style={{ background: "#34A881", borderColor: "#34A881" }}
           >
-            Close
+            Use in diagram
           </Button>,
         ]}
         width={640}
       >
         {modalPreview}
-        <Paragraph
+
+        {/* Metadata grid */}
+        <div
           style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 12,
             marginTop: 16,
-            marginBottom: 0,
-            background: "#F8F9FA",
-            padding: 12,
-            borderRadius: 8,
-            fontSize: 11,
-            fontFamily: "monospace",
-            maxHeight: 200,
-            overflow: "auto",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
           }}
         >
-          {content || "(no source)"}
-        </Paragraph>
+          <div
+            style={{
+              background: "#F8F9FA",
+              borderRadius: 8,
+              padding: "8px 12px",
+            }}
+          >
+            <div style={{ fontSize: 10, color: "#8C8C8C", fontWeight: 700 }}>
+              TYPE
+            </div>
+            <div style={{ fontSize: 13, color: "#1F2937", fontWeight: 600 }}>
+              {meta.label}
+            </div>
+          </div>
+          <div
+            style={{
+              background: "#F8F9FA",
+              borderRadius: 8,
+              padding: "8px 12px",
+            }}
+          >
+            <div style={{ fontSize: 10, color: "#8C8C8C", fontWeight: 700 }}>
+              GROUP
+            </div>
+            <div style={{ fontSize: 13, color: "#1F2937", fontWeight: 600 }}>
+              {groupName}
+            </div>
+          </div>
+        </div>
+
+        {/* Source — never dump raw base64; show note + collapsible toggle */}
+        <div style={{ marginTop: 16 }}>
+          {content ? (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {type === "image"
+                    ? "Image source available"
+                    : "Shape source available"}
+                </Text>
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => setShowRaw((v) => !v)}
+                  style={{ padding: 0 }}
+                >
+                  {showRaw ? "Hide raw ▲" : "Show raw ▼"}
+                </Button>
+              </div>
+              {showRaw && (
+                <Paragraph
+                  style={{
+                    marginTop: 8,
+                    marginBottom: 0,
+                    background: "#F8F9FA",
+                    padding: 12,
+                    borderRadius: 8,
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    maxHeight: 200,
+                    overflow: "auto",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {content}
+                </Paragraph>
+              )}
+            </>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              (no source)
+            </Text>
+          )}
+        </div>
       </Modal>
     </>
   );

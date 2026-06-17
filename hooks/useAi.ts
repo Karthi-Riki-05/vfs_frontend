@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { message } from "antd";
 import { aiApi } from "@/api/ai.api";
@@ -26,6 +28,10 @@ export function useAi() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [response, setResponse] = useState<AiResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  // Ref guard against double-submit. Using `loading` (state) in the callback
+  // deps re-creates the function on every flip and races; the ref is read
+  // synchronously so a second call is rejected before the first finishes.
+  const loadingRef = useRef(false);
   const userContextRef = useRef<any>(null);
 
   // Re-check consent whenever workspace flips, since team context
@@ -75,8 +81,9 @@ export function useAi() {
 
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!text.trim() || loading) return null;
+      if (!text.trim() || loadingRef.current) return null;
 
+      loadingRef.current = true;
       setLoading(true);
       setResponse(null);
 
@@ -105,16 +112,18 @@ export function useAi() {
         });
         return null;
       } finally {
+        loadingRef.current = false;
         setLoading(false);
       }
     },
-    [conversationId, loading],
+    [conversationId],
   );
 
   const generateDiagram = useCallback(
     async (text: string, existingXml?: string | null) => {
-      if (!text.trim() || loading) return null;
+      if (!text.trim() || loadingRef.current) return null;
 
+      loadingRef.current = true;
       setLoading(true);
       setResponse(null);
 
@@ -151,55 +160,54 @@ export function useAi() {
         });
         return null;
       } finally {
+        loadingRef.current = false;
         setLoading(false);
       }
     },
-    [conversationId, loading],
+    [conversationId],
   );
 
-  const generateDiagramFromDocument = useCallback(
-    async (file: File) => {
-      if (loading) return null;
+  const generateDiagramFromDocument = useCallback(async (file: File) => {
+    if (loadingRef.current) return null;
 
-      setLoading(true);
-      setResponse(null);
+    loadingRef.current = true;
+    setLoading(true);
+    setResponse(null);
 
-      try {
-        const res = await aiApi.generateDiagramFromDocument(file);
-        const d = res.data?.data || res.data || {};
-        const resp: AiResponse = {
-          message: d.message || `Generated diagram from "${file.name}".`,
-          templateName: d.templateName || "AI Generated Flow",
-          openTemplate: !!d.xml,
-          drawioXml: d.xml || null,
-          xml: d.xml || null,
-          intent: d.intent || "generate_diagram_from_document",
-          fileName: d.fileName || file.name,
-          suggestedSteps: [],
-        };
-        setResponse(resp);
-        return resp;
-      } catch (err: any) {
-        const code = err?.response?.data?.error?.code;
-        if (code === "CONSENT_REQUIRED") {
-          setHasConsent(false);
-          return null;
-        }
-        setResponse({
-          message:
-            "Failed to generate diagram from document. Please try again.",
-          templateName: null,
-          openTemplate: false,
-          drawioXml: null,
-          suggestedSteps: [],
-        });
+    try {
+      const res = await aiApi.generateDiagramFromDocument(file);
+      const d = res.data?.data || res.data || {};
+      const resp: AiResponse = {
+        message: d.message || `Generated diagram from "${file.name}".`,
+        templateName: d.templateName || "AI Generated Flow",
+        openTemplate: !!d.xml,
+        drawioXml: d.xml || null,
+        xml: d.xml || null,
+        intent: d.intent || "generate_diagram_from_document",
+        fileName: d.fileName || file.name,
+        suggestedSteps: [],
+      };
+      setResponse(resp);
+      return resp;
+    } catch (err: any) {
+      const code = err?.response?.data?.error?.code;
+      if (code === "CONSENT_REQUIRED") {
+        setHasConsent(false);
         return null;
-      } finally {
-        setLoading(false);
       }
-    },
-    [loading],
-  );
+      setResponse({
+        message: "Failed to generate diagram from document. Please try again.",
+        templateName: null,
+        openTemplate: false,
+        drawioXml: null,
+        suggestedSteps: [],
+      });
+      return null;
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  }, []);
 
   const startNewConversation = useCallback(() => {
     setConversationId(null);

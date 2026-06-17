@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { chatApi } from "@/api/chat.api";
 import { useAppContext } from "@/context/AppContext";
+import { onWorkspaceFlush } from "@/lib/workspaceCache";
 import { message } from "antd";
 
 export function useChat(groupId?: string) {
@@ -47,6 +48,18 @@ export function useChat(groupId?: string) {
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
+
+  // Zero out the previous workspace's groups + messages the instant the team
+  // context switches — prevents ghost-rendering another bucket's chat. The
+  // listener is torn down on unmount, so no post-unmount setState fires.
+  useEffect(
+    () =>
+      onWorkspaceFlush(() => {
+        setGroups([]);
+        setMessages([]);
+      }),
+    [],
+  );
 
   const sendMessage = async (content: string) => {
     if (!groupId) return;

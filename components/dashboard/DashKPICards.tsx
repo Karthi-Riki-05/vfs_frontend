@@ -79,9 +79,12 @@ export function DashKPICards({
             background: "#fff",
             borderRadius: 12,
             border: "1px solid #F0F0F0",
-            padding: isMobile ? "14px 12px" : "20px 20px",
+            padding: isMobile ? "14px 14px" : "20px 20px",
             display: "flex",
-            alignItems: "center",
+            // Mobile: icon-on-top vertical layout to match new_design;
+            // desktop keeps the compact icon-left row.
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "flex-start" : "center",
             gap: isMobile ? 10 : 14,
           }}
         >

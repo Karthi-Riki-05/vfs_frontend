@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Spin } from "antd";
+import { VCShimmerSkeleton } from "@/components/ui/VCShimmerSkeleton";
 import { usePro } from "@/hooks/usePro";
 import { proApi } from "@/api/pro.api";
 import { getAiBillingTeamId, setAiBillingTeamId } from "@/lib/aiBilling";
@@ -100,8 +100,8 @@ export function ProGuard({ children }: { children: React.ReactNode }) {
   // they trigger is needed to pick up proPurchasedAt.
   if (forcedMode === "pro" && granting) {
     return (
-      <div style={{ textAlign: "center", paddingTop: 120 }}>
-        <Spin size="large" />
+      <div style={{ padding: "40px 24px" }}>
+        <VCShimmerSkeleton variant="list" count={4} />
       </div>
     );
   }

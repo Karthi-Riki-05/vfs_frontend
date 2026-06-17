@@ -7,6 +7,7 @@ import {
   PlusOutlined,
   ProfileOutlined,
   AppstoreOutlined,
+  FolderOutlined,
 } from "@ant-design/icons";
 import { usePathname, useRouter } from "next/navigation";
 import { createNewFlow } from "@/lib/flow";
@@ -63,16 +64,17 @@ export default function FloatingActionButton({
 
   const buttonSize = isMobile ? 48 : 48;
   const iconSize = isMobile ? 20 : 20;
-  // On mobile the AI assistant button sits at bottom:24 right:20 (48px tall).
-  // Stack the FAB above it: 24 + 48 + 12 = 84px from bottom.
-  const bottom = isMobile ? 84 : 24;
+  // The AI assistant button sits bottom-right on both breakpoints (mobile 48px
+  // @ bottom:24/right:20; desktop 56px @ bottom:24/right:24). Stack the FAB
+  // above it: mobile 24+48+12=84, desktop 24+56+12=92.
+  const bottom = isMobile ? 84 : 92;
   const right = isMobile ? 20 : 24;
 
   const menuItems: MenuProps["items"] = [
     {
       key: "create-flow",
-      label: "Create Flow",
-      icon: <ProfileOutlined style={{ color: "#3CB371", fontSize: 16 }} />,
+      label: "New Flow",
+      icon: <ProfileOutlined style={{ color: "#34A881", fontSize: 16 }} />,
       style: { minHeight: 44, alignItems: "center", display: "flex" },
       onClick: async () => {
         setOpen(false);
@@ -80,8 +82,18 @@ export default function FloatingActionButton({
       },
     },
     {
+      key: "create-project",
+      label: "New Project",
+      icon: <FolderOutlined style={{ color: "#FF9A30", fontSize: 16 }} />,
+      style: { minHeight: 44, alignItems: "center", display: "flex" },
+      onClick: () => {
+        setOpen(false);
+        router.push("/dashboard/projects?create=1");
+      },
+    },
+    {
       key: "create-shape",
-      label: "Create Shape",
+      label: "New Shape",
       icon: <AppstoreOutlined style={{ color: "#6366f1", fontSize: 16 }} />,
       style: { minHeight: 44, alignItems: "center", display: "flex" },
       onClick: () => {
@@ -105,13 +117,13 @@ export default function FloatingActionButton({
         width: buttonSize,
         height: buttonSize,
         borderRadius: "50%",
-        background: hovered ? "#2ea562" : "#3CB371",
+        background: hovered ? "#1F7D5E" : "#34A881",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
-        boxShadow:
-          "0 4px 16px rgba(60,179,113,0.45), 0 2px 6px rgba(0,0,0,0.15)",
+        // new_design --shadow-fab token (DESIGN.md §5)
+        boxShadow: "0 10px 24px -6px rgba(31,125,94,0.45)",
         transition: "background 0.2s ease, transform 0.2s ease",
         transform: hovered ? "scale(1.08)" : "scale(1)",
         outline: "none",
@@ -160,7 +172,7 @@ export default function FloatingActionButton({
         dropdown
       ) : (
         <Tooltip
-          title="Create new flow or shape"
+          title="Create new flow, project or shape"
           placement="left"
           mouseEnterDelay={0.5}
         >

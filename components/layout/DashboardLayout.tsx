@@ -12,7 +12,6 @@ import EnableNotificationsBanner from "../common/EnableNotificationsBanner";
 import FloatingActionButton from "./FloatingActionButton";
 import MobileBackButton from "@/components/shared/MobileBackButton";
 import { usePro } from "@/hooks/usePro";
-import { getLogoForApp } from "@/lib/getLogo";
 import {
   useIsMobile,
   useIsTablet,
@@ -116,6 +115,13 @@ export default function DashboardLayout({
 
   // Hide chat column on editor/upgrade pages
   const hideChatColumn = isEditorPage || pathname?.includes("/upgrade-pro");
+  // Standalone mobile chat page — suppress the floating FAB + AI button there
+  // (they'd overlap the chat input/send).
+  const isChatPage = pathname.includes("/dashboard/chat");
+  // Settings/Profile uses the new_design gray canvas (#F5F7F6) so the white
+  // cards stand out. Scoped to this route only — every other page stays white.
+  const isSettingsPage = pathname.startsWith("/dashboard/settings");
+  const contentBg = isSettingsPage ? "#F5F7F6" : "#FFFFFF";
 
   // Expose toggle/open functions globally so header/sidebar/redirect can call them
   useEffect(() => {
@@ -250,41 +256,6 @@ export default function DashboardLayout({
             onClick={() => setMobileOpen(false)}
           />
           <div className={`sidebar-drawer ${mobileOpen ? "open" : ""}`}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 16px",
-                borderBottom: "1px solid #F0F0F0",
-              }}
-            >
-              <img
-                src={getLogoForApp(currentApp)}
-                alt="ValueChart"
-                style={{
-                  height: 40,
-                  width: "auto",
-                  objectFit: "contain",
-                  objectPosition: "left center",
-                  maxHeight: 40,
-                }}
-              />
-              <button
-                onClick={() => setMobileOpen(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  fontSize: 20,
-                  cursor: "pointer",
-                  padding: 8,
-                  color: "#8C8C8C",
-                  lineHeight: 1,
-                }}
-              >
-                ✕
-              </button>
-            </div>
             <SidebarComponent
               collapsed={false}
               onCollapse={() => {}}
@@ -294,21 +265,20 @@ export default function DashboardLayout({
           </div>
 
           <Content
-            className="responsive-content"
+            className="responsive-content bg-background"
             style={{
               padding: "16px",
               paddingTop: 56 + 16,
               paddingBottom: 140,
-              background: "#FFFFFF",
               minHeight: "calc(100dvh - 56px)",
             }}
           >
             <EnableNotificationsBanner />
             <MobileBackButton />
             <ErrorBoundary>{children}</ErrorBoundary>
-            <AIAssistant contentLeft={0} contentRight={0} />
+            {!isChatPage && <AIAssistant contentLeft={0} contentRight={0} />}
           </Content>
-          <FloatingActionButton hidden={mobileOpen} />
+          <FloatingActionButton hidden={mobileOpen || isChatPage} />
         </Layout>
       </AppContextLoader>
     );
@@ -319,6 +289,10 @@ export default function DashboardLayout({
   // On tablet: hide right chat column (no room); chat button routes to /dashboard/chat
   const showChatColumn = !hideChatColumn && chatOpen && !isTablet;
   const chatColumnWidth = showChatColumn && !chatFullView ? 430 : 0;
+  // Chat is the focus → suppress the floating FAB + AI button so they don't
+  // collide with the chat input/send (column open, full view, or the
+  // standalone mobile /dashboard/chat page).
+  const chatActive = chatOpen || isChatPage;
 
   return (
     <AppContextLoader
@@ -339,21 +313,23 @@ export default function DashboardLayout({
                 marginLeft: siderWidth,
                 marginRight: chatColumnWidth,
                 padding: isTablet ? "20px 24px" : "24px 32px",
-                background: "#FFFFFF",
+                background: contentBg,
                 minHeight: "calc(100dvh - 56px)",
                 transition: "margin-left 0.2s, margin-right 0.2s",
               }}
             >
               <EnableNotificationsBanner />
               <ErrorBoundary>{children}</ErrorBoundary>
-              <AIAssistant
-                contentLeft={siderWidth}
-                contentRight={chatColumnWidth}
-              />
+              {!chatActive && (
+                <AIAssistant
+                  contentLeft={siderWidth}
+                  contentRight={chatColumnWidth}
+                />
+              )}
             </Content>
           )}
 
-          <FloatingActionButton />
+          <FloatingActionButton hidden={chatActive} />
 
           {/* Right chat column — normal mode (430px fixed right) */}
           {showChatColumn && !chatFullView && (

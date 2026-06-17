@@ -20,11 +20,16 @@ export default function ChatPage() {
     // hydration mismatch; the redirect runs once the hook has resolved.
     setReady(true);
 
-    if (!isMobile) {
+    // Read the live viewport directly instead of the hook value. The hook's
+    // first client commit returns the SSR snapshot (`false`), which on a real
+    // mobile device wrongly triggered the desktop redirect to /dashboard
+    // before the media query resolved.
+    const isDesktop = window.matchMedia("(min-width: 768px)").matches;
+    if (isDesktop) {
       (window as any).__openChat?.();
       router.replace("/dashboard");
     }
-  }, [router, isMobile]);
+  }, [router]);
 
   if (!ready || !isMobile) return null;
 
@@ -39,7 +44,7 @@ export default function ChatPage() {
         right: 0,
         bottom: 0,
         zIndex: 80,
-        background: "#fff",
+        background: "#F5F7F6",
       }}
     >
       <style>{`
@@ -62,6 +67,7 @@ export default function ChatPage() {
           onClose={() => router.back()}
           onFullView={() => {}}
           isFullView={false}
+          mobileRestyle
         />
       </div>
     </div>

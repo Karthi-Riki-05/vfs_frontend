@@ -2260,6 +2260,415 @@ function extendApp() {
       winObserver.observe(document.body, { childList: true, subtree: true });
     })();
     // ────────────────────────────────────────────────────────────────
+
+    // ── ValueChart: Shape → Team / Chat Group association ───────────
+    // Right-click (desktop) / long-press (mobile) on a shape offers
+    // "Create Team from Shape" / "Create Chat Group from Shape" or, when
+    // already associated, "Edit Team|Group" / "Remove from Team|Group".
+    // The backend Shape row id is stamped on the cell as the custom
+    // attribute `vcShapeId` (survives save/load inside the diagram XML);
+    // association details live in the __vcAssoc cache, hydrated by the
+    // parent via 'vcShapeAssociations'. Deletes of associated shapes are
+    // intercepted and confirmed by the parent (Ant Design dialog) before
+    // proceeding ('vcConfirmShapeDelete' → 'vcDeleteApproved').
+    (function installVcShapeAssociation() {
+      // shapeId → { type:'team'|'group', id, name }
+      window.__vcAssoc = window.__vcAssoc || {};
+      var pendingDelete = null;
+
+      function getGraph() {
+        var ui = window.__editorUi;
+        return ui && ui.editor && ui.editor.graph;
+      }
+
+      function getCellShapeId(cell) {
+        try {
+          if (
+            cell &&
+            cell.value &&
+            typeof cell.value.getAttribute === "function"
+          ) {
+            return cell.value.getAttribute("vcShapeId") || null;
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      function getCellLabel(cell) {
+        try {
+          var graph = getGraph();
+          var label = graph ? graph.getLabel(cell) : "";
+          // getLabel may return HTML — strip tags for a clean name
+          if (label) {
+            var tmp = document.createElement("div");
+            tmp.innerHTML = label;
+            label = (tmp.textContent || "").trim();
+          }
+          return label || "Shape";
+        } catch (e) {
+          return "Shape";
+        }
+      }
+
+      function getCellXml(cell) {
+        try {
+          var graph = getGraph();
+          var node = graph.encodeCells([cell]);
+          return mxUtils.getXml(node);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function getAssociation(cell) {
+        var shapeId = getCellShapeId(cell);
+        return shapeId ? window.__vcAssoc[shapeId] || null : null;
+      }
+
+      function postToParent(payload) {
+        try {
+          (window.opener || window.parent).postMessage(
+            JSON.stringify(payload),
+            "*",
+          );
+        } catch (e) {
+          console.error("[VC] shape-association postMessage failed", e);
+        }
+      }
+
+      function postMenuAction(action, cell, evt) {
+        var coordinates = { x: 0, y: 0 };
+        try {
+          coordinates = {
+            x: mxEvent.getClientX(evt),
+            y: mxEvent.getClientY(evt),
+          };
+        } catch (e) {}
+        postToParent({
+          action: action,
+          shapeId: getCellShapeId(cell),
+          cellId: cell.id,
+          shapeName: getCellLabel(cell),
+          shapeXml: getCellXml(cell),
+          coordinates: coordinates,
+          association: getAssociation(cell),
+        });
+      }
+
+      // ── Context menu items (desktop right-click + mobile long-press) ──
+      function installMenuItems() {
+        if (typeof Menus === "undefined" || !Menus.prototype) return false;
+        if (Menus.prototype.__vcAssocPatched) return true;
+        Menus.prototype.__vcAssocPatched = true;
+
+        var origAddPopupMenuItems = Menus.prototype.addPopupMenuItems;
+        Menus.prototype.addPopupMenuItems = function (menu, cell, evt) {
+          // Our association items go FIRST, then a separator, then draw.io's
+          // native menu items.
+          try {
+            var graph = this.editorUi && this.editorUi.editor.graph;
+            if (
+              graph &&
+              cell != null &&
+              graph.model.isVertex(cell) &&
+              graph.isEnabled() // skip in view-only mode
+            ) {
+              var assoc = getAssociation(cell);
+
+              if (!assoc) {
+                menu.addItem("Add to Team", null, function () {
+                  postMenuAction("openTeamModal", cell, evt);
+                });
+                menu.addItem("Add to Group", null, function () {
+                  postMenuAction("openGroupModal", cell, evt);
+                });
+              } else if (assoc.type === "team") {
+                menu.addItem("Edit Team", null, function () {
+                  postMenuAction("editTeam", cell, evt);
+                });
+                menu.addItem("Remove from Team", null, function () {
+                  postMenuAction("removeAssociation", cell, evt);
+                });
+              } else {
+                menu.addItem("Edit Group", null, function () {
+                  postMenuAction("editGroup", cell, evt);
+                });
+                menu.addItem("Remove from Group", null, function () {
+                  postMenuAction("removeAssociation", cell, evt);
+                });
+              }
+              menu.addSeparator();
+            }
+          } catch (e) {
+            console.error("[VC] addPopupMenuItems patch failed", e);
+          }
+          origAddPopupMenuItems.apply(this, arguments);
+        };
+        console.log("[VC] shape-association context menu installed");
+        return true;
+      }
+
+      // ── Mobile long-press (500ms) → open the same context menu ──────
+      function installLongPress() {
+        var graph = getGraph();
+        if (!graph || !graph.container || graph.container.__vcLongPress)
+          return false;
+        graph.container.__vcLongPress = true;
+
+        var timer = null;
+        var startX = 0;
+        var startY = 0;
+        var MOVE_TOLERANCE = 10; // px — beyond this it's a pan/zoom gesture
+
+        function cancel() {
+          if (timer) {
+            clearTimeout(timer);
+            timer = null;
+          }
+        }
+
+        graph.container.addEventListener(
+          "touchstart",
+          function (evt) {
+            if (evt.touches.length !== 1) {
+              cancel(); // multi-touch = pinch zoom — never a long press
+              return;
+            }
+            var touch = evt.touches[0];
+            startX = touch.clientX;
+            startY = touch.clientY;
+            cancel();
+            timer = setTimeout(function () {
+              timer = null;
+              try {
+                var pt = mxUtils.convertPoint(graph.container, startX, startY);
+                var cell = graph.getCellAt(pt.x, pt.y);
+                if (cell != null && graph.model.isVertex(cell)) {
+                  graph.setSelectionCell(cell);
+                  // Reuse draw.io's own popup menu so our injected items
+                  // (and the native ones) appear at the touch point.
+                  graph.popupMenuHandler.hideMenu();
+                  graph.popupMenuHandler.popup(startX, startY, cell, evt);
+                }
+              } catch (e) {
+                console.error("[VC] long-press popup failed", e);
+              }
+            }, 500);
+          },
+          { passive: true },
+        );
+        graph.container.addEventListener(
+          "touchmove",
+          function (evt) {
+            if (!timer || evt.touches.length !== 1) {
+              cancel();
+              return;
+            }
+            var touch = evt.touches[0];
+            if (
+              Math.abs(touch.clientX - startX) > MOVE_TOLERANCE ||
+              Math.abs(touch.clientY - startY) > MOVE_TOLERANCE
+            ) {
+              cancel();
+            }
+          },
+          { passive: true },
+        );
+        graph.container.addEventListener("touchend", cancel, {
+          passive: true,
+        });
+        graph.container.addEventListener("touchcancel", cancel, {
+          passive: true,
+        });
+        console.log("[VC] long-press handler installed");
+        return true;
+      }
+
+      // ── Delete protection ────────────────────────────────────────────
+      // Wrap the delete actions (Delete key, Edit→Delete, toolbar) so any
+      // selection containing associated shapes is confirmed by the parent
+      // first. Covers single, multi-select and select-all/clear-diagram.
+      function collectAssociated(cells) {
+        var out = [];
+        var graph = getGraph();
+        function walk(cell) {
+          var shapeId = getCellShapeId(cell);
+          if (shapeId && window.__vcAssoc[shapeId]) {
+            out.push({ shapeId: shapeId, cellId: cell.id });
+          }
+          var count = graph.model.getChildCount(cell);
+          for (var i = 0; i < count; i++) {
+            walk(graph.model.getChildAt(cell, i));
+          }
+        }
+        (cells || []).forEach(walk);
+        return out;
+      }
+
+      function installDeleteGuard() {
+        var ui = window.__editorUi;
+        if (!ui || !ui.actions || ui.__vcDeleteGuard)
+          return !!(ui && ui.__vcDeleteGuard);
+        ui.__vcDeleteGuard = true;
+
+        ["delete", "deleteAll", "deleteLabels"].forEach(function (name) {
+          var act = ui.actions.get(name);
+          if (!act || typeof act.funct !== "function") return;
+          var orig = act.funct;
+          act.funct = function () {
+            var args = arguments;
+            var self = this;
+            try {
+              var graph = getGraph();
+              var cells = graph.getSelectionCells() || [];
+              var associated = collectAssociated(cells);
+              if (associated.length === 0) {
+                return orig.apply(self, args);
+              }
+              // Hand off to the parent for an Ant Design warning dialog.
+              pendingDelete = {
+                proceed: function () {
+                  orig.apply(self, args);
+                },
+              };
+              postToParent({
+                event: "vcConfirmShapeDelete",
+                shapeIds: associated.map(function (a) {
+                  return a.shapeId;
+                }),
+                cellIds: associated.map(function (a) {
+                  return a.cellId;
+                }),
+              });
+            } catch (e) {
+              console.error("[VC] delete guard failed — deleting normally", e);
+              return orig.apply(self, args);
+            }
+          };
+        });
+        console.log("[VC] delete guard installed");
+        return true;
+      }
+
+      // ── Hydrate the association cache from the parent ────────────────
+      function requestAssociations() {
+        var graph = getGraph();
+        if (!graph) return;
+        var shapeIds = [];
+        try {
+          var model = graph.model;
+          Object.keys(model.cells || {}).forEach(function (key) {
+            var id = getCellShapeId(model.cells[key]);
+            if (id && shapeIds.indexOf(id) === -1) shapeIds.push(id);
+          });
+        } catch (e) {}
+        if (shapeIds.length) {
+          postToParent({
+            event: "vcShapeAssociationsRequest",
+            shapeIds: shapeIds,
+          });
+        }
+      }
+
+      // ── Parent → iframe messages ─────────────────────────────────────
+      window.addEventListener("message", function (evt) {
+        if (!evt.data || typeof evt.data !== "string") return;
+        var msg;
+        try {
+          msg = JSON.parse(evt.data);
+        } catch (e) {
+          return;
+        }
+        if (!msg || !msg.action) return;
+
+        // The parent's 'load' action delivers the diagram XML — the cells
+        // (and their vcShapeId attributes) only exist AFTER this, so the
+        // install-loop hydration below can run too early. Re-request once
+        // draw.io has parsed the XML.
+        if (msg.action === "load") {
+          setTimeout(requestAssociations, 1000);
+          setTimeout(requestAssociations, 4000);
+          return;
+        }
+
+        // Cache hydration: [{shapeId, type, team|group}]
+        if (msg.action === "vcShapeAssociations") {
+          (msg.associations || []).forEach(function (a) {
+            var target = a.team || a.group;
+            if (a.shapeId && a.type && target) {
+              window.__vcAssoc[a.shapeId] = {
+                type: a.type,
+                id: target.id,
+                name: target.name || target.title || "",
+              };
+            }
+          });
+          return;
+        }
+
+        // Stamp/clear the vcShapeId attribute on a cell + update cache.
+        if (msg.action === "vcSetShapeAssociation") {
+          var graph = getGraph();
+          if (!graph) return;
+          try {
+            var cell = graph.model.getCell(msg.cellId);
+            if (cell && msg.shapeId) {
+              graph.setAttributeForCell(cell, "vcShapeId", msg.shapeId);
+            }
+            if (msg.shapeId) {
+              if (msg.association) {
+                window.__vcAssoc[msg.shapeId] = msg.association;
+              } else {
+                delete window.__vcAssoc[msg.shapeId];
+              }
+            }
+          } catch (e) {
+            console.error("[VC] vcSetShapeAssociation failed", e);
+          }
+          return;
+        }
+
+        // Parent confirmed (or cancelled) deletion of associated shapes.
+        if (msg.action === "vcDeleteApproved") {
+          var pd = pendingDelete;
+          pendingDelete = null;
+          if (msg.approved && pd) {
+            // Associations were already cleared server-side (bulk-delete) —
+            // drop them from the cache, then run the original delete.
+            (msg.shapeIds || []).forEach(function (id) {
+              delete window.__vcAssoc[id];
+            });
+            try {
+              pd.proceed();
+            } catch (e) {
+              console.error("[VC] approved delete failed", e);
+            }
+          }
+          return;
+        }
+      });
+
+      // ── Install with retry (editor UI mounts asynchronously) ─────────
+      installMenuItems();
+      var tries = 0;
+      var iv = setInterval(function () {
+        tries++;
+        var menuOk = installMenuItems();
+        var pressOk = installLongPress();
+        var guardOk = installDeleteGuard();
+        if ((menuOk && pressOk && guardOk) || tries > 50) {
+          clearInterval(iv);
+          if (tries > 50) {
+            console.warn("[VC] shape-association install gave up after 10s");
+          }
+          // Hydrate cache once everything is mounted (and again later in
+          // case the diagram XML loads after us).
+          requestAssociations();
+          setTimeout(requestAssociations, 3000);
+        }
+      }, 200);
+    })();
+    // ────────────────────────────────────────────────────────────────
   } else {
     // Retry after a short delay if App is not yet defined
     setTimeout(extendApp, 100);

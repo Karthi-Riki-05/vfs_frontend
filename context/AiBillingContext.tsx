@@ -12,9 +12,11 @@ import api from "@/lib/axios";
 import {
   AI_BILLING_EVENT,
   AI_BILLING_KEY,
+  PRO_BILLING_KEY,
   getAiBillingTeamId,
   setAiBillingTeamId,
 } from "@/lib/aiBilling";
+import { flushWorkspaceCache } from "@/lib/workspaceCache";
 
 // ─────────────────────────────────────────────────────────────────────────
 // AI-billing context — which AI-credit pool (personal vs a team's shared pool)
@@ -96,17 +98,25 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     if (!userKey) {
       setLoading(false);
+      // Still signal readiness so the AppContextLoader splash dismisses on
+      // first paint — otherwise (e.g. session not yet resolved) it would hang
+      // until the 8s safety net.
+      try {
+        window.dispatchEvent(new CustomEvent("vc-context-ready"));
+      } catch {}
       return;
     }
     try {
       // Server copy of the selection wins over localStorage — it survives a
       // WebView kill where localStorage may have been cleared/blocked.
+      // Both calls are guarded: a slow/failed request must not stall the
+      // `finally` that fires vc-context-ready (which gates the splash).
       const [ctxRes, listRes] = await Promise.all([
         api.get("/users/active-context").catch(() => null),
-        api.get("/teams/my-contexts"),
+        api.get("/teams/my-contexts").catch(() => null),
       ]);
 
-      const data = listRes.data?.data || listRes.data || {};
+      const data = listRes?.data?.data || listRes?.data || {};
       const sessionUser = session?.user as any;
       const sessionName =
         sessionUser?.name || sessionUser?.email?.split("@")[0] || "Personal";
@@ -186,6 +196,10 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
   }, [refresh, sessionStatus]);
 
   const switchBilling = useCallback(async (teamId: string | null) => {
+    // 0. Flush workspace data cache immediately so useFlows / useTeams drop
+    //    their stale arrays before the new fetch arrives — eliminates ghost-
+    //    renders of the previous team's content during the loading window.
+    flushWorkspaceCache();
     // 1. Local state + storage + event (drives the scoped axios header).
     setActive(teamId);
     setAiBillingTeamId(teamId);
@@ -226,7 +240,10 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
     // different app mode). refresh() re-runs the isInProApp check against
     // this tab's sessionStorage and returns the correct billing team.
     const onStorageChange = (e: StorageEvent) => {
-      if (e.key !== AI_BILLING_KEY) return;
+      // Team tabs watch AI_BILLING_KEY, Pro tabs watch PRO_BILLING_KEY —
+      // separate keys per app mode (see lib/aiBilling.ts) so a Pro tab's
+      // reconcile can no longer ping-pong with Team tabs' reconciles.
+      if (e.key !== AI_BILLING_KEY && e.key !== PRO_BILLING_KEY) return;
       refresh();
     };
     window.addEventListener(AI_BILLING_EVENT, onChange);

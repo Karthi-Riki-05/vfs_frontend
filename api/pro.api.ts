@@ -17,6 +17,9 @@ export const proApi = {
     api.post("/pro/flow-addon/checkout", { plan }),
   cancelFlowAddon: () => api.post("/pro/flow-addon/cancel"),
   getFlowAddonStatus: () => api.get("/pro/flow-addon/status"),
+  // Safety net: activates the add-on if the Stripe webhook was lost
+  verifyFlowAddon: (sessionId: string) =>
+    api.post("/pro/verify-flow-addon", { sessionId }),
   // Called after login/registration in the Pro mobile WebView. Grants Pro
   // without Stripe — the purchase happened in the App Store / Google Play.
   grantProFromMobile: () =>

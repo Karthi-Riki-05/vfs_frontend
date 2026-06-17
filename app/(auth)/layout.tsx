@@ -20,17 +20,30 @@ export default function AuthLayout({
   // (green band + white card). On <=600px the layout steps aside for them: no
   // card, no padding, no logo. Reset/Verify keep the centered card on every
   // viewport. Tablet/desktop (>=601px) get the centered card for ALL pages.
-  const isHeroPage =
+  // Login now renders the full responsive new_design hero on EVERY viewport,
+  // so it always goes full-bleed (no centered card, no layout logo). Register
+  // & forgot-password keep the legacy <=600px-only hero behavior.
+  // Login, Register & Forgot-password each render the full responsive
+  // new_design hero (AuthShell) on EVERY viewport, so they all go full-bleed:
+  // no centered card, no layout logo. Reset/Verify keep the centered card.
+  const isSelfHero =
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/forgot-password";
+  const isHeroPage = isSelfHero;
 
   return (
     <div
-      className={`auth-root${isHeroPage ? " auth-root--hero" : ""}`}
+      className={`auth-root${isHeroPage ? " auth-root--hero" : ""}${
+        isSelfHero ? " auth-root--login" : ""
+      }`}
       style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}
     >
-      <div className={`auth-card${isHeroPage ? " auth-card--hero" : ""}`}>
+      <div
+        className={`auth-card${isHeroPage ? " auth-card--hero" : ""}${
+          isSelfHero ? " auth-card--login" : ""
+        }`}
+      >
         {/* Logo */}
         <div className="auth-logo">
           <img
@@ -67,6 +80,23 @@ export default function AuthLayout({
           display: flex;
           justify-content: center;
           margin-bottom: 24px;
+        }
+        /* Login: full-bleed on ALL viewports — LoginForm draws the full
+           responsive new_design hero + centers its own card on desktop. */
+        .auth-root--login {
+          padding: 0;
+          align-items: stretch;
+          background: #f5f7f6;
+        }
+        .auth-card--login {
+          max-width: none;
+          border-radius: 0;
+          box-shadow: none;
+          padding: 0;
+          background: transparent;
+        }
+        .auth-card--login .auth-logo {
+          display: none;
         }
         @media (max-width: 600px) {
           /* Hero pages (login/register) go full-bleed on phones only; the

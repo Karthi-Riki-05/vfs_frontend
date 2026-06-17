@@ -2,41 +2,46 @@
 // Based on the design system specification
 
 // Brand color tokens — canonical green. Use these instead of hardcoded hex.
-export const BRAND_GREEN = "#3CB371";
-export const BRAND_GREEN_HOVER = "#2ea562";
-export const BRAND_GREEN_LIGHT = "#e8f7ef";
+export const BRAND_GREEN = "#34A881";
+export const BRAND_GREEN_HOVER = "#1F7D5E";
+export const BRAND_GREEN_LIGHT = "#E7F6F0";
 
 export const colors = {
   // Primary
-  primary: "#3CB371", // Medium Sea Green — buttons, active states, links, badges
-  primaryDark: "#2E8B57", // Sea Green — hover states
-  primaryLight: "#F0FFF4", // Very light green — selected backgrounds
+  primary: "#34A881", // Brand green — buttons, active states, links, badges
+  primaryDark: "#1F7D5E", // Hover states
+  primaryLight: "#E7F6F0", // Selected backgrounds
+  primaryDeep: "#1F7D5E", // Links, accents, forgot password
+  primaryTint: "#E7F6F0", // Very light green — selected bg
 
   // Backgrounds
-  background: "#FFFFFF", // Main content area
+  background: "#F5F7F6", // Main content area
   sidebarBg: "#FFFFFF", // Sidebar background
-  cardBg: "#F8F9FA", // Card hover background
-  inputBg: "#F8F9FA", // Search input background
+  cardBg: "#FFFFFF", // Card background (pure white)
+  inputBg: "#FFFFFF", // Input background
 
   // Text
-  text: "#1A1A2E", // Headings, body text
-  textSecondary: "#8C8C8C", // Timestamps, subtitles, labels
+  text: "#1F2937", // Headings, body text
+  textSecondary: "#6B7280", // Timestamps, subtitles, labels
   textMuted: "#BFBFBF", // Placeholders
+  muted: "#F1F4F3", // Muted surface
+  mutedFg: "#6B7280", // Muted foreground text
 
   // Borders
-  border: "#F0F0F0", // Card borders, dividers
+  border: "#E5EBE8", // Card borders, dividers
 
   // Accent Colors
+  orange: "#FF9A30", // Pro badge, highlights
   starYellow: "#FAAD14", // Favorite star icon
-  deleteRed: "#FF4D4F", // Delete actions, logout text
-  badgeBlue: "#1890FF", // Unread count badge
+  deleteRed: "#F85729", // Delete actions (coral)
+  badgeBlue: "#006AA8", // Unread count badge
   onlineGreen: "#52C41A", // Online status dot
 
   // Legacy compatibility
-  success: "#3CB371",
+  success: "#34A881",
   warning: "#FAAD14",
-  danger: "#FF4D4F",
-  info: "#1890FF",
+  danger: "#F85729",
+  info: "#006AA8",
   surface: "#FFFFFF",
 };
 
@@ -50,15 +55,22 @@ export const spacing = {
 };
 
 export const borderRadius = {
-  sm: 4,
-  md: 8,
-  lg: 12,
-  xl: 16,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 28,
   full: 9999,
 };
 
+export const shadows = {
+  card: "0 1px 2px rgba(16,40,32,0.04), 0 8px 24px -8px rgba(16,40,32,0.08)",
+  fab: "0 10px 24px -6px rgba(31,125,94,0.45)",
+};
+
 export const fontFamily =
-  "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  "'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
 // Ant Design ConfigProvider theme override
 export const antdTheme = {

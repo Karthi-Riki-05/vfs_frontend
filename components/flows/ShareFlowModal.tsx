@@ -1,33 +1,20 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { Select, Button, Spin, message } from "antd";
 import {
-  Modal,
-  Input,
-  Select,
-  Button,
-  Avatar,
-  Typography,
-  Spin,
-  Empty,
-  Divider,
-  message,
-  Tag,
-} from "antd";
-import {
-  SearchOutlined,
-  UserOutlined,
-  LockOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  ShareAltOutlined,
-  MailOutlined,
-  PlusOutlined,
-  CrownOutlined,
-} from "@ant-design/icons";
+  Share2,
+  Mail,
+  Search,
+  Plus,
+  Crown,
+  Trash2,
+  Pencil,
+  Lock,
+} from "lucide-react";
+import { ModalShell, ModalHeader } from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
 import { flowsApi } from "@/api/flows.api";
-
-const { Text } = Typography;
 
 interface ShareFlowModalProps {
   open: boolean;
@@ -48,6 +35,19 @@ interface ExistingShare {
   permission: string;
   sharedWith: ShareMember;
   createdAt: string;
+}
+
+const PERM_OPTIONS = [
+  { label: "View", value: "view" },
+  { label: "Edit", value: "edit" },
+];
+
+function InitialAvatar({ name, email }: { name?: string; email?: string }) {
+  return (
+    <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold shrink-0">
+      {(name || email || "?").charAt(0).toUpperCase()}
+    </div>
+  );
 }
 
 export default function ShareFlowModal({
@@ -80,7 +80,6 @@ export default function ShareFlowModal({
       const sharesList = sharesRes.data?.data || [];
       setShares(Array.isArray(sharesList) ? sharesList : []);
 
-      // getAvailableShareMembers now returns { members, isProUser }
       const membersData = membersRes.data?.data;
       if (
         membersData &&
@@ -92,7 +91,6 @@ export default function ShareFlowModal({
         );
         setIsProUser(!!membersData.isProUser);
       } else {
-        // backward-compat: old shape was a plain array
         setAllMembers(Array.isArray(membersData) ? membersData : []);
         setIsProUser(false);
       }
@@ -139,13 +137,10 @@ export default function ShareFlowModal({
 
   const handleShareByEmail = async () => {
     if (!flow || !emailInput.trim()) return;
-
-    // Support comma-separated emails
     const emails = emailInput
       .split(",")
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
-
     if (emails.length === 0) return;
 
     setEmailSharing(true);
@@ -163,7 +158,9 @@ export default function ShareFlowModal({
 
       if (successes.length > 0) {
         message.success(
-          `Flow shared with ${successes.length} user${successes.length > 1 ? "s" : ""}`,
+          `Flow shared with ${successes.length} user${
+            successes.length > 1 ? "s" : ""
+          }`,
         );
       }
       failures.forEach((f) => {
@@ -211,282 +208,211 @@ export default function ShareFlowModal({
   };
 
   return (
-    <Modal
-      title={
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <ShareAltOutlined style={{ color: "#3CB371" }} />
-          <span>Share &quot;{flow?.name}&quot;</span>
+    <ModalShell open={open} onClose={onClose}>
+      {/* Header with share icon + Pro tag (prototype ShareModal 1832–1850) */}
+      <div className="flex items-center justify-between p-5 pb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Share2 className="w-4 h-4 text-primary shrink-0" />
+          <span className="font-bold text-base truncate">
+            Share &quot;{flow?.name}&quot;
+          </span>
           {isProUser && (
-            <Tag
-              icon={<CrownOutlined />}
-              color="gold"
-              style={{ fontSize: 11, marginLeft: 4 }}
-            >
-              Pro
-            </Tag>
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#B45309] shrink-0">
+              <Crown className="w-3 h-3" /> Pro
+            </span>
           )}
         </div>
-      }
-      open={open}
-      onCancel={onClose}
-      footer={null}
-      width={520}
-    >
-      {loading ? (
-        <div style={{ textAlign: "center", padding: 40 }}>
-          <Spin />
-        </div>
-      ) : (
-        <>
-          {/* Pro: share by email */}
-          {isProUser && (
-            <>
-              <Text strong style={{ display: "block", marginBottom: 8 }}>
-                Share by email:
-              </Text>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  marginBottom: 16,
-                }}
-              >
-                <Input
-                  prefix={<MailOutlined style={{ color: "#8C8C8C" }} />}
-                  placeholder="email@example.com (comma-separate multiple)"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  onPressEnter={handleShareByEmail}
-                  style={{ flex: 1 }}
-                />
-                <Select
-                  value={emailPermission}
-                  onChange={setEmailPermission}
-                  style={{ width: 90 }}
-                  getPopupContainer={(t) => t.parentElement || document.body}
-                  popupMatchSelectWidth={false}
-                  options={[
-                    { label: "View", value: "view" },
-                    { label: "Edit", value: "edit" },
-                  ]}
-                />
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  loading={emailSharing}
-                  onClick={handleShareByEmail}
-                  disabled={!emailInput.trim()}
-                  style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
-                >
-                  Invite
-                </Button>
-              </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "#8C8C8C",
-                  marginBottom: 16,
-                  padding: "6px 10px",
-                  background: "#f6ffed",
-                  border: "1px solid #b7eb8f",
-                  borderRadius: 6,
-                }}
-              >
-                <CrownOutlined style={{ color: "#d48806", marginRight: 4 }} />
-                Pro feature — share with any ValueChart user by email address
-              </div>
-            </>
-          )}
+        <button
+          type="button"
+          onClick={onClose}
+          className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center shrink-0"
+        >
+          <span className="text-muted-foreground text-lg leading-none">×</span>
+        </button>
+      </div>
 
-          {/* Team members list */}
-          {availableMembers.length > 0 || !isProUser ? (
-            <>
-              <Text strong style={{ display: "block", marginBottom: 8 }}>
-                {isProUser
-                  ? "Share with team members:"
-                  : "Share with team members:"}
-              </Text>
-              <Input
-                prefix={<SearchOutlined style={{ color: "#8C8C8C" }} />}
-                placeholder="Search members..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                allowClear
-                style={{ marginBottom: 12 }}
-              />
-
-              <div
-                style={{ maxHeight: 200, overflowY: "auto", marginBottom: 16 }}
-              >
-                {filteredMembers.length === 0 ? (
-                  <Empty
-                    description={
-                      isProUser
-                        ? "No team members available"
-                        : "No team members available — upgrade to Pro to share with any user"
-                    }
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+      <div className="px-5 pb-5 space-y-4">
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Spin />
+          </div>
+        ) : (
+          <>
+            {/* Pro: share by email */}
+            {isProUser && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold">Share by email</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <FieldInput
+                      placeholder="email@example.com"
+                      icon={<Mail className="w-4 h-4" />}
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleShareByEmail()
+                      }
+                    />
+                  </div>
+                  <Select
+                    value={emailPermission}
+                    onChange={setEmailPermission}
+                    style={{ width: 84 }}
+                    getPopupContainer={(t) => t.parentElement || document.body}
+                    popupMatchSelectWidth={false}
+                    options={PERM_OPTIONS}
                   />
-                ) : (
-                  filteredMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        marginBottom: 4,
-                        background: "#FAFAFA",
-                      }}
-                    >
+                  <button
+                    type="button"
+                    onClick={handleShareByEmail}
+                    disabled={!emailInput.trim() || emailSharing}
+                    className="appearance-none cursor-pointer outline-none border-0 h-11 px-4 rounded-xl bg-primary text-white font-bold text-sm inline-flex items-center gap-1 disabled:opacity-60"
+                  >
+                    <Plus className="w-4 h-4" /> Invite
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground rounded-xl bg-secondary px-3 py-2">
+                  <Crown className="w-3.5 h-3.5 text-[#B45309]" />
+                  Pro feature — share with any ValueChart user by email.
+                </div>
+              </div>
+            )}
+
+            {/* Team members list */}
+            {(availableMembers.length > 0 || !isProUser) && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold">
+                  Share with team members
+                </label>
+                <FieldInput
+                  placeholder="Search members…"
+                  icon={<Search className="w-4 h-4" />}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <div className="max-h-52 overflow-y-auto space-y-1.5">
+                  {filteredMembers.length === 0 ? (
+                    <div className="py-6 text-center text-[13px] text-muted-foreground">
+                      {isProUser
+                        ? "No team members available"
+                        : "No team members available — upgrade to Pro to share with any user"}
+                    </div>
+                  ) : (
+                    filteredMembers.map((member) => (
                       <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                        }}
+                        key={member.id}
+                        className="flex items-center justify-between gap-2 rounded-xl bg-background p-2.5"
                       >
-                        <Avatar
-                          src={member.image}
-                          icon={<UserOutlined />}
-                          size={32}
-                        />
-                        <div>
-                          <Text style={{ fontSize: 13, display: "block" }}>
-                            {member.name || "Unknown"}
-                          </Text>
-                          <Text type="secondary" style={{ fontSize: 11 }}>
-                            {member.email}
-                          </Text>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <InitialAvatar
+                            name={member.name}
+                            email={member.email}
+                          />
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-semibold truncate">
+                              {member.name || "Unknown"}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground truncate">
+                              {member.email}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Select
+                            size="small"
+                            value={permissions[member.id] || "view"}
+                            onChange={(v) =>
+                              setPermissions((p) => ({ ...p, [member.id]: v }))
+                            }
+                            style={{ width: 80 }}
+                            getPopupContainer={(t) =>
+                              t.parentElement || document.body
+                            }
+                            popupMatchSelectWidth={false}
+                            options={PERM_OPTIONS}
+                          />
+                          <Button
+                            type="primary"
+                            size="small"
+                            loading={sharingUser === member.id}
+                            onClick={() => handleShare(member.id)}
+                            style={{
+                              backgroundColor: "#34A881",
+                              borderColor: "#34A881",
+                            }}
+                          >
+                            Share
+                          </Button>
                         </div>
                       </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Currently shared */}
+            {shares.length > 0 && (
+              <div className="space-y-2 border-t border-border pt-4">
+                <label className="text-xs font-semibold">
+                  Currently shared with
+                </label>
+                <div className="max-h-52 overflow-y-auto space-y-1.5">
+                  {shares.map((share) => (
+                    <div
+                      key={share.id}
+                      className="flex items-center justify-between gap-2 rounded-xl bg-secondary p-2.5"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <InitialAvatar
+                          name={share.sharedWith?.name}
+                          email={share.sharedWith?.email}
+                        />
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-semibold truncate">
+                            {share.sharedWith?.name || "Unknown"}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                            {share.permission === "edit" ? (
+                              <>
+                                <Pencil className="w-3 h-3" /> Can edit
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="w-3 h-3" /> View only
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <Select
                           size="small"
-                          value={permissions[member.id] || "view"}
-                          onChange={(v) =>
-                            setPermissions((p) => ({ ...p, [member.id]: v }))
-                          }
-                          style={{ width: 90 }}
-                          getPopupContainer={(trigger) =>
-                            trigger.parentElement || document.body
+                          value={share.permission}
+                          onChange={(v) => handleChangePermission(share.id, v)}
+                          style={{ width: 80 }}
+                          getPopupContainer={(t) =>
+                            t.parentElement || document.body
                           }
                           popupMatchSelectWidth={false}
-                          options={[
-                            { label: "View", value: "view" },
-                            { label: "Edit", value: "edit" },
-                          ]}
+                          options={PERM_OPTIONS}
                         />
-                        <Button
-                          type="primary"
-                          size="small"
-                          loading={sharingUser === member.id}
-                          onClick={() => handleShare(member.id)}
-                          style={{
-                            backgroundColor: "#3CB371",
-                            borderColor: "#3CB371",
-                          }}
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(share.id)}
+                          className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-8 h-8 rounded-lg hover:bg-card flex items-center justify-center text-coral"
                         >
-                          Share
-                        </Button>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  ))
-                )}
+                  ))}
+                </div>
               </div>
-            </>
-          ) : null}
-
-          {/* Currently shared */}
-          {shares.length > 0 && (
-            <>
-              <Divider style={{ margin: "12px 0" }}>
-                Currently shared with
-              </Divider>
-              <div style={{ maxHeight: 200, overflowY: "auto" }}>
-                {shares.map((share) => (
-                  <div
-                    key={share.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      marginBottom: 4,
-                      background: "#F6FFED",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                      }}
-                    >
-                      <Avatar
-                        src={share.sharedWith?.image}
-                        icon={<UserOutlined />}
-                        size={32}
-                      />
-                      <div>
-                        <Text style={{ fontSize: 13, display: "block" }}>
-                          {share.sharedWith?.name || "Unknown"}
-                        </Text>
-                        <Text type="secondary" style={{ fontSize: 11 }}>
-                          {share.permission === "edit" ? (
-                            <>
-                              <EditOutlined /> Can edit
-                            </>
-                          ) : (
-                            <>
-                              <LockOutlined /> View only
-                            </>
-                          )}
-                        </Text>
-                      </div>
-                    </div>
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 8 }}
-                    >
-                      <Select
-                        size="small"
-                        value={share.permission}
-                        onChange={(v) => handleChangePermission(share.id, v)}
-                        style={{ width: 90 }}
-                        getPopupContainer={(trigger) =>
-                          trigger.parentElement || document.body
-                        }
-                        popupMatchSelectWidth={false}
-                        options={[
-                          { label: "View", value: "view" },
-                          { label: "Edit", value: "edit" },
-                        ]}
-                      />
-                      <Button
-                        type="text"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => handleRemove(share.id)}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </>
-      )}
-    </Modal>
+            )}
+          </>
+        )}
+      </div>
+    </ModalShell>
   );
 }

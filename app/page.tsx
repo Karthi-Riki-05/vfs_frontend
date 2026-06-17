@@ -15,6 +15,13 @@ export default function RootPage() {
     // redirects, so writing here survives the /dashboard → /login middleware redirect.
     // The try guards against restricted WebViews where storage access throws.
     try {
+      // Explicit device mode: 'mobile' iff the Flutter WebView opened us with
+      // ?app=team / ?app=pro, otherwise 'web'. Drives app-switcher visibility
+      // (switcher shown only on web — see useDeviceMode). Per-tab sessionStorage
+      // so the mobile-app URL in one tab can't hide the switcher on the website.
+      const isMobileApp = app === "team" || app === "pro";
+      sessionStorage.setItem("vc_device_mode", isMobileApp ? "mobile" : "web");
+
       // Default context is 'team'. Only upgrade to 'pro' on explicit ?app=pro.
       const appContext = app === "pro" ? "pro" : "team";
       // sessionStorage is per-tab — prevents cross-tab collisions when the

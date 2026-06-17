@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { dashboardApi } from "@/api/dashboard.api";
 import { useAppContext } from "@/context/AppContext";
+import { onWorkspaceFlush } from "@/lib/workspaceCache";
 
 interface DashboardStats {
   totalFlows: number;
@@ -46,6 +47,8 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
   const [recentFlows, setRecentFlows] = useState<RecentFlow[]>([]);
   const [teamActivity, setTeamActivity] = useState<TeamActivity[]>([]);
   const [loading, setLoading] = useState(true);
+  // Guards against setState after unmount (fire-and-forget refetch on nav).
+  const mountedRef = useRef(true);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -70,6 +73,7 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
         teamPromise,
       ]);
 
+      if (!mountedRef.current) return;
       if (statsRes) {
         const d = statsRes.data?.data || statsRes.data;
         setStats(d);
@@ -89,14 +93,32 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
         setTeamActivity([]);
       }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, [activeTeamId, fetchTeamActivity]);
 
   useEffect(() => {
+    mountedRef.current = true;
     if (!hydrated) return;
     fetchAll();
+    return () => {
+      mountedRef.current = false;
+    };
   }, [fetchAll, hydrated]);
+
+  // Blank every stat/array on workspace switch so the previous bucket's
+  // numbers never linger while the new context's stats are in flight.
+  useEffect(
+    () =>
+      onWorkspaceFlush(() => {
+        if (!mountedRef.current) return;
+        setStats(null);
+        setActivity([]);
+        setRecentFlows([]);
+        setTeamActivity([]);
+      }),
+    [],
+  );
 
   return {
     stats,

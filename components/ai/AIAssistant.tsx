@@ -1,24 +1,28 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Spin, message as antdMessage } from "antd";
+import { message as antdMessage } from "antd";
+import { VCShimmerSkeleton } from "@/components/ui/VCShimmerSkeleton";
 import {
-  SendOutlined,
-  CloseOutlined,
-  ExpandOutlined,
-  CompressOutlined,
-  SearchOutlined,
-  PaperClipOutlined,
-  PlusOutlined,
-  HistoryOutlined,
-  DeleteOutlined,
-  FileTextOutlined,
-} from "@ant-design/icons";
+  Sparkles,
+  Send,
+  ArrowRight,
+  Paperclip,
+  Plus,
+  History,
+  Trash2,
+  X,
+  Maximize2,
+  Minimize2,
+  Loader2,
+  FileText,
+  Zap,
+} from "lucide-react";
 import { useAi } from "@/hooks/useAi";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { usePro } from "@/hooks/usePro";
-import { getLogoForApp } from "@/lib/getLogo";
 import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 import AIConsentModal from "./AIConsentModal";
 import CreditsExhaustedModal from "./CreditsExhaustedModal";
 import DiagramPreviewModal from "./DiagramPreviewModal";
@@ -27,30 +31,20 @@ import { aiApi } from "@/api/ai.api";
 
 type ViewState = "collapsed" | "half" | "fullscreen";
 
-const PRIMARY = "#3CB371";
 const ACTIVE_CONV_KEY = "vc_active_conversation_id";
 
-const GeminiIcon = ({
-  size = 16,
-  color = "currentColor",
-}: {
-  size?: number;
-  color?: string;
-}) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-    <path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12Z" />
-  </svg>
-);
+// AI is the orange-accented brand in the new design (DESIGN.md §5 + prototype AI screen).
+const ORANGE = "#FF9A30";
 
 const SUGGESTION_CHIPS = [
-  "Generate a system workflow chart",
+  "Generate a user onboarding flow",
   "How do I invite team members?",
   "Create a decision-making flowchart",
   "How do I share a flow with my team?",
   "Design a project management flow",
   "How does the Pro plan work?",
-  "Create a data structure flowchart",
-  "I forgot my password, what do I do?",
+  "Create a software deployment flow",
+  "Map a returns process",
 ];
 
 interface ConversationListItem {
@@ -85,160 +79,6 @@ function timeAgo(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString();
 }
 
-// -------- Simplified DiagramSuggestion (no Improve) --------
-function DiagramSuggestion({
-  suggestion,
-  onGenerate,
-  isGenerating,
-}: {
-  suggestion: string;
-  onGenerate: () => void;
-  isGenerating: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: "#f0f9f4",
-        border: "1px solid #3CB371",
-        borderRadius: 8,
-        padding: 12,
-        marginTop: 8,
-      }}
-    >
-      <p style={{ margin: "0 0 12px", fontSize: 13, color: "#333" }}>
-        {suggestion}
-      </p>
-      <button
-        onClick={onGenerate}
-        disabled={isGenerating}
-        style={{
-          background: isGenerating ? "#ccc" : "#3CB371",
-          color: "white",
-          border: "none",
-          borderRadius: 6,
-          padding: "8px 16px",
-          cursor: isGenerating ? "not-allowed" : "pointer",
-          fontSize: 13,
-          fontWeight: 500,
-        }}
-      >
-        {isGenerating ? "⏳ Generating..." : "⚡ Generate Diagram"}
-      </button>
-    </div>
-  );
-}
-
-// -------- Small clickable thumbnail (opens preview modal) + Insert button --------
-function DiagramThumbnail({
-  onPreview,
-  onInsert,
-}: {
-  onPreview: () => void;
-  onInsert: () => void;
-}) {
-  return (
-    <div style={{ marginTop: 8 }}>
-      <p style={{ fontSize: 13, color: "#555", margin: "0 0 8px" }}>
-        ✅ Diagram generated
-      </p>
-      <div
-        onClick={onPreview}
-        style={{
-          width: 200,
-          height: 120,
-          background: "#f0f9f4",
-          border: "2px solid #3CB371",
-          borderRadius: 8,
-          cursor: "pointer",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          transition: "transform 0.2s",
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
-        onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-      >
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-          <rect
-            x="3"
-            y="3"
-            width="7"
-            height="5"
-            rx="1"
-            fill="#3CB371"
-            opacity="0.7"
-          />
-          <rect
-            x="14"
-            y="3"
-            width="7"
-            height="5"
-            rx="1"
-            fill="#3CB371"
-            opacity="0.7"
-          />
-          <rect
-            x="3"
-            y="14"
-            width="7"
-            height="5"
-            rx="1"
-            fill="#3CB371"
-            opacity="0.5"
-          />
-          <rect
-            x="14"
-            y="14"
-            width="7"
-            height="5"
-            rx="1"
-            fill="#3CB371"
-            opacity="0.5"
-          />
-          <line
-            x1="6.5"
-            y1="8"
-            x2="6.5"
-            y2="14"
-            stroke="#3CB371"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="17.5"
-            y1="8"
-            x2="17.5"
-            y2="14"
-            stroke="#3CB371"
-            strokeWidth="1.5"
-          />
-        </svg>
-        <span style={{ fontSize: 12, color: "#3CB371", fontWeight: 500 }}>
-          🔍 Click to preview
-        </span>
-      </div>
-      <button
-        onClick={onInsert}
-        style={{
-          marginTop: 8,
-          padding: "6px 14px",
-          background: "#3CB371",
-          color: "white",
-          border: "none",
-          borderRadius: 6,
-          cursor: "pointer",
-          fontSize: 12,
-          fontWeight: 500,
-          display: "block",
-        }}
-      >
-        + Insert into Canvas
-      </button>
-    </div>
-  );
-}
-
 interface AIAssistantProps {
   contentLeft?: number;
   contentRight?: number;
@@ -249,7 +89,7 @@ export default function AIAssistant({
   contentRight = 0,
 }: AIAssistantProps) {
   const { hasConsent, acceptConsent, declineConsent, refreshContext } = useAi();
-  const { status: proStatus, currentApp } = usePro();
+  const { status: proStatus } = usePro();
   const isMobile = useIsMobile();
   const pathname = usePathname() || "";
   const isEditorPage = /^\/dashboard\/flows\/(?!new$)[a-zA-Z0-9_-]+$/.test(
@@ -296,6 +136,9 @@ export default function AIAssistant({
     planResetsAt: string | null;
   } | null>(null);
 
+  // Header credits counter
+  const [credits, setCredits] = useState<number | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -336,9 +179,8 @@ export default function AIAssistant({
     }
   }, [state]);
 
-  // Mobile greeting
+  // AI greeting bubble — auto-show then auto-dismiss (both mobile + desktop)
   useEffect(() => {
-    if (!isMobile) return;
     const seen = sessionStorage.getItem("ai_greeting_seen");
     if (seen) return;
     const showTimer = setTimeout(() => setShowGreeting(true), 1000);
@@ -350,7 +192,34 @@ export default function AIAssistant({
       clearTimeout(showTimer);
       clearTimeout(hideTimer);
     };
-  }, [isMobile]);
+  }, []);
+
+  // Keep the header credits counter fresh while the panel is open (both widths)
+  useEffect(() => {
+    if (state === "collapsed") return;
+    const fetchCredits = async () => {
+      try {
+        const res = await aiApi.getCredits();
+        const d = res.data?.data || res.data || {};
+        const total =
+          d.totalCredits ?? d.balance?.totalCredits ?? d.credits ?? null;
+        if (typeof total === "number") setCredits(total);
+      } catch {
+        // keep last known value
+      }
+    };
+    fetchCredits();
+    window.addEventListener("aiCreditsChanged", fetchCredits);
+    return () => window.removeEventListener("aiCreditsChanged", fetchCredits);
+  }, [state]);
+
+  // Load recent conversations for the AI home screen (both widths)
+  useEffect(() => {
+    if (state !== "collapsed" && messages.length === 0) {
+      loadConversationList();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, messages.length]);
 
   useEffect(() => {
     function handleOpenEvent() {
@@ -763,477 +632,259 @@ export default function AIAssistant({
     setShowConsentModal(false);
   }
 
-  // ---- Header ----
-  const renderHeader = (isFS = false) => (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: isFS ? "12px 24px" : "10px 16px",
-        borderBottom: "1px solid #F0F0F0",
-        flexShrink: 0,
-        background: "#fff",
-        position: "relative",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <img
-          src={getLogoForApp(currentApp)}
-          alt="Value Charts"
-          style={{ height: 28, width: "auto", marginRight: 4 }}
-        />
-        <button
-          onClick={handleNewChat}
-          title="New Chat"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "4px 10px",
-            borderRadius: 8,
-            border: "1px solid #E8E8E8",
-            background: "#fff",
-            color: "#555",
-            cursor: "pointer",
-            fontSize: 12,
-            fontWeight: 500,
-          }}
-        >
-          <PlusOutlined style={{ fontSize: 11 }} />
-          New Chat
-        </button>
-        <button
-          onClick={handleToggleHistory}
-          title="Chat History"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            padding: "4px 8px",
-            borderRadius: 8,
-            border: "1px solid #E8E8E8",
-            background: showHistory ? "#F0FFF4" : "#fff",
-            color: showHistory ? PRIMARY : "#555",
-            cursor: "pointer",
-            fontSize: 12,
-          }}
-        >
-          <HistoryOutlined style={{ fontSize: 13 }} />
-        </button>
+  const showEmptyState = !loadingHistory && messages.length === 0 && !sending;
+
+  // Native control reset (preflight is OFF outside Tailwind's reset — DESIGN.md §1).
+  const BTN = "appearance-none cursor-pointer outline-none";
+
+  // =========================================
+  // Unified .tw renderers (orange AI brand) — used at BOTH breakpoints
+  // =========================================
+
+  // ---- Header (orange branded) ----
+  const renderHeader = () => (
+    <div className="relative flex items-center gap-2 px-4 py-2.5 bg-[#FFF1E0] border-b border-[#FFD9A0]/60 shrink-0">
+      <div className="w-9 h-9 rounded-full bg-[#FF9A30] flex items-center justify-center shrink-0 shadow-[0_6px_14px_-4px_rgba(255,154,48,0.6)]">
+        <Sparkles className="w-[18px] h-[18px] text-white" />
       </div>
-      <div
-        style={{ display: "flex", alignItems: "center", gap: isMobile ? 2 : 4 }}
-      >
-        {!isMobile && (
-          <button
-            onClick={state === "fullscreen" ? handleCompress : handleExpand}
-            title={state === "fullscreen" ? "Minimize" : "Full screen"}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              border: "none",
-              background: "transparent",
-              color: "#8C8C8C",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {state === "fullscreen" ? (
-              <CompressOutlined style={{ fontSize: 14 }} />
-            ) : (
-              <ExpandOutlined style={{ fontSize: 14 }} />
-            )}
-          </button>
+      <div className="flex-1 min-w-0">
+        <div className="font-bold text-[15px] text-foreground truncate">
+          Value Charts AI
+        </div>
+        <div className="text-[11px] text-muted-foreground truncate">
+          Generate flows from a prompt
+        </div>
+      </div>
+      <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFE2C0] text-[#FF9A30] text-[10px] font-bold whitespace-nowrap shrink-0">
+        <Zap className="w-3 h-3" /> {credits ?? "—"} credits
+      </div>
+      <button
+        onClick={handleNewChat}
+        title="New Chat"
+        className={cn(
+          BTN,
+          "w-8 h-8 rounded-lg border border-[#FFD9A0]/70 bg-white/70 hover:bg-white text-muted-foreground flex items-center justify-center shrink-0",
         )}
-        <button
-          onClick={handleCollapse}
-          title="Close"
-          style={{
-            width: isMobile ? 40 : 30,
-            height: isMobile ? 40 : 30,
-            borderRadius: isMobile ? 12 : 8,
-            border: "none",
-            background: "transparent",
-            color: "#8C8C8C",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <CloseOutlined style={{ fontSize: isMobile ? 16 : 13 }} />
-        </button>
-      </div>
-
-      {showHistory && (
-        <div
-          onClick={() => setShowHistory(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.25)",
-            zIndex: 299,
-          }}
-        />
-      )}
-      {showHistory && (
-        <div
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 12,
-            marginTop: 6,
-            // Mobile: stretch to a clean sheet instead of a narrow box that
-            // visually overlaps the messages behind it (H5).
-            width: isMobile ? "calc(100vw - 24px)" : 280,
-            maxWidth: "calc(100vw - 24px)",
-            maxHeight: isMobile ? "60vh" : 400,
-            background: "#fff",
-            border: "1px solid #E8E8E8",
-            borderRadius: 10,
-            boxShadow: "0 6px 24px rgba(0,0,0,0.12)",
-            zIndex: 300,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <div
-            style={{
-              padding: "8px 12px",
-              borderBottom: "1px solid #F0F0F0",
-              fontSize: 11,
-              fontWeight: 700,
-              color: "#8C8C8C",
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-            }}
-          >
-            Chat History
-          </div>
-          <button
-            onClick={handleNewChat}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "10px 12px",
-              border: "none",
-              borderBottom: "1px solid #F0F0F0",
-              background: "#fff",
-              cursor: "pointer",
-              color: PRIMARY,
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
-            <PlusOutlined style={{ fontSize: 12 }} /> New Chat
-          </button>
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            {loadingConvList ? (
-              <div style={{ padding: 20, textAlign: "center" }}>
-                <Spin size="small" />
-              </div>
-            ) : conversations.length === 0 ? (
-              <div
-                style={{
-                  padding: 16,
-                  textAlign: "center",
-                  color: "#BFBFBF",
-                  fontSize: 12,
-                }}
-              >
-                No previous conversations
-              </div>
-            ) : (
-              conversations.map((c) => {
-                const isActive = c.id === activeConversationId;
-                return (
-                  <div
-                    key={c.id}
-                    onClick={() => {
-                      loadConversation(c.id);
-                      localStorage.setItem(ACTIVE_CONV_KEY, c.id);
-                      setShowHistory(false);
-                    }}
-                    style={{
-                      padding: "10px 12px",
-                      borderBottom: "1px solid #F5F5F5",
-                      cursor: "pointer",
-                      background: isActive ? "#F0FFF4" : "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: "#1A1A2E",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {c.title || "Untitled conversation"}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: "#8C8C8C",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {timeAgo(c.lastMessageAt || c.updatedAt)} ·{" "}
-                        {c.messageCount} msg
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteConversation(c.id);
-                      }}
-                      title="Delete"
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        color: "#BFBFBF",
-                        cursor: "pointer",
-                        padding: 4,
-                        display: "flex",
-                      }}
-                    >
-                      <DeleteOutlined style={{ fontSize: 13 }} />
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  // ---- Input bar ----
-  const renderInputBar = (isFS = false) => (
-    <div
-      style={{
-        padding: isFS ? "12px 24px" : "10px 16px",
-        borderTop: "1px solid #F0F0F0",
-        flexShrink: 0,
-        background: "#fff",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          background: "#F8F9FA",
-          border: "1px solid #E8E8E8",
-          borderRadius: 12,
-          padding: "8px 12px",
-          maxWidth: isFS ? 800 : undefined,
-          margin: isFS ? "0 auto" : undefined,
-        }}
       >
-        <label
-          style={{
-            cursor: "pointer",
-            color: pendingFile ? PRIMARY : "#BFBFBF",
-            display: "flex",
-            alignItems: "center",
-            flexShrink: 0,
-          }}
-          title="Attach PDF or Word document"
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            style={{ display: "none" }}
-            accept=".pdf,.txt,.md,.docx,.doc"
-            onChange={handleFileSelect}
-          />
-          <PaperClipOutlined style={{ fontSize: 15 }} />
-        </label>
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          placeholder={
-            pendingFile
-              ? "Tell me what to do with the document..."
-              : "Ask me anything..."
-          }
-          disabled={sending}
-          style={{
-            flex: 1,
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            color: "#1A1A2E",
-            fontSize: 13,
-          }}
-        />
+        <Plus className="w-4 h-4" />
+      </button>
+      <button
+        onClick={handleToggleHistory}
+        title="Chat History"
+        className={cn(
+          BTN,
+          "w-8 h-8 rounded-lg border border-[#FFD9A0]/70 flex items-center justify-center shrink-0",
+          showHistory
+            ? "bg-white text-[#FF9A30]"
+            : "bg-white/70 hover:bg-white text-muted-foreground",
+        )}
+      >
+        <History className="w-4 h-4" />
+      </button>
+      {!isMobile && (
         <button
-          onClick={() => handleSubmit()}
-          disabled={sending || !input.trim()}
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 8,
-            border: "none",
-            background: PRIMARY,
-            color: "#fff",
-            cursor: sending || !input.trim() ? "not-allowed" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: sending || !input.trim() ? 0.4 : 1,
-            flexShrink: 0,
-          }}
+          onClick={state === "fullscreen" ? handleCompress : handleExpand}
+          title={state === "fullscreen" ? "Minimize" : "Full screen"}
+          className={cn(
+            BTN,
+            "w-8 h-8 rounded-lg bg-transparent border-0 text-muted-foreground hover:bg-white/60 flex items-center justify-center shrink-0",
+          )}
         >
-          <SendOutlined style={{ fontSize: 12 }} />
+          {state === "fullscreen" ? (
+            <Minimize2 className="w-4 h-4" />
+          ) : (
+            <Maximize2 className="w-4 h-4" />
+          )}
         </button>
-      </div>
-      {pendingFile && (
-        <div
-          style={{
-            marginTop: 6,
-            fontSize: 11,
-            color: "#8C8C8C",
-            textAlign: "center",
-          }}
-        >
-          📎 {pendingFile.name} attached — type your instruction above.
-        </div>
       )}
-    </div>
-  );
+      <button
+        onClick={handleCollapse}
+        title="Close"
+        className={cn(
+          BTN,
+          "w-8 h-8 rounded-lg bg-transparent border-0 text-muted-foreground hover:bg-white/60 flex items-center justify-center shrink-0",
+        )}
+      >
+        <X className="w-[18px] h-[18px]" />
+      </button>
 
-  // ---- Chips (empty state) ----
-  const renderChips = (isFS = false) => (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: isFS ? "0 24px" : "0 16px",
-      }}
-    >
-      {isFS && (
+      {showHistory && (
         <>
           <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 16,
-              background: PRIMARY,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: 12,
-              boxShadow: "0 4px 12px rgba(60,179,113,0.3)",
-            }}
+            onClick={() => setShowHistory(false)}
+            className="fixed inset-0 bg-black/25 z-[299]"
+          />
+          <div
+            className={cn(
+              "absolute top-full left-3 mt-1.5 max-w-[calc(100vw-24px)] bg-card border border-border rounded-xl shadow-[0_6px_24px_rgba(0,0,0,0.12)] z-[300] overflow-hidden flex flex-col",
+              isMobile
+                ? "w-[calc(100vw-24px)] max-h-[60vh]"
+                : "w-[280px] max-h-[400px]",
+            )}
           >
-            <GeminiIcon size={22} color="#fff" />
+            <div className="px-3 py-2 border-b border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
+              Chat History
+            </div>
+            <button
+              onClick={handleNewChat}
+              className={cn(
+                BTN,
+                "flex items-center gap-1.5 px-3 py-2.5 border-0 border-b border-border bg-transparent text-[#FF9A30] text-[13px] font-semibold",
+              )}
+            >
+              <Plus className="w-3 h-3" /> New Chat
+            </button>
+            <div className="flex-1 overflow-y-auto">
+              {loadingConvList ? (
+                <div className="p-4">
+                  <VCShimmerSkeleton variant="list" count={3} orange />
+                </div>
+              ) : conversations.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground text-xs">
+                  No previous conversations
+                </div>
+              ) : (
+                conversations.map((c) => {
+                  const isActive = c.id === activeConversationId;
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => {
+                        loadConversation(c.id);
+                        localStorage.setItem(ACTIVE_CONV_KEY, c.id);
+                        setShowHistory(false);
+                      }}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2.5 border-b border-border cursor-pointer",
+                        isActive ? "bg-accent/50" : "hover:bg-secondary",
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-semibold text-foreground truncate">
+                          {c.title || "Untitled conversation"}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground truncate">
+                          {timeAgo(c.lastMessageAt || c.updatedAt)} ·{" "}
+                          {c.messageCount} msg
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteConversation(c.id);
+                        }}
+                        title="Delete"
+                        className={cn(
+                          BTN,
+                          "p-1 bg-transparent border-0 text-muted-foreground hover:text-destructive flex shrink-0",
+                        )}
+                      >
+                        <Trash2 className="w-[15px] h-[15px]" />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
-          <h1
-            style={{
-              fontSize: 22,
-              fontWeight: 700,
-              color: "#1A1A2E",
-              marginBottom: 4,
-            }}
-          >
-            Hi, I&apos;m Value Charts AI.
-          </h1>
-          <p style={{ fontSize: 14, color: "#8C8C8C", marginBottom: 28 }}>
-            What flow would you like to create today?
-          </p>
         </>
       )}
-      {!isFS && (
-        <p
-          style={{
-            fontSize: 11,
-            color: "#BFBFBF",
-            marginBottom: 8,
-            fontWeight: 600,
-            letterSpacing: 0.5,
-            textTransform: "uppercase",
-          }}
-        >
-          Suggested questions
-        </p>
-      )}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: isFS ? 10 : 8,
-          width: "100%",
-          maxWidth: isFS ? 640 : 500,
-        }}
-      >
-        {visibleChips.map((chip) => (
-          <button
-            key={chip}
-            onClick={() => handleSubmit(chip)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: isFS ? "14px 16px" : "10px 12px",
-              borderRadius: 12,
-              background: "#FAFAFA",
-              border: "1px solid #F0F0F0",
-              color: "#595959",
-              fontSize: isFS ? 13 : 12,
-              textAlign: "left",
-              cursor: "pointer",
-            }}
-          >
-            <SearchOutlined
-              style={{ color: PRIMARY, fontSize: 12, flexShrink: 0 }}
-            />
-            {chip}
-          </button>
-        ))}
+    </div>
+  );
+
+  // ---- A single assistant (orange) bubble ----
+  const aiBubble = (
+    key: string,
+    body: React.ReactNode,
+    extra?: React.ReactNode,
+  ) => (
+    <div key={key} className="flex items-start gap-2">
+      <div className="w-8 h-8 rounded-full bg-[#FF9A30] flex items-center justify-center shrink-0 mt-0.5">
+        <Sparkles className="w-4 h-4 text-white" />
+      </div>
+      <div className="min-w-0 max-w-[85%]">
+        <div className="bg-card border border-border rounded-2xl rounded-tl-md px-4 py-3 text-sm text-foreground leading-snug whitespace-pre-wrap break-words">
+          {body}
+        </div>
+        {extra}
       </div>
     </div>
   );
 
-  // ---- Messages ----
-  const renderMessages = (isFS = false) => (
-    <div
-      style={{
-        flex: 1,
-        overflowY: "auto",
-        padding: isFS ? "16px 24px" : "12px 16px",
-        background: "#FAFAFA",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: isFS ? 800 : undefined,
-          margin: isFS ? "0 auto" : undefined,
-        }}
+  // ---- Generate-diagram suggestion (orange) ----
+  const renderSuggestion = (msg: ChatMsg) => (
+    <div className="mt-2 rounded-xl border border-[#FFD9A0] bg-[#FFF8EF] p-3">
+      <p className="text-[13px] text-foreground mb-3">
+        I&apos;ll create: {msg.suggestion!.prompt}
+      </p>
+      <button
+        onClick={() =>
+          handleGenerateFromSuggestion(msg.id, msg.suggestion!.prompt)
+        }
+        disabled={generatingId === msg.id}
+        className={cn(
+          BTN,
+          "h-9 px-4 rounded-lg bg-[#FF9A30] text-white border-0 text-[13px] font-bold inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed",
+        )}
       >
+        {generatingId === msg.id ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" /> Generating…
+          </>
+        ) : (
+          <>
+            <Zap className="w-4 h-4" /> Generate Diagram
+          </>
+        )}
+      </button>
+    </div>
+  );
+
+  // ---- Generated-diagram result card (orange, prototype "Open in canvas") ----
+  const renderDiagramCard = (xml: string) => (
+    <div className="mt-3 rounded-xl border border-border overflow-hidden bg-card">
+      <div
+        onClick={() => setPreviewModal({ visible: true, xml })}
+        className="h-[90px] bg-secondary flex items-center justify-center cursor-pointer text-2xl"
+      >
+        📊
+      </div>
+      <div className="p-2.5 flex gap-2">
+        <button
+          onClick={() => handleInsertDiagram(xml)}
+          className={cn(
+            BTN,
+            "flex-1 h-9 rounded-lg bg-[#FF9A30] text-white border-0 text-[13px] font-bold inline-flex items-center justify-center gap-1.5",
+          )}
+        >
+          {isInEditor ? "Insert into canvas" : "Open in canvas"}
+          <ArrowRight className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => setPreviewModal({ visible: true, xml })}
+          className={cn(
+            BTN,
+            "h-9 px-3 rounded-lg border border-border bg-card text-foreground text-[13px] font-bold",
+          )}
+        >
+          Preview
+        </button>
+      </div>
+    </div>
+  );
+
+  // ---- Messages (greeting bubble always first) ----
+  const renderMessages = (isFS = false) => (
+    <div className="flex-1 overflow-y-auto px-4 py-4 bg-background no-scrollbar">
+      <div className={cn("space-y-3", isFS && "max-w-[800px] mx-auto")}>
+        {aiBubble(
+          "greeting",
+          "Hi! I'm Value Charts AI. I can generate flowcharts, diagrams and charts from a simple description. What would you like to create today?",
+        )}
+
         {loadingHistory && (
-          <div style={{ textAlign: "center", padding: 20 }}>
-            <Spin size="small" />
+          <div className="py-4 px-2">
+            <VCShimmerSkeleton variant="chat" count={4} orange />
           </div>
         )}
 
@@ -1242,25 +893,10 @@ export default function AIAssistant({
             return (
               <div
                 key={msg.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  marginBottom: 12,
-                }}
+                className="flex justify-end"
                 title={new Date(msg.createdAt).toLocaleString()}
               >
-                <div
-                  style={{
-                    background: PRIMARY,
-                    borderRadius: "12px 12px 2px 12px",
-                    padding: "8px 14px",
-                    color: "#fff",
-                    fontSize: 13,
-                    maxWidth: isFS ? 400 : 280,
-                    wordBreak: "break-word",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
+                <div className="max-w-[80%] bg-primary text-white px-4 py-2.5 rounded-2xl rounded-tr-md text-sm leading-snug whitespace-pre-wrap break-words">
                   {msg.content}
                 </div>
               </div>
@@ -1268,38 +904,14 @@ export default function AIAssistant({
           }
           if (msg.role === "file") {
             return (
-              <div
-                key={msg.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  marginBottom: 12,
-                }}
-              >
-                <div
-                  style={{
-                    background: "#F0F9F4",
-                    border: "1px solid #B7EB8F",
-                    borderRadius: 8,
-                    padding: "10px 14px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    maxWidth: isFS ? 400 : 280,
-                  }}
-                >
-                  <FileTextOutlined style={{ color: PRIMARY, fontSize: 16 }} />
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: "#1A1A2E",
-                      }}
-                    >
-                      📄 {msg.fileName}
+              <div key={msg.id} className="flex justify-end">
+                <div className="max-w-[80%] flex items-center gap-2 bg-secondary border border-border rounded-xl px-3.5 py-2.5">
+                  <FileText className="w-4 h-4 text-[#FF9A30] shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-foreground truncate">
+                      {msg.fileName}
                     </div>
-                    <div style={{ fontSize: 11, color: "#8C8C8C" }}>
+                    <div className="text-[11px] text-muted-foreground truncate">
                       {msg.content}
                     </div>
                   </div>
@@ -1307,105 +919,23 @@ export default function AIAssistant({
               </div>
             );
           }
-          return (
-            <div
-              key={msg.id}
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 10,
-                marginBottom: 12,
-              }}
-              title={new Date(msg.createdAt).toLocaleString()}
-            >
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  background: PRIMARY,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  marginTop: 2,
-                }}
-              >
-                <GeminiIcon size={14} color="#fff" />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    background: "#fff",
-                    borderRadius: "12px 12px 12px 2px",
-                    padding: "10px 14px",
-                    border: "1px solid #F0F0F0",
-                  }}
-                >
-                  <p
-                    style={{
-                      color: "#1A1A2E",
-                      fontSize: isFS ? 14 : 13,
-                      lineHeight: 1.7,
-                      margin: 0,
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {msg.content}
-                  </p>
-                </div>
-
-                {msg.suggestion && (
-                  <DiagramSuggestion
-                    suggestion={`I'll create: ${msg.suggestion.prompt}`}
-                    onGenerate={() =>
-                      handleGenerateFromSuggestion(
-                        msg.id,
-                        msg.suggestion!.prompt,
-                      )
-                    }
-                    isGenerating={generatingId === msg.id}
-                  />
-                )}
-
-                {msg.xml && (
-                  <DiagramThumbnail
-                    onPreview={() =>
-                      setPreviewModal({ visible: true, xml: msg.xml! })
-                    }
-                    onInsert={() => handleInsertDiagram(msg.xml!)}
-                  />
-                )}
-              </div>
-            </div>
+          return aiBubble(
+            msg.id,
+            msg.content,
+            <>
+              {msg.suggestion && renderSuggestion(msg)}
+              {msg.xml && renderDiagramCard(msg.xml)}
+            </>,
           );
         })}
 
         {sending && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "8px 0",
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: "#E8F5E9",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Spin size="small" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-[#FFE2C0] flex items-center justify-center shrink-0">
+              <Loader2 className="w-4 h-4 text-[#FF9A30] animate-spin" />
             </div>
-            <span style={{ fontSize: 13, color: "#8C8C8C" }}>
-              Generating...
+            <span className="text-[13px] text-muted-foreground">
+              Generating…
             </span>
           </div>
         )}
@@ -1414,132 +944,151 @@ export default function AIAssistant({
     </div>
   );
 
-  const showEmptyState = !loadingHistory && messages.length === 0 && !sending;
+  // ---- Composer: suggestion-chip scroll row + rounded input ----
+  const renderComposer = (isFS = false) => (
+    <div className="border-t border-border bg-card shrink-0">
+      {showEmptyState && (
+        <div className="px-4 pt-3 pb-1 flex gap-2 overflow-x-auto no-scrollbar">
+          {visibleChips.map((s) => (
+            <button
+              key={s}
+              onClick={() => handleSubmit(s)}
+              className={cn(
+                BTN,
+                "shrink-0 h-9 px-4 rounded-full bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-accent",
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className={cn("p-3", isFS && "max-w-[800px] mx-auto w-full")}>
+        <div className="flex items-center gap-2 px-3 h-12 rounded-full bg-secondary">
+          <label
+            className="cursor-pointer flex items-center shrink-0"
+            title="Attach PDF or Word document"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.txt,.md,.docx,.doc"
+              onChange={handleFileSelect}
+            />
+            <Paperclip
+              className={cn(
+                "w-[18px] h-[18px]",
+                pendingFile ? "text-[#FF9A30]" : "text-muted-foreground",
+              )}
+            />
+          </label>
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            placeholder={
+              pendingFile
+                ? "Tell me what to do with the document…"
+                : "Describe the flow you want to create…"
+            }
+            disabled={sending}
+            className="flex-1 bg-transparent border-0 outline-none text-sm font-sans text-foreground placeholder:text-muted-foreground min-w-0"
+          />
+          <button
+            onClick={() => handleSubmit()}
+            disabled={sending || !input.trim()}
+            className={cn(
+              BTN,
+              "w-9 h-9 rounded-full bg-[#FF9A30] text-white border-0 flex items-center justify-center shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
+            )}
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
+        {pendingFile && (
+          <div className="mt-1.5 text-[11px] text-muted-foreground text-center">
+            📎 {pendingFile.name} attached — type your instruction above.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const modals = (
+    <>
+      <AIConsentModal
+        open={showConsentModal}
+        onAccept={handleConsentAccept}
+        onDecline={handleConsentDecline}
+      />
+      <CreditsExhaustedModal
+        visible={showCreditsExhausted}
+        onClose={() => setShowCreditsExhausted(false)}
+        planResetsAt={creditBalance?.planResetsAt}
+        isPro={isPro}
+      />
+      <DiagramPreviewModal
+        visible={previewModal.visible}
+        xml={previewModal.xml}
+        onClose={() => setPreviewModal({ visible: false, xml: "" })}
+        onInsert={() => {
+          const xml = previewModal.xml;
+          setPreviewModal({ visible: false, xml: "" });
+          handleInsertDiagram(xml);
+        }}
+      />
+    </>
+  );
 
   // =========================================
-  // COLLAPSED
+  // COLLAPSED — floating orange Sparkles button + greeting bubble
   // =========================================
   if (isOnCheckoutSuccess) return null;
 
   if (state === "collapsed") {
+    const size = isMobile ? "w-12 h-12" : "w-14 h-14";
     return (
-      <>
-        {!isMobile && (
+      <div className="tw">
+        <div
+          className="fixed z-[200]"
+          style={{
+            bottom: isMobile ? (isEditorPage ? 60 : 24) : 24,
+            right: isMobile ? 20 : 24,
+          }}
+        >
+          {/* Auto-dismissing greeting bubble */}
           <div
-            style={{
-              position: "fixed",
-              bottom: 24,
-              left: contentLeft,
-              right: contentRight,
-              zIndex: 100,
-              display: "flex",
-              justifyContent: "center",
-              pointerEvents: "none",
+            onClick={() => {
+              setShowGreeting(false);
+              sessionStorage.setItem("ai_greeting_seen", "1");
+              handlePillClick();
             }}
+            className={cn(
+              "absolute right-0 bg-card border border-border rounded-2xl px-4 py-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.12)] whitespace-nowrap text-[13px] font-medium text-foreground transition-all duration-300",
+              isMobile ? "bottom-14" : "bottom-[66px]",
+              showGreeting
+                ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
+                : "opacity-0 translate-y-2 scale-95 pointer-events-none",
+            )}
           >
-            <button
-              onClick={handlePillClick}
-              style={{
-                pointerEvents: "auto",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 20px",
-                borderRadius: 999,
-                boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
-                cursor: "pointer",
-                background: "#fff",
-                color: "#595959",
-                fontSize: 13,
-                fontWeight: 500,
-                border: "1px solid #E8E8E8",
-              }}
-            >
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: "50%",
-                  background: PRIMARY,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <GeminiIcon size={14} color="#fff" />
-              </div>
-              <span>
-                Hi, I&apos;m Value Charts AI. I am here to help you...
-              </span>
-            </button>
+            Hi, I&apos;m Value Charts AI 👋
           </div>
-        )}
-        {isMobile && (
-          <div
-            style={{
-              position: "fixed",
-              bottom: isEditorPage ? 60 : 24,
-              right: 20,
-              zIndex: 200,
-            }}
+          <button
+            onClick={handlePillClick}
+            aria-label="Open AI Assistant"
+            className={cn(
+              BTN,
+              size,
+              "rounded-full bg-[#FF9A30] text-white border-0 flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(255,154,48,0.55)]",
+            )}
           >
-            <div
-              style={{
-                position: "absolute",
-                bottom: 56,
-                right: 0,
-                background: "#fff",
-                borderRadius: 16,
-                padding: "10px 16px",
-                boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
-                border: "1px solid #E8E8E8",
-                whiteSpace: "nowrap",
-                fontSize: 13,
-                fontWeight: 500,
-                color: "#1A1A2E",
-                opacity: showGreeting ? 1 : 0,
-                transform: showGreeting
-                  ? "translateY(0) scale(1)"
-                  : "translateY(8px) scale(0.95)",
-                transition: "opacity 0.3s ease, transform 0.3s ease",
-                pointerEvents: showGreeting ? "auto" : "none",
-              }}
-              onClick={() => {
-                setShowGreeting(false);
-                sessionStorage.setItem("ai_greeting_seen", "1");
-                handlePillClick();
-              }}
-            >
-              Hi, I am Value Chart AI 👋
-            </div>
-            <button
-              onClick={handlePillClick}
-              aria-label="Open AI Assistant"
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                background: PRIMARY,
-                color: "#fff",
-                border: "none",
-                boxShadow: "0 4px 16px rgba(60,179,113,0.4)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <GeminiIcon size={20} />
-            </button>
-          </div>
-        )}
-        <AIConsentModal
-          open={showConsentModal}
-          onAccept={handleConsentAccept}
-          onDecline={handleConsentDecline}
-        />
-      </>
+            <Sparkles className={isMobile ? "w-5 h-5" : "w-6 h-6"} />
+          </button>
+        </div>
+        {modals}
+      </div>
     );
   }
 
@@ -1550,52 +1099,28 @@ export default function AIAssistant({
     return (
       <>
         <div
+          className="tw fixed flex flex-col overflow-hidden bg-card"
           style={{
-            position: "fixed",
             ...(isMobile
               ? { top: 56, bottom: 0, left: 0, right: 0 }
               : {
                   bottom: 0,
                   left: `calc(${contentLeft}px + (100% - ${contentLeft}px - ${contentRight}px - 460px) / 2)`,
                   width: 460,
+                  height: "60dvh",
+                  borderTopLeftRadius: 16,
+                  borderTopRightRadius: 16,
+                  boxShadow: "0 -4px 24px rgba(0,0,0,0.1)",
+                  borderTop: "1px solid var(--border)",
                 }),
             zIndex: isMobile ? 200 : 100,
-            height: isMobile ? undefined : "60dvh",
-            display: "flex",
-            flexDirection: "column",
-            borderTopLeftRadius: isMobile ? 0 : 16,
-            borderTopRightRadius: isMobile ? 0 : 16,
-            overflow: "hidden",
-            boxShadow: isMobile ? "none" : "0 -4px 24px rgba(0,0,0,0.1)",
-            background: "#fff",
-            borderTop: isMobile ? "none" : "1px solid #F0F0F0",
           }}
         >
-          {renderHeader(isMobile)}
-          {showEmptyState ? renderChips(isMobile) : renderMessages(isMobile)}
-          {renderInputBar(isMobile)}
+          {renderHeader()}
+          {renderMessages(false)}
+          {renderComposer(false)}
         </div>
-        <AIConsentModal
-          open={showConsentModal}
-          onAccept={handleConsentAccept}
-          onDecline={handleConsentDecline}
-        />
-        <CreditsExhaustedModal
-          visible={showCreditsExhausted}
-          onClose={() => setShowCreditsExhausted(false)}
-          planResetsAt={creditBalance?.planResetsAt}
-          isPro={isPro}
-        />
-        <DiagramPreviewModal
-          visible={previewModal.visible}
-          xml={previewModal.xml}
-          onClose={() => setPreviewModal({ visible: false, xml: "" })}
-          onInsert={() => {
-            const xml = previewModal.xml;
-            setPreviewModal({ visible: false, xml: "" });
-            handleInsertDiagram(xml);
-          }}
-        />
+        {modals}
       </>
     );
   }
@@ -1607,59 +1132,22 @@ export default function AIAssistant({
     return (
       <>
         <div
+          className="tw fixed flex flex-col overflow-hidden bg-card"
           style={{
-            position: "fixed",
             top: 56,
             bottom: 0,
             height: "calc(100dvh - 56px)",
             left: `calc(${contentLeft}px + (100% - ${contentLeft}px - ${contentRight}px - 480px) / 2)`,
             width: 480,
             zIndex: 100,
-            background: "#fff",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
             boxShadow: "0 0 24px rgba(0,0,0,0.08)",
           }}
         >
-          {renderHeader(true)}
-          {showEmptyState ? (
-            renderChips(true)
-          ) : (
-            <div
-              style={{
-                flex: 1,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              {renderMessages(true)}
-            </div>
-          )}
-          {renderInputBar(true)}
+          {renderHeader()}
+          {renderMessages(true)}
+          {renderComposer(true)}
         </div>
-        <AIConsentModal
-          open={showConsentModal}
-          onAccept={handleConsentAccept}
-          onDecline={handleConsentDecline}
-        />
-        <CreditsExhaustedModal
-          visible={showCreditsExhausted}
-          onClose={() => setShowCreditsExhausted(false)}
-          planResetsAt={creditBalance?.planResetsAt}
-          isPro={isPro}
-        />
-        <DiagramPreviewModal
-          visible={previewModal.visible}
-          xml={previewModal.xml}
-          onClose={() => setPreviewModal({ visible: false, xml: "" })}
-          onInsert={() => {
-            const xml = previewModal.xml;
-            setPreviewModal({ visible: false, xml: "" });
-            handleInsertDiagram(xml);
-          }}
-        />
+        {modals}
       </>
     );
   }

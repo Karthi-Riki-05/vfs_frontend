@@ -1,25 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { Select, Spin, Modal, message } from "antd";
 import {
-  Button,
-  Select,
-  Spin,
-  Typography,
-  Tag,
-  Modal,
-  message,
-  Card,
-  Progress,
-} from "antd";
-import {
-  CheckCircleFilled,
-  CrownOutlined,
-  ThunderboltOutlined,
-  ExclamationCircleOutlined,
-  CreditCardOutlined,
-} from "@ant-design/icons";
-import SectionHeader from "@/components/common/SectionHeader";
+  Crown,
+  Zap,
+  Check,
+  CreditCard,
+  AlertTriangle,
+  FileText,
+} from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePro } from "@/hooks/usePro";
 import { usePricing } from "@/hooks/usePricing";
@@ -27,8 +17,14 @@ import { usePackStatus } from "@/hooks/usePackStatus";
 import { proApi } from "@/api/pro.api";
 import { aiApi } from "@/api/ai.api";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAiBilling } from "@/context/AiBillingContext";
 
-const { Text, Title } = Typography;
+// Ported from new_design Subscription/ValueChartPlans/ProPlans/CreditAddOns
+// (prototype L1537–1728). Tailwind `.tw` shell, unified for desktop + mobile.
+// ALL real billing logic preserved verbatim — only the presentation changed.
+// Native controls reset per preflight-off rule (DESIGN.md §1): bg-less buttons
+// carry their own bg; nothing inherits a global reset.
+const RESET = "appearance-none cursor-pointer outline-none border-0";
 
 const TEAM_OPTIONS = [5, 10, 15, 20, 25, 50, 75, 100];
 
@@ -89,7 +85,9 @@ interface ProSubStatus {
   flowAddon?: FlowAddon;
 }
 
-function TeamAiAddonSection() {
+/* ---------- Shared: AI Credit Add-ons (prototype CreditAddOns L1705) ---------- */
+
+function CreditAddOns({ balance }: { balance?: number }) {
   const [buying, setBuying] = useState<string | null>(null);
   const { pricing } = usePricing();
 
@@ -112,260 +110,89 @@ function TeamAiAddonSection() {
   };
 
   return (
-    <Card
-      style={{ borderRadius: 12, marginBottom: 24 }}
-      styles={{ body: { padding: "20px 24px" } }}
-    >
-      <Text strong style={{ fontSize: 16, display: "block", marginBottom: 4 }}>
-        AI Credit Add-ons
-      </Text>
-      <Text
-        type="secondary"
-        style={{ fontSize: 13, display: "block", marginBottom: 16 }}
-      >
-        Your Team plan includes 60 AI credits/user/month. Top up your account
-        with extra credits anytime — credits never expire and are available for
-        your AI diagram usage.
-      </Text>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 12,
-        }}
-      >
+    <div className="rounded-2xl bg-secondary/40 border border-border p-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-bold text-base text-foreground">
+            AI Credit Add-ons
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">
+            Top up AI diagram credits anytime.{" "}
+            <span className="text-primary-deep font-semibold">
+              Credits never expire.
+            </span>
+          </div>
+        </div>
+        {typeof balance === "number" && (
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-primary-tint px-3 py-1.5 text-[13px] font-bold text-primary-deep">
+            <Zap className="w-3.5 h-3.5" /> {balance} credits
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
         {ADDON_PACK_META.map((pack) => {
           const priceInfo = pricing?.prices[pack.priceKey];
+          const popular = "popular" in pack && pack.popular;
           return (
             <div
               key={pack.packType}
-              style={{
-                position: "relative",
-                border: pack.popular
-                  ? "2px solid #3CB371"
-                  : "1px solid #E8E8E8",
-                borderRadius: 12,
-                padding: "20px 16px",
-                background: pack.popular ? "#F0FFF4" : "#fff",
-                textAlign: "center",
-              }}
+              className={`relative rounded-2xl border bg-card p-5 flex flex-col items-center text-center ${
+                popular
+                  ? "border-2 border-primary bg-primary-tint/40"
+                  : "border-border"
+              }`}
             >
-              {pack.popular && (
-                <Tag
-                  color="#3CB371"
-                  style={{
-                    position: "absolute",
-                    top: -10,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: "1px 10px",
-                    borderRadius: 10,
-                    border: "none",
-                  }}
-                >
-                  MOST POPULAR
-                </Tag>
+              {popular && (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-primary text-white">
+                  Most Popular
+                </span>
               )}
-              <div style={{ fontSize: 22, fontWeight: 800, color: "#1A1A2E" }}>
+              <div className="text-3xl font-extrabold text-foreground">
                 {pack.credits}
               </div>
-              <Text
-                type="secondary"
-                style={{ fontSize: 12, display: "block", marginBottom: 10 }}
-              >
-                credits
-              </Text>
-              <div
-                style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "#3CB371",
-                  marginBottom: 12,
-                }}
-              >
+              <div className="text-[11px] text-muted-foreground">credits</div>
+              <div className="mt-2 text-xl font-extrabold text-primary">
                 {priceInfo?.display ?? "…"}
               </div>
-              <Button
-                type="primary"
-                block
-                loading={buying === pack.packType}
-                disabled={!!buying}
+              <button
                 onClick={() => handleBuy(pack.packType)}
-                style={{
-                  backgroundColor: "#3CB371",
-                  borderColor: "#3CB371",
-                  borderRadius: 8,
-                  fontWeight: 600,
-                }}
+                disabled={!!buying}
+                className={`${RESET} mt-3 w-full h-10 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
               >
-                Buy Now
-              </Button>
+                {buying === pack.packType ? "Loading…" : "Buy Now"}
+              </button>
             </div>
           );
         })}
       </div>
+
       {pricing && pricing.currency !== "USD" && (
-        <Text
-          type="secondary"
-          style={{
-            fontSize: 11,
-            display: "block",
-            marginTop: 12,
-            textAlign: "center",
-          }}
-        >
+        <div className="text-[11px] text-muted-foreground mt-3 text-center">
           Prices shown in {pricing.currency}. You will be charged in your local
-          currency at checkout. Amount deposited to merchant in USD.
-        </Text>
+          currency at checkout.
+        </div>
       )}
-    </Card>
+    </div>
   );
 }
 
-function AiAddonPacksSection() {
-  const [buying, setBuying] = useState<string | null>(null);
-  const { pricing } = usePricing();
-
-  const handleBuy = async (packType: "starter" | "standard" | "proppack") => {
-    setBuying(packType);
-    try {
-      const res = await aiApi.createAddonCheckout(packType);
-      const data = res.data?.data || res.data;
-      if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else {
-        message.error("Could not start checkout");
-        setBuying(null);
-      }
-    } catch (err: any) {
-      const msg = err?.response?.data?.error?.message || "Checkout failed";
-      message.error(msg);
-      setBuying(null);
-    }
-  };
-
-  return (
-    <Card
-      style={{ borderRadius: 12, marginBottom: 24 }}
-      styles={{ body: { padding: "20px 24px" } }}
-    >
-      <Text strong style={{ fontSize: 16, display: "block", marginBottom: 4 }}>
-        AI Credit Add-ons
-      </Text>
-      <Text
-        type="secondary"
-        style={{ fontSize: 13, display: "block", marginBottom: 16 }}
-      >
-        Top up AI diagram credits anytime. Credits never expire.
-      </Text>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 12,
-        }}
-      >
-        {ADDON_PACK_META.map((pack) => {
-          const priceInfo = pricing?.prices[pack.priceKey];
-          return (
-            <div
-              key={pack.packType}
-              style={{
-                position: "relative",
-                border: pack.popular
-                  ? "2px solid #3CB371"
-                  : "1px solid #E8E8E8",
-                borderRadius: 12,
-                padding: "20px 16px",
-                background: pack.popular ? "#F0FFF4" : "#fff",
-                textAlign: "center",
-              }}
-            >
-              {pack.popular && (
-                <Tag
-                  color="#3CB371"
-                  style={{
-                    position: "absolute",
-                    top: -10,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: "1px 10px",
-                    borderRadius: 10,
-                    border: "none",
-                  }}
-                >
-                  MOST POPULAR
-                </Tag>
-              )}
-              <div style={{ fontSize: 22, fontWeight: 800, color: "#1A1A2E" }}>
-                {pack.credits}
-              </div>
-              <Text
-                type="secondary"
-                style={{ fontSize: 12, display: "block", marginBottom: 10 }}
-              >
-                credits
-              </Text>
-              <div
-                style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "#3CB371",
-                  marginBottom: 12,
-                }}
-              >
-                {priceInfo?.display ?? "…"}
-              </div>
-              <Button
-                type="primary"
-                block
-                loading={buying === pack.packType}
-                disabled={!!buying}
-                onClick={() => handleBuy(pack.packType)}
-                style={{
-                  backgroundColor: "#3CB371",
-                  borderColor: "#3CB371",
-                  borderRadius: 8,
-                  fontWeight: 600,
-                }}
-              >
-                Buy Now
-              </Button>
-            </div>
-          );
-        })}
-      </div>
-      {pricing && pricing.currency !== "USD" && (
-        <Text
-          type="secondary"
-          style={{
-            fontSize: 11,
-            display: "block",
-            marginTop: 12,
-            textAlign: "center",
-          }}
-        >
-          Prices shown in {pricing.currency}. You will be charged in your local
-          currency at checkout. Amount deposited to merchant in USD.
-        </Text>
-      )}
-    </Card>
-  );
-}
+/* ---------- Pro flow-pack view (prototype ProPlans L1627) ---------- */
 
 function ProSubscriptionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { pricing } = usePricing();
   const { status: packStatus, refresh: refreshPackStatus } = usePackStatus();
+  const { activeOption } = useAiBilling();
+  const planCredits = activeOption.aiCredits?.planCredits || 0;
+  const addonCredits = activeOption.aiCredits?.addonCredits || 0;
+  const totalCredits = planCredits + addonCredits;
   const [proSubStatus, setProSubStatus] = useState<ProSubStatus | null>(null);
   const [proSubLoading, setProSubLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
     const purchased = searchParams?.get("purchased");
@@ -377,9 +204,20 @@ function ProSubscriptionContent() {
         addonSubscribed === "unlimited"
           ? "Unlimited Flow Add-on"
           : "Standard 100-flow Add-on";
-      message.success(`${label} subscription activated!`);
-      fetchProSubStatus();
-      router.replace("/dashboard/subscription");
+      const finishAddon = async () => {
+        if (sessionId) {
+          try {
+            await proApi.verifyFlowAddon(sessionId);
+          } catch {
+            // Silent — webhook may have already activated it
+          }
+        }
+        message.success(`${label} subscription activated!`);
+        fetchProSubStatus();
+        refreshPackStatus();
+        router.replace("/dashboard/subscription");
+      };
+      finishAddon();
       return;
     }
 
@@ -426,12 +264,28 @@ function ProSubscriptionContent() {
     try {
       const res = await proApi.createFlowAddonCheckout(plan);
       const data = res.data?.data || res.data;
+      // In-place upgrade (standard → unlimited) — no Stripe redirect needed
+      if (data?.upgraded) {
+        message.success(data.message || "Upgraded successfully!");
+        fetchProSubStatus();
+        setPurchasing(null);
+        return;
+      }
       if (data?.url) {
         window.location.href = data.url;
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.error?.message || "Checkout failed";
-      message.error(msg);
+      const code = err?.response?.data?.error?.code;
+      if (code === "ALREADY_SUBSCRIBED") {
+        message.info("You are already on this plan.");
+      } else if (code === "DOWNGRADE_NOT_ALLOWED") {
+        message.warning(
+          "To downgrade, cancel your current plan first — it stays active until the period ends.",
+        );
+      } else {
+        const msg = err?.response?.data?.error?.message || "Checkout failed";
+        message.error(msg);
+      }
       setPurchasing(null);
     }
   };
@@ -439,7 +293,6 @@ function ProSubscriptionContent() {
   const handleAddonCancel = async () => {
     Modal.confirm({
       title: "Cancel Flow Add-on?",
-      icon: <ExclamationCircleOutlined />,
       content:
         "Your flow add-on will remain active until the end of the current billing period, then your limit will revert to 10 flows.",
       okText: "Cancel Subscription",
@@ -464,9 +317,28 @@ function ProSubscriptionContent() {
     });
   };
 
+  const handlePortal = async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/subscription/customer-portal", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        window.location.href = data.data.url;
+      } else {
+        message.error(data.error?.message || "Could not open billing portal");
+      }
+    } catch {
+      message.error("Failed to open billing portal");
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
   if (proSubLoading) {
     return (
-      <div style={{ textAlign: "center", padding: 100 }}>
+      <div className="flex justify-center py-24">
         <Spin size="large" />
       </div>
     );
@@ -474,34 +346,41 @@ function ProSubscriptionContent() {
 
   if (!proSubStatus) {
     return (
-      <div style={{ maxWidth: 500, margin: "80px auto", textAlign: "center" }}>
-        <CrownOutlined style={{ fontSize: 48, color: "#8C8C8C" }} />
-        <Title level={4} style={{ marginTop: 16, color: "#595959" }}>
+      <div className="max-w-md mx-auto mt-20 text-center px-5">
+        <Crown className="w-12 h-12 mx-auto text-muted-foreground" />
+        <div className="mt-4 text-lg font-bold text-foreground">
           Could not load Pro plan
-        </Title>
-        <Text type="secondary" style={{ display: "block", marginBottom: 24 }}>
+        </div>
+        <div className="text-sm text-muted-foreground mt-1 mb-6">
           Your Pro access is active but the plan details failed to load.
-        </Text>
-        <Button
-          type="primary"
+        </div>
+        <button
           onClick={fetchProSubStatus}
-          style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
+          className={`${RESET} h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition`}
         >
           Retry
-        </Button>
+        </button>
       </div>
     );
   }
 
   const { flows, isUnlimited } = proSubStatus;
+  const flowAddon = proSubStatus.flowAddon;
+  const flowAddonStatus = flowAddon?.status;
+  const flowAddonPlan = flowAddon?.plan;
+  const flowAddonPeriodEnd = flowAddon?.currentPeriodEnd;
+  const hasActivePack =
+    flowAddonStatus === "active" || flowAddonStatus === "cancelling";
+  const isUnlimitedPack = isUnlimited || flowAddonPlan === "unlimited";
+  const isStandardActive =
+    flowAddonPlan === "standard_100" && flowAddonStatus === "active";
+  const isPastDue = flowAddonStatus === "past_due";
   const usagePercent =
     isUnlimited || flows.total <= 0
       ? 0
       : Math.round((flows.used / flows.total) * 100);
 
-  // Pack-level usage detail (active pack lifecycle, expiry, day count).
-  // Falls back gracefully when there's no active pack — Pro lifetime alone
-  // still shows the base 10-flow allowance.
+  // Active pack lifecycle detail (renders only with an active flow pack).
   const activePack = packStatus?.activePackId ? packStatus : null;
   const packLabel = activePack?.isUnlimited
     ? "Unlimited Flows"
@@ -516,433 +395,275 @@ function ProSubscriptionContent() {
       })
     : null;
   const daysLeft = activePack?.daysUntilExpiry ?? null;
-  const expiryColor =
-    daysLeft === null
-      ? "#1A1A2E"
-      : daysLeft <= 1
-        ? "#cf1322"
-        : daysLeft <= 7
-          ? "#D46B08"
-          : "#3CB371";
+  const periodEndStr = flowAddonPeriodEnd
+    ? new Date(flowAddonPeriodEnd).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
+  const stats: Array<[string, string | number]> = [
+    ["PLAN", "Pro"],
+    ["PRICE", `${pricing?.prices.pro_monthly.display ?? "$5"} one-time`],
+    ["TOTAL FLOWS", isUnlimited ? "Unlimited" : flows.total],
+    ["FLOWS USED", flows.used],
+    ["REMAINING", isUnlimited ? "Unlimited" : flows.remaining],
+  ];
 
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto", padding: "16px" }}>
-      <Title level={3} style={{ marginBottom: 24, fontSize: 20 }}>
-        <CrownOutlined style={{ color: "#F59E0B", marginRight: 8 }} />
-        Pro Plan
-      </Title>
-
-      <Card
-        style={{ marginBottom: 24, borderRadius: 12 }}
-        styles={{ body: { padding: "16px 20px" } }}
-      >
-        <Text
-          strong
-          style={{ fontSize: 16, display: "block", marginBottom: 16 }}
-        >
-          Current Plan
-        </Text>
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 24,
-            marginBottom: 16,
-          }}
-        >
-          <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              PLAN
-            </Text>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>Pro</div>
-          </div>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              PRICE
-            </Text>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>
-              {pricing?.prices.pro_monthly.display ?? "$5"} one-time
-            </div>
-          </div>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              TOTAL FLOWS
-            </Text>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>
-              {isUnlimited ? "Unlimited" : flows.total}
-            </div>
-          </div>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              FLOWS USED
-            </Text>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>{flows.used}</div>
-          </div>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              REMAINING
-            </Text>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>
-              {isUnlimited ? "Unlimited" : flows.remaining}
-            </div>
-          </div>
+    <div className="tw px-4 md:px-8 max-w-5xl mx-auto pb-24 space-y-4">
+      <div className="flex items-center gap-2 pt-1">
+        <Crown className="w-5 h-5 text-primary-deep" />
+        <div className="text-xl md:text-2xl font-extrabold text-foreground">
+          Pro Plan
         </div>
+      </div>
 
-        {!isUnlimited && (
-          <div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: 4,
-              }}
-            >
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                Usage
-              </Text>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {usagePercent}%
-              </Text>
+      {/* Past-due warning */}
+      {isPastDue && (
+        <div className="rounded-2xl bg-[#FEF2F2] border border-[#FECACA] px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-bold text-destructive">
+              Payment failed — update your card
             </div>
-            <Progress
-              percent={usagePercent}
-              showInfo={false}
-              strokeColor={usagePercent >= 80 ? "#FF4D4F" : "#3CB371"}
-              trailColor="#E8E8E8"
-            />
+            <div className="text-xs text-[#EF4444]">
+              Your flow pack will be paused soon.
+            </div>
           </div>
-        )}
+          <button
+            onClick={handlePortal}
+            disabled={portalLoading}
+            className={`${RESET} h-9 px-3 rounded-xl bg-destructive text-white text-xs font-bold font-sans shrink-0`}
+          >
+            {portalLoading ? "…" : "Fix Now"}
+          </button>
+        </div>
+      )}
 
-        {isUnlimited && (
-          <div
-            style={{
-              background: "linear-gradient(135deg, #FFF7ED, #FEF3C7)",
-              borderRadius: 8,
-              padding: "12px 16px",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontWeight: 600,
-              color: "#D97706",
-            }}
-          >
-            <span style={{ fontSize: 20 }}>&#9854;</span>
-            Unlimited Flows Active
-          </div>
-        )}
-      </Card>
-
-      {/* Pack lifecycle / monthly usage detail. Renders only when the user
-          has an ACTIVE flow pack on top of their Pro lifetime — makes the
-          monthly nature of the pack obvious instead of looking like an
-          annual plan. */}
-      {activePack && packLabel && (
-        <Card
-          style={{ marginBottom: 24, borderRadius: 12 }}
-          styles={{ body: { padding: "16px 20px" } }}
-        >
-          <Text
-            strong
-            style={{ fontSize: 16, display: "block", marginBottom: 12 }}
-          >
-            Monthly Pack Usage
-          </Text>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 24,
-              alignItems: "center",
-            }}
-          >
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                ACTIVE PACK
-              </Text>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>{packLabel}</div>
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                BILLING CYCLE
-              </Text>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>30 days</div>
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                EXPIRES ON
-              </Text>
-              <div
-                style={{ fontWeight: 600, fontSize: 15, color: expiryColor }}
-              >
-                {expiryStr || "—"}
+      {/* Current Plan card */}
+      <div className="rounded-2xl bg-card border border-border p-5">
+        <div className="font-bold text-base text-foreground">Current Plan</div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-3">
+          {stats.map(([k, v]) => (
+            <div key={k}>
+              <div className="text-[10px] font-bold tracking-wider text-muted-foreground">
+                {k}
+              </div>
+              <div className="text-sm font-bold mt-0.5 text-foreground">
+                {v}
               </div>
             </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                DAYS LEFT
-              </Text>
+          ))}
+        </div>
+
+        {isUnlimitedPack ? (
+          <div className="mt-4 rounded-xl bg-gradient-to-br from-[#FFF7ED] to-[#FEF3C7] px-4 py-3 flex items-center gap-2 font-semibold text-[#D97706]">
+            <Crown className="w-5 h-5" /> Unlimited Flows Active
+          </div>
+        ) : (
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>Usage</span>
+              <span className="font-semibold text-foreground">
+                {usagePercent}%
+              </span>
+            </div>
+            <div className="mt-1.5 h-2 rounded-full bg-secondary overflow-hidden">
               <div
-                style={{ fontWeight: 700, fontSize: 18, color: expiryColor }}
-              >
-                {daysLeft === null
+                className={`h-full rounded-full ${usagePercent >= 80 ? "bg-destructive" : "bg-primary"}`}
+                style={{ width: `${Math.min(usagePercent, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Active pack lifecycle */}
+      {activePack && packLabel && (
+        <div className="rounded-2xl bg-card border border-border p-5">
+          <div className="font-bold text-base text-foreground mb-3">
+            Monthly Pack Usage
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              ["ACTIVE PACK", packLabel],
+              ["BILLING CYCLE", "30 days"],
+              ["EXPIRES ON", expiryStr || "—"],
+              [
+                "DAYS LEFT",
+                daysLeft === null
                   ? "—"
                   : daysLeft < 0
                     ? "Expired"
-                    : `${daysLeft} day${daysLeft === 1 ? "" : "s"}`}
+                    : `${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+              ],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <div className="text-[10px] font-bold tracking-wider text-muted-foreground">
+                  {k}
+                </div>
+                <div className="text-sm font-bold mt-0.5 text-foreground">
+                  {v}
+                </div>
               </div>
-            </div>
-            <div style={{ flex: "1 1 100%" }}>
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                Flow packs are 30-day windows with a 3-day grace period after
-                expiry. Renew anytime to extend access — unused time stacks on
-                top of the new pack&apos;s expiry.
-              </Text>
-            </div>
+            ))}
           </div>
-        </Card>
+          <div className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
+            Flow packs are 30-day windows with a 3-day grace period after
+            expiry. Renew anytime to extend access — unused time stacks on top
+            of the new pack&apos;s expiry.
+          </div>
+        </div>
       )}
 
-      {/* Flow Add-on Subscription Card */}
-      {(() => {
-        const addon = proSubStatus?.flowAddon;
-        const addonActive =
-          addon?.status === "active" || addon?.status === "cancelling";
-
-        if (addonActive) {
-          const label =
-            addon?.plan === "unlimited"
-              ? "Unlimited Flows"
-              : "Standard — 100 Flows";
-          const periodEndStr = addon?.currentPeriodEnd
-            ? new Date(addon.currentPeriodEnd).toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })
-            : null;
-          return (
-            <Card
-              style={{ marginBottom: 24, borderRadius: 12 }}
-              styles={{ body: { padding: "20px 24px" } }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: 12,
-                }}
-              >
-                <div>
-                  <Text strong style={{ fontSize: 16 }}>
-                    Flow Add-on: {label}
-                  </Text>
-                  <div style={{ marginTop: 4 }}>
-                    {addon?.status === "cancelling" ? (
-                      <Tag color="orange">
-                        Cancels {periodEndStr ?? "at period end"}
-                      </Tag>
-                    ) : (
-                      <Tag color="green">Active</Tag>
-                    )}
-                    {periodEndStr && addon?.status === "active" && (
-                      <Text
-                        type="secondary"
-                        style={{ fontSize: 12, marginLeft: 8 }}
-                      >
-                        Renews {periodEndStr}
-                      </Text>
-                    )}
-                  </div>
-                </div>
-                {addon?.status === "active" && (
-                  <Button
-                    danger
-                    loading={cancelling}
-                    onClick={handleAddonCancel}
-                  >
-                    Cancel Subscription
-                  </Button>
-                )}
-              </div>
-            </Card>
-          );
-        }
-
-        return (
-          <Card
-            style={{ marginBottom: 24, borderRadius: 12 }}
-            styles={{ body: { padding: "24px 28px" } }}
-          >
-            <Text
-              strong
-              style={{ fontSize: 16, display: "block", marginBottom: 20 }}
-            >
-              Add More Flows
-            </Text>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-              <div
-                style={{
-                  flex: 1,
-                  minWidth: 220,
-                  border: "1px solid #E8E8E8",
-                  borderRadius: 12,
-                  padding: "24px",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  textAlign: "center",
-                }}
-              >
-                <Title level={4} style={{ margin: "0 0 4px" }}>
-                  Standard — 100 Flows
-                </Title>
-                <div
-                  style={{
-                    fontSize: "clamp(20px, 4.5vw, 28px)",
-                    fontWeight: 700,
-                    color: "#3CB371",
-                    marginBottom: 2,
-                  }}
-                >
-                  $10.00
-                  <Text
-                    type="secondary"
-                    style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
-                  >
-                    / month
-                  </Text>
-                </div>
-                <Text
-                  type="secondary"
-                  style={{ fontSize: 11, display: "block", marginBottom: 12 }}
-                >
-                  Recurring monthly subscription &middot; cancel anytime
-                </Text>
-                <Text
-                  type="secondary"
-                  style={{ display: "block", marginBottom: 20 }}
-                >
-                  Up to 100 flows in your Pro workspace
-                </Text>
-                <Button
-                  type="primary"
-                  block
-                  size="large"
-                  loading={purchasing === "standard"}
-                  disabled={!!purchasing}
-                  onClick={() => handleAddonSubscribe("standard")}
-                  style={{
-                    backgroundColor: "#3CB371",
-                    borderColor: "#3CB371",
-                    borderRadius: 8,
-                    fontWeight: 600,
-                    height: 44,
-                  }}
-                >
-                  $10/month
-                </Button>
-              </div>
-              <div
-                style={{
-                  flex: 1,
-                  minWidth: 220,
-                  border: "2px solid #3CB371",
-                  borderRadius: 12,
-                  padding: "24px",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  textAlign: "center",
-                  position: "relative",
-                  background: "#F0FFF4",
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    top: -12,
-                    background: "linear-gradient(135deg, #3CB371, #2d8a56)",
-                    color: "#fff",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    padding: "2px 12px",
-                    borderRadius: 20,
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  BEST VALUE
-                </div>
-                <Title level={4} style={{ margin: "8px 0 4px" }}>
-                  Unlimited Flows
-                </Title>
-                <div
-                  style={{
-                    fontSize: 28,
-                    fontWeight: 700,
-                    color: "#3CB371",
-                    marginBottom: 2,
-                  }}
-                >
-                  $20.00
-                  <Text
-                    type="secondary"
-                    style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}
-                  >
-                    / month
-                  </Text>
-                </div>
-                <Text
-                  type="secondary"
-                  style={{ fontSize: 11, display: "block", marginBottom: 12 }}
-                >
-                  Recurring monthly subscription &middot; cancel anytime
-                </Text>
-                <Text
-                  type="secondary"
-                  style={{ display: "block", marginBottom: 8 }}
-                >
-                  Never worry about flow limits again
-                </Text>
-                <Text
-                  type="secondary"
-                  style={{ fontSize: 12, display: "block", marginBottom: 20 }}
-                >
-                  Unlimited flows for as long as you subscribe
-                </Text>
-                <Button
-                  type="primary"
-                  block
-                  size="large"
-                  loading={purchasing === "unlimited"}
-                  disabled={!!purchasing}
-                  onClick={() => handleAddonSubscribe("unlimited")}
-                  style={{
-                    backgroundColor: "#3CB371",
-                    borderColor: "#3CB371",
-                    borderRadius: 8,
-                    fontWeight: 600,
-                    height: 44,
-                  }}
-                >
-                  $20/month
-                </Button>
-              </div>
+      {/* Active flow add-on (cancel / upgrade) */}
+      {(flowAddonStatus === "active" ||
+        flowAddonStatus === "cancelling" ||
+        flowAddonStatus === "past_due") && (
+        <div className="rounded-2xl bg-card border border-border p-5 flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="font-bold text-base text-foreground">
+              Flow Add-on:{" "}
+              {flowAddonPlan === "unlimited"
+                ? "Unlimited Flows"
+                : "Standard — 100 Flows"}
             </div>
-          </Card>
-        );
-      })()}
+            <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+              {flowAddonStatus === "past_due" ? (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FEE2E2] text-destructive">
+                  Payment failed
+                </span>
+              ) : flowAddonStatus === "cancelling" ? (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FFF3E0] text-orange">
+                  Cancels {periodEndStr ?? "at period end"}
+                </span>
+              ) : (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary-tint text-primary-deep">
+                  Active
+                </span>
+              )}
+              {periodEndStr && flowAddonStatus === "active" && (
+                <span className="text-xs text-muted-foreground">
+                  Renews {periodEndStr}
+                </span>
+              )}
+              {flowAddonStatus === "past_due" && (
+                <span className="text-xs text-destructive">
+                  Update your payment method within 3 days to keep your flows.
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {isStandardActive && (
+              <button
+                onClick={() => handleAddonSubscribe("unlimited")}
+                disabled={purchasing === "unlimited"}
+                className={`${RESET} h-10 px-4 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
+              >
+                {purchasing === "unlimited"
+                  ? "Loading…"
+                  : "Upgrade to Unlimited"}
+              </button>
+            )}
+            {flowAddonStatus === "active" && (
+              <button
+                onClick={handleAddonCancel}
+                disabled={cancelling}
+                className={`${RESET} h-10 px-4 rounded-xl bg-transparent border border-[var(--coral)] text-[var(--coral)] font-bold text-sm font-sans disabled:opacity-60`}
+              >
+                {cancelling ? "…" : "Cancel Subscription"}
+              </button>
+            )}
+            <button
+              onClick={handlePortal}
+              disabled={portalLoading}
+              className={`${RESET} h-10 px-4 rounded-xl bg-transparent border border-border text-foreground font-semibold text-sm font-sans inline-flex items-center gap-2 disabled:opacity-60`}
+            >
+              <CreditCard className="w-4 h-4" /> Manage Billing
+            </button>
+          </div>
+        </div>
+      )}
 
-      <AiAddonPacksSection />
+      {/* Add More Flows (only when no active pack) */}
+      {!hasActivePack && !isPastDue && (
+        <div className="rounded-2xl bg-card border border-border p-5">
+          <div className="font-bold text-base text-foreground mb-3">
+            Add More Flows
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Standard */}
+            <div className="rounded-2xl border border-border bg-background p-5 flex flex-col items-center text-center">
+              <div className="font-extrabold text-lg text-foreground">
+                Standard — 100 Flows
+              </div>
+              <div className="mt-2 text-3xl font-extrabold text-primary">
+                $10.00
+                <span className="text-sm font-semibold text-muted-foreground">
+                  {" "}
+                  / month
+                </span>
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1">
+                Recurring monthly subscription · cancel anytime
+              </div>
+              <div className="text-xs mt-3 text-foreground">
+                Up to 100 flows in your Pro workspace
+              </div>
+              <button
+                onClick={() => handleAddonSubscribe("standard")}
+                disabled={!!purchasing}
+                className={`${RESET} mt-5 w-full h-11 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
+              >
+                {purchasing === "standard" ? "Loading…" : "$10/month"}
+              </button>
+            </div>
 
-      {/* Purchase history lives on the Billing page (/dashboard/settings/billing).
-          Pro subscription page focuses on usage + upgrade actions only. */}
+            {/* Unlimited — best value */}
+            <div className="rounded-2xl border-2 border-primary bg-primary-tint/40 p-5 flex flex-col items-center text-center relative">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-primary text-white">
+                Best Value
+              </span>
+              <div className="font-extrabold text-lg text-foreground">
+                Unlimited Flows
+              </div>
+              <div className="mt-2 text-3xl font-extrabold text-primary">
+                $20.00
+                <span className="text-sm font-semibold text-muted-foreground">
+                  {" "}
+                  / month
+                </span>
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1">
+                Recurring monthly subscription · cancel anytime
+              </div>
+              <div className="text-xs mt-3 text-foreground">
+                Never worry about flow limits again
+              </div>
+              <button
+                onClick={() => handleAddonSubscribe("unlimited")}
+                disabled={!!purchasing}
+                className={`${RESET} mt-4 w-full h-11 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
+              >
+                {purchasing === "unlimited" ? "Loading…" : "$20/month"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CreditAddOns balance={totalCredits} />
     </div>
   );
 }
 
+/* ---------- Team seat-plan view (prototype ValueChartPlans L1565) ---------- */
+
 export default function SubscriptionPage() {
+  const router = useRouter();
   const { currentApp, loading: proLoading } = usePro();
   const { pricing, isTestMode } = usePricing();
   const {
@@ -1028,13 +749,13 @@ export default function SubscriptionPage() {
   // Team plan UI for Pro users while currentApp is still "free" (default).
   if (proLoading || loading) {
     return (
-      <div style={{ textAlign: "center", padding: 100 }}>
+      <div className="flex justify-center py-24">
         <Spin size="large" />
       </div>
     );
   }
 
-  // Pro app: show Pro subscription content instead of Team plans
+  // Pro app: show Pro flow-pack content instead of Team plans.
   if (currentApp === "pro") {
     return <ProSubscriptionContent />;
   }
@@ -1044,8 +765,6 @@ export default function SubscriptionPage() {
     status.status === "active" &&
     status.plan === plan;
 
-  // Same plan type, but the seat count in the slider differs from what
-  // Stripe currently has → user wants to change member count (Case 1).
   const isMemberCountChange = (plan: "monthly" | "yearly") => {
     if (!isActivePlan(plan)) return false;
     const desired = plan === "monthly" ? monthlyMembers : yearlyMembers;
@@ -1077,279 +796,150 @@ export default function SubscriptionPage() {
     return "Change Plan";
   };
 
-  const renderPlanColumn = (plan: "monthly" | "yearly") => {
+  const symbol = pricing?.symbol || "$";
+  const fmtMoney = (n: number) => {
+    const rounded =
+      pricing?.currency === "JPY"
+        ? Math.round(n).toString()
+        : Number.isInteger(n)
+          ? n.toFixed(0)
+          : n.toFixed(2);
+    return `${symbol}${rounded}`;
+  };
+
+  const renderPlanCard = (plan: "monthly" | "yearly") => {
     const members = plan === "monthly" ? monthlyMembers : yearlyMembers;
     const setMembers =
       plan === "monthly" ? setMonthlyMembers : setYearlyMembers;
-
     const priceInfo =
       plan === "monthly"
         ? pricing?.prices.team_monthly
         : pricing?.prices.team_yearly;
-    const symbol = pricing?.symbol || "$";
     const perUserAmount = priceInfo?.amount ?? 0;
     const currentPrice = members * perUserAmount;
-
-    const fmtMoney = (n: number) => {
-      const rounded =
-        pricing?.currency === "JPY"
-          ? Math.round(n).toString()
-          : Number.isInteger(n)
-            ? n.toFixed(0)
-            : n.toFixed(2);
-      return `${symbol}${rounded}`;
-    };
     const priceLabel =
       plan === "monthly"
         ? `${fmtMoney(currentPrice)}/month`
         : `${fmtMoney(currentPrice)}/year`;
-
     const isCurrent = isActivePlan(plan);
+    const isYearly = plan === "yearly";
     const buttonLabel = getButtonLabel(plan);
+    const buttonDisabled =
+      (isCurrent && !isMemberCountChange(plan)) ||
+      !!isDowngradeBlocked(plan) ||
+      isScheduledFor(plan) ||
+      checkoutLoading !== null;
 
     return (
       <div
-        style={{
-          background: "#fff",
-          borderRadius: 16,
-          border: isCurrent ? "2px solid #3CB371" : "1px solid #E8E8E8",
-          padding: "0",
-          overflow: "hidden",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: isCurrent
-            ? "0 0 0 3px rgba(60,179,113,0.12)"
-            : "0 2px 8px rgba(0,0,0,0.06)",
-        }}
+        className={`rounded-3xl bg-card overflow-hidden flex flex-col ${
+          isCurrent
+            ? "border-2 border-primary shadow-card"
+            : "border border-border"
+        }`}
       >
         {/* Header */}
         <div
-          style={{
-            background:
-              plan === "yearly"
-                ? "linear-gradient(135deg, #1A1A2E 0%, #16213E 100%)"
-                : "linear-gradient(135deg, #F8F9FA 0%, #E9ECEF 100%)",
-            padding: "28px 24px 24px",
-            position: "relative",
-          }}
+          className={`p-5 relative ${isYearly ? "bg-[#0F1115] text-white" : "bg-secondary/60"}`}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 4,
-              paddingRight: plan === "yearly" ? 84 : 0,
-            }}
-          >
-            <CrownOutlined
-              style={{
-                fontSize: 18,
-                color: plan === "yearly" ? "#FFD700" : "#3CB371",
-              }}
+          <div className="flex items-center gap-2 font-extrabold text-lg">
+            <Crown
+              className={`w-5 h-5 ${isYearly ? "text-[#FFD27A]" : "text-primary-deep"}`}
             />
-            <Text
-              style={{
-                fontSize: 20,
-                fontWeight: 700,
-                color: plan === "yearly" ? "#fff" : "#1A1A2E",
-              }}
-            >
-              {plan === "monthly" ? "Monthly Plan" : "Yearly Plan"}
-            </Text>
-          </div>
-
-          {plan === "yearly" && (
-            <Tag
-              color="#3CB371"
-              style={{
-                position: "absolute",
-                top: 16,
-                right: 16,
-                fontWeight: 700,
-                fontSize: "clamp(9px, 2.6vw, 12px)",
-                padding: "1px 8px",
-                borderRadius: 20,
-                border: "none",
-                margin: 0,
-                lineHeight: 1.6,
-              }}
-            >
-              SAVE 17%
-            </Tag>
-          )}
-
-          <div
-            style={{
-              marginTop: 8,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <ThunderboltOutlined
-              style={{
-                color: plan === "yearly" ? "#FFD700" : "#3CB371",
-                fontSize: 14,
-              }}
-            />
-            <Text
-              style={{
-                fontSize: 13,
-                color: plan === "yearly" ? "rgba(255,255,255,0.7)" : "#8C8C8C",
-              }}
-            >
-              Up to 100 Users
-            </Text>
-          </div>
-
-          {isCurrent && (
-            <Tag
-              color="#3CB371"
-              style={{
-                position: "absolute",
-                bottom: -12,
-                left: "50%",
-                transform: "translateX(-50%)",
-                fontWeight: 600,
-                fontSize: 12,
-                padding: "2px 16px",
-                borderRadius: 20,
-                zIndex: 1,
-              }}
-            >
-              Current Plan
-            </Tag>
-          )}
-        </div>
-
-        {/* Pricing + Dropdown */}
-        <div style={{ padding: "28px 24px 16px" }}>
-          <div style={{ marginBottom: 16 }}>
-            <Text
-              style={{
-                fontSize: 13,
-                color: "#8C8C8C",
-                display: "block",
-                marginBottom: 4,
-              }}
-            >
-              Team Members
-            </Text>
-            <Select
-              value={members}
-              onChange={setMembers}
-              style={{ width: "100%" }}
-              size="large"
-              options={TEAM_OPTIONS.map((n) => ({
-                label: `${n} Members`,
-                value: n,
-              }))}
-            />
-          </div>
-
-          <div style={{ marginBottom: 20 }}>
-            <span
-              style={{
-                fontSize: "clamp(22px, 5vw, 32px)",
-                fontWeight: 800,
-                color: "#1A1A2E",
-                lineHeight: 1,
-              }}
-            >
-              {priceLabel}
+            <span className={isYearly ? "text-white" : "text-foreground"}>
+              {isYearly ? "Yearly Plan" : "Monthly Plan"}
             </span>
           </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <Text style={{ fontSize: 12, color: "#8C8C8C" }}>
-              {plan === "monthly"
-                ? `${members} seats × ${fmtMoney(perUserAmount)}/user/month`
-                : `${members} seats × ${fmtMoney(perUserAmount)}/user/year`}
-            </Text>
+          <div
+            className={`mt-1.5 text-xs inline-flex items-center gap-1 ${isYearly ? "text-white/70" : "text-muted-foreground"}`}
+          >
+            <Zap className="w-3.5 h-3.5" /> Up to 100 Users
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <Text style={{ fontSize: 12, color: "#8C8C8C" }}>
-              {plan === "monthly"
-                ? `${members * 60} AI credits/month included`
-                : `${members * 800} AI credits/year included (~${Math.round((members * 800) / 12)}/month)`}
-            </Text>
-          </div>
-          {pricing && pricing.currency !== "USD" && (
-            <Text
-              type="secondary"
-              style={{ fontSize: 10, display: "block", marginTop: 4 }}
-            >
-              Shown in {pricing.currency}. Charged in local currency at
-              checkout.
-            </Text>
+          {isYearly && (
+            <span className="absolute right-4 top-4 text-[10px] font-extrabold uppercase px-2 py-1 rounded-full bg-primary text-white">
+              Save 17%
+            </span>
           )}
         </div>
 
-        {/* Features */}
-        <div style={{ padding: "0 24px", flex: 1 }}>
-          {FEATURES.map((feature, idx) => (
-            <div
-              key={idx}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "7px 0",
-              }}
-            >
-              <CheckCircleFilled style={{ color: "#3CB371", fontSize: 15 }} />
-              <Text style={{ fontSize: 13, color: "#595959" }}>{feature}</Text>
-            </div>
-          ))}
-        </div>
+        {isCurrent && (
+          <div className="px-5 -mt-3 flex justify-center">
+            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-primary text-white">
+              Current Plan
+            </span>
+          </div>
+        )}
 
-        {/* Button */}
-        <div style={{ padding: "20px 24px 28px" }}>
-          <Button
-            type={
-              isCurrent && !isMemberCountChange(plan) ? "default" : "primary"
-            }
-            block
+        {/* Pricing + members */}
+        <div className="p-5 flex-1 flex flex-col">
+          <div className="text-xs font-semibold text-muted-foreground mb-1.5">
+            Team Members
+          </div>
+          <Select
+            value={members}
+            onChange={setMembers}
+            style={{ width: "100%" }}
             size="large"
-            disabled={
-              (isCurrent && !isMemberCountChange(plan)) ||
-              isDowngradeBlocked(plan) ||
-              isScheduledFor(plan) ||
-              checkoutLoading !== null
-            }
-            loading={checkoutLoading === plan}
+            options={TEAM_OPTIONS.map((n) => ({
+              label: `${n} Members`,
+              value: n,
+            }))}
+          />
+
+          <div className="mt-4 text-3xl font-extrabold text-foreground">
+            {priceLabel}
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-1">
+            {plan === "monthly"
+              ? `${members} seats × ${fmtMoney(perUserAmount)}/user/month`
+              : `${members} seats × ${fmtMoney(perUserAmount)}/user/year`}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {plan === "monthly"
+              ? `${members * 60} AI credits/month included`
+              : `${members * 800} AI credits/year included (~${Math.round((members * 800) / 12)}/month)`}
+          </div>
+          {pricing && pricing.currency !== "USD" && (
+            <div className="text-[10px] text-muted-foreground mt-1">
+              Shown in {pricing.currency}. Charged in local currency at
+              checkout.
+            </div>
+          )}
+
+          <ul className="mt-4 space-y-2">
+            {FEATURES.map((f) => (
+              <li
+                key={f}
+                className="text-xs flex items-center gap-2 text-foreground"
+              >
+                <span className="w-4 h-4 rounded-full bg-primary text-white inline-flex items-center justify-center shrink-0">
+                  <Check className="w-3 h-3" />
+                </span>
+                {f}
+              </li>
+            ))}
+          </ul>
+
+          <button
             onClick={() => handlePurchase(plan)}
-            style={{
-              borderRadius: 10,
-              height: 50,
-              fontWeight: 700,
-              fontSize: 15,
-              ...(isCurrent
-                ? {}
-                : {
-                    backgroundColor: "#3CB371",
-                    borderColor: "#3CB371",
-                  }),
-            }}
+            disabled={buttonDisabled}
+            className={`${RESET} mt-5 h-11 rounded-xl font-bold text-sm font-sans transition disabled:cursor-not-allowed ${
+              isCurrent && !isMemberCountChange(plan)
+                ? "bg-secondary text-muted-foreground"
+                : "bg-primary text-white hover:bg-primary-deep disabled:opacity-60"
+            }`}
           >
-            {buttonLabel}
-          </Button>
+            {checkoutLoading === plan ? "Loading…" : buttonLabel}
+          </button>
           {isCurrent &&
             status?.status === "active" &&
             !status?.cancelAtPeriodEnd && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  marginTop: 10,
-                }}
+              <button
+                onClick={handleCancel}
+                className={`${RESET} mt-2 h-10 rounded-xl bg-transparent text-[var(--coral)] font-bold text-sm font-sans`}
               >
-                <Button type="link" danger onClick={handleCancel}>
-                  Cancel Subscription
-                </Button>
-              </div>
+                Cancel Subscription
+              </button>
             )}
         </div>
       </div>
@@ -1357,220 +947,133 @@ export default function SubscriptionPage() {
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 16px" }}>
-      <SectionHeader title="PLAN & PRICING" />
+    <div className="tw px-4 md:px-8 max-w-5xl mx-auto pb-24 space-y-4">
+      <div className="pt-1">
+        <div className="text-[22px] font-bold text-foreground">
+          Plan &amp; Pricing
+        </div>
+        <div className="text-sm text-muted-foreground mt-0.5">
+          Manage your team subscription and billing
+        </div>
+      </div>
 
       {isTestMode && (
-        <div
-          style={{
-            background: "#fff3cd",
-            border: "1px solid #ffc107",
-            borderRadius: 4,
-            padding: "4px 10px",
-            fontSize: 12,
-            color: "#856404",
-            marginBottom: 12,
-            display: "inline-block",
-          }}
-        >
+        <div className="rounded-2xl border border-[#FFE7A8] bg-[#FFF8E1] px-4 py-2.5 text-[12px] font-semibold text-[#8A6A00] inline-flex items-center gap-2">
           🧪 Test Mode — Prices shown in USD
         </div>
       )}
 
       {/* Past-due banner */}
       {status?.hasSubscription && status.status === "past_due" && (
-        <div
-          style={{
-            background: "#fff2f0",
-            border: "1px solid #ffccc7",
-            borderRadius: 8,
-            padding: "16px 20px",
-            marginBottom: 24,
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 12,
-          }}
-        >
-          <ExclamationCircleOutlined
-            style={{
-              color: "#ff4d4f",
-              fontSize: 18,
-              marginTop: 2,
-              flexShrink: 0,
-            }}
-          />
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                fontWeight: 700,
-                color: "#cf1322",
-                fontSize: 15,
-                marginBottom: 4,
-              }}
-            >
+        <div className="rounded-2xl bg-[#FFF2F0] border border-[#FFCCC7] p-5 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <div className="font-bold text-[#CF1322] text-[15px]">
               Payment Failed
             </div>
-            <div style={{ color: "#666", fontSize: 13, marginBottom: 12 }}>
+            <div className="text-[13px] text-muted-foreground mt-1 mb-3">
               Your last payment failed. Please update your payment method to
               keep your subscription active. If not resolved, your account will
               be downgraded to the free plan.
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Button
-                type="primary"
-                danger
-                size="small"
-                loading={portalLoading}
+            <div className="flex gap-2 flex-wrap">
+              <button
                 onClick={openCustomerPortal}
+                disabled={portalLoading}
+                className={`${RESET} h-9 px-3 rounded-lg bg-destructive text-white text-[13px] font-bold font-sans disabled:opacity-60`}
               >
-                Update Payment Method
-              </Button>
-              <Button size="small" onClick={() => window.location.reload()}>
+                {portalLoading ? "…" : "Update Payment Method"}
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className={`${RESET} h-9 px-3 rounded-lg bg-card border border-border text-foreground text-[13px] font-semibold font-sans`}
+              >
                 Retry
-              </Button>
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Active subscription banner */}
+      {/* Active subscription hero (prototype gradient) */}
       {status?.hasSubscription && status.status === "active" && (
-        <div
-          style={{
-            background: "linear-gradient(135deg, #3CB371 0%, #2E8B57 100%)",
-            borderRadius: 12,
-            padding: "20px 24px",
-            marginBottom: 32,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
-          <div>
-            <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 14 }}>
-              Your current plan
-            </Text>
-            <div style={{ color: "#fff", fontSize: 20, fontWeight: 700 }}>
-              {status.plan === "yearly" ? "Yearly" : "Monthly"} Plan —{" "}
-              {status.teamMemberLimit} Members
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-deep to-primary p-5 text-white">
+          <div className="text-xs font-bold tracking-wider uppercase text-white/80">
+            Your current plan
+          </div>
+          <div className="text-2xl md:text-3xl font-extrabold mt-1">
+            {status.plan === "yearly" ? "Yearly" : "Monthly"} Plan —{" "}
+            {status.teamMemberLimit} Members
+          </div>
+          {status.currentPeriodEnd && (
+            <div className="text-xs text-white/80 mt-1">
+              {status.cancelAtPeriodEnd ? "Cancels" : "Renews"} on{" "}
+              {new Date(status.currentPeriodEnd).toLocaleDateString()}
             </div>
-            {status.currentPeriodEnd && (
-              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>
-                {status.cancelAtPeriodEnd ? "Cancels" : "Renews"} on{" "}
-                {new Date(status.currentPeriodEnd).toLocaleDateString()}
-              </Text>
-            )}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Tag
-              color="white"
-              style={{
-                color: "#3CB371",
-                fontWeight: 600,
-                fontSize: 13,
-                padding: "4px 16px",
-                borderRadius: 20,
-              }}
-            >
-              {status.cancelAtPeriodEnd ? "Cancelling" : "Active"}
-            </Tag>
-          </div>
+          )}
+          <span className="absolute right-4 top-4 text-[11px] font-bold px-3 py-1 rounded-full bg-white text-primary-deep">
+            {status.cancelAtPeriodEnd ? "Cancelling" : "Active"}
+          </span>
         </div>
       )}
 
       {/* Scheduled change banner */}
       {status?.scheduledChange && (
-        <div
-          style={{
-            background: "linear-gradient(135deg, #1A1A2E 0%, #16213E 100%)",
-            borderRadius: 12,
-            padding: "20px 24px",
-            marginBottom: 32,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
+        <div className="rounded-3xl bg-[#0F1115] p-5 text-white flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 14 }}>
-              Scheduled Plan Change
-            </Text>
-            <div style={{ color: "#FFD700", fontSize: 18, fontWeight: 700 }}>
+            <div className="text-sm text-white/85">Scheduled Plan Change</div>
+            <div className="text-lg font-bold text-[#FFD700]">
               Yearly Plan — {status.scheduledChange.teamMembers} Members
             </div>
             {status.scheduledChange.activationDate && (
-              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>
+              <div className="text-xs text-white/70 mt-0.5">
                 Activates on{" "}
                 {new Date(
                   status.scheduledChange.activationDate,
                 ).toLocaleDateString()}
-              </Text>
+              </div>
             )}
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button
-              type="primary"
+          <div className="flex gap-2 flex-wrap">
+            <button
               onClick={handleActivateNow}
-              style={{ borderRadius: 20, fontWeight: 600 }}
+              className={`${RESET} h-10 px-4 rounded-full bg-primary text-white font-semibold text-sm font-sans hover:bg-primary-deep transition`}
             >
               Activate Now
-            </Button>
-            <Button
-              danger
+            </button>
+            <button
               onClick={handleCancelScheduled}
-              style={{ borderRadius: 20, fontWeight: 600 }}
+              className={`${RESET} h-10 px-4 rounded-full bg-transparent border border-[var(--coral)] text-[var(--coral)] font-semibold text-sm font-sans`}
             >
               Cancel Change
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
-      {/* Comparison table */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 24,
-          marginBottom: 32,
-        }}
-      >
-        {renderPlanColumn("monthly")}
-        {renderPlanColumn("yearly")}
+      {/* Plan cards */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {renderPlanCard("monthly")}
+        {renderPlanCard("yearly")}
       </div>
 
-      {/* Manage Billing + Cancel actions */}
+      {/* Manage billing */}
       {status?.hasSubscription &&
         (status.status === "active" || status.status === "past_due") && (
-          <div
-            style={{
-              textAlign: "center",
-              marginTop: 8,
-              display: "flex",
-              justifyContent: "center",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <Button
-              icon={<CreditCardOutlined />}
+          <div className="flex justify-center pt-2">
+            <button
               onClick={openCustomerPortal}
-              loading={portalLoading}
+              disabled={portalLoading}
+              className={`${RESET} h-10 px-4 rounded-xl border border-border bg-card text-sm font-semibold font-sans inline-flex items-center gap-2 text-foreground disabled:opacity-60`}
             >
-              Manage Billing & Invoices
-            </Button>
+              <FileText className="w-4 h-4" />{" "}
+              {portalLoading ? "…" : "Manage Billing & Invoices"}
+            </button>
           </div>
         )}
 
-      {/* AI credit add-ons — available for team owners to top up credits
-          that all team members can draw from their shared pool */}
-      <div style={{ marginTop: 32 }}>
-        <TeamAiAddonSection />
-      </div>
+      {/* AI credit add-ons (team owners top up the shared pool) */}
+      <CreditAddOns />
     </div>
   );
 }

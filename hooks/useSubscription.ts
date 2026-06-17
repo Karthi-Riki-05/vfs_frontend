@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { subscriptionsApi } from "@/api/subscriptions.api";
 import { message } from "antd";
 
@@ -27,11 +27,14 @@ export function useSubscription() {
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // Guards against setState after unmount — these fetches are fire-and-forget
+  // and can resolve after the component navigates away.
+  const mountedRef = useRef(true);
 
   const fetchCurrent = useCallback(async () => {
     try {
       const res = await subscriptionsApi.getCurrent();
-      setSubscription(res.data?.data || res.data);
+      if (mountedRef.current) setSubscription(res.data?.data || res.data);
     } catch {
       // may not have a subscription
     }
@@ -40,7 +43,7 @@ export function useSubscription() {
   const fetchStatus = useCallback(async () => {
     try {
       const res = await subscriptionsApi.getStatus();
-      setStatus(res.data?.data || res.data);
+      if (mountedRef.current) setStatus(res.data?.data || res.data);
     } catch {
       // handled by interceptor
     }
@@ -50,17 +53,21 @@ export function useSubscription() {
     try {
       const res = await subscriptionsApi.getPlans();
       const d = res.data?.data || res.data || {};
-      setPlans(d.plans || (Array.isArray(d) ? d : []));
+      if (mountedRef.current) setPlans(d.plans || (Array.isArray(d) ? d : []));
     } catch {
       // handled by interceptor
     }
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     setLoading(true);
-    Promise.all([fetchCurrent(), fetchStatus(), fetchPlans()]).finally(() =>
-      setLoading(false),
-    );
+    Promise.all([fetchCurrent(), fetchStatus(), fetchPlans()]).finally(() => {
+      if (mountedRef.current) setLoading(false);
+    });
+    return () => {
+      mountedRef.current = false;
+    };
   }, [fetchCurrent, fetchStatus, fetchPlans]);
 
   const subscribe = async (planId: string) => {

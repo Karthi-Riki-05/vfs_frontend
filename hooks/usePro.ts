@@ -32,13 +32,21 @@ export function usePro() {
 
   useEffect(() => {
     try {
-      // Read from sessionStorage (per-tab) — prevents cross-tab overwrites (Fix 2).
-      let stored = sessionStorage.getItem("vc_app_context");
+      // forcedMode = "we are inside a forced mobile app shell" (hides the
+      // app switcher). The ONLY reliable signal is `vc_app_param`, which
+      // app/page.tsx sets ONLY when the URL carries an explicit ?app=team
+      // or ?app=pro (i.e. the Flutter WebView). It is removed on plain web
+      // visits, so it stays null on the website.
+      //
+      // Do NOT read `vc_app_context` here — that key defaults to "team" even
+      // for plain web visits, so it can never distinguish web from the team
+      // mobile app and would wrongly hide the switcher on the website.
+      let stored = sessionStorage.getItem("vc_app_param");
       if (!stored) {
         // Migrate from legacy vc_forced_app_mode (set by upgrade-pro page).
         stored = sessionStorage.getItem("vc_forced_app_mode");
         if (stored === "pro" || stored === "team") {
-          sessionStorage.setItem("vc_app_context", stored);
+          sessionStorage.setItem("vc_app_param", stored);
           sessionStorage.removeItem("vc_forced_app_mode");
         }
       }
@@ -49,12 +57,10 @@ export function usePro() {
   }, []);
 
   const fetchStatus = useCallback(async () => {
-    console.log("[usePro] fetchStatus called");
     setFetchError(false);
     try {
       const res = await proApi.getAppStatus();
       const data = res.data?.data || res.data;
-      console.log("[usePro] fetchStatus response:", JSON.stringify(data));
       setStatus(data);
     } catch (err: any) {
       console.error(

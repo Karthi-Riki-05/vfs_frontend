@@ -3,21 +3,9 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { getLogoForApp, getForcedMode } from "@/lib/getLogo";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import {
-  Layout,
-  Space,
-  Avatar,
-  Badge,
-  Dropdown,
-  Tag,
-  Button,
-  Typography,
-  Tooltip,
-  Modal,
-  message,
-} from "antd";
+import { Dropdown, Tag, Button, Tooltip, Modal, message } from "antd";
 import {
   MessageOutlined,
   DownOutlined,
@@ -25,12 +13,13 @@ import {
   CrownOutlined,
   LogoutOutlined,
   CreditCardOutlined,
-  MenuOutlined,
   TeamOutlined,
   CheckOutlined,
   SwapOutlined,
   LockOutlined,
 } from "@ant-design/icons";
+// New-design TopBar uses lucide icons (not Ant) — see new_design/src/routes/index.tsx.
+import { Menu as MenuIcon, MessageCircle } from "lucide-react";
 import type { MenuProps } from "antd";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
 import TeamContextSwitcher from "@/components/layout/TeamContextSwitcher";
@@ -42,11 +31,10 @@ import {
 } from "@/hooks/useMediaQuery";
 import { useAppContext, type TeamContextOption } from "@/context/AppContext";
 import { usePro } from "@/hooks/usePro";
+import { useAiBilling } from "@/context/AiBillingContext";
 
-const { Header: AntHeader } = Layout;
-const { Text } = Typography;
-
-const PRIMARY = "#3CB371";
+// New-design primary (#34A881) — see DESIGN.md token table.
+const PRIMARY = "#34A881";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -58,9 +46,31 @@ function truncateName(name: string | null | undefined, max = 15): string {
   return name.substring(0, max) + "…";
 }
 
+// New-design TopBar shows the current screen name on desktop (prototype L264).
+// Map the route → human title. Order matters: most-specific prefix first.
+function getPageTitle(pathname: string): string {
+  if (pathname.startsWith("/dashboard/settings/billing")) return "Billing";
+  if (pathname.startsWith("/dashboard/settings")) return "Profile";
+  if (pathname.startsWith("/dashboard/recents")) return "Recent";
+  if (pathname.startsWith("/dashboard/flows")) return "Flows";
+  if (pathname.startsWith("/dashboard/shapes")) return "Shapes";
+  if (pathname.startsWith("/dashboard/teams")) return "Teams";
+  if (pathname.startsWith("/dashboard/chat")) return "Chat";
+  if (pathname.startsWith("/dashboard/projects")) return "All Projects";
+  if (pathname.startsWith("/dashboard/favourites")) return "Favourites";
+  if (pathname.startsWith("/dashboard/trash")) return "Trash";
+  if (pathname.startsWith("/dashboard/subscription")) return "Subscription";
+  if (pathname.startsWith("/dashboard/support")) return "Get Support";
+  if (pathname.startsWith("/dashboard/notifications")) return "Notifications";
+  if (pathname.startsWith("/dashboard")) return "Dashboard";
+  return "";
+}
+
 const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { data: session } = useSession();
   const router = useRouter();
+  const pathname = usePathname() || "";
+  const pageTitle = getPageTitle(pathname);
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const isWideMobile = useIsWideMobile();
@@ -82,6 +92,17 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   } = useAppContext();
   const { currentApp, loading: proLoading } = usePro();
   const sessionHasTeamAccess = (session?.user as any)?.hasTeamAccess ?? false;
+
+  // AI-billing / team-context switcher — surfaced as a standalone navbar pill
+  // (moved out of the account dropdown; the avatar now navigates to Profile).
+  const {
+    options: billingOptions,
+    activeBillingTeamId,
+    hasTeams: hasBillingTeams,
+  } = useAiBilling();
+  const activeBilling =
+    billingOptions.find((o) => o.teamId === activeBillingTeamId) ||
+    billingOptions[0];
 
   // Subscription-aware personal plan — wins over the stale JWT/session field.
   // (Backend `getTeamContext` resolves it from the active subscription row.)
@@ -228,106 +249,49 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     }
   };
 
-  // ─────────── Account dropdown items (kept compact) ───────────
-
-  const dropdownItems: MenuProps["items"] = [
-    // Unified ownership model: no Personal/Team workspace switcher. The account
-    // menu is just account actions; the user's plan is shown as a badge.
-    {
-      key: "profile",
-      icon: <UserOutlined />,
-      label: "Profile",
-      onClick: () => router.push("/dashboard/settings"),
-    },
-    {
-      key: "subscription",
-      icon: <CrownOutlined />,
-      label: "Subscription",
-      onClick: () => router.push("/dashboard/subscription"),
-    },
-    {
-      key: "billing",
-      icon: <CreditCardOutlined />,
-      label: "Billing & Transactions",
-      onClick: () => router.push("/dashboard/settings/billing"),
-    },
-    { type: "divider" as const },
-    {
-      key: "logout",
-      icon: <LogoutOutlined style={{ color: "#FF4D4F" }} />,
-      label: <span style={{ color: "#FF4D4F" }}>Log out</span>,
-      onClick: () => {
-        // vc_app_context lives in sessionStorage (per-tab) — it persists through
-        // the redirect so forced mode is automatically restored on the same tab.
-        signOut({ callbackUrl: "/login" });
-      },
-    },
-  ];
-
   // ─────────── Render ───────────
 
   return (
     <>
-      <AntHeader
-        style={{
-          height: 56,
-          lineHeight: "56px",
-          padding: isMobile ? "0 12px" : "0 24px",
-          background: "#FFFFFF",
-          borderBottom: "1px solid #F0F0F0",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 90,
-        }}
-      >
-        {/* Left side */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {/* Ported from new_design TopBar (prototype L242–270). Tailwind .tw shell,
+          production logic preserved. Fixed 56px (h-14) to match DashboardLayout
+          marginTop/paddingTop math. Desktop keeps the logo because the migrated
+          Sidebar has no logo block yet (see DESIGN.md §4 shell note). */}
+      <header className="tw fixed top-0 left-0 right-0 h-14 z-[90] flex items-center justify-between px-3 md:px-6 bg-card border-b border-border">
+        {/* Left side — hamburger (mobile) + logo */}
+        <div className="flex items-center gap-2 min-w-0">
           {isMobile && onMenuClick && (
-            <Button
-              type="text"
-              icon={<MenuOutlined style={{ fontSize: 20 }} />}
+            <button
               onClick={onMenuClick}
-              style={{
-                padding: 0,
-                width: 40,
-                height: 40,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            />
+              aria-label="Open menu"
+              className="md:hidden w-10 h-10 rounded-xl bg-transparent border-0 p-0 appearance-none cursor-pointer hover:bg-secondary flex items-center justify-center transition"
+            >
+              <MenuIcon className="w-5 h-5 text-foreground" />
+            </button>
           )}
 
-          <Link
-            href={logoHref}
-            style={{
-              textDecoration: "none",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
+          <Link href={logoHref} className="flex items-center no-underline">
             <img
               src={getLogoForApp(currentApp)}
               alt="ValueChart Logo"
-              style={{
-                // Consistent 40px logo across navbar and sidebar (BUG 4).
-                height: 40,
-                width: "auto",
-                objectFit: "contain",
-                objectPosition: "left center",
-                maxHeight: 40,
-              }}
+              // Logo bumped to 48px so it fills the 56px navbar and its width
+              // lines the Profile divider up with the 220px sidebar border.
+              className="h-12 w-auto object-contain"
+              style={{ objectPosition: "left center", maxHeight: 48 }}
             />
           </Link>
+
+          {/* Current-screen title — new_design TopBar (prototype L264). Desktop
+              only; mobile keeps the logo alone. */}
+          {pageTitle && (
+            <span className="hidden md:block ml-3 pl-3 border-l border-border text-sm font-semibold text-foreground truncate">
+              {pageTitle}
+            </span>
+          )}
         </div>
 
-        {/* Right side */}
-        <Space size={isMobile ? 8 : 12} align="center">
+        {/* Right side — chat, notifications, plan badge, account */}
+        <div className="flex items-center gap-0.5 md:gap-1 ml-auto">
           {/* Chat icon — locked when no chat access */}
           <Tooltip
             title={
@@ -336,60 +300,47 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                 : "Chat requires a Team plan — switch to a team context or upgrade"
             }
           >
-            <div
+            <button
               onClick={handleChatClick}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                position: "relative",
-                cursor: "pointer",
-                opacity: hasChatAccess ? 1 : 0.7,
-              }}
+              aria-label="Open chat"
+              className="relative w-10 h-10 rounded-xl bg-transparent border-0 p-0 appearance-none cursor-pointer hover:bg-secondary flex items-center justify-center transition"
+              style={{ opacity: hasChatAccess ? 1 : 0.7 }}
             >
-              <Badge
-                count={hasChatAccess ? totalUnread : 0}
-                size="small"
-                offset={[2, -2]}
-                style={{ backgroundColor: PRIMARY }}
-              >
-                <MessageOutlined style={{ fontSize: 20, color: "#8C8C8C" }} />
-              </Badge>
+              <MessageCircle className="w-5 h-5 text-foreground" />
+              {hasChatAccess && totalUnread > 0 && (
+                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
+              )}
               {!hasChatAccess && (
                 <LockOutlined
                   style={{
                     position: "absolute",
-                    bottom: -3,
-                    right: -6,
+                    bottom: 4,
+                    right: 4,
                     fontSize: 9,
                     color: "#fff",
-                    background: "#FF7875",
+                    background: "#F85729",
                     borderRadius: "50%",
                     padding: 2,
                     lineHeight: 1,
                   }}
                 />
               )}
-            </div>
+            </button>
           </Tooltip>
 
-          <NotificationDropdown />
+          {/* Notifications — bell + dropdown (own component) */}
+          <div className="flex items-center">
+            <NotificationDropdown />
+          </div>
 
           {/* Plan badge — reflects in-app plan (Pro app shows Pro state,
               Team app shows Team-subscription state — they don't bleed).
               Free users see a "Free Plan" tag that links to upgrade.
               Skeleton shown while proLoading to prevent Free Plan flash (Fix 5). */}
           {!isMobile && (
-            <span className="plan-badge">
+            <span className="plan-badge ml-1">
               {proLoading ? (
-                <div
-                  style={{
-                    width: 68,
-                    height: 22,
-                    background: "#f0f0f0",
-                    borderRadius: 4,
-                    display: "inline-block",
-                  }}
-                />
+                <div className="inline-block w-[68px] h-[22px] rounded bg-[#f0f0f0]" />
               ) : isPro ? (
                 <Tag
                   color={hydrated && inAppPlan === "team" ? "purple" : "gold"}
@@ -409,93 +360,52 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             </span>
           )}
 
-          {/* Switch button removed — context switching lives inside the
-              user dropdown (Personal / available teams). */}
-
-          {/* User dropdown — truncated name + tiny "Team context" subtitle */}
-          <Dropdown
-            menu={{ items: dropdownItems }}
-            trigger={["click"]}
-            placement={isMobile ? "bottom" : "bottomRight"}
-            overlayStyle={{
-              maxWidth: isMobile ? "calc(100vw - 16px)" : undefined,
-            }}
-            // Prepend the AI-billing account switcher above the account-action
-            // menu. Switching there changes AI-credit billing only — never the
-            // data the user sees (DATA-LOSS-001).
-            dropdownRender={(menu) => (
-              <div
-                style={{
-                  background: "#FFFFFF",
-                  borderRadius: 8,
-                  boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
-                  overflow: "hidden",
-                  minWidth: 240,
-                }}
-              >
-                <TeamContextSwitcher />
-                {menu}
-              </div>
-            )}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: isMobile ? 4 : 8,
-                cursor: "pointer",
-              }}
-            >
-              <Avatar
-                style={{ backgroundColor: PRIMARY, verticalAlign: "middle" }}
-                size="small"
-              >
-                {userInitial}
-              </Avatar>
-              {!isMobile && (
+          {/* Context-switcher pill — moved out of the account dropdown so the
+              avatar can navigate straight to Profile (new_design TopBar). Only
+              shown when the user belongs to ≥1 team. Switching here changes the
+              billed AI-credit pool only — never the data shown (DATA-LOSS-001). */}
+          {hasBillingTeams && (
+            <Dropdown
+              trigger={["click"]}
+              placement={isMobile ? "bottom" : "bottomRight"}
+              dropdownRender={() => (
                 <div
-                  className="user-name-text"
                   style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-start",
-                    lineHeight: 1.1,
-                    maxWidth: 130,
+                    background: "#FFFFFF",
+                    borderRadius: 8,
+                    boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+                    overflow: "hidden",
+                    minWidth: 240,
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      maxWidth: 130,
-                      fontWeight: 500,
-                    }}
-                  >
-                    {truncateName(userName, 15)}
-                  </Text>
-                  {hydrated && isTeamContext && (
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: "#7C3AED",
-                        lineHeight: 1,
-                        marginTop: 2,
-                      }}
-                    >
-                      {activeTeamName
-                        ? `Team: ${truncateName(activeTeamName, 14)}`
-                        : "Team context"}
-                    </Text>
-                  )}
+                  <TeamContextSwitcher />
                 </div>
               )}
-              <DownOutlined style={{ fontSize: 10, color: "#8C8C8C" }} />
-            </div>
-          </Dropdown>
-        </Space>
-      </AntHeader>
+            >
+              <button
+                aria-label="Switch billing context"
+                className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-primary-tint text-primary-deep text-xs font-semibold cursor-pointer border-0 appearance-none hover:opacity-90 transition"
+              >
+                <span className="truncate max-w-[120px]">
+                  {activeBilling?.label || "Personal"}
+                </span>
+                <DownOutlined style={{ fontSize: 9 }} />
+              </button>
+            </Dropdown>
+          )}
+
+          {/* User avatar — plain round button → Profile (new_design TopBar L274).
+              No name/caret/dropdown; account actions live in the sidebar
+              (Subscription / Billing / Settings) and on the Profile page. */}
+          <button
+            onClick={() => router.push("/dashboard/settings")}
+            aria-label="Open profile"
+            className="ml-1 w-9 h-9 rounded-full bg-primary ring-2 ring-primary/20 flex items-center justify-center text-white text-sm font-bold cursor-pointer border-0 appearance-none hover:ring-primary/40 transition"
+          >
+            {userInitial}
+          </button>
+        </div>
+      </header>
 
       <Modal
         open={chatLockedOpen}

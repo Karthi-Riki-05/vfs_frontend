@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Badge, Popover, List, Avatar, Typography, Button, Empty } from "antd";
+import { Popover, List, Avatar, Typography, Button, Empty } from "antd";
 import {
   BellOutlined,
   FileTextOutlined,
@@ -14,6 +14,8 @@ import {
   CloseCircleOutlined,
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
+// New-design TopBar bell is a lucide icon with a coral status dot (not Ant Badge).
+import { Bell } from "lucide-react";
 import api from "@/lib/axios";
 
 const { Text } = Typography;
@@ -290,11 +292,14 @@ export default function NotificationDropdown() {
   );
 
   const bell = (
-    <Badge count={unreadCount} size="small">
-      <BellOutlined
-        style={{ fontSize: 20, color: "#8C8C8C", cursor: "pointer" }}
-      />
-    </Badge>
+    <div className="tw">
+      <span className="relative w-10 h-10 rounded-xl hover:bg-secondary flex items-center justify-center cursor-pointer transition">
+        <Bell className="w-5 h-5 text-foreground" />
+        {unreadCount > 0 && (
+          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[var(--coral)]" />
+        )}
+      </span>
+    </div>
   );
 
   // ── Mobile: full-screen overlay with an explicit close (X) ──────────────

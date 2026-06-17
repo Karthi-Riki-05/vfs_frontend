@@ -6,7 +6,7 @@
  *   1. ?app= param on the CURRENT url (covers /login?app=pro deep links)
  *   2. vc_app_param in sessionStorage (set by the root page before the
  *      middleware /login redirect swallowed the query string)
- *   3. fallback → /dashboard (plain web, unchanged behavior)
+ *   3. fallback → /dashboard/team (plain web default = the Team app)
  *
  * Landing on the app-specific dashboard directly avoids the 1s flash where
  * /dashboard rendered team-scoped data before DashboardLayout's forced
@@ -21,5 +21,6 @@ export function getPostLoginDashboardUrl(): string {
   } catch {
     // sessionStorage may be blocked in restricted WebViews
   }
-  return "/dashboard";
+  // Default landing (plain web, no ?app=) → the Team app dashboard.
+  return "/dashboard/team";
 }

@@ -38,6 +38,16 @@ import CustomShapesPanel, {
 } from "@/components/flows/CustomShapesPanel";
 import ShareFlowModal from "@/components/flows/ShareFlowModal";
 import AiCreditsDisplay from "@/components/ai/AiCreditsDisplay";
+import CreateTeamFromShapeModal from "@/components/flows/shape-association/CreateTeamFromShapeModal";
+import CreateChatGroupFromShapeModal from "@/components/flows/shape-association/CreateChatGroupFromShapeModal";
+import EditTeamModal from "@/components/flows/shape-association/EditTeamModal";
+import EditGroupModal from "@/components/flows/shape-association/EditGroupModal";
+import RemoveAssociationConfirmModal from "@/components/flows/shape-association/RemoveAssociationConfirmModal";
+import type {
+  ShapeRef,
+  ShapeAssociation,
+  AssociationResult,
+} from "@/components/flows/shape-association/types";
 import { useSession } from "next-auth/react";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
@@ -310,6 +320,17 @@ export default function EditorView({
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [flowShareModalOpen, setFlowShareModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  // ── Shape → Team / Chat Group association state ──
+  const [shapeTeamModalOpen, setShapeTeamModalOpen] = useState(false);
+  const [shapeGroupModalOpen, setShapeGroupModalOpen] = useState(false);
+  const [shapeRef, setShapeRef] = useState<ShapeRef | null>(null);
+  const [editTeamId, setEditTeamId] = useState<string | null>(null);
+  const [editGroupId, setEditGroupId] = useState<string | null>(null);
+  const [removeAssoc, setRemoveAssoc] = useState<{
+    shapeId: string;
+    cellId: string;
+    association: ShapeAssociation;
+  } | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importFileName, setImportFileName] = useState<string>("");
   const importFileRef = useRef<File | null>(null);
@@ -451,6 +472,174 @@ export default function EditorView({
             return;
           }
           setFlowShareModalOpen(true);
+          return;
+        }
+
+        // 0b3. Iframe → parent: Shape → Team / Chat Group association
+        // context-menu actions (over-ride.js installVcShapeAssociation).
+        if (
+          msg.action === "openTeamModal" ||
+          msg.action === "openGroupModal" ||
+          msg.action === "editTeam" ||
+          msg.action === "editGroup" ||
+          msg.action === "removeAssociation"
+        ) {
+          if (permRef.current === "view" || isViewMode) {
+            message.warning("This flow is view-only");
+            return;
+          }
+          const ref: ShapeRef = {
+            shapeId: msg.shapeId || null,
+            cellId: msg.cellId,
+            shapeName: msg.shapeName || "Shape",
+            shapeXml: msg.shapeXml || undefined,
+          };
+          if (msg.action === "openTeamModal") {
+            setShapeRef(ref);
+            setShapeTeamModalOpen(true);
+            return;
+          }
+          if (msg.action === "openGroupModal") {
+            setShapeRef(ref);
+            setShapeGroupModalOpen(true);
+            return;
+          }
+
+          // editTeam / editGroup / removeAssociation need the association
+          // details. The iframe sends its cached copy — when the cache is
+          // cold (e.g. right after an editor reload) fall back to fetching
+          // it by shapeId so the action still works.
+          let assoc: ShapeAssociation | null = msg.association || null;
+          if (!assoc && msg.shapeId) {
+            try {
+              const res = await fetch(`/api/shapes/${msg.shapeId}/association`);
+              const data = await res.json();
+              const a = data?.data;
+              if (a?.type === "team" && a.team) {
+                assoc = { type: "team", id: a.team.id, name: a.team.name };
+              } else if (a?.type === "group" && a.group) {
+                assoc = { type: "group", id: a.group.id, name: a.group.name };
+              }
+            } catch {}
+          }
+          if (!assoc) {
+            message.warning(
+              "This shape is not associated with a team or group",
+            );
+            return;
+          }
+          if (msg.action === "editTeam") {
+            setEditTeamId(assoc.id);
+          } else if (msg.action === "editGroup") {
+            setEditGroupId(assoc.id);
+          } else if (msg.action === "removeAssociation" && msg.shapeId) {
+            setRemoveAssoc({
+              shapeId: msg.shapeId,
+              cellId: msg.cellId,
+              association: assoc,
+            });
+          }
+          return;
+        }
+
+        // 0b4. Iframe asks which of the diagram's shapes have associations
+        // (cache hydration after load).
+        if (msg.event === "vcShapeAssociationsRequest") {
+          const shapeIds: string[] = msg.shapeIds || [];
+          if (!shapeIds.length) return;
+          try {
+            const res = await fetch("/api/shapes/check-associations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ shapeIds }),
+            });
+            const data = await res.json();
+            const associations = data?.data || [];
+            iframeRef.current?.contentWindow?.postMessage(
+              JSON.stringify({ action: "vcShapeAssociations", associations }),
+              "*",
+            );
+          } catch {
+            // Non-fatal — menu falls back to "no association" state
+          }
+          return;
+        }
+
+        // 0b5. Iframe intercepted a delete that includes associated shapes —
+        // confirm with the user, soft-delete server-side, then approve.
+        if (msg.event === "vcConfirmShapeDelete") {
+          const shapeIds: string[] = msg.shapeIds || [];
+          const approve = (approved: boolean) => {
+            iframeRef.current?.contentWindow?.postMessage(
+              JSON.stringify({
+                action: "vcDeleteApproved",
+                approved,
+                shapeIds,
+              }),
+              "*",
+            );
+          };
+          let affected: any[] = [];
+          try {
+            const res = await fetch("/api/shapes/check-associations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ shapeIds }),
+            });
+            const data = await res.json();
+            affected = Array.isArray(data?.data) ? data.data : [];
+          } catch {}
+
+          if (!affected.length) {
+            // No live associations after all — let the delete proceed
+            approve(true);
+            return;
+          }
+
+          Modal.confirm({
+            title: `Delete ${affected.length} associated shape${affected.length === 1 ? "" : "s"}?`,
+            width: 460,
+            centered: true,
+            okText: "Delete",
+            okButtonProps: { danger: true },
+            cancelText: "Cancel",
+            content: (
+              <div>
+                <p style={{ marginBottom: 8 }}>
+                  The following shape{affected.length === 1 ? " is" : "s are"}{" "}
+                  linked to a team or chat group. Deleting will remove the
+                  association{affected.length === 1 ? "" : "s"}:
+                </p>
+                <ul
+                  style={{ paddingLeft: 18, maxHeight: 180, overflow: "auto" }}
+                >
+                  {affected.map((a: any) => (
+                    <li key={a.shapeId} style={{ fontSize: 13 }}>
+                      <strong>{a.shapeName}</strong> —{" "}
+                      {a.type === "team"
+                        ? `Team "${a.team?.name || ""}"`
+                        : `Group "${a.group?.name || ""}"`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ),
+            onOk: async () => {
+              try {
+                await fetch("/api/shapes/bulk-delete", {
+                  method: "DELETE",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    shapeIds: affected.map((a: any) => a.shapeId),
+                  }),
+                });
+              } catch {
+                // Best-effort — the canvas delete still proceeds
+              }
+              approve(true);
+            },
+            onCancel: () => approve(false),
+          });
           return;
         }
 
@@ -881,6 +1070,31 @@ export default function EditorView({
     sendLoad(text);
   };
 
+  // Tell the iframe (over-ride.js) to stamp/clear the vcShapeId attribute on
+  // a cell and update its association cache.
+  const notifyShapeAssociation = (
+    cellId: string,
+    shapeId: string,
+    association: ShapeAssociation | null,
+  ) => {
+    iframeRef.current?.contentWindow?.postMessage(
+      JSON.stringify({
+        action: "vcSetShapeAssociation",
+        cellId,
+        shapeId,
+        association,
+      }),
+      "*",
+    );
+  };
+
+  const handleAssociationCreated = (result: AssociationResult) => {
+    notifyShapeAssociation(result.cellId, result.shapeId, result.association);
+    setShapeTeamModalOpen(false);
+    setShapeGroupModalOpen(false);
+    setShapeRef(null);
+  };
+
   const triggerExport = () => {
     isInternalSaveRef.current = true;
     iframeRef.current?.contentWindow?.postMessage(
@@ -1305,6 +1519,48 @@ export default function EditorView({
           flow={flowShareModalOpen ? { id: flowId, name: flowName } : null}
           onClose={() => setFlowShareModalOpen(false)}
           onSuccess={() => setFlowShareModalOpen(false)}
+        />
+
+        {/* Shape → Team / Chat Group association modals — opened from the
+          draw.io right-click / long-press context menu (over-ride.js). */}
+        <CreateTeamFromShapeModal
+          open={shapeTeamModalOpen}
+          shapeRef={shapeRef}
+          onClose={() => {
+            setShapeTeamModalOpen(false);
+            setShapeRef(null);
+          }}
+          onSuccess={handleAssociationCreated}
+        />
+        <CreateChatGroupFromShapeModal
+          open={shapeGroupModalOpen}
+          shapeRef={shapeRef}
+          onClose={() => {
+            setShapeGroupModalOpen(false);
+            setShapeRef(null);
+          }}
+          onSuccess={handleAssociationCreated}
+        />
+        <EditTeamModal
+          open={editTeamId !== null}
+          teamId={editTeamId}
+          onClose={() => setEditTeamId(null)}
+        />
+        <EditGroupModal
+          open={editGroupId !== null}
+          groupId={editGroupId}
+          onClose={() => setEditGroupId(null)}
+        />
+        <RemoveAssociationConfirmModal
+          open={removeAssoc !== null}
+          shapeId={removeAssoc?.shapeId || null}
+          cellId={removeAssoc?.cellId || null}
+          association={removeAssoc?.association || null}
+          onClose={() => setRemoveAssoc(null)}
+          onRemoved={(shapeId, cellId) => {
+            notifyShapeAssociation(cellId, shapeId, null);
+            setRemoveAssoc(null);
+          }}
         />
 
         {/* Custom "Save As" modal — replaces draw.io's native save dialog.
