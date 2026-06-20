@@ -68,7 +68,7 @@ function SocialPill({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-12 items-center justify-center rounded-full border border-border bg-card shadow-sm transition active:scale-95 disabled:cursor-not-allowed"
+      className="flex h-11 items-center justify-center rounded-full border border-border bg-card shadow-sm transition active:scale-95 disabled:cursor-not-allowed sm:h-12"
     >
       {icon}
     </button>

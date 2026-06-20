@@ -46,3 +46,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local test/audit artifacts — not for deploy
+e2e/.auth/gate.json
+e2e/APP_SWITCHER_AUDIT.md
+e2e/**/*-snapshots/
+sidebar-audit/

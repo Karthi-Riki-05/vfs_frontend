@@ -88,6 +88,42 @@ export async function requestNotificationPermission(): Promise<string | null> {
   return token;
 }
 
+// Logout cleanup: revoke this device's token at FCM AND remove it from our
+// backend so a logged-out / shared device stops receiving pushes. Best-effort
+// — never throws, so it can't block sign-out.
+export async function unregisterNotificationToken(): Promise<void> {
+  const cfg = readConfig();
+  if (!cfg || !isPushSupported()) return;
+
+  let token: string | null = null;
+  try {
+    const sdk = await loadFirebaseSdk();
+    if (sdk) {
+      const app = sdk.getApps().length
+        ? sdk.getApps()[0]
+        : sdk.initializeApp(cfg);
+      const messaging = sdk.getMessaging(app);
+      const reg = await navigator.serviceWorker.getRegistration(
+        "/firebase-messaging-sw.js",
+      );
+      const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+      token = await sdk.getToken(messaging, {
+        vapidKey,
+        serviceWorkerRegistration: reg || undefined,
+      });
+      await sdk.deleteToken(messaging);
+    }
+  } catch {
+    // ignore — still attempt the backend delete below
+  }
+
+  try {
+    await api.delete("/auth/mobile/fcm-token", { data: { fcmToken: token } });
+  } catch {
+    // best-effort; logout proceeds regardless
+  }
+}
+
 export async function onForegroundMessage(
   callback: (payload: any) => void,
 ): Promise<() => void> {
@@ -111,6 +147,7 @@ async function loadFirebaseSdk(): Promise<any | null> {
       getApps: appMod.getApps,
       getMessaging: msgMod.getMessaging,
       getToken: msgMod.getToken,
+      deleteToken: msgMod.deleteToken,
       onMessage: msgMod.onMessage,
     };
   } catch (e) {

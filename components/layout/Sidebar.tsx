@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { logout } from "@/lib/logout";
 import { Layout } from "antd";
 import {
   Home,
@@ -23,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { aiApi } from "@/api/ai.api";
+import api from "@/lib/axios";
 import { usePathname, useRouter } from "next/navigation";
 import { createNewFlow } from "@/lib/flow";
 import { usePro } from "@/hooks/usePro";
@@ -33,6 +35,7 @@ import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { getLogoForApp } from "@/lib/getLogo";
 import TeamUpgradeModal from "@/components/common/TeamUpgradeModal";
 import NavTile from "./NavTile";
+import SidebarTeamSwitcher from "./SidebarTeamSwitcher";
 
 const { Sider } = Layout;
 
@@ -54,7 +57,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const { currentApp, loading: proLoading } = usePro();
-  const { isWeb } = useDeviceMode();
+  const { isWeb, isMobileApp } = useDeviceMode();
   const { isTeamContext, effectivePlan } = useAppContext();
   const { data: session } = useSession();
   const { totalUnread } = useUnreadCount();
@@ -110,6 +113,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   // DashboardLayout reconciles into `currentApp` on load. So we set the context
   // first, then do a full navigation so the reconcile effect runs fresh.
   const switchToApp = (mode: "team" | "pro") => {
+    // No-op if already in this app — avoids a redundant full-page reload.
+    if (mode === (isProApp ? "pro" : "team")) return;
     try {
       sessionStorage.setItem("vc_app_context", mode);
     } catch {
@@ -187,6 +192,37 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const planLabel = effectivePlan === "team" ? "Team Plan" : "Free Plan";
 
+  // Drawer avatar: the uploaded profile photo lives on the user record, not in
+  // the NextAuth JWT — so the session image goes stale after an avatar change.
+  // Seed from the session, then fetch the live value and refresh on the
+  // `userAvatarChanged` event the Settings page dispatches after an upload.
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    (session?.user?.image as string) || null,
+  );
+  useEffect(() => {
+    if (!isMobileDrawer) return;
+    const fetchAvatar = async () => {
+      try {
+        const res = await api.get("/users/me");
+        const d = res.data?.data || res.data || {};
+        const url = d.image || d.avatar || d.photo || null;
+        if (url) setAvatarUrl(url);
+      } catch {
+        /* keep last known value */
+      }
+    };
+    fetchAvatar();
+    const onChange = (e: Event) => {
+      const url = (e as CustomEvent<{ url?: string }>).detail?.url;
+      if (url) setAvatarUrl(url);
+      else fetchAvatar();
+    };
+    window.addEventListener("userAvatarChanged", onChange);
+    return () => window.removeEventListener("userAvatarChanged", onChange);
+  }, [isMobileDrawer]);
+  const hasAvatar =
+    typeof avatarUrl === "string" && avatarUrl.trim().length > 0;
+
   // ─────────── Create-a-Flow pill ───────────
   const createPill = (
     <button
@@ -201,117 +237,54 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
 
   // ─────────── App switcher (ValueChart ↔ PRO) ───────────
-  // Persistent Team/Pro app switcher (two stacked entries).
-  // Shown ONLY on web (vc_device_mode === 'web'). Hidden inside the
-  // ?app=team / ?app=pro mobile WebView shell — those apps must NOT expose
-  // the cross-app switcher. This is the team sidebar, so Team is the active app.
+  // Segmented toggle matching new_design SideNav (two equal tab buttons).
+  // Shown ONLY on a real desktop web browser. Hidden inside the native mobile
+  // app. `useDeviceMode` is now the single source of truth: it resolves the
+  // native shell from the `ValueChartsMobile/*` User-Agent signature (with the
+  // legacy `?app=`/vc_device_mode flag folded in as a backward-compat fallback,
+  // covering restricted WebViews where sessionStorage is blocked).
+  // Visibility: desktop web ONLY — also hidden on mobile/tablet viewports since
+  // the switcher is a desktop-only affordance per spec.
+  const isMobileAppShell = isMobileApp;
+  const isDesktopWeb = isWeb && !isMobileAppShell && !isMobile && !isTablet;
   const proTeamSwitcher =
-    !railCollapsed && isWeb ? (
-      <div
-        data-testid="app-switcher"
-        style={{
-          padding: "8px 12px",
-          borderBottom: "1px solid #E5EBE8",
-          marginBottom: 4,
-        }}
-      >
+    !railCollapsed && isDesktopWeb ? (
+      <div data-testid="app-switcher" className="px-3 pt-3 pb-1">
         <div
-          style={{
-            fontSize: 9,
-            fontWeight: 700,
-            color: "#9ca3af",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            marginBottom: 6,
-            paddingLeft: 8,
-          }}
+          className="flex items-center gap-1 p-1 rounded-2xl bg-secondary/70 border border-border"
+          role="tablist"
+          aria-label="App mode"
         >
-          Switch App
-        </div>
-
-        {/* TEAM app link */}
-        <div
-          onClick={() => switchToApp("team")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "7px 10px",
-            borderRadius: 9,
-            cursor: "pointer",
-            marginBottom: 3,
-            background: "#E7F6F0",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 800,
-              color: "#1F2937",
-              flex: 1,
-              letterSpacing: -0.3,
-            }}
+          {/* TEAM / ValueChart */}
+          <button
+            type="button"
+            onClick={() => switchToApp("team")}
+            title="ValueChart"
+            role="tab"
+            aria-selected={!isProApp}
+            className={`flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition ${
+              !isProApp
+                ? "bg-card text-primary-deep shadow"
+                : "bg-transparent text-muted-foreground hover:text-foreground"
+            }`}
           >
-            Value Charts
-          </div>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 3,
-              background: "linear-gradient(135deg,#34A881,#1F7D5E)",
-              color: "#fff",
-              fontSize: 8,
-              fontWeight: 800,
-              padding: "2px 6px",
-              borderRadius: 20,
-              letterSpacing: 0.5,
-            }}
+            ValueChart
+          </button>
+          {/* PRO */}
+          <button
+            type="button"
+            onClick={() => switchToApp("pro")}
+            title="ValueChart Pro"
+            role="tab"
+            aria-selected={isProApp}
+            className={`flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition ${
+              isProApp
+                ? "bg-[var(--orange)] text-white shadow"
+                : "bg-transparent text-muted-foreground hover:text-foreground"
+            }`}
           >
-            TEAM
-          </div>
-        </div>
-
-        {/* PRO app link */}
-        <div
-          onClick={() => switchToApp("pro")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "7px 10px",
-            borderRadius: 9,
-            cursor: "pointer",
-            background: "transparent",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 800,
-              color: "#1F2937",
-              flex: 1,
-              letterSpacing: -0.3,
-            }}
-          >
-            Value Charts
-          </div>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 3,
-              background: "linear-gradient(135deg,#f59e0b,#d97706)",
-              color: "#fff",
-              fontSize: 8,
-              fontWeight: 800,
-              padding: "2px 6px",
-              borderRadius: 20,
-              letterSpacing: 0.5,
-            }}
-          >
-            ⚡ PRO
-          </div>
+            <Crown className="w-3.5 h-3.5" /> PRO
+          </button>
         </div>
       </div>
     ) : null;
@@ -457,7 +430,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div className="border-t border-border p-2">
       <button
         type="button"
-        onClick={() => signOut({ callbackUrl: "/login" })}
+        onClick={() => logout({ callbackUrl: "/login" })}
         title="Log out"
         className="appearance-none cursor-pointer border-0 bg-transparent w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-secondary/60 transition"
       >
@@ -487,8 +460,18 @@ const Sidebar: React.FC<SidebarProps> = ({
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 rounded-full bg-white/15 ring-2 ring-white/30 flex items-center justify-center text-white font-bold text-lg shrink-0">
-                  {name.charAt(0).toUpperCase()}
+                <div className="w-12 h-12 rounded-full bg-white/15 ring-2 ring-white/30 flex items-center justify-center text-white font-bold text-lg shrink-0 overflow-hidden">
+                  {hasAvatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={avatarUrl as string}
+                      alt={name}
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarUrl(null)}
+                    />
+                  ) : (
+                    name.charAt(0).toUpperCase()
+                  )}
                 </div>
                 <div className="min-w-0">
                   <div className="font-bold text-[15px] truncate">{name}</div>
@@ -510,15 +493,17 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          <div className="px-3 pt-3">{createPill}</div>
           {proTeamSwitcher}
+          <SidebarTeamSwitcher />
+          {/* No create button here on mobile — the FAB (bottom-right) is the
+              single create entry point on mobile/PWA. */}
           {nav}
 
           {/* Log out + version footer (prototype Drawer foot) */}
           <div className="border-t border-border">
             <button
               type="button"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => logout({ callbackUrl: "/login" })}
               className="appearance-none cursor-pointer border-0 bg-transparent hover:bg-secondary/60 w-full flex items-center gap-3 px-5 py-3 text-left transition"
             >
               <div className="w-9 h-9 rounded-xl bg-secondary text-[var(--coral)] flex items-center justify-center">
@@ -549,7 +534,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // ─────────── Desktop / tablet rail (keep Ant Sider for layout math) ───────────
   return (
     <Sider
-      width={220}
+      width={256}
       collapsedWidth={60}
       collapsible
       collapsed={collapsed}
@@ -567,8 +552,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       }}
     >
       <div className="tw flex flex-col h-full bg-card">
-        <div className={`p-3 ${railCollapsed ? "px-2" : ""}`}>{createPill}</div>
         {proTeamSwitcher}
+        <SidebarTeamSwitcher collapsed={railCollapsed} />
+        <div className={`p-3 ${railCollapsed ? "px-2" : ""}`}>{createPill}</div>
         {nav}
         {footer}
       </div>

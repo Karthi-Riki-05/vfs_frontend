@@ -27,7 +27,7 @@ vi.mock("@/hooks/usePro", () => ({
 }));
 
 vi.mock("@/hooks/useDeviceMode", () => ({
-  useDeviceMode: () => ({ isWeb: true }),
+  useDeviceMode: () => ({ isWeb: true, isMobileApp: false, appType: "web" }),
 }));
 
 vi.mock("@/context/AppContext", () => ({

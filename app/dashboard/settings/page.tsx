@@ -208,6 +208,11 @@ export default function SettingsPage() {
           const photo =
             res.data?.data?.user?.photo || res.data?.data?.photo || base64;
           setAvatarUrl(photo);
+          // Notify other surfaces (sidebar drawer, header) so the new photo
+          // syncs immediately without a page reload.
+          window.dispatchEvent(
+            new CustomEvent("userAvatarChanged", { detail: { url: photo } }),
+          );
           message.success("Avatar updated");
         })
         .catch(() => message.error("Avatar upload failed"));

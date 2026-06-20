@@ -23,16 +23,16 @@ export default function DesktopAuthShell({
   return (
     <div className="tw flex h-screen w-full overflow-hidden">
       {/* ── LEFT: form panel ── */}
-      <div className="flex w-1/2 flex-col items-center justify-center overflow-y-auto bg-card px-12 py-10">
-        <div className="w-full max-w-[380px]">
-          <h1 className="text-[2rem] font-extrabold leading-tight tracking-tight text-foreground">
+      <div className="flex w-1/2 flex-col justify-center overflow-y-auto bg-card px-20 py-12 xl:px-28">
+        <div className="mx-auto w-full max-w-2xl">
+          <h1 className="text-[44px] font-extrabold leading-[1.1] tracking-tight text-foreground">
             {title}
           </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
+          <p className="mt-3 text-sm text-muted-foreground">{subtitle}</p>
 
-          <div className="mt-8 space-y-4">{children}</div>
+          <div className="mt-10 space-y-4">{children}</div>
 
-          {footer && <div className="mt-6">{footer}</div>}
+          {footer && <div className="pt-6">{footer}</div>}
         </div>
       </div>
 
@@ -44,27 +44,25 @@ export default function DesktopAuthShell({
         <div className="absolute right-8 top-[30%] h-28 w-28 rounded-full bg-white/10" />
 
         {/* Content */}
-        <div className="relative z-10 flex flex-col items-center px-12 text-center">
+        <div className="relative z-10 flex max-w-sm flex-col items-center px-10 text-center text-white">
           {/* Logo card */}
-          <div className="mb-8 rounded-2xl bg-card px-6 py-4 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.3)]">
+          <div className="mx-auto w-fit rounded-2xl bg-white/95 px-6 py-5 shadow-2xl">
             <img
               src={logoSrc}
               alt="Value Charts"
-              className="h-14 w-auto max-w-[200px] object-contain"
+              className="h-16 w-auto max-w-[200px] object-contain"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
           </div>
 
-          <h2 className="text-[2rem] font-extrabold leading-tight text-white">
-            We Add Value To
-            <br />
-            Your Business
+          <h2 className="mt-8 text-3xl font-extrabold text-white">
+            We Add Value To Your Business
           </h2>
-          <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/80">
-            Plan smarter, collaborate faster, and transform ideas into outcomes
-            — all in one connected workspace.
+          <p className="mt-3 text-sm leading-relaxed text-white/85">
+            Plan smarter, collaborate faster, and turn ideas into outcomes — all
+            in one connected workspace.
           </p>
         </div>
       </div>

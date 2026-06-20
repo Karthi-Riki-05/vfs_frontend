@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { resolveAppType } from "@/lib/detectWebView";
 
 export default function RootPage() {
   const router = useRouter();
@@ -9,7 +10,17 @@ export default function RootPage() {
   useEffect(() => {
     // Read ?app= param before any redirect swallows it.
     const params = new URLSearchParams(window.location.search);
-    const app = params.get("app");
+    const appParam = params.get("app");
+
+    // Canonical app type: native UA signature wins, with the legacy ?app=
+    // param as a backward-compat fallback during the rollout. A native shell
+    // that loads "/" WITHOUT ?app= is now classified correctly from its UA.
+    const appType = resolveAppType({
+      ua: typeof navigator !== "undefined" ? navigator.userAgent : null,
+      appParam,
+    });
+    // `app` keeps the old "pro" | "team" | null contract the code below uses.
+    const app = appType === "web" ? null : appType;
 
     // Persist app context to storage. localStorage persists through same-origin
     // redirects, so writing here survives the /dashboard → /login middleware redirect.

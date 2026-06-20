@@ -60,10 +60,18 @@ body {
   background: #9ca3af;
 }
 
-/* Focus ring — green theme */
-*:focus-visible {
-  outline: 2px solid #3cb371;
-  outline-offset: 2px;
+/* Focus ring — green theme (Ant Design / non-migrated screens only).
+   Lives in @layer base and is scoped OUT of the ported `.tw` design system so
+   shadcn components' own `focus-visible:outline-none` + `focus-visible:ring-*`
+   utilities win cleanly. Previously this was UNLAYERED, so it beat every
+   Tailwind utility and leaked a 2px green outline onto every `.tw` input/button
+   (the "green focus border" regression). :not(.tw, .tw *) confines it to
+   legacy/AntD UI. */
+@layer base {
+  :focus-visible:not(.tw):not(.tw *) {
+    outline: 2px solid #3cb371;
+    outline-offset: 2px;
+  }
 }
 
 /* Selection color */
@@ -691,20 +699,69 @@ img {
   --coral: #f85729;
 }
 
-/* Scoped base: only elements under a `.tw` root get Tailwind's box model and
-   default border color. Keeps Ant Design (outside `.tw`) completely untouched.
-   Wrap every migrated screen's root element in className="tw". */
-.tw,
-.tw *,
-.tw ::before,
-.tw ::after {
-  box-sizing: border-box;
-  border-color: var(--border);
+/* Scoped preflight: replicate the subset of Tailwind v4's base reset that the
+   ported shadcn/Tailwind design depends on — but ONLY under a `.tw` root, so
+   Ant Design (outside `.tw`) keeps its own UA/reset behavior. Global preflight
+   stays intentionally un-imported; this is the targeted equivalent for migrated
+   screens. Wrap every migrated screen's root element in className="tw".
+
+   Everything here is inside @layer base so Tailwind utilities (border, border-*,
+   rounded-*, shadow-*, bg-*, outline-none, focus-visible:ring-*) always win. */
+@layer base {
+  .tw,
+  .tw *,
+  .tw ::before,
+  .tw ::after {
+    box-sizing: border-box;
+    /* `border-width: 0; border-style: solid` is the key reset: without it,
+       native <button>/<input> keep their UA bevel border (the "black border /
+       shadow under the Create Flow button" regression). A `border`/`border-2`
+       utility re-enables a visible 1px/2px border where intended. */
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--border);
+  }
+  .tw {
+    font-family: var(--font-sans);
+    color: var(--foreground);
+  }
+
+  /* Form controls inherit typography instead of the UA monospace/small default. */
+  .tw button,
+  .tw input,
+  .tw optgroup,
+  .tw select,
+  .tw textarea {
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+  }
+
+  /* Strip native button chrome so the shadcn background, shadow and radius
+     utilities render crisp instead of washed-out under the OS button theme.
+     Scoped to button-type controls only — native checkboxes/radios (e.g.
+     "Remember me") keep their appearance. */
+  .tw button,
+  .tw input[type="button"],
+  .tw input[type="reset"],
+  .tw input[type="submit"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: transparent;
+    background-image: none;
+    cursor: pointer;
+  }
+
+  /* Placeholders: full opacity (Firefox dims them) + theme muted color. */
+  .tw ::placeholder {
+    opacity: 1;
+    color: var(--muted-foreground);
+  }
+  .tw :-moz-focusring {
+    outline: auto;
+  }
 }
-.tw {
-  font-family: var(--font-sans);
-  color: var(--foreground);
-}
+
 .tw .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;

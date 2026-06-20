@@ -74,8 +74,8 @@ test.describe("Device Mode & App Switcher", () => {
     expect(await readDeviceMode(page)).toBe("web");
 
     await expect(switcher(page)).toBeVisible();
-    await expect(switcher(page).getByText("TEAM")).toBeVisible();
-    await expect(switcher(page).getByText("PRO")).toBeVisible();
+    await expect(switcher(page).getByText("Value Charts")).toBeVisible();
+    await expect(switcher(page).getByText("PRO", { exact: true })).toBeVisible();
 
     await page.screenshot({
       path: "test-results/website-switcher-visible.png",

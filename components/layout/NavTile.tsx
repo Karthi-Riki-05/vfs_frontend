@@ -45,12 +45,21 @@ export default function NavTile({
   const isDrawer = variant === "drawer";
 
   const rowCls = [
-    "w-full flex items-center gap-3 text-left transition border-0",
+    // `!transition`: Tailwind v4 utilities live in a cascade @layer, but Ant
+    // Design's reset emits an UNLAYERED `a { transition: color .3s }`, which
+    // always beats layered rules. Without `!` the row would only animate color,
+    // not background-color (visible on <a>/Link rows; <button> rows are unaffected
+    // since antd has no anchor-equivalent button reset). The important modifier
+    // outranks antd's non-important unlayered rule. We use the broad `transition`
+    // (not `transition-colors`) to match the new_design SideNav blueprint exactly.
+    "w-full flex items-center gap-3 text-left !transition border-0",
     isDrawer ? "px-5 py-3" : "px-3 py-2.5 my-0.5 rounded-xl",
     collapsed ? "justify-center" : "",
-    // Explicit bg-transparent base: Tailwind preflight is off here, so the
-    // non-href <button> tiles would otherwise show the UA default grey.
-    active ? "bg-primary-tint" : "bg-transparent hover:bg-secondary/60",
+    // Same cascade story for the background: antd's unlayered
+    // `a { background-color: transparent }` overrides Tailwind's layered
+    // bg utilities on <a> rows, killing both the active pill and the hover
+    // highlight. `!bg-*` / `hover:!bg-*` restore them. No-op for <button> rows.
+    active ? "!bg-primary-tint" : "bg-transparent hover:!bg-secondary/60",
   ].join(" ");
 
   const tileCls = [

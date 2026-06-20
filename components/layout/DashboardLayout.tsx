@@ -9,6 +9,7 @@ import ProSidebar from "./ProSidebar";
 import AIAssistant from "../ai/AIAssistant";
 import RightChatColumn from "../chat/RightChatColumn";
 import EnableNotificationsBanner from "../common/EnableNotificationsBanner";
+import NativeFcmBridge from "../common/NativeFcmBridge";
 import FloatingActionButton from "./FloatingActionButton";
 import MobileBackButton from "@/components/shared/MobileBackButton";
 import { usePro } from "@/hooks/usePro";
@@ -19,6 +20,7 @@ import {
 } from "@/hooks/useMediaQuery";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { AppContextLoader } from "./AppContextLoader";
+import { useAppBrand } from "@/hooks/useAppBrand";
 
 const { Content } = Layout;
 
@@ -107,6 +109,9 @@ export default function DashboardLayout({
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const isWideMobile = useIsWideMobile();
+  // App SHELL brand (WebView UA), read post-mount. Declared here — above the
+  // editor-page early return — so the hook order stays stable across renders.
+  const brand = useAppBrand();
 
   // Flow editor pages: /dashboard/flows/SOME_ID (but NOT /dashboard/flows or /dashboard/flows/new)
   const isEditorPage = /^\/dashboard\/flows\/(?!new$)[a-zA-Z0-9_-]+$/.test(
@@ -118,10 +123,10 @@ export default function DashboardLayout({
   // Standalone mobile chat page — suppress the floating FAB + AI button there
   // (they'd overlap the chat input/send).
   const isChatPage = pathname.includes("/dashboard/chat");
-  // Settings/Profile uses the new_design gray canvas (#F5F7F6) so the white
-  // cards stand out. Scoped to this route only — every other page stays white.
-  const isSettingsPage = pathname.startsWith("/dashboard/settings");
-  const contentBg = isSettingsPage ? "#F5F7F6" : "#FFFFFF";
+  // new_design canvas: the whole dashboard sits on the gray --background
+  // (#F5F7F6) so white card surfaces gain contrast + elevation depth. Applied
+  // app-wide (matches new_design; previously only /dashboard/settings used it).
+  const contentBg = "#F5F7F6";
 
   // Expose toggle/open functions globally so header/sidebar/redirect can call them
   useEffect(() => {
@@ -236,8 +241,14 @@ export default function DashboardLayout({
     );
   }
 
-  // Choose sidebar based on current app
-  const SidebarComponent = currentApp === "pro" ? ProSidebar : Sidebar;
+  // Choose sidebar based on the app SHELL (branding), NOT billing currentApp.
+  // A Pro-entitled user opening the Team app reports currentApp="pro" until the
+  // server reconcile completes, which previously rendered the Pro sidebar (and
+  // its theme) inside the Team app. The shell type from the WebView UA is the
+  // stable brand signal; fall back to currentApp only for genuine web visitors.
+  const isProBrand =
+    brand === "pro" || (brand === "web" && currentApp === "pro");
+  const SidebarComponent = isProBrand ? ProSidebar : Sidebar;
 
   // Mobile: no fixed sidebar, use drawer. No right chat column on mobile.
   if (isMobile) {
@@ -273,6 +284,7 @@ export default function DashboardLayout({
               minHeight: "calc(100dvh - 56px)",
             }}
           >
+            <NativeFcmBridge />
             <EnableNotificationsBanner />
             <MobileBackButton />
             <ErrorBoundary>{children}</ErrorBoundary>
@@ -284,8 +296,9 @@ export default function DashboardLayout({
     );
   }
 
-  // Tablet and Desktop
-  const siderWidth = collapsed ? 60 : 220;
+  // Tablet and Desktop. 256px expanded matches the new_design lg:w-64 rail
+  // (kept in lockstep with Sider width={256} in Sidebar/ProSidebar).
+  const siderWidth = collapsed ? 60 : 256;
   // On tablet: hide right chat column (no room); chat button routes to /dashboard/chat
   const showChatColumn = !hideChatColumn && chatOpen && !isTablet;
   const chatColumnWidth = showChatColumn && !chatFullView ? 430 : 0;
@@ -318,8 +331,16 @@ export default function DashboardLayout({
                 transition: "margin-left 0.2s, margin-right 0.2s",
               }}
             >
-              <EnableNotificationsBanner />
-              <ErrorBoundary>{children}</ErrorBoundary>
+              {/* Cap + center the body (new_design md:max-w-6xl md:mx-auto)
+                  so content doesn't sprawl edge-to-edge on ultra-wide monitors. */}
+              <div
+                data-testid="dashboard-body"
+                className="mx-auto w-full max-w-[1152px]"
+              >
+                <NativeFcmBridge />
+                <EnableNotificationsBanner />
+                <ErrorBoundary>{children}</ErrorBoundary>
+              </div>
               {!chatActive && (
                 <AIAssistant
                   contentLeft={siderWidth}

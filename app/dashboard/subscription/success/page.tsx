@@ -179,7 +179,7 @@ function SubscriptionSuccessContent() {
         type="primary"
         size="large"
         block
-        onClick={() => router.replace("/dashboard")}
+        onClick={() => router.replace("/dashboard/team")}
         style={{
           borderRadius: 12,
           height: 50,

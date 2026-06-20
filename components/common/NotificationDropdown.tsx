@@ -1,24 +1,28 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Popover, List, Avatar, Typography, Button, Empty } from "antd";
+import { Popover } from "antd";
 import {
-  BellOutlined,
-  FileTextOutlined,
-  TeamOutlined,
-  MessageOutlined,
-  CrownOutlined,
-  CloseOutlined,
-  UserAddOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  ExclamationCircleOutlined,
-} from "@ant-design/icons";
-// New-design TopBar bell is a lucide icon with a coral status dot (not Ant Badge).
-import { Bell } from "lucide-react";
+  Bell,
+  Sparkle,
+  Gift,
+  Megaphone,
+  ShieldCheck,
+  Globe,
+  FileText,
+  Workflow,
+  Users,
+  UserPlus,
+  MessageCircle,
+  Crown,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  X,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 import api from "@/lib/axios";
-
-const { Text } = Typography;
 
 interface Notification {
   id: string;
@@ -35,36 +39,74 @@ function timeAgo(dateStr: string): string {
   const date = new Date(dateStr);
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return "Just now";
+  if (diffMins < 1) return "just now";
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+  const weeks = Math.floor(diffDays / 7);
+  return `${weeks}w ago`;
 }
 
-const iconMap: Record<string, React.ReactNode> = {
-  flow_pack_7day: <FileTextOutlined style={{ color: "#FAAD14" }} />,
-  flow_pack_3day: <FileTextOutlined style={{ color: "#FF7A45" }} />,
-  flow_pack_1day: <FileTextOutlined style={{ color: "#cf1322" }} />,
-  flow_pack_grace: <CrownOutlined style={{ color: "#cf1322" }} />,
-  flow_pack_expired: <CrownOutlined style={{ color: "#cf1322" }} />,
-  flow_picker_required: <FileTextOutlined style={{ color: "#cf1322" }} />,
-  flows_restored: <FileTextOutlined style={{ color: "#3CB371" }} />,
-  flow: <FileTextOutlined style={{ color: "#3CB371" }} />,
-  team: <TeamOutlined style={{ color: "#1890FF" }} />,
-  team_invite: <TeamOutlined style={{ color: "#1890FF" }} />,
-  team_member_joined: <UserAddOutlined style={{ color: "#3CB371" }} />,
-  chat: <MessageOutlined style={{ color: "#3CB371" }} />,
-  subscription: <CrownOutlined style={{ color: "#FAAD14" }} />,
-  subscription_activated: <CheckCircleOutlined style={{ color: "#3CB371" }} />,
-  subscription_cancelled: <CloseCircleOutlined style={{ color: "#FA8C16" }} />,
-  subscription_expired: (
-    <ExclamationCircleOutlined style={{ color: "#cf1322" }} />
-  ),
-  system: <BellOutlined style={{ color: "#8C8C8C" }} />,
+/* ---- type → icon / colour / kind label (matches new_design Notifications) ---- */
+type TypeStyle = { I: LucideIcon; c: string; bg: string; kind: string };
+
+const GREEN = { c: "#34A881", bg: "#E7F6F0" };
+const DEEP = { c: "#1F7D5E", bg: "#E7F6F0" };
+const ORANGE = { c: "#FF9A30", bg: "#FFF2E2" };
+const CORAL = { c: "#F85729", bg: "#FDE7E0" };
+const BLUE = { c: "#006AA8", bg: "#E2EEF8" };
+const GREY = { c: "#6B7280", bg: "#EEF1F0" };
+
+const TYPE_STYLES: Record<string, TypeStyle> = {
+  flow_addon_grace_expired: { I: Crown, ...CORAL, kind: "Flow Pack" },
+  flow_addon_payment_failed: { I: AlertTriangle, ...CORAL, kind: "Flow Pack" },
+  flow_pack_expired: { I: Crown, ...CORAL, kind: "Flow Pack" },
+  flow_pack_grace: { I: Crown, ...CORAL, kind: "Flow Pack" },
+  flow_pack_7day: { I: FileText, ...ORANGE, kind: "Flow Pack" },
+  flow_pack_3day: { I: FileText, ...ORANGE, kind: "Flow Pack" },
+  flow_pack_1day: { I: FileText, ...CORAL, kind: "Flow Pack" },
+  flow_picker_required: { I: FileText, ...CORAL, kind: "Action" },
+  flows_restored: { I: Workflow, ...GREEN, kind: "Flows" },
+  flow_share: { I: Workflow, ...GREEN, kind: "Shared" },
+  flow_updated: { I: Workflow, ...GREEN, kind: "Flows" },
+  subscription_activated: { I: CheckCircle2, ...GREEN, kind: "Plan" },
+  subscription_granted: { I: CheckCircle2, ...GREEN, kind: "Plan" },
+  subscription_cancelled: { I: XCircle, ...ORANGE, kind: "Plan" },
+  subscription_expired: { I: AlertTriangle, ...CORAL, kind: "Plan" },
+  subscription_expiry: { I: AlertTriangle, ...ORANGE, kind: "Plan" },
+  subscription_deleted: { I: XCircle, ...CORAL, kind: "Plan" },
+  team_invite: { I: UserPlus, ...BLUE, kind: "Invite" },
+  team_invite_declined: { I: XCircle, ...ORANGE, kind: "Team" },
+  team_member_joined: { I: UserPlus, ...GREEN, kind: "Team" },
+  team_member_added: { I: UserPlus, ...GREEN, kind: "Team" },
+  team_member_removed: { I: Users, ...ORANGE, kind: "Team" },
+  feature: { I: Sparkle, ...ORANGE, kind: "Feature" },
+  promotion: { I: Gift, ...GREEN, kind: "Promotion" },
+  announcement: { I: Megaphone, ...BLUE, kind: "News" },
+  security: { I: ShieldCheck, ...DEEP, kind: "Update" },
+  release: { I: Globe, ...CORAL, kind: "Release" },
+  system: { I: Bell, ...GREY, kind: "System" },
 };
+
+const PREFIX_STYLES: Array<[string, TypeStyle]> = [
+  ["flow_addon", { I: FileText, ...ORANGE, kind: "Flow Pack" }],
+  ["flow_pack", { I: FileText, ...ORANGE, kind: "Flow Pack" }],
+  ["flow_picker", { I: FileText, ...ORANGE, kind: "Flows" }],
+  ["flow", { I: Workflow, ...GREEN, kind: "Flows" }],
+  ["subscription", { I: Crown, ...ORANGE, kind: "Plan" }],
+  ["team", { I: Users, ...BLUE, kind: "Team" }],
+  ["chat", { I: MessageCircle, ...GREEN, kind: "Chat" }],
+];
+
+const DEFAULT_STYLE: TypeStyle = { I: Bell, ...GREY, kind: "Update" };
+
+function styleFor(type: string): TypeStyle {
+  if (TYPE_STYLES[type]) return TYPE_STYLES[type];
+  const hit = PREFIX_STYLES.find(([p]) => type?.startsWith(p));
+  return hit ? hit[1] : DEFAULT_STYLE;
+}
 
 export default function NotificationDropdown() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -105,9 +147,46 @@ export default function NotificationDropdown() {
 
   useEffect(() => {
     refreshCount();
+
+    // Real-time: bump instantly when the backend emits notification:new to
+    // this user's socket room. The poll below stays as a fallback for when the
+    // socket isn't connected. Both paths call refreshCount(), which is scoped
+    // server-side by the X-Team-Context / X-App-Context headers, so the badge
+    // always reflects the workspace currently being viewed.
+    let cleanup: (() => void) | undefined;
+    (async () => {
+      try {
+        const { getSocket } = await import("@/lib/socket");
+        const socket = getSocket();
+        if (!socket) return;
+        const onNew = () => {
+          refreshCount();
+          if (open) {
+            api
+              .get("/notifications")
+              .then((res) => {
+                const d = res.data?.data || res.data || [];
+                setNotifications(Array.isArray(d) ? d : d.notifications || []);
+              })
+              .catch(() => {});
+          }
+        };
+        socket.on("notification:new", onNew);
+        cleanup = () => socket.off("notification:new", onNew);
+      } catch {
+        // socket unavailable — rely on the poll
+      }
+    })();
+
     const t = setInterval(refreshCount, 60000);
-    return () => clearInterval(t);
-  }, []);
+    return () => {
+      clearInterval(t);
+      cleanup?.();
+    };
+    // `open` is intentionally included so the in-place list refresh sees the
+    // current popover state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -122,7 +201,7 @@ export default function NotificationDropdown() {
 
   const markAllRead = () => {
     api.put("/notifications/read-all").catch(() => {});
-    setNotifications([]);
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setUnreadCount(0);
   };
 
@@ -134,6 +213,20 @@ export default function NotificationDropdown() {
       const item = notifications.find((n) => n.id === id);
       return item && !item.isRead ? Math.max(0, c - 1) : c;
     });
+  };
+
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    api.delete(`/notifications/${id}`).catch(() => {});
+    const item = notifications.find((n) => n.id === id);
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setUnreadCount((c) => (item && !item.isRead ? Math.max(0, c - 1) : c));
+  };
+
+  const handleDeleteAll = () => {
+    api.delete("/notifications/delete-all").catch(() => {});
+    setNotifications([]);
+    setUnreadCount(0);
   };
 
   const handleClick = async (n: Notification) => {
@@ -148,146 +241,128 @@ export default function NotificationDropdown() {
   };
 
   const emptyState = (
-    <div style={{ padding: "40px 16px", textAlign: "center" }}>
-      <BellOutlined
-        style={{ fontSize: 32, color: "#BFBFBF", marginBottom: 12 }}
-      />
-      <div>
-        <Text type="secondary" style={{ display: "block", marginBottom: 4 }}>
-          No notifications yet
-        </Text>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          You&apos;ll see alerts here when your flow packs are expiring or your
-          plan changes.
-        </Text>
+    <div className="flex flex-col items-center justify-center text-center px-6 py-12">
+      <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center mb-4">
+        <Bell className="w-7 h-7 text-primary" />
+      </div>
+      <div className="font-bold text-foreground">No notifications yet</div>
+      <div className="text-sm text-muted-foreground mt-1 max-w-xs">
+        You&apos;ll see alerts here when your flow packs are expiring or your
+        plan changes.
       </div>
     </div>
   );
 
-  const renderItem = (item: Notification) => (
-    <List.Item
-      onClick={() => handleClick(item)}
-      style={{
-        padding: "12px 16px",
-        background: item.isRead ? "transparent" : "#F0FFF4",
-        cursor: "pointer",
-        borderBottom: "1px solid #F0F0F0",
-        alignItems: "flex-start",
-      }}
-    >
-      <List.Item.Meta
-        avatar={
-          <Avatar
-            size={36}
-            style={{ background: "#F8F9FA" }}
-            icon={iconMap[item.type] || iconMap.system}
-          />
-        }
-        title={
-          <Text style={{ fontSize: 13, fontWeight: item.isRead ? 400 : 600 }}>
-            {item.title}
-          </Text>
-        }
-        description={
-          <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {item.message}
-            </Text>
-            <br />
-            <Text type="secondary" style={{ fontSize: 11 }}>
-              {timeAgo(item.createdAt)}
-            </Text>
+  const renderItem = (n: Notification) => {
+    const s = styleFor(n.type);
+    return (
+      <button
+        key={n.id}
+        onClick={() => handleClick(n)}
+        className={`group w-full text-left flex items-start gap-3 p-3 rounded-2xl border border-border mb-2 transition-colors hover:bg-secondary/40 ${
+          n.isRead ? "bg-card" : "bg-accent/40"
+        }`}
+      >
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: s.bg, color: s.c }}
+        >
+          <s.I className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
+              style={{ background: s.bg, color: s.c }}
+            >
+              {s.kind}
+            </span>
+            <div className="font-bold text-sm text-foreground truncate">
+              {n.title}
+            </div>
+            {!n.isRead && (
+              <span className="w-2 h-2 rounded-full bg-primary shrink-0 ml-auto" />
+            )}
+            <span
+              role="button"
+              tabIndex={-1}
+              aria-label="Dismiss notification"
+              onClick={(e) => handleDismiss(n.id, e)}
+              className={`shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition ${
+                n.isRead ? "ml-auto" : ""
+              }`}
+            >
+              <X className="w-3.5 h-3.5" />
+            </span>
+            <span
+              role="button"
+              tabIndex={-1}
+              aria-label="Delete notification"
+              onClick={(e) => handleDelete(n.id, e)}
+              className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-md text-muted-foreground hover:bg-[var(--coral)]/10 hover:text-[var(--coral)] transition"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </span>
           </div>
-        }
-      />
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          flexShrink: 0,
-          marginLeft: 8,
-        }}
-      >
-        {!item.isRead && (
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "#3CB371",
-              flexShrink: 0,
-            }}
-          />
-        )}
-        <Button
-          type="text"
-          size="small"
-          icon={<CloseOutlined style={{ fontSize: 10 }} />}
-          onClick={(e) => handleDismiss(item.id, e)}
-          style={{
-            color: "#BFBFBF",
-            padding: 2,
-            minWidth: 20,
-            height: 20,
-            lineHeight: 1,
-          }}
-        />
-      </div>
-    </List.Item>
-  );
+          <div className="text-[12px] text-muted-foreground mt-0.5 leading-snug">
+            {n.message}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-1">
+            {timeAgo(n.createdAt)}
+          </div>
+        </div>
+      </button>
+    );
+  };
 
-  const actionLinks = (
-    <div style={{ display: "flex", gap: 4 }}>
-      {unreadCount > 0 && (
-        <Button
-          type="link"
-          size="small"
-          onClick={markAllRead}
-          style={{ color: "#3CB371", padding: "0 4px" }}
-        >
-          Mark all read
-        </Button>
-      )}
-      {notifications.length > 0 && (
-        <Button
-          type="link"
-          size="small"
-          onClick={markAllRead}
-          style={{ color: "#8C8C8C", padding: "0 4px" }}
-        >
-          Clear all
-        </Button>
-      )}
+  const header = (
+    <div className="flex items-center justify-between px-1 pb-3">
+      <div>
+        <h2 className="text-base font-extrabold tracking-tight text-foreground">
+          Notifications
+        </h2>
+        <div className="text-[11px] text-muted-foreground">
+          Updates, plans and announcements
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        {unreadCount > 0 && (
+          <button
+            onClick={markAllRead}
+            className="text-xs font-bold text-primary-deep"
+          >
+            Mark all read
+          </button>
+        )}
+        {notifications.length > 0 && (
+          <button
+            onClick={handleDeleteAll}
+            className="inline-flex items-center gap-1 text-xs font-bold text-[var(--coral)]"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete all
+          </button>
+        )}
+      </div>
     </div>
   );
 
-  // Desktop popover content (unchanged layout).
+  // Desktop popover content — new-design notification cards.
   const content = (
-    <div style={{ width: "min(360px, calc(100vw - 24px))", maxWidth: "100vw" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "12px 16px",
-          borderBottom: "1px solid #F0F0F0",
-        }}
-      >
-        <Text strong style={{ fontSize: 16 }}>
-          Notifications
-        </Text>
-        {actionLinks}
+    <div
+      className="tw"
+      style={{ width: "min(380px, calc(100vw - 24px))", maxWidth: "100vw" }}
+    >
+      <div className="p-3">
+        {header}
+        {notifications.length === 0 ? (
+          emptyState
+        ) : (
+          <div className="max-h-[420px] overflow-y-auto no-scrollbar pr-0.5">
+            {notifications.slice(0, 8).map(renderItem)}
+          </div>
+        )}
       </div>
-      {notifications.length === 0 ? (
-        emptyState
-      ) : (
-        <List
-          dataSource={notifications.slice(0, 8)}
-          style={{ maxHeight: 400, overflowY: "auto" }}
-          renderItem={renderItem}
-        />
-      )}
     </div>
   );
 
@@ -308,59 +383,48 @@ export default function NotificationDropdown() {
       <>
         <span onClick={() => setOpen(true)}>{bell}</span>
         {open && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 1200,
-              background: "#fff",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "14px 16px",
-                borderBottom: "1px solid #F0F0F0",
-                position: "sticky",
-                top: 0,
-                background: "#fff",
-                zIndex: 1,
-              }}
-            >
-              <Text strong style={{ fontSize: 18 }}>
-                Notifications
-              </Text>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <div className="tw fixed inset-0 z-[1200] bg-background flex flex-col">
+            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3.5 bg-background/95 backdrop-blur-md border-b border-border">
+              <div>
+                <h1 className="text-lg font-extrabold tracking-tight text-foreground">
+                  Notifications
+                </h1>
+                <div className="text-[11px] text-muted-foreground">
+                  Updates, plans and announcements
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
                 {unreadCount > 0 && (
-                  <Button
-                    type="link"
-                    size="small"
+                  <button
                     onClick={markAllRead}
-                    style={{ color: "#3CB371", padding: "0 4px" }}
+                    className="text-xs font-bold text-primary-deep px-2"
                   >
                     Mark all read
-                  </Button>
+                  </button>
                 )}
-                <Button
-                  type="text"
-                  shape="circle"
+                {notifications.length > 0 && (
+                  <button
+                    onClick={handleDeleteAll}
+                    aria-label="Delete all notifications"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[var(--coral)] px-2"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete all
+                  </button>
+                )}
+                <button
                   aria-label="Close notifications"
                   onClick={() => setOpen(false)}
-                  icon={<CloseOutlined style={{ fontSize: 18 }} />}
-                  style={{ width: 40, height: 40 }}
-                />
+                  className="w-10 h-10 rounded-xl hover:bg-secondary flex items-center justify-center text-foreground"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
             </div>
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              {notifications.length === 0 ? (
-                emptyState
-              ) : (
-                <List dataSource={notifications} renderItem={renderItem} />
-              )}
+            <div className="flex-1 overflow-y-auto px-5 pt-3 pb-24">
+              {notifications.length === 0
+                ? emptyState
+                : notifications.map(renderItem)}
             </div>
           </div>
         )}
@@ -368,7 +432,7 @@ export default function NotificationDropdown() {
     );
   }
 
-  // ── Desktop: keep the existing popover dropdown ─────────────────────────
+  // ── Desktop: popover dropdown ───────────────────────────────────────────
   return (
     <Popover
       content={content}
@@ -379,7 +443,7 @@ export default function NotificationDropdown() {
       arrow={false}
       rootClassName="vc-notif-popover"
       styles={{
-        body: { padding: 0, borderRadius: 12, overflow: "hidden" },
+        body: { padding: 0, borderRadius: 16, overflow: "hidden" },
         root: { zIndex: 1100 },
       }}
     >

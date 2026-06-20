@@ -13,9 +13,11 @@ import {
   Share2,
   Crown,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import StatCard from "@/components/dashboard/StatCard";
 import MiniFlow from "@/components/dashboard/MiniFlow";
+import { aiApi } from "@/api/ai.api";
 
 // ─── Local atoms (Dashboard-only) ────────────────────────────────────────────
 
@@ -74,12 +76,32 @@ export default function TeamDashboardPage() {
 
   const [subStatus, setSubStatus] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [aiCredits, setAiCredits] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/subscription/status")
       .then((r) => r.json())
       .then((d) => setSubStatus(d?.data?.status ?? null))
       .catch(() => {});
+  }, []);
+
+  // Remaining AI credits — same source the sidebar drawer pill reads. Refresh
+  // on the `aiCreditsChanged` event so the dashboard stays in sync after usage.
+  useEffect(() => {
+    const fetchCredits = async () => {
+      try {
+        const res = await aiApi.getCredits();
+        const d = res.data?.data || res.data || {};
+        const total =
+          d.totalCredits ?? d.balance?.totalCredits ?? d.credits ?? null;
+        if (typeof total === "number") setAiCredits(total);
+      } catch {
+        /* leave as null — credits row hidden until known */
+      }
+    };
+    fetchCredits();
+    window.addEventListener("aiCreditsChanged", fetchCredits);
+    return () => window.removeEventListener("aiCreditsChanged", fetchCredits);
   }, []);
 
   const openCustomerPortal = async () => {
@@ -204,7 +226,13 @@ export default function TeamDashboardPage() {
           <div className="mt-2 text-lg font-extrabold">
             {loading ? "—" : (stats?.teamMembers ?? 0)} members
           </div>
-          <div className="mt-1 text-xs text-white/85">
+          {aiCredits != null && (
+            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-xs font-semibold">
+              <Sparkles className="w-3.5 h-3.5 text-[#FFD27A]" />
+              {aiCredits} AI credits remaining
+            </div>
+          )}
+          <div className="mt-2 text-xs text-white/85">
             Manage your team plan and billing
           </div>
           <button
@@ -414,6 +442,12 @@ export default function TeamDashboardPage() {
               {loading ? "—" : (stats?.teamMembers ?? 0)}{" "}
               <span className="text-sm font-medium text-white/80">members</span>
             </div>
+            {aiCredits != null && (
+              <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-xs font-semibold">
+                <Sparkles className="w-3.5 h-3.5 text-[#FFD27A]" />
+                {aiCredits} AI credits remaining
+              </div>
+            )}
             <div className="mt-3 text-xs text-white/85">
               Manage your team plan, billing, and member access.
             </div>

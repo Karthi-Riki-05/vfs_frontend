@@ -2,6 +2,7 @@ import axios from "axios";
 import { signOut } from "next-auth/react";
 import { message } from "antd";
 import { getAiBillingTeamId } from "@/lib/aiBilling";
+import { appTypeFromUserAgent } from "@/lib/detectWebView";
 
 // Create a custom instance
 const api = axios.create({
@@ -41,6 +42,17 @@ api.interceptors.request.use((config) => {
           sessionStorage.setItem("vc_app_context", appMode);
           sessionStorage.removeItem("vc_forced_app_mode");
         }
+      }
+      // Backward-compat fallback: if no stored context (e.g. a deep link that
+      // never hit app/page.tsx), derive it from the native UA signature.
+      // Storage/param stay primary so existing behaviour is unchanged.
+      // NOTE: this only DECLARES intent — the backend still verifies the real
+      // entitlement (enforceProContext), so a spoofed UA grants nothing.
+      if (!appMode) {
+        const fromUa = appTypeFromUserAgent(
+          typeof navigator !== "undefined" ? navigator.userAgent : null,
+        );
+        if (fromUa !== "web") appMode = fromUa;
       }
       appMode = appMode || "team";
       config.headers = config.headers || {};

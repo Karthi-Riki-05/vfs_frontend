@@ -17,11 +17,17 @@ function UpgradeProSuccessContent() {
   const pollRef = useRef(false);
   const { update: updateSession } = useSession();
 
+  // After a Pro purchase the user belongs in the Pro app. Default strictly to
+  // /dashboard/pro and only honour a stored return path if it is itself inside
+  // the Pro subtree — never let a bare /dashboard (or a stale non-Pro path)
+  // through, which would drop a freshly-paid Pro user into the wrong app shell.
   const getPostPurchaseRedirect = () => {
     try {
-      return sessionStorage.getItem(PRO_REDIRECT_KEY) || "/dashboard";
+      const stored = sessionStorage.getItem(PRO_REDIRECT_KEY);
+      if (stored && stored.startsWith("/dashboard/pro")) return stored;
+      return "/dashboard/pro";
     } catch {
-      return "/dashboard";
+      return "/dashboard/pro";
     }
   };
 

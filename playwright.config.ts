@@ -23,6 +23,19 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      // Mobile drawer parity suite needs a touch viewport — runs in `mobile`.
+      testIgnore: /mobile-drawer\.spec\.ts/,
+    },
+    {
+      // Dedicated mobile profile — Pixel 7 (412×915, isMobile + hasTouch),
+      // below the 767px breakpoint so the hamburger / drawer layout mounts.
+      // Shares the global storageState (pro.json) and runs the Team + Pro
+      // drawer cases with visual-regression snapshots.
+      name: "mobile",
+      use: { ...devices["Pixel 7"] },
+      // Touch-viewport suites: mobile drawer parity + the Header navbar audit +
+      // the Dashboard layout/body audit (all run in BOTH chromium and mobile).
+      testMatch: /(mobile-drawer|header-navbar|layout-body)\.spec\.ts/,
     },
   ],
 

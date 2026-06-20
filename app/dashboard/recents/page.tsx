@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, type ReactNode } from "react";
+import React, { useState, useEffect, useCallback, type ReactNode } from "react";
 import { Dropdown, message } from "antd";
 import {
   EditOutlined,
@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import api from "@/lib/axios";
 import MiniFlow from "@/components/dashboard/MiniFlow";
+import { useAppContext } from "@/context/AppContext";
+import { onWorkspaceFlush } from "@/lib/workspaceCache";
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
 const FLOW_COLORS = [
@@ -86,12 +88,22 @@ function timeAgo(dateStr: string): string {
 
 // ─── Local atom components ────────────────────────────────────────────────────
 
-function SearchBar({ placeholder }: { placeholder: string }) {
+function SearchBar({
+  placeholder,
+  value,
+  onChange,
+}: {
+  placeholder: string;
+  value?: string;
+  onChange?: (v: string) => void;
+}) {
   return (
     <div className="flex items-center gap-2 h-11 px-3 rounded-2xl bg-card border border-border mb-4">
       <Search className="w-4 h-4 text-muted-foreground" />
       <input
         placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
         className="flex-1 bg-transparent outline-none text-sm border-0 p-0 appearance-none"
       />
       <button
@@ -193,16 +205,14 @@ function ListItem({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function RecentsPage() {
   const router = useRouter();
+  const { activeTeamId, hydrated } = useAppContext();
   const [flows, setFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"list" | "grid">("list");
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    fetchRecentFlows();
-  }, []);
-
-  const fetchRecentFlows = async () => {
+  const fetchRecentFlows = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.get("/flows");
@@ -220,7 +230,16 @@ export default function RecentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTeamId]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    fetchRecentFlows();
+  }, [fetchRecentFlows, hydrated]);
+
+  // Wipe stale workspace flows instantly on context switch (avoid display ghosts)
+  useEffect(() => onWorkspaceFlush(() => setFlows([])), []);
 
   const handleEdit = (id: string) => {
     window.open(`/dashboard/flows/${id}`, "_blank");
@@ -292,7 +311,12 @@ export default function RecentsPage() {
     },
   ];
 
-  const grouped = groupFlowsByDate(Array.isArray(flows) ? flows : []);
+  const safeFlows = Array.isArray(flows) ? flows : [];
+  const q = query.trim().toLowerCase();
+  const filteredFlows = q
+    ? safeFlows.filter((f) => (f.name || "").toLowerCase().includes(q))
+    : safeFlows;
+  const grouped = groupFlowsByDate(filteredFlows);
 
   // ─── Loading skeleton ──────────────────────────────────────────────────────
   if (loading) {
@@ -345,7 +369,11 @@ export default function RecentsPage() {
     <div className="tw min-h-screen bg-background">
       <div className="px-5 pt-3 pb-24">
         {/* Search */}
-        <SearchBar placeholder="Search recent flows & shapes" />
+        <SearchBar
+          placeholder="Search recent flows & shapes"
+          value={query}
+          onChange={setQuery}
+        />
 
         {/* View toggle header */}
         <div className="flex items-center justify-between mb-3">
@@ -451,6 +479,19 @@ export default function RecentsPage() {
               )}
             </div>
           ),
+        )}
+
+        {/* No search results */}
+        {q && filteredFlows.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="text-4xl mb-3">🔍</div>
+            <div className="text-sm font-bold text-foreground mb-1">
+              No matching flows
+            </div>
+            <div className="text-sm text-muted-foreground">
+              No recent flows match “{query.trim()}”
+            </div>
+          </div>
         )}
       </div>
     </div>

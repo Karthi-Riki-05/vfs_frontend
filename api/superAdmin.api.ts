@@ -137,11 +137,11 @@ export interface UserDetail extends AdminUser {
   proPurchasedAt: string | null;
   proAdditionalFlowsPurchased: number;
   sessions: { expires: string; sessionToken: string }[];
-  firebaseUser: {
+  firebaseUsers: {
     fcmToken: string | null;
     fcmUsername: string | null;
     updatedAt: string | null;
-  } | null;
+  }[];
   flows: {
     id: string;
     name: string;

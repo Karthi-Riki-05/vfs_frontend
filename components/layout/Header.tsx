@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { getLogoForApp, getForcedMode } from "@/lib/getLogo";
+import { useAppBrand } from "@/hooks/useAppBrand";
+import api from "@/lib/axios";
 import { useRouter, usePathname } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { Dropdown, Tag, Button, Tooltip, Modal, message } from "antd";
 import {
   MessageOutlined,
@@ -80,6 +82,37 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const userInitial = userName.charAt(0).toUpperCase();
   const { totalUnread } = useUnreadCount();
 
+  // Navbar avatar: the uploaded profile photo lives on the user record, not in
+  // the NextAuth JWT — so the session image goes stale after an avatar change.
+  // Seed from the session, then fetch the live value and refresh on the
+  // `userAvatarChanged` event the Settings page dispatches after an upload.
+  // (Mirrors the Sidebar drawer avatar, Sidebar.tsx:196-220.)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    (session?.user?.image as string) || null,
+  );
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      try {
+        const res = await api.get("/users/me");
+        const d = res.data?.data || res.data || {};
+        const url = d.image || d.photo || null;
+        if (url) setAvatarUrl(url);
+      } catch {
+        /* keep last known value */
+      }
+    };
+    fetchAvatar();
+    const onChange = (e: Event) => {
+      const url = (e as CustomEvent<{ url?: string }>).detail?.url;
+      if (url) setAvatarUrl(url);
+      else fetchAvatar();
+    };
+    window.addEventListener("userAvatarChanged", onChange);
+    return () => window.removeEventListener("userAvatarChanged", onChange);
+  }, []);
+  const hasAvatar =
+    typeof avatarUrl === "string" && avatarUrl.trim().length > 0;
+
   const {
     activeContext,
     availableTeams,
@@ -124,6 +157,12 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   useEffect(() => {
     setForcedAppMode(getForcedMode());
   }, []);
+  // Logo brand follows the app SHELL (WebView UA), not billing currentApp — a
+  // Pro-entitled user opening the Team app reports currentApp="pro" until the
+  // reconcile lands, which leaked the Pro logo into the Team app. Web visitors
+  // (brand="web") keep the currentApp-derived logo.
+  const brand = useAppBrand();
+  const logoApp = brand === "web" ? currentApp : brand;
   // Logo click lands on the app-specific home (matches post-login redirect).
   const logoHref =
     isProApp || forcedAppMode === "pro"
@@ -272,7 +311,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
           <Link href={logoHref} className="flex items-center no-underline">
             <img
-              src={getLogoForApp(currentApp)}
+              src={getLogoForApp(logoApp)}
               alt="ValueChart Logo"
               // Logo bumped to 48px so it fills the 56px navbar and its width
               // lines the Profile divider up with the 220px sidebar border.
@@ -400,9 +439,19 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <button
             onClick={() => router.push("/dashboard/settings")}
             aria-label="Open profile"
-            className="ml-1 w-9 h-9 rounded-full bg-primary ring-2 ring-primary/20 flex items-center justify-center text-white text-sm font-bold cursor-pointer border-0 appearance-none hover:ring-primary/40 transition"
+            className="ml-1 w-9 h-9 rounded-full bg-primary ring-2 ring-primary/20 flex items-center justify-center text-white text-sm font-bold cursor-pointer border-0 appearance-none overflow-hidden hover:ring-primary/40 transition"
           >
-            {userInitial}
+            {hasAvatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl as string}
+                alt={userName}
+                className="w-full h-full object-cover"
+                onError={() => setAvatarUrl(null)}
+              />
+            ) : (
+              userInitial
+            )}
           </button>
         </div>
       </header>

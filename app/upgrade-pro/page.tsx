@@ -66,7 +66,7 @@ function UpgradeProContent() {
   const wasCancelled = searchParams?.get("cancelled") === "true";
   // When arriving from forced Pro mode (?app=pro), preserve the return path
   const isFromProApp = searchParams?.get("app") === "pro";
-  const backUrl = isFromProApp ? "/dashboard" : "/dashboard";
+  const backUrl = isFromProApp ? "/dashboard/pro" : "/dashboard";
 
   // Detect browser back-button return from Stripe (no cancel_url param).
   // purchasePro() sets the flag in sessionStorage before redirecting.
@@ -206,7 +206,7 @@ function UpgradeProContent() {
         textAlign: "center",
       }}
     >
-      <BackToDashboard router={router} backUrl="/dashboard" />
+      <BackToDashboard router={router} backUrl={backUrl} />
 
       {wasCancelled && (
         <Alert

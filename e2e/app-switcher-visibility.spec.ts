@@ -70,8 +70,8 @@ test.describe("App Switcher Visibility", () => {
     await expect(switcher(page)).toBeVisible();
 
     // Both stacked entries are present (Team + Pro badges).
-    await expect(switcher(page).getByText("TEAM")).toBeVisible();
-    await expect(switcher(page).getByText("PRO")).toBeVisible();
+    await expect(switcher(page).getByText("Value Charts")).toBeVisible();
+    await expect(switcher(page).getByText("PRO", { exact: true })).toBeVisible();
 
     await page.screenshot({
       path: "test-results/website-switcher-visible.png",

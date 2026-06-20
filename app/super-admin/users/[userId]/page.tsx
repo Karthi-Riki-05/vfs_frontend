@@ -1179,12 +1179,17 @@ export default function UserDetailPage() {
                           ? dayjs(user.lastSeen).fromNow()
                           : "Never"}
                       </Descriptions.Item>
-                      <Descriptions.Item label="FCM token">
-                        {user.firebaseUser?.fcmToken ? "Registered" : "—"}
+                      <Descriptions.Item label="Devices">
+                        {(() => {
+                          const n = (user.firebaseUsers || []).filter(
+                            (d) => d.fcmToken,
+                          ).length;
+                          return n > 0 ? `${n} registered` : "—";
+                        })()}
                       </Descriptions.Item>
                       <Descriptions.Item label="FCM updated">
-                        {user.firebaseUser?.updatedAt
-                          ? dayjs(user.firebaseUser.updatedAt).fromNow()
+                        {user.firebaseUsers?.[0]?.updatedAt
+                          ? dayjs(user.firebaseUsers[0].updatedAt).fromNow()
                           : "—"}
                       </Descriptions.Item>
                     </Descriptions>
