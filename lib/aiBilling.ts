@@ -22,10 +22,19 @@ export const AI_BILLING_EVENT = "vc:ai-billing-change";
 // listeners turned that into an infinite refresh/request loop.
 function isProTab(): boolean {
   try {
-    return (
+    if (
       sessionStorage.getItem("vc_app_context") === "pro" ||
       sessionStorage.getItem("vc_forced_app_mode") === "pro"
-    );
+    )
+      return true;
+    // Flutter Pro WebView never sets ?app=pro, so sessionStorage is empty.
+    // Fall back to the UA signature injected by the native shell.
+    if (
+      typeof navigator !== "undefined" &&
+      /ValueChartsMobile\/Pro-App/i.test(navigator.userAgent)
+    )
+      return true;
+    return false;
   } catch {
     return false;
   }

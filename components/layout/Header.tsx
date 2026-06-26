@@ -7,10 +7,9 @@ import { useAppBrand } from "@/hooks/useAppBrand";
 import api from "@/lib/axios";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Dropdown, Tag, Button, Tooltip, Modal, message } from "antd";
+import { Tag, Button, Tooltip, Modal, message } from "antd";
 import {
   MessageOutlined,
-  DownOutlined,
   UserOutlined,
   CrownOutlined,
   LogoutOutlined,
@@ -24,7 +23,7 @@ import {
 import { Menu as MenuIcon, MessageCircle } from "lucide-react";
 import type { MenuProps } from "antd";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
-import TeamContextSwitcher from "@/components/layout/TeamContextSwitcher";
+import SidebarTeamSwitcher from "@/components/layout/SidebarTeamSwitcher";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import {
   useIsMobile,
@@ -80,7 +79,6 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const user = session?.user;
   const userName = user?.name || "User";
   const userInitial = userName.charAt(0).toUpperCase();
-  const { totalUnread } = useUnreadCount();
 
   // Navbar avatar: the uploaded profile photo lives on the user record, not in
   // the NextAuth JWT — so the session image goes stale after an avatar change.
@@ -124,18 +122,12 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     isTeamContext,
   } = useAppContext();
   const { currentApp, loading: proLoading } = usePro();
+  const { totalUnread } = useUnreadCount(currentApp === "pro" ? "pro" : "team");
   const sessionHasTeamAccess = (session?.user as any)?.hasTeamAccess ?? false;
 
   // AI-billing / team-context switcher — surfaced as a standalone navbar pill
   // (moved out of the account dropdown; the avatar now navigates to Profile).
-  const {
-    options: billingOptions,
-    activeBillingTeamId,
-    hasTeams: hasBillingTeams,
-  } = useAiBilling();
-  const activeBilling =
-    billingOptions.find((o) => o.teamId === activeBillingTeamId) ||
-    billingOptions[0];
+  useAiBilling();
 
   // Subscription-aware personal plan — wins over the stale JWT/session field.
   // (Backend `getTeamContext` resolves it from the active subscription row.)
@@ -399,39 +391,8 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             </span>
           )}
 
-          {/* Context-switcher pill — moved out of the account dropdown so the
-              avatar can navigate straight to Profile (new_design TopBar). Only
-              shown when the user belongs to ≥1 team. Switching here changes the
-              billed AI-credit pool only — never the data shown (DATA-LOSS-001). */}
-          {hasBillingTeams && (
-            <Dropdown
-              trigger={["click"]}
-              placement={isMobile ? "bottom" : "bottomRight"}
-              dropdownRender={() => (
-                <div
-                  style={{
-                    background: "#FFFFFF",
-                    borderRadius: 8,
-                    boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
-                    overflow: "hidden",
-                    minWidth: 240,
-                  }}
-                >
-                  <TeamContextSwitcher />
-                </div>
-              )}
-            >
-              <button
-                aria-label="Switch billing context"
-                className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-primary-tint text-primary-deep text-xs font-semibold cursor-pointer border-0 appearance-none hover:opacity-90 transition"
-              >
-                <span className="truncate max-w-[120px]">
-                  {activeBilling?.label || "Personal"}
-                </span>
-                <DownOutlined style={{ fontSize: 9 }} />
-              </button>
-            </Dropdown>
-          )}
+          {/* Team switcher — new_design style, shown in navbar for desktop */}
+          <SidebarTeamSwitcher variant="navbar" />
 
           {/* User avatar — plain round button → Profile (new_design TopBar L274).
               No name/caret/dropdown; account actions live in the sidebar

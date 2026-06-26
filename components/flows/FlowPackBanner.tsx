@@ -14,9 +14,9 @@ import FlowPickerModal from "./FlowPickerModal";
 //   • no pack, on free 10-limit  → blue upsell when at the limit
 export default function FlowPackBanner() {
   const router = useRouter();
-  const { status, refresh } = usePackStatus();
+  const { status, refresh, isTeamApp, effectiveLimit, effectiveUnlimited } =
+    usePackStatus();
   const [pickerOpen, setPickerOpen] = useState(false);
-
   if (!status) return null;
 
   // Picker phase = required action — sticky red banner.
@@ -55,10 +55,60 @@ export default function FlowPackBanner() {
         </div>
         <FlowPickerModal
           open={pickerOpen}
+          maxKeep={10}
+          pickerType="pro"
           onConfirm={() => {
             setPickerOpen(false);
             refresh();
             // Reload page to refresh flows list with the new selection.
+            router.refresh();
+          }}
+        />
+      </>
+    );
+  }
+
+  // Team-subscription picker phase = required action — sticky red banner.
+  if (status.isInTeamPickerPhase) {
+    return (
+      <>
+        <div
+          style={{
+            background: "#FFF1F0",
+            border: "1px solid #FFA39E",
+            borderRadius: 8,
+            padding: "14px 18px",
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            position: "sticky",
+            top: 0,
+            zIndex: 5,
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 700, color: "#cf1322" }}>
+              Your team subscription has expired. Select 50 flows to keep.
+            </div>
+            <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+              You have {status.flowCount} team flows. Pick 50 — the rest will
+              move to trash for 30 days.
+            </div>
+          </div>
+          <Button type="primary" danger onClick={() => setPickerOpen(true)}>
+            Open Flow Selector
+          </Button>
+        </div>
+        <FlowPickerModal
+          open={pickerOpen}
+          maxKeep={50}
+          pickerType="team"
+          onConfirm={() => {
+            setPickerOpen(false);
+            refresh();
             router.refresh();
           }}
         />
@@ -153,12 +203,11 @@ export default function FlowPackBanner() {
     );
   }
 
-  // No pack + at-limit upsell.
   if (
     !status.activePackId &&
-    !status.isUnlimited &&
-    status.flowLimit > 0 &&
-    status.flowCount >= status.flowLimit
+    !effectiveUnlimited &&
+    effectiveLimit > 0 &&
+    status.flowCount >= effectiveLimit
   ) {
     return (
       <div
@@ -176,18 +225,29 @@ export default function FlowPackBanner() {
         }}
       >
         <div style={{ fontWeight: 600, color: "#0050B3" }}>
-          You've reached your {status.flowLimit}-flow limit.
+          You've reached your {effectiveLimit}-flow limit.
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <Button
-            type="primary"
-            onClick={() => router.push("/dashboard/subscription")}
-          >
-            Subscribe 50 Flows — $5/mo
-          </Button>
-          <Button onClick={() => router.push("/dashboard/subscription")}>
-            Subscribe Unlimited — $10/mo
-          </Button>
+          {isTeamApp ? (
+            <Button
+              type="primary"
+              onClick={() => router.push("/dashboard/subscription")}
+            >
+              Upgrade to Team — unlimited flows
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="primary"
+                onClick={() => router.push("/dashboard/subscription")}
+              >
+                Subscribe 50 Flows — $5/mo
+              </Button>
+              <Button onClick={() => router.push("/dashboard/subscription")}>
+                Subscribe Unlimited — $10/mo
+              </Button>
+            </>
+          )}
         </div>
       </div>
     );

@@ -10,7 +10,6 @@ vi.mock("@/api/ai.api", () => ({
   aiApi: {
     chat: (...a: any[]) => chat(...a),
     generateDiagram: (...a: any[]) => generateDiagram(...a),
-    generateDiagramFromDocument: vi.fn(),
     getConsent: (...a: any[]) => getConsent(...a),
     getContext: (...a: any[]) => getContext(...a),
     setConsent: vi.fn().mockResolvedValue({}),

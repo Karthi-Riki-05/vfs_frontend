@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Modal, Form, Input, message, Spin } from "antd";
-import { MailOutlined } from "@ant-design/icons";
+import { Modal, Form, Input, message, Spin, Dropdown, Button } from "antd";
+import { MailOutlined, MoreOutlined } from "@ant-design/icons";
 import { teamsApi } from "@/api/teams.api";
 import { useParams, useRouter } from "next/navigation";
 import { useIsMobile } from "@/hooks/useMediaQuery";
@@ -47,6 +47,15 @@ function formatDate(dateStr?: string): string {
   });
 }
 
+function timeAgo(dateStr?: string): string {
+  if (!dateStr) return "recently";
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diffMs / 86400000);
+  if (days <= 0) return "Sent today";
+  if (days === 1) return "Sent 1 day ago";
+  return `Sent ${days} days ago`;
+}
+
 export default function TeamDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -58,9 +67,25 @@ export default function TeamDetailPage() {
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsForm] = Form.useForm();
   const [searchQuery, setSearchQuery] = useState("");
-  const [pendingInvites] = useState<any[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   const [form] = Form.useForm();
+
+  const refreshInvites = () => {
+    if (!teamId) return;
+    teamsApi
+      .listInvites(teamId)
+      .then((res) => setPendingInvites(res.data?.data || []))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    refreshInvites();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId]);
 
   useEffect(() => {
     if (!teamId) return;
@@ -83,10 +108,11 @@ export default function TeamDetailPage() {
       message.success("Invitation sent");
       form.resetFields();
       setInviteOpen(false);
-      // Refresh members
+      // Refresh members + pending invites
       const res = await teamsApi.listMembers(teamId);
       const mData = res.data?.data || res.data;
       setMembers(Array.isArray(mData) ? mData : []);
+      refreshInvites();
     } catch (err: any) {
       const errMsg =
         err?.response?.data?.error?.message ||
@@ -108,6 +134,96 @@ export default function TeamDetailPage() {
     } catch {
       message.error("Failed to remove member");
     }
+  };
+
+  const handleRoleChange = async (userId: string, role: "ADMIN" | "MEMBER") => {
+    try {
+      await teamsApi.updateMemberRole(teamId, userId, role);
+      message.success("Member role updated");
+      const res = await teamsApi.listMembers(teamId);
+      const mData = res.data?.data || res.data;
+      setMembers(Array.isArray(mData) ? mData : []);
+    } catch {
+      message.error("Failed to update member role");
+    }
+  };
+
+  const handleCancelInvite = async (inviteId: string) => {
+    try {
+      await teamsApi.cancelInvite(inviteId);
+      message.success("Invite cancelled");
+      refreshInvites();
+    } catch {
+      message.error("Failed to cancel invite");
+    }
+  };
+
+  const openSettings = () => {
+    settingsForm.setFieldsValue({
+      name: team?.name,
+      description: team?.description,
+    });
+    setSettingsOpen(true);
+  };
+
+  const handleSaveSettings = async () => {
+    try {
+      const values = await settingsForm.validateFields();
+      setSavingSettings(true);
+      const res = await teamsApi.update(teamId, {
+        name: values.name,
+        description: values.description,
+      });
+      const updated = res.data?.data || res.data;
+      setTeam((prev: any) => ({ ...prev, ...updated }));
+      message.success("Team updated");
+      setSettingsOpen(false);
+    } catch (err: any) {
+      if (err?.errorFields) return; // form validation error
+      message.error("Failed to update team");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleDeleteTeam = () => {
+    Modal.confirm({
+      title: "Delete team?",
+      content:
+        "This permanently deletes the team for all members. This cannot be undone.",
+      okText: "Delete",
+      okButtonProps: { danger: true },
+      cancelText: "Cancel",
+      onOk: async () => {
+        try {
+          await teamsApi.delete(teamId);
+          message.success("Team deleted");
+          router.push("/dashboard/teams");
+        } catch {
+          message.error("Failed to delete team");
+        }
+      },
+    });
+  };
+
+  const memberMenuItems = (member: any) => {
+    const userId = member.userId || member.user?.id || member.id;
+    const role = (member.role || "MEMBER").toUpperCase();
+    return [
+      {
+        key: "role",
+        label: role === "ADMIN" ? "Change to Member" : "Change to Admin",
+        onClick: () =>
+          handleRoleChange(userId, role === "ADMIN" ? "MEMBER" : "ADMIN"),
+      },
+      { type: "divider" as const },
+      {
+        key: "remove",
+        label: "Remove member",
+        danger: true,
+        onClick: () => handleRemove(userId),
+      },
+    ];
   };
 
   const roleLabel = (role?: string) => {
@@ -177,7 +293,7 @@ export default function TeamDetailPage() {
             {/* Settings button (owner only) */}
             {isOwner && (
               <button
-                onClick={() => router.push("/dashboard/teams")}
+                onClick={openSettings}
                 style={{
                   position: "absolute",
                   top: 12,
@@ -474,16 +590,28 @@ export default function TeamDetailPage() {
                     <div
                       style={{
                         padding: "3px 8px",
-                        background: "#E7F6F0",
-                        color: "#1F7D5E",
+                        background: role === "ADMIN" ? "#ede9fe" : "#E7F6F0",
+                        color: role === "ADMIN" ? "#7c3aed" : "#1F7D5E",
                         borderRadius: 20,
                         fontSize: 10,
                         fontWeight: 700,
                         whiteSpace: "nowrap",
                       }}
                     >
-                      Member
+                      {role === "ADMIN" ? "Admin" : "Member"}
                     </div>
+                  )}
+                  {isOwner && !mIsOwner && (
+                    <Dropdown
+                      trigger={["click"]}
+                      menu={{ items: memberMenuItems(member) }}
+                    >
+                      <Button
+                        icon={<MoreOutlined />}
+                        type="text"
+                        size="small"
+                      />
+                    </Dropdown>
                   )}
                 </div>
               );
@@ -534,7 +662,7 @@ export default function TeamDetailPage() {
                     border: "1px solid #fde68a",
                   }}
                 >
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div
                       style={{
                         fontSize: 12,
@@ -547,20 +675,34 @@ export default function TeamDetailPage() {
                     <div
                       style={{ fontSize: 10, color: "#6B7280", marginTop: 1 }}
                     >
-                      Invited {formatDate(invite.createdAt)}
+                      {timeAgo(invite.createdAt)}
                     </div>
                   </div>
                   <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: "#f59e0b",
-                      background: "#fef3c7",
-                      padding: "2px 8px",
-                      borderRadius: 20,
-                    }}
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
                   >
-                    Pending
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: "#f59e0b",
+                        background: "#fef3c7",
+                        padding: "2px 8px",
+                        borderRadius: 20,
+                      }}
+                    >
+                      Pending
+                    </div>
+                    {isOwner && (
+                      <Button
+                        size="small"
+                        danger
+                        type="text"
+                        onClick={() => handleCancelInvite(invite.id)}
+                      >
+                        Cancel
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))
@@ -598,7 +740,7 @@ export default function TeamDetailPage() {
             {/* Settings button */}
             {isOwner && (
               <button
-                onClick={() => router.push("/dashboard/teams")}
+                onClick={openSettings}
                 style={{
                   position: "absolute",
                   top: 12,
@@ -896,16 +1038,28 @@ export default function TeamDetailPage() {
                     <div
                       style={{
                         padding: "3px 8px",
-                        background: "#e8f7ef",
-                        color: "#3CB371",
+                        background: role === "ADMIN" ? "#ede9fe" : "#e8f7ef",
+                        color: role === "ADMIN" ? "#7c3aed" : "#3CB371",
                         borderRadius: 20,
                         fontSize: 10,
                         fontWeight: 700,
                         whiteSpace: "nowrap",
                       }}
                     >
-                      Member
+                      {role === "ADMIN" ? "Admin" : "Member"}
                     </div>
+                  )}
+                  {isOwner && !mIsOwner && (
+                    <Dropdown
+                      trigger={["click"]}
+                      menu={{ items: memberMenuItems(member) }}
+                    >
+                      <Button
+                        icon={<MoreOutlined />}
+                        type="text"
+                        size="small"
+                      />
+                    </Dropdown>
                   )}
                 </div>
               );
@@ -956,7 +1110,7 @@ export default function TeamDetailPage() {
                     border: "1px solid #fde68a",
                   }}
                 >
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div
                       style={{
                         fontSize: 12,
@@ -969,20 +1123,34 @@ export default function TeamDetailPage() {
                     <div
                       style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }}
                     >
-                      Invited {formatDate(invite.createdAt)}
+                      {timeAgo(invite.createdAt)}
                     </div>
                   </div>
                   <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: "#f59e0b",
-                      background: "#fef3c7",
-                      padding: "2px 8px",
-                      borderRadius: 20,
-                    }}
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
                   >
-                    Pending
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: "#f59e0b",
+                        background: "#fef3c7",
+                        padding: "2px 8px",
+                        borderRadius: 20,
+                      }}
+                    >
+                      Pending
+                    </div>
+                    {isOwner && (
+                      <Button
+                        size="small"
+                        danger
+                        type="text"
+                        onClick={() => handleCancelInvite(invite.id)}
+                      >
+                        Cancel
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))
@@ -1014,6 +1182,52 @@ export default function TeamDetailPage() {
             <Input prefix={<MailOutlined />} placeholder="member@example.com" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Settings modal — owner only */}
+      <Modal
+        title="Team Settings"
+        open={settingsOpen}
+        onCancel={() => setSettingsOpen(false)}
+        onOk={handleSaveSettings}
+        okText="Save"
+        confirmLoading={savingSettings}
+      >
+        <Form form={settingsForm} layout="vertical">
+          <Form.Item
+            name="name"
+            label="Team Name"
+            rules={[{ required: true, message: "Team name is required" }]}
+          >
+            <Input placeholder="Team name" />
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={3} placeholder="Team description" />
+          </Form.Item>
+        </Form>
+        <div
+          style={{
+            borderTop: "1px solid #f0f0f0",
+            marginTop: 8,
+            paddingTop: 16,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#ef4444",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              marginBottom: 8,
+            }}
+          >
+            Danger Zone
+          </div>
+          <Button danger onClick={handleDeleteTeam}>
+            Delete Team
+          </Button>
+        </div>
       </Modal>
     </>
   );

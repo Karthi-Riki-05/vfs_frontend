@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { getPostLoginDashboardUrl } from "@/lib/postLoginRedirect";
 
 /**
  * /dashboard/chat/:groupId
@@ -18,7 +19,7 @@ export default function ChatGroupRedirect() {
       router.replace("/dashboard/chat");
     } else {
       (window as any).__openChat?.();
-      router.replace("/dashboard");
+      router.replace(getPostLoginDashboardUrl());
     }
   }, [router, isMobile]);
 

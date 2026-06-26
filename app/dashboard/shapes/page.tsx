@@ -119,7 +119,7 @@ function ViewToggle({
         aria-pressed={view === "list"}
         className={`appearance-none border-0 cursor-pointer w-9 h-8 rounded-lg flex items-center justify-center ${
           view === "list"
-            ? "bg-card shadow-sm text-primary-deep"
+            ? "bg-card shadow-sm text-primary"
             : "bg-transparent text-muted-foreground"
         }`}
       >
@@ -132,7 +132,7 @@ function ViewToggle({
         aria-pressed={view === "grid"}
         className={`appearance-none border-0 cursor-pointer w-9 h-8 rounded-lg flex items-center justify-center ${
           view === "grid"
-            ? "bg-card shadow-sm text-primary-deep"
+            ? "bg-card shadow-sm text-primary"
             : "bg-transparent text-muted-foreground"
         }`}
       >

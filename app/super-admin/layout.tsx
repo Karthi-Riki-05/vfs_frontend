@@ -24,10 +24,12 @@ import {
   MenuOutlined,
   NotificationOutlined,
 } from "@ant-design/icons";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { logout } from "@/lib/logout";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { getPostLoginDashboardUrl } from "@/lib/postLoginRedirect";
 
 const { Sider, Content } = Layout;
 const { Text } = Typography;
@@ -77,6 +79,11 @@ export default function SuperAdminLayout({
   const pathname = usePathname() || "";
   const isMobile = useIsMobile();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [dashUrl] = useState(() =>
+    typeof window !== "undefined"
+      ? getPostLoginDashboardUrl()
+      : "/dashboard/team",
+  );
 
   const role = (session?.user as any)?.role;
   const isSuperAdmin = role === "super_admin";
@@ -90,7 +97,7 @@ export default function SuperAdminLayout({
       return;
     }
     if (!isSuperAdmin) {
-      router.push("/dashboard");
+      router.push(getPostLoginDashboardUrl());
     }
   }, [status, session, isSuperAdmin, router, isLoginPage]);
 
@@ -147,7 +154,7 @@ export default function SuperAdminLayout({
         }}
       >
         <Link
-          href="/dashboard"
+          href={dashUrl}
           onClick={onClick}
           style={{
             color: "#8C8C8C",
@@ -232,7 +239,7 @@ export default function SuperAdminLayout({
           block
           size="small"
           icon={<LogoutOutlined />}
-          onClick={() => signOut({ callbackUrl: "/super-admin/login" })}
+          onClick={() => logout({ callbackUrl: "/super-admin/login" })}
         >
           Logout
         </Button>
@@ -324,7 +331,7 @@ export default function SuperAdminLayout({
           )}
 
           {/* Only show ADMIN MODE tag when there's enough room (≥360px) */}
-          {(typeof window === 'undefined' || window.innerWidth >= 360) && (
+          {(typeof window === "undefined" || window.innerWidth >= 360) && (
             <Tag
               color={PRIMARY}
               style={{

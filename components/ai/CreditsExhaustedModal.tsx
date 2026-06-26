@@ -47,7 +47,6 @@ export default function CreditsExhaustedModal({
   const router = useRouter();
   const { pricing } = usePricing();
   const [purchasing, setPurchasing] = useState<PackType | null>(null);
-
   const handleAddonPurchase = async (packType: PackType) => {
     setPurchasing(packType);
     try {

@@ -3,12 +3,13 @@
 import React from "react";
 import { Modal, Button } from "antd";
 import { TeamOutlined, CheckCircleFilled } from "@ant-design/icons";
+import { Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface TeamUpgradeModalProps {
   open: boolean;
   onClose: () => void;
-  feature?: "teams" | "chat";
+  feature?: "teams" | "chat" | "export";
 }
 
 const FEATURES = [
@@ -24,10 +25,16 @@ const TeamUpgradeModal: React.FC<TeamUpgradeModalProps> = ({
   feature = "teams",
 }) => {
   const router = useRouter();
+  const isExport = feature === "export";
   const title =
     feature === "chat"
       ? "Chat requires a subscription"
-      : "Teams requires a subscription";
+      : isExport
+        ? "Export requires a subscription"
+        : "Teams requires a subscription";
+  const description = isExport
+    ? "SVG and PDF export requires a Team subscription. PNG, JPEG, WEBP, XML and HTML export is available on all plans."
+    : "The Team plan unlocks collaboration features for you and your team.";
 
   return (
     <Modal
@@ -54,14 +61,28 @@ const TeamUpgradeModal: React.FC<TeamUpgradeModalProps> = ({
       zIndex={1200}
     >
       <div style={{ textAlign: "center", padding: "16px 0 0" }}>
-        <TeamOutlined
-          style={{ fontSize: 40, color: "#3CB371", marginBottom: 16 }}
-        />
+        {isExport ? (
+          <Lock
+            className="text-[#F59E0B]"
+            style={{
+              width: 40,
+              height: 40,
+              marginBottom: 16,
+              display: "block",
+              marginLeft: "auto",
+              marginRight: "auto",
+            }}
+          />
+        ) : (
+          <TeamOutlined
+            style={{ fontSize: 40, color: "#3CB371", marginBottom: 16 }}
+          />
+        )}
         <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 600 }}>
           {title}
         </h3>
         <p style={{ color: "#595959", margin: "0 0 16px", fontSize: 14 }}>
-          The Team plan unlocks collaboration features for you and your team.
+          {description}
         </p>
       </div>
       <div

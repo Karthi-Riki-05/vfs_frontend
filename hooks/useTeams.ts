@@ -29,6 +29,14 @@ export function useTeams() {
   // Drop stale team list immediately on context switch to prevent ghost-renders.
   useEffect(() => onWorkspaceFlush(() => setTeams([])), []);
 
+  // Re-fetch once the new workspace context is fully committed (teamId written
+  // to localStorage, axios interceptor will send the correct X-Team-Context).
+  useEffect(() => {
+    const handler = () => fetchTeams();
+    window.addEventListener("vc:workspace-switch", handler);
+    return () => window.removeEventListener("vc:workspace-switch", handler);
+  }, [fetchTeams]);
+
   const createTeam = async (data: { name: string; description?: string }) => {
     try {
       await teamsApi.create(data);

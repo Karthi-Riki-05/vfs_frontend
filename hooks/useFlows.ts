@@ -17,6 +17,9 @@ export function useFlows() {
   const [pageSize, setPageSize] = useState(12);
   const [total, setTotal] = useState(0);
   const [sort, setSort] = useState("updatedAt");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const flowsReadyFiredRef = useRef(false);
   // Guards against setState after unmount (fire-and-forget refetch on nav).
   const mountedRef = useRef(true);
@@ -31,6 +34,9 @@ export function useFlows() {
         limit: pageSize,
         search: debouncedSearch,
         sort,
+        sortDirection,
+        isFavorite: isFavorite || undefined,
+        projectId: projectId || undefined,
         teamId: activeTeamId,
       });
       const d = res.data?.data || res.data || {};
@@ -51,7 +57,16 @@ export function useFlows() {
         } catch {}
       }
     }
-  }, [page, pageSize, debouncedSearch, sort, activeTeamId]);
+  }, [
+    page,
+    pageSize,
+    debouncedSearch,
+    sort,
+    sortDirection,
+    isFavorite,
+    projectId,
+    activeTeamId,
+  ]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -135,6 +150,12 @@ export function useFlows() {
     total,
     sort,
     setSort,
+    sortDirection,
+    setSortDirection,
+    isFavorite,
+    setIsFavorite,
+    projectId,
+    setProjectId,
     fetchFlows,
     deleteFlow,
     duplicateFlow,

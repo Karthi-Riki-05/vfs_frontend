@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { proApi } from "@/api/pro.api";
+import { onWorkspaceFlush } from "@/lib/workspaceCache";
 
 interface ProFlows {
   used: number;
@@ -88,6 +89,19 @@ export function usePro() {
       setLoading(false);
     }
   }, [userKey, sessionStatus, fetchStatus]);
+
+  // Re-scope on workspace switch: clear the previous workspace's Pro/flow
+  // status so any UI gated on proFlows can't bleed across, then refetch under
+  // the new X-Team-Context. Mirrors useFlows' onWorkspaceFlush handling.
+  useEffect(
+    () =>
+      onWorkspaceFlush(() => {
+        setStatus(null);
+        setLoading(true);
+        fetchStatus();
+      }),
+    [fetchStatus],
+  );
 
   const switchApp = useCallback(async (app: "free" | "pro") => {
     try {

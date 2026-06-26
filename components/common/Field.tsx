@@ -56,7 +56,7 @@ export function FieldInput({
         <button
           type="button"
           onClick={() => setShow((v) => !v)}
-          className="appearance-none cursor-pointer outline-none bg-transparent border-0 text-muted-foreground"
+          className="appearance-none cursor-pointer outline-none bg-transparent border-0 text-muted-foreground max-lg:w-11 max-lg:h-11 max-lg:flex max-lg:items-center max-lg:justify-center max-lg:shrink-0 max-lg:-mr-3"
         >
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>

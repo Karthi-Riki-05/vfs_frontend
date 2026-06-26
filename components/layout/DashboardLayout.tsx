@@ -44,6 +44,9 @@ export default function DashboardLayout({
   const [chatFullView, setChatFullView] = useState(false);
   const [isContextReady, setIsContextReady] = useState(false);
   const [isFlowsReady, setIsFlowsReady] = useState(false);
+  // Tracks whether the sidebar was auto-collapsed when chat opened so we can
+  // restore it when chat closes without clobbering a user-initiated collapse.
+  const sidebarAutoCollapsedRef = useRef(false);
   const pathname = usePathname() || "";
   const {
     currentApp,
@@ -149,6 +152,28 @@ export default function DashboardLayout({
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  // When chat opens on desktop, auto-collapse the sidebar so pages have room.
+  // When chat closes, restore only if we were the ones who collapsed it.
+  useEffect(() => {
+    if (isMobile || isTablet) return;
+    if (chatOpen) {
+      setCollapsed((prev) => {
+        if (!prev) sidebarAutoCollapsedRef.current = true;
+        return true;
+      });
+    } else if (sidebarAutoCollapsedRef.current) {
+      sidebarAutoCollapsedRef.current = false;
+      setCollapsed(false);
+    }
+  }, [chatOpen, isMobile, isTablet]);
+
+  // Dispatch chat panel events so FABs and AI button can hide themselves
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(chatOpen ? "chatPanelOpened" : "chatPanelClosed"),
+    );
+  }, [chatOpen]);
 
   // Prevent body scroll when mobile drawer is open
   useEffect(() => {

@@ -12,7 +12,11 @@ import {
   Pencil,
   Lock,
 } from "lucide-react";
-import { ModalShell, ModalHeader } from "@/components/common/Modal";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
 import { Field, FieldInput } from "@/components/common/Field";
 import { flowsApi } from "@/api/flows.api";
 
@@ -207,41 +211,62 @@ export default function ShareFlowModal({
     }
   };
 
+  const shareLink =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/flows/view/${flow?.id}`
+      : "";
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      message.success("Link copied");
+    } catch {
+      message.error("Failed to copy");
+    }
+  };
+
   return (
     <ModalShell open={open} onClose={onClose}>
-      {/* Header with share icon + Pro tag (prototype ShareModal 1832–1850) */}
-      <div className="flex items-center justify-between p-5 pb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <Share2 className="w-4 h-4 text-primary shrink-0" />
-          <span className="font-bold text-base truncate">
-            Share &quot;{flow?.name}&quot;
-          </span>
-          {isProUser && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#B45309] shrink-0">
-              <Crown className="w-3 h-3" /> Pro
-            </span>
-          )}
+      <ModalHeader title="Share Flow" close={onClose} />
+
+      <div className="px-5 -mt-1 mb-3">
+        <div className="text-xs text-muted-foreground">
+          Sharing{" "}
+          <span className="font-semibold text-foreground">{flow?.name}</span>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center shrink-0"
-        >
-          <span className="text-muted-foreground text-lg leading-none">×</span>
-        </button>
       </div>
 
-      <div className="px-5 pb-5 space-y-4">
+      <div className="px-5 pb-2 space-y-4">
+        {/* Anyone with the link row — always visible */}
+        <div className="rounded-xl border border-border p-3 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary-tint text-primary-deep flex items-center justify-center shrink-0">
+            <Share2 className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold">Anyone with the link</div>
+            <div className="text-[11px] text-muted-foreground truncate">
+              {shareLink}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className="appearance-none cursor-pointer outline-none border-0 bg-transparent text-xs font-bold text-primary-deep shrink-0"
+          >
+            Copy
+          </button>
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-10">
             <Spin />
           </div>
         ) : (
           <>
-            {/* Pro: share by email */}
+            {/* Invite people */}
             {isProUser && (
               <div className="space-y-2">
-                <label className="text-xs font-semibold">Share by email</label>
+                <label className="text-xs font-semibold">Invite people</label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">
                     <FieldInput
@@ -413,6 +438,7 @@ export default function ShareFlowModal({
           </>
         )}
       </div>
+      <ModalFooter close={onClose} primary={onClose} primaryLabel="Done" />
     </ModalShell>
   );
 }

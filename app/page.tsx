@@ -2,23 +2,18 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { resolveAppType } from "@/lib/detectWebView";
+import { getClientAppType } from "@/lib/detectWebView";
 
 export default function RootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Read ?app= param before any redirect swallows it.
-    const params = new URLSearchParams(window.location.search);
-    const appParam = params.get("app");
-
-    // Canonical app type: native UA signature wins, with the legacy ?app=
-    // param as a backward-compat fallback during the rollout. A native shell
-    // that loads "/" WITHOUT ?app= is now classified correctly from its UA.
-    const appType = resolveAppType({
-      ua: typeof navigator !== "undefined" ? navigator.userAgent : null,
-      appParam,
-    });
+    // Canonical app type: native-shell User-Agent signature ONLY. The legacy
+    // `?app=` query param is intentionally ignored — UA is the sole app-type
+    // signal (parity with postLoginRedirect.ts / getClientAppType). This stops
+    // a normal browser at /?app=pro from routing into the Pro dashboard (BUG-001)
+    // and closes the front door of the Pro self-grant bypass.
+    const appType = getClientAppType();
     // `app` keeps the old "pro" | "team" | null contract the code below uses.
     const app = appType === "web" ? null : appType;
 
@@ -26,20 +21,19 @@ export default function RootPage() {
     // redirects, so writing here survives the /dashboard → /login middleware redirect.
     // The try guards against restricted WebViews where storage access throws.
     try {
-      // Explicit device mode: 'mobile' iff the Flutter WebView opened us with
-      // ?app=team / ?app=pro, otherwise 'web'. Drives app-switcher visibility
+      // Explicit device mode: 'mobile' iff the native shell's UA marks this as
+      // the Pro/Team app, otherwise 'web'. Drives app-switcher visibility
       // (switcher shown only on web — see useDeviceMode). Per-tab sessionStorage
-      // so the mobile-app URL in one tab can't hide the switcher on the website.
+      // so app context in one tab can't hide the switcher on the website.
       const isMobileApp = app === "team" || app === "pro";
       sessionStorage.setItem("vc_device_mode", isMobileApp ? "mobile" : "web");
 
-      // Default context is 'team'. Only upgrade to 'pro' on explicit ?app=pro.
+      // Default context is 'team'. Only upgrade to 'pro' for the Pro native UA.
       const appContext = app === "pro" ? "pro" : "team";
-      // sessionStorage is per-tab — prevents cross-tab collisions when the
-      // same user opens ?app=team and ?app=pro in separate tabs.
+      // sessionStorage is per-tab — prevents cross-tab collisions.
       sessionStorage.setItem("vc_app_context", appContext);
 
-      // Store the EXPLICIT ?app= param separately (vc_app_context defaults to
+      // Store the resolved app type separately (vc_app_context defaults to
       // "team" even for plain web visits, so it can't distinguish web vs the
       // team mobile app). LoginForm uses this to land on /dashboard/pro or
       // /dashboard/team directly after login — avoids the team→pro data flash.
@@ -71,7 +65,7 @@ export default function RootPage() {
     } else if (app === "team") {
       router.replace("/dashboard/team");
     } else {
-      router.replace("/dashboard");
+      router.replace("/dashboard/team");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

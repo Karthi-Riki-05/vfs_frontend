@@ -167,48 +167,6 @@ export function useAi() {
     [conversationId],
   );
 
-  const generateDiagramFromDocument = useCallback(async (file: File) => {
-    if (loadingRef.current) return null;
-
-    loadingRef.current = true;
-    setLoading(true);
-    setResponse(null);
-
-    try {
-      const res = await aiApi.generateDiagramFromDocument(file);
-      const d = res.data?.data || res.data || {};
-      const resp: AiResponse = {
-        message: d.message || `Generated diagram from "${file.name}".`,
-        templateName: d.templateName || "AI Generated Flow",
-        openTemplate: !!d.xml,
-        drawioXml: d.xml || null,
-        xml: d.xml || null,
-        intent: d.intent || "generate_diagram_from_document",
-        fileName: d.fileName || file.name,
-        suggestedSteps: [],
-      };
-      setResponse(resp);
-      return resp;
-    } catch (err: any) {
-      const code = err?.response?.data?.error?.code;
-      if (code === "CONSENT_REQUIRED") {
-        setHasConsent(false);
-        return null;
-      }
-      setResponse({
-        message: "Failed to generate diagram from document. Please try again.",
-        templateName: null,
-        openTemplate: false,
-        drawioXml: null,
-        suggestedSteps: [],
-      });
-      return null;
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-    }
-  }, []);
-
   const startNewConversation = useCallback(() => {
     setConversationId(null);
     setResponse(null);
@@ -248,7 +206,6 @@ export function useAi() {
     declineConsent,
     sendMessage,
     generateDiagram,
-    generateDiagramFromDocument,
     startNewConversation,
     deleteAllData,
     refreshContext,

@@ -29,7 +29,6 @@ function ProPurchaseContent() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
     if (!token) {
       setError("Missing invite token.");
@@ -69,7 +68,7 @@ function ProPurchaseContent() {
     return (
       <div
         style={{
-            minHeight: "100dvh",
+          minHeight: "100dvh",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -85,7 +84,7 @@ function ProPurchaseContent() {
     return (
       <div
         style={{
-            minHeight: "100dvh",
+          minHeight: "100dvh",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -102,7 +101,7 @@ function ProPurchaseContent() {
     return (
       <div
         style={{
-            minHeight: "100dvh",
+          minHeight: "100dvh",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -267,7 +266,7 @@ export default function ProPurchaseInvitePage() {
       fallback={
         <div
           style={{
-              minHeight: "100dvh",
+            minHeight: "100dvh",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

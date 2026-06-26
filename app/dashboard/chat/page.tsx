@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import RightChatColumn from "@/components/chat/RightChatColumn";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { getPostLoginDashboardUrl } from "@/lib/postLoginRedirect";
 
 /**
  * /dashboard/chat
@@ -27,7 +28,7 @@ export default function ChatPage() {
     const isDesktop = window.matchMedia("(min-width: 768px)").matches;
     if (isDesktop) {
       (window as any).__openChat?.();
-      router.replace("/dashboard");
+      router.replace(getPostLoginDashboardUrl());
     }
   }, [router]);
 

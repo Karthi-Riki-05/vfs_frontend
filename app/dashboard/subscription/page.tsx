@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { Select, Spin, Modal, message } from "antd";
 import {
   Crown,
@@ -16,8 +16,10 @@ import { usePricing } from "@/hooks/usePricing";
 import { usePackStatus } from "@/hooks/usePackStatus";
 import { proApi } from "@/api/pro.api";
 import { aiApi } from "@/api/ai.api";
+import { paymentsApi, SavedCard } from "@/api/payments.api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAiBilling } from "@/context/AiBillingContext";
+import { getClientAppType } from "@/lib/detectWebView";
 
 // Ported from new_design Subscription/ValueChartPlans/ProPlans/CreditAddOns
 // (prototype L1537–1728). Tailwind `.tw` shell, unified for desktop + mobile.
@@ -169,8 +171,8 @@ function CreditAddOns({ balance }: { balance?: number }) {
 
       {pricing && pricing.currency !== "USD" && (
         <div className="text-[11px] text-muted-foreground mt-3 text-center">
-          Prices shown in {pricing.currency}. You will be charged in your local
-          currency at checkout.
+          Prices shown approximately in {pricing.currency}. You will be charged
+          in USD at checkout — your bank converts automatically.
         </div>
       )}
     </div>
@@ -193,6 +195,26 @@ function ProSubscriptionContent() {
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [proSavedCards, setProSavedCards] = useState<SavedCard[]>([]);
+  const [pendingAddon, setPendingAddon] = useState<
+    "standard" | "unlimited" | null
+  >(null);
+  const [proSelectedCardId, setProSelectedCardId] = useState<string | "new">(
+    "new",
+  );
+
+  useEffect(() => {
+    paymentsApi
+      .listPaymentMethods()
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        const methods: SavedCard[] = data?.paymentMethods ?? [];
+        setProSavedCards(methods);
+        const def = methods.find((c) => c.isDefault) ?? methods[0];
+        if (def) setProSelectedCardId(def.id);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const purchased = searchParams?.get("purchased");
@@ -260,14 +282,31 @@ function ProSubscriptionContent() {
   };
 
   const handleAddonSubscribe = async (plan: "standard" | "unlimited") => {
+    // If user has saved cards, show card selector first.
+    if (proSavedCards.length > 0) {
+      setPendingAddon(plan);
+      return;
+    }
+    await _executeAddonPurchase(plan, undefined);
+  };
+
+  const _executeAddonPurchase = async (
+    plan: "standard" | "unlimited",
+    paymentMethodId: string | undefined,
+  ) => {
     setPurchasing(plan);
     try {
-      const res = await proApi.createFlowAddonCheckout(plan);
+      const pmId =
+        paymentMethodId && paymentMethodId !== "new"
+          ? paymentMethodId
+          : undefined;
+      const res = await proApi.createFlowAddonCheckout(plan, pmId);
       const data = res.data?.data || res.data;
       // In-place upgrade (standard → unlimited) — no Stripe redirect needed
-      if (data?.upgraded) {
-        message.success(data.message || "Upgraded successfully!");
+      if (data?.upgraded || data?.subscribed) {
+        message.success(data.message || "Flow add-on activated!");
         fetchProSubStatus();
+        refreshPackStatus();
         setPurchasing(null);
         return;
       }
@@ -445,7 +484,7 @@ function ProSubscriptionContent() {
       {/* Current Plan card */}
       <div className="rounded-2xl bg-card border border-border p-5">
         <div className="font-bold text-base text-foreground">Current Plan</div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-3">
+        <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mt-3">
           {stats.map(([k, v]) => (
             <div key={k}>
               <div className="text-[10px] font-bold tracking-wider text-muted-foreground">
@@ -486,7 +525,7 @@ function ProSubscriptionContent() {
           <div className="font-bold text-base text-foreground mb-3">
             Monthly Pack Usage
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               ["ACTIVE PACK", packLabel],
               ["BILLING CYCLE", "30 days"],
@@ -656,15 +695,92 @@ function ProSubscriptionContent() {
       )}
 
       <CreditAddOns balance={totalCredits} />
+
+      {/* Saved card selector — shown before flow addon checkout */}
+      <Modal
+        open={!!pendingAddon}
+        title="Select Payment Method"
+        okText={
+          purchasing
+            ? "Loading…"
+            : proSelectedCardId === "new"
+              ? "Continue to Checkout"
+              : "Pay Now"
+        }
+        okButtonProps={{ disabled: !!purchasing }}
+        onOk={() => {
+          if (pendingAddon) {
+            const plan = pendingAddon;
+            setPendingAddon(null);
+            _executeAddonPurchase(plan, proSelectedCardId);
+          }
+        }}
+        onCancel={() => setPendingAddon(null)}
+      >
+        <div className="space-y-2 py-2">
+          {proSavedCards.map((card) => (
+            <label
+              key={card.id}
+              className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 cursor-pointer hover:border-primary"
+            >
+              <input
+                type="radio"
+                name="pro-card"
+                value={card.id}
+                checked={proSelectedCardId === card.id}
+                onChange={() => setProSelectedCardId(card.id)}
+                className="accent-primary"
+              />
+              <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium capitalize">
+                  {card.brand}
+                </span>
+                <span className="text-sm text-muted-foreground ml-1">
+                  •••• {card.last4}
+                </span>
+                {card.isDefault && (
+                  <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-tint text-primary-deep">
+                    Default
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {card.expMonth}/{card.expYear}
+              </span>
+            </label>
+          ))}
+          <label className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 cursor-pointer hover:border-primary">
+            <input
+              type="radio"
+              name="pro-card"
+              value="new"
+              checked={proSelectedCardId === "new"}
+              onChange={() => setProSelectedCardId("new")}
+              className="accent-primary"
+            />
+            <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium">Use a different card</span>
+          </label>
+        </div>
+      </Modal>
     </div>
   );
 }
 
 /* ---------- Team seat-plan view (prototype ValueChartPlans L1565) ---------- */
 
-export default function SubscriptionPage() {
+function SubscriptionPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentApp, loading: proLoading } = usePro();
+  const { activeOption } = useAiBilling();
+  const teamPlanCredits = activeOption.aiCredits?.planCredits || 0;
+  const teamAddonCredits = activeOption.aiCredits?.addonCredits || 0;
+  const teamTotalCredits = teamPlanCredits + teamAddonCredits;
+  // UA is the authoritative app-type signal — works on mobile even when the
+  // root page (which sets vc_app_param) was never visited (deep-link to /login).
+  const clientAppType = getClientAppType();
   const { pricing, isTestMode } = usePricing();
   const {
     status,
@@ -674,11 +790,42 @@ export default function SubscriptionPage() {
     cancel,
     activateNow,
     cancelScheduledChange,
+    fetchCurrent,
+    fetchStatus,
   } = useSubscription();
   const [monthlyMembers, setMonthlyMembers] = useState(5);
   const [yearlyMembers, setYearlyMembers] = useState(5);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+  const [pendingPlan, setPendingPlan] = useState<"monthly" | "yearly" | null>(
+    null,
+  );
+  const [selectedCardId, setSelectedCardId] = useState<string | "new">("new");
+  useEffect(() => {
+    paymentsApi
+      .listPaymentMethods()
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        const methods: SavedCard[] = data?.paymentMethods ?? [];
+        setSavedCards(methods);
+        const def = methods.find((c) => c.isDefault) ?? methods[0];
+        if (def) setSelectedCardId(def.id);
+      })
+      .catch(() => {
+        /* silently ignore — cards are optional */
+      });
+  }, []);
+
+  // Handle direct-charge success redirect (?subscribed=1)
+  useEffect(() => {
+    if (searchParams?.get("subscribed") === "1") {
+      message.success("Subscription activated successfully!");
+      fetchCurrent();
+      fetchStatus();
+      router.replace("/dashboard/subscription");
+    }
+  }, [searchParams, router, fetchCurrent, fetchStatus]);
 
   const openCustomerPortal = async () => {
     setPortalLoading(true);
@@ -699,14 +846,30 @@ export default function SubscriptionPage() {
     }
   };
 
+  // If user has saved cards and is starting a new subscription, show card
+  // selector first. For plan changes (already subscribed), go straight through
+  // since Stripe handles the card internally.
   const handlePurchase = async (plan: "monthly" | "yearly") => {
+    const isNewSub = !(status?.hasSubscription && status.status === "active");
+    if (isNewSub && savedCards.length > 0) {
+      setPendingPlan(plan);
+      return;
+    }
+    await _executePurchase(plan);
+  };
+
+  const _executePurchase = async (plan: "monthly" | "yearly") => {
     const teamMembers = plan === "monthly" ? monthlyMembers : yearlyMembers;
     setCheckoutLoading(plan);
     try {
       if (status?.hasSubscription && status.status === "active") {
         await changePlan(plan, teamMembers);
       } else {
-        await createCheckout(plan, teamMembers);
+        // Pass the saved card ID so the backend charges it directly (no redirect).
+        // When selectedCardId is "new" we omit it — backend falls through to
+        // Stripe Hosted Checkout where the user enters a new card.
+        const pmId = selectedCardId !== "new" ? selectedCardId : undefined;
+        await createCheckout(plan, teamMembers, pmId);
       }
     } finally {
       setCheckoutLoading(null);
@@ -756,7 +919,13 @@ export default function SubscriptionPage() {
   }
 
   // Pro app: show Pro flow-pack content instead of Team plans.
-  if (currentApp === "pro") {
+  // clientAppType reads the native UA directly ("team" = ValueChartsMobile/Team-App).
+  // This is used instead of currentApp/forcedMode because:
+  //   1. currentApp is DB-stored (user.currentVersion) and can be "pro" even when
+  //      the user is inside the Team shell.
+  //   2. forcedMode relies on vc_app_param (sessionStorage), which is only set by
+  //      app/page.tsx — never reached when mobile opens directly to /login.
+  if (currentApp === "pro" && clientAppType !== "team") {
     return <ProSubscriptionContent />;
   }
 
@@ -901,8 +1070,8 @@ export default function SubscriptionPage() {
           </div>
           {pricing && pricing.currency !== "USD" && (
             <div className="text-[10px] text-muted-foreground mt-1">
-              Shown in {pricing.currency}. Charged in local currency at
-              checkout.
+              Prices shown in USD. Charged in USD at checkout — your bank
+              converts automatically.
             </div>
           )}
 
@@ -1073,7 +1242,83 @@ export default function SubscriptionPage() {
         )}
 
       {/* AI credit add-ons (team owners top up the shared pool) */}
-      <CreditAddOns />
+      <CreditAddOns balance={teamTotalCredits} />
+
+      {/* Saved card selector modal — shown before new subscription checkout */}
+      <Modal
+        open={!!pendingPlan}
+        title="Select Payment Method"
+        okText={
+          checkoutLoading
+            ? "Loading…"
+            : selectedCardId === "new"
+              ? "Continue to Checkout"
+              : "Pay Now"
+        }
+        okButtonProps={{ disabled: !!checkoutLoading }}
+        onOk={() => {
+          if (pendingPlan) {
+            setPendingPlan(null);
+            _executePurchase(pendingPlan);
+          }
+        }}
+        onCancel={() => setPendingPlan(null)}
+      >
+        <div className="space-y-2 py-2">
+          {savedCards.map((card) => (
+            <label
+              key={card.id}
+              className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 cursor-pointer hover:border-primary"
+            >
+              <input
+                type="radio"
+                name="card"
+                value={card.id}
+                checked={selectedCardId === card.id}
+                onChange={() => setSelectedCardId(card.id)}
+                className="accent-primary"
+              />
+              <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium capitalize">
+                  {card.brand}
+                </span>
+                <span className="text-sm text-muted-foreground ml-1">
+                  •••• {card.last4}
+                </span>
+                {card.isDefault && (
+                  <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-tint text-primary-deep">
+                    Default
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {card.expMonth}/{card.expYear}
+              </span>
+            </label>
+          ))}
+          <label className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 cursor-pointer hover:border-primary">
+            <input
+              type="radio"
+              name="card"
+              value="new"
+              checked={selectedCardId === "new"}
+              onChange={() => setSelectedCardId("new")}
+              className="accent-primary"
+            />
+            <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium">Use a different card</span>
+          </label>
+        </div>
+      </Modal>
     </div>
+  );
+}
+
+export default function SubscriptionPage() {
+  return (
+    <Suspense>
+      <SubscriptionPageInner />
+    </Suspense>
   );
 }

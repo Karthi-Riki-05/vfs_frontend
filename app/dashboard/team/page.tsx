@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "antd";
-import { ExclamationCircleOutlined } from "@ant-design/icons";
+import { Button, Skeleton } from "antd";
+import { ExclamationCircleOutlined, HeartFilled } from "@ant-design/icons";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
@@ -18,8 +18,10 @@ import {
 import StatCard from "@/components/dashboard/StatCard";
 import MiniFlow from "@/components/dashboard/MiniFlow";
 import { aiApi } from "@/api/ai.api";
+import { subscriptionsApi } from "@/api/subscriptions.api";
+import { useAppContext } from "@/context/AppContext";
 
-// ─── Local atoms (Dashboard-only) ────────────────────────────────────────────
+// ─── Local atoms ──────────────────────────────────────────────────────────────
 
 function BarChart({
   data,
@@ -52,10 +54,18 @@ function BarChart({
 
 const FLOW_COLORS = ["#34A881", "#006AA8", "#FF9A30", "#F85729", "#1F7D5E"];
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 function getTimeAgo(dateStr: string): string {
   if (!dateStr) return "";
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
@@ -73,20 +83,23 @@ function getTimeAgo(dateStr: string): string {
 export default function TeamDashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const { activeTeamId } = useAppContext();
 
   const [subStatus, setSubStatus] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [aiCredits, setAiCredits] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch("/api/subscription/status")
-      .then((r) => r.json())
-      .then((d) => setSubStatus(d?.data?.status ?? null))
+    subscriptionsApi
+      .getStatus()
+      .then((res) => {
+        const d = res.data?.data || res.data;
+        setSubStatus(d?.status ?? null);
+      })
       .catch(() => {});
   }, []);
 
-  // Remaining AI credits — same source the sidebar drawer pill reads. Refresh
-  // on the `aiCreditsChanged` event so the dashboard stays in sync after usage.
+  // Remaining AI credits — refresh on the `aiCreditsChanged` event.
   useEffect(() => {
     const fetchCredits = async () => {
       try {
@@ -123,7 +136,6 @@ export default function TeamDashboardPage() {
     fetchTeamActivity: true,
   });
 
-  // Build chart data from activity (last 7 entries)
   const chartData = Array.isArray(activity)
     ? activity.slice(-7).map((a) => ({
         label: a.label || a.date?.slice(5) || "",
@@ -132,12 +144,26 @@ export default function TeamDashboardPage() {
       }))
     : [];
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  // Compute date/greeting client-side only to avoid SSR/hydration mismatch
+  // (server and client can render on different calendar days).
+  const [today, setToday] = useState("");
+  const [greeting, setGreeting] = useState("");
+  useEffect(() => {
+    setToday(
+      new Date().toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      }),
+    );
+    setGreeting(getGreeting());
+  }, []);
+
   const firstName = user?.name?.split(" ")[0] || "there";
+
+  const activityEmptyMsg = activeTeamId
+    ? "No recent activity in this team yet"
+    : "Switch to a team workspace to see activity";
 
   return (
     <div className="tw min-h-screen bg-background">
@@ -171,7 +197,7 @@ export default function TeamDashboardPage() {
             {today}
           </div>
           <h1 className="text-[26px] font-extrabold tracking-tight text-foreground leading-tight">
-            Good morning, {firstName} 👋
+            {greeting}, {firstName} 👋
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             You have{" "}
@@ -189,7 +215,7 @@ export default function TeamDashboardPage() {
             value={loading ? "—" : (stats?.totalFlows ?? 0)}
             icon={Workflow}
             tone="primary"
-            trend="+6 this week"
+            trend="All flows"
           />
           <StatCard
             label="Edited"
@@ -203,14 +229,14 @@ export default function TeamDashboardPage() {
             value={loading ? "—" : (stats?.teamMembers ?? 0)}
             icon={Users}
             tone="orange"
-            trend="Active now"
+            trend="In your team"
           />
           <StatCard
             label="Shared Flows"
             value={loading ? "—" : (stats?.sharedFlows ?? 0)}
             icon={Share2}
             tone="coral"
-            trend="+3 new"
+            trend="Shared by you"
           />
         </div>
 
@@ -220,7 +246,7 @@ export default function TeamDashboardPage() {
           <div className="flex items-center gap-2">
             <Crown className="w-4 h-4 text-[#FFD27A]" />
             <span className="text-[11px] font-bold tracking-wider uppercase">
-              Team Monthly
+              Team Plan
             </span>
           </div>
           <div className="mt-2 text-lg font-extrabold">
@@ -267,11 +293,11 @@ export default function TeamDashboardPage() {
           </div>
         )}
 
-        {/* Team activity feed */}
+        {/* My Activity feed */}
         {Array.isArray(teamActivity) && teamActivity.length > 0 && (
           <div className="rounded-3xl bg-card p-5 shadow-card border border-border">
             <div className="text-[15px] font-bold text-foreground mb-3">
-              Team Activity
+              My Activity
             </div>
             <div className="space-y-3">
               {teamActivity.slice(0, 5).map((item) => (
@@ -295,7 +321,7 @@ export default function TeamDashboardPage() {
                       {item.userName}
                     </div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {item.action === "created" ? "Created" : "Edited"}{" "}
+                      {item.action === "created" ? "Created" : "Updated"}{" "}
                       <span className="font-medium">{item.flowName}</span>
                     </div>
                   </div>
@@ -320,12 +346,31 @@ export default function TeamDashboardPage() {
             See all <ChevronRight className="w-3 h-3" />
           </button>
         </div>
-        <div
-          className="flex gap-3 -mx-5 px-5 overflow-x-auto pb-2"
-          style={{ scrollbarWidth: "none" }}
-        >
-          {Array.isArray(recentFlows) &&
-            recentFlows.slice(0, 4).map((f, idx) => (
+        {loading ? (
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {[...Array(3)].map((_, i) => (
+              <div
+                key={i}
+                className="shrink-0 w-44 rounded-2xl border border-border overflow-hidden"
+                style={{ background: "white" }}
+              >
+                <Skeleton.Image active style={{ width: 176, height: 96 }} />
+                <div className="p-3">
+                  <Skeleton active paragraph={{ rows: 1 }} title={false} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : !Array.isArray(recentFlows) || recentFlows.length === 0 ? (
+          <div className="text-sm text-muted-foreground text-center py-4">
+            No recent flows. Create your first flow!
+          </div>
+        ) : (
+          <div
+            className="flex gap-3 -mx-5 px-5 overflow-x-auto pb-2"
+            style={{ scrollbarWidth: "none" }}
+          >
+            {recentFlows.slice(0, 4).map((f, idx) => (
               <button
                 key={f.id}
                 onClick={() =>
@@ -334,20 +379,36 @@ export default function TeamDashboardPage() {
                 className="bg-transparent border-0 p-0 appearance-none cursor-pointer shrink-0 w-44 rounded-2xl border border-border overflow-hidden shadow-card text-left"
                 style={{ background: "white" }}
               >
-                <div className="h-24 bg-gradient-to-br from-secondary to-white relative">
-                  <MiniFlow color={FLOW_COLORS[idx % FLOW_COLORS.length]} />
+                <div className="h-24 bg-gradient-to-br from-secondary to-white relative overflow-hidden">
+                  {f.thumbnail ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={f.thumbnail}
+                      alt={f.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <MiniFlow color={FLOW_COLORS[idx % FLOW_COLORS.length]} />
+                  )}
+                  {f.isFavorite && (
+                    <HeartFilled
+                      style={{ color: "#FF4D6A", fontSize: 12 }}
+                      className="absolute top-2 right-2"
+                    />
+                  )}
                 </div>
                 <div className="p-3">
                   <div className="font-semibold text-sm truncate text-foreground">
                     {f.name}
                   </div>
                   <div className="text-[11px] text-muted-foreground mt-0.5">
-                    Edited {getTimeAgo(f.updatedAt)}
+                    Updated {getTimeAgo(f.updatedAt)}
                   </div>
                 </div>
               </button>
             ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ── Desktop layout (≥1024px) ── */}
@@ -358,7 +419,7 @@ export default function TeamDashboardPage() {
             {today}
           </div>
           <h1 className="text-[32px] font-extrabold tracking-tight text-foreground leading-tight">
-            Good morning, {firstName} 👋
+            {greeting}, {firstName} 👋
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             You have{" "}
@@ -376,7 +437,7 @@ export default function TeamDashboardPage() {
             value={loading ? "—" : (stats?.totalFlows ?? 0)}
             icon={Workflow}
             tone="primary"
-            trend="+6 this week"
+            trend="All flows"
           />
           <StatCard
             label="Edited This Month"
@@ -390,14 +451,14 @@ export default function TeamDashboardPage() {
             value={loading ? "—" : (stats?.teamMembers ?? 0)}
             icon={Users}
             tone="orange"
-            trend="Active"
+            trend="In your team"
           />
           <StatCard
             label="Shared Flows"
             value={loading ? "—" : (stats?.sharedFlows ?? 0)}
             icon={Share2}
             tone="coral"
-            trend="+3 new"
+            trend="Shared by you"
           />
         </div>
 
@@ -429,13 +490,13 @@ export default function TeamDashboardPage() {
             )}
           </div>
 
-          {/* Team subscription widget */}
+          {/* Subscription widget */}
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1F7D5E] via-primary to-[#2A9272] p-6 text-white shadow-card">
             <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/10" />
             <div className="flex items-center gap-2">
               <Crown className="w-4 h-4 text-[#FFD27A]" />
               <span className="text-[11px] font-bold tracking-wider uppercase">
-                Team Monthly
+                Team Plan
               </span>
             </div>
             <div className="mt-2 text-2xl font-extrabold">
@@ -461,7 +522,7 @@ export default function TeamDashboardPage() {
           </div>
         </div>
 
-        {/* Bottom row: recent flows + team activity */}
+        {/* Bottom row: recent flows + my activity */}
         <div className="grid grid-cols-3 gap-6">
           {/* Recent flows — 2 cols */}
           <div className="col-span-2">
@@ -487,15 +548,32 @@ export default function TeamDashboardPage() {
                     className="bg-transparent border-0 p-0 appearance-none cursor-pointer rounded-2xl border border-border overflow-hidden shadow-card text-left w-full"
                     style={{ background: "white" }}
                   >
-                    <div className="h-28 bg-gradient-to-br from-secondary to-white relative">
-                      <MiniFlow color={FLOW_COLORS[idx % FLOW_COLORS.length]} />
+                    <div className="h-28 bg-gradient-to-br from-secondary to-white relative overflow-hidden">
+                      {f.thumbnail ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={f.thumbnail}
+                          alt={f.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <MiniFlow
+                          color={FLOW_COLORS[idx % FLOW_COLORS.length]}
+                        />
+                      )}
+                      {f.isFavorite && (
+                        <HeartFilled
+                          style={{ color: "#FF4D6A", fontSize: 12 }}
+                          className="absolute top-2 right-2"
+                        />
+                      )}
                     </div>
                     <div className="p-4">
                       <div className="font-semibold text-sm truncate text-foreground">
                         {f.name}
                       </div>
                       <div className="text-[11px] text-muted-foreground mt-0.5">
-                        Edited {getTimeAgo(f.updatedAt)}
+                        Updated {getTimeAgo(f.updatedAt)}
                       </div>
                     </div>
                   </button>
@@ -508,10 +586,10 @@ export default function TeamDashboardPage() {
             </div>
           </div>
 
-          {/* Team activity feed — 1 col */}
+          {/* My Activity — 1 col */}
           <div className="rounded-3xl bg-card p-6 shadow-card border border-border">
             <div className="text-[15px] font-bold text-foreground mb-4">
-              Team Activity
+              My Activity
             </div>
             {Array.isArray(teamActivity) && teamActivity.length > 0 ? (
               <div className="space-y-4">
@@ -536,7 +614,7 @@ export default function TeamDashboardPage() {
                         {item.userName}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {item.action === "created" ? "Created" : "Edited"}{" "}
+                        {item.action === "created" ? "Created" : "Updated"}{" "}
                         <span className="font-medium">{item.flowName}</span>
                       </div>
                     </div>
@@ -548,7 +626,7 @@ export default function TeamDashboardPage() {
               </div>
             ) : (
               <div className="text-sm text-muted-foreground text-center py-8">
-                No team activity yet
+                {activityEmptyMsg}
               </div>
             )}
           </div>

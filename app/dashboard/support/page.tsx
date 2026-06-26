@@ -156,11 +156,7 @@ export default function SupportPage() {
                 Search
               </span>
             }
-            onSearch={(value) => {
-              if (value.trim()) {
-                console.log("Support search:", value);
-              }
-            }}
+            onSearch={(_value) => {}}
           />
         </div>
       </div>

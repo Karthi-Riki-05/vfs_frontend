@@ -84,10 +84,22 @@ export function useSubscription() {
   const createCheckout = async (
     plan: "monthly" | "yearly",
     teamMembers: number,
+    paymentMethodId?: string,
   ) => {
     try {
-      const res = await subscriptionsApi.createCheckout({ plan, teamMembers });
+      const res = await subscriptionsApi.createCheckout({
+        plan,
+        teamMembers,
+        paymentMethodId,
+      });
       const data = res.data?.data || res.data;
+      // Direct charge (saved card) — no Stripe redirect needed.
+      if (data?.directCharge) {
+        if (data?.successUrl) {
+          window.location.href = data.successUrl;
+        }
+        return data;
+      }
       if (data?.url) {
         window.location.href = data.url;
       }

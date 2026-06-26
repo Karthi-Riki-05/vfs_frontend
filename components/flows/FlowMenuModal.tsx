@@ -81,11 +81,7 @@ export default function FlowMenuModal({
                 : ""
             }`}
           >
-            <it.I
-              className={`w-4 h-4 ${
-                it.coral && flow?.isFavorite ? "fill-coral" : ""
-              }`}
-            />
+            <it.I className={`w-4 h-4 ${it.coral ? "fill-coral" : ""}`} />
             <span className="text-sm font-semibold">{it.n}</span>
           </button>
         ))}

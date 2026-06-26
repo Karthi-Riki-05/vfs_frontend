@@ -1,26 +1,40 @@
 /**
- * Returns the dashboard URL to land on after login, based on the app the
- * user entered through (?app=pro / ?app=team → Flutter WebView apps).
+ * getPostLoginDashboardUrl()
  *
- * Priority:
- *   1. ?app= param on the CURRENT url (covers /login?app=pro deep links)
- *   2. vc_app_param in sessionStorage (set by the root page before the
- *      middleware /login redirect swallowed the query string)
- *   3. fallback → /dashboard/team (plain web default = the Team app)
+ * Priority order:
+ * 1. callbackUrl deep-link (same-origin + /dashboard guard)
+ * 2. UA detection → pro=/dashboard/pro, team=/dashboard/team
+ * 3. Default → /dashboard/team
  *
- * Landing on the app-specific dashboard directly avoids the 1s flash where
- * /dashboard rendered team-scoped data before DashboardLayout's forced
- * app-switch reloaded the page in pro mode.
+ * ?app= param and vc_app_param are fully removed.
+ * UA is the only app-type signal.
  */
+
+import { getClientAppType } from "@/lib/detectWebView";
+
 export function getPostLoginDashboardUrl(): string {
   try {
-    const urlApp = new URLSearchParams(window.location.search).get("app");
-    const app = urlApp || sessionStorage.getItem("vc_app_param");
-    if (app === "pro") return "/dashboard/pro";
-    if (app === "team") return "/dashboard/team";
+    // Priority 1: deep-link callbackUrl
+    const params = new URLSearchParams(window.location.search);
+    const callbackUrl = params.get("callbackUrl");
+    if (callbackUrl) {
+      const u = new URL(callbackUrl, window.location.origin);
+      if (
+        u.origin === window.location.origin &&
+        u.pathname.startsWith("/dashboard")
+      ) {
+        return u.pathname + u.search;
+      }
+    }
+
+    // Priority 2: UA detection
+    const appType = getClientAppType();
+    if (appType === "pro") return "/dashboard/pro";
+    if (appType === "team") return "/dashboard/team";
   } catch {
-    // sessionStorage may be blocked in restricted WebViews
+    // URL parse failed or restricted WebView
   }
-  // Default landing (plain web, no ?app=) → the Team app dashboard.
+
+  // Priority 3: default
   return "/dashboard/team";
 }

@@ -14,8 +14,10 @@ export const proApi = {
   verifyFlowPurchase: (sessionId: string) =>
     api.get(`/pro/verify-flow-purchase?session_id=${sessionId}`),
   getSubscriptionStatus: () => api.get("/pro/subscription-status"),
-  createFlowAddonCheckout: (plan: "standard" | "unlimited") =>
-    api.post("/pro/flow-addon/checkout", { plan }),
+  createFlowAddonCheckout: (
+    plan: "standard" | "unlimited",
+    paymentMethodId?: string,
+  ) => api.post("/pro/flow-addon/checkout", { plan, paymentMethodId }),
   cancelFlowAddon: () => api.post("/pro/flow-addon/cancel"),
   getFlowAddonStatus: () => api.get("/pro/flow-addon/status"),
   // Safety net: activates the add-on if the Stripe webhook was lost

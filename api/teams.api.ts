@@ -21,6 +21,17 @@ export const teamsApi = {
   removeMember: (teamId: string, userId: string) =>
     api.delete(`/teams/${teamId}/members/${userId}`),
 
+  updateMemberRole: (
+    teamId: string,
+    userId: string,
+    role: "ADMIN" | "MEMBER",
+  ) => api.put(`/teams/${teamId}/members/${userId}/role`, { role }),
+
   invite: (data: { teamId: string; email?: string; emails?: string[] }) =>
     api.post("/teams/invite", data),
+
+  listInvites: (teamId: string) =>
+    api.get(`/teams/invites`, { params: { teamId } }),
+
+  cancelInvite: (inviteId: string) => api.delete(`/teams/invites/${inviteId}`),
 };

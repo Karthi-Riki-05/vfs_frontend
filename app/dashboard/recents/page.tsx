@@ -1,14 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, type ReactNode } from "react";
-import { Dropdown, message } from "antd";
-import {
-  EditOutlined,
-  StarOutlined,
-  StarFilled,
-  CopyOutlined,
-  DeleteOutlined,
-} from "@ant-design/icons";
+import { message } from "antd";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -23,6 +16,16 @@ import api from "@/lib/axios";
 import MiniFlow from "@/components/dashboard/MiniFlow";
 import { useAppContext } from "@/context/AppContext";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
+import { BRAND_GREEN } from "@/lib/theme";
+import FlowMenuModal from "@/components/flows/FlowMenuModal";
+import ShareFlowModal from "@/components/flows/ShareFlowModal";
+import AssignProjectModal from "@/components/flows/AssignProjectModal";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
 const FLOW_COLORS = [
@@ -32,6 +35,12 @@ const FLOW_COLORS = [
   "#F85729",
   "#1F7D5E",
   "#6B7280",
+];
+
+const MOBILE_THUMB_GRADIENTS = [
+  "linear-gradient(135deg, #E7F6F0 0%, #CFEDE0 100%)",
+  "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)",
+  "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)",
 ];
 
 // ─── Date grouping helpers ────────────────────────────────────────────────────
@@ -209,8 +218,31 @@ export default function RecentsPage() {
   const [flows, setFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"list" | "grid">("list");
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+
+  const [flowMenu, setFlowMenu] = useState<{ open: boolean; flow: any | null }>(
+    {
+      open: false,
+      flow: null,
+    },
+  );
+  const [shareModal, setShareModal] = useState<{
+    open: boolean;
+    flow: any | null;
+  }>({
+    open: false,
+    flow: null,
+  });
+  const [assignModal, setAssignModal] = useState<{
+    open: boolean;
+    flowId: string | null;
+    currentProjectId?: string | null;
+  }>({ open: false, flowId: null });
+  const [renameModal, setRenameModal] = useState<{
+    open: boolean;
+    id: string;
+    name: string;
+  }>({ open: false, id: "", name: "" });
 
   const fetchRecentFlows = useCallback(async () => {
     setLoading(true);
@@ -238,7 +270,6 @@ export default function RecentsPage() {
     fetchRecentFlows();
   }, [fetchRecentFlows, hydrated]);
 
-  // Wipe stale workspace flows instantly on context switch (avoid display ghosts)
   useEffect(() => onWorkspaceFlush(() => setFlows([])), []);
 
   const handleEdit = (id: string) => {
@@ -278,38 +309,19 @@ export default function RecentsPage() {
     }
   };
 
-  const getMenuItems = (flow: any) => [
-    {
-      key: "edit",
-      label: "Edit",
-      icon: <EditOutlined />,
-      onClick: () => handleEdit(flow.id),
-    },
-    {
-      key: "favorite",
-      label: flow.isFavorite ? "Remove Favorite" : "Mark as Favorite",
-      icon: flow.isFavorite ? (
-        <StarFilled style={{ color: "#FAAD14" }} />
-      ) : (
-        <StarOutlined />
-      ),
-      onClick: () => handleFavorite(flow.id),
-    },
-    {
-      key: "duplicate",
-      label: "Duplicate",
-      icon: <CopyOutlined />,
-      onClick: () => handleDuplicate(flow.id),
-    },
-    { type: "divider" as const },
-    {
-      key: "delete",
-      label: "Delete",
-      icon: <DeleteOutlined />,
-      danger: true,
-      onClick: () => handleDelete(flow.id),
-    },
-  ];
+  const handleRename = async () => {
+    if (!renameModal.name.trim()) return;
+    try {
+      await api.put(`/flows/${renameModal.id}`, {
+        name: renameModal.name.trim(),
+      });
+      message.success("Flow renamed");
+      setRenameModal({ open: false, id: "", name: "" });
+      fetchRecentFlows();
+    } catch {
+      message.error("Failed to rename flow");
+    }
+  };
 
   const safeFlows = Array.isArray(flows) ? flows : [];
   const q = query.trim().toLowerCase();
@@ -353,7 +365,7 @@ export default function RecentsPage() {
             </div>
             <button
               onClick={() => router.push("/dashboard/flows")}
-              className="h-11 px-6 rounded-full bg-primary text-white text-sm font-bold shadow-fab bg-transparent border-0 appearance-none cursor-pointer"
+              className="h-11 px-6 rounded-full text-white text-sm font-bold border-0 appearance-none cursor-pointer"
               style={{ background: "#34A881" }}
             >
               Browse Flows →
@@ -391,90 +403,73 @@ export default function RecentsPage() {
 
               {view === "list" ? (
                 <>
-                  {grouped[groupName].map((flow: any, idx: number) => {
+                  {grouped[groupName].map((flow: any) => {
                     const color =
                       FLOW_COLORS[flows.indexOf(flow) % FLOW_COLORS.length];
                     return (
-                      <Dropdown
+                      <ListItem
                         key={flow.id}
-                        menu={{ items: getMenuItems(flow) }}
-                        trigger={["click"]}
-                        open={menuOpenId === flow.id}
-                        onOpenChange={(open) =>
-                          setMenuOpenId(open ? flow.id : null)
-                        }
-                      >
-                        <div>
-                          <ListItem
-                            title={flow.name}
-                            subtitle={`Edited ${timeAgo(flow.updatedAt)}`}
-                            color={color}
-                            onClick={() => handleEdit(flow.id)}
-                            onMenu={() =>
-                              setMenuOpenId(
-                                menuOpenId === flow.id ? null : flow.id,
-                              )
-                            }
-                          />
-                        </div>
-                      </Dropdown>
+                        title={flow.name}
+                        subtitle={`Edited ${timeAgo(flow.updatedAt)}`}
+                        color={color}
+                        onClick={() => handleEdit(flow.id)}
+                        onMenu={() => setFlowMenu({ open: true, flow })}
+                      />
                     );
                   })}
                 </>
               ) : (
                 <div className="grid grid-cols-2 gap-3 mb-3">
-                  {grouped[groupName].map((flow: any) => {
-                    const color =
-                      FLOW_COLORS[flows.indexOf(flow) % FLOW_COLORS.length];
-                    return (
-                      <div
-                        key={flow.id}
-                        className="relative rounded-2xl bg-card border border-border overflow-hidden shadow-card"
+                  {grouped[groupName].map((flow: any, index: number) => (
+                    <div
+                      key={flow.id}
+                      className="relative rounded-2xl bg-card border border-border overflow-hidden shadow-[var(--shadow-card)] hover:-translate-y-0.5 transition"
+                    >
+                      <button
+                        onClick={() => handleEdit(flow.id)}
+                        className="w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
                       >
-                        <button
-                          onClick={() => handleEdit(flow.id)}
-                          className="w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                        <div
+                          className="h-36 w-full relative overflow-hidden flex items-center justify-center"
+                          style={{
+                            background:
+                              MOBILE_THUMB_GRADIENTS[
+                                index % MOBILE_THUMB_GRADIENTS.length
+                              ],
+                          }}
                         >
-                          <div
-                            className="h-24"
-                            style={{ background: `${color}14` }}
-                          >
-                            {flow.thumbnail ? (
-                              <img
-                                src={flow.thumbnail}
-                                alt=""
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <MiniFlow color={color} />
-                            )}
+                          {flow.thumbnail ? (
+                            <img
+                              src={flow.thumbnail}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                          ) : (
+                            <MiniFlow color={BRAND_GREEN} />
+                          )}
+                        </div>
+                        <div className="p-3 pr-9">
+                          <div className="font-semibold text-[13px] truncate text-foreground">
+                            {flow.name}
                           </div>
-                          <div className="p-3 pr-9">
-                            <div className="font-semibold text-[13px] truncate">
-                              {flow.name}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground">
-                              Edited {timeAgo(flow.updatedAt)}
-                            </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Edited {timeAgo(flow.updatedAt)}
                           </div>
-                        </button>
-                        <Dropdown
-                          menu={{ items: getMenuItems(flow) }}
-                          trigger={["click"]}
-                        >
-                          <button
-                            type="button"
-                            aria-label="More options"
-                            onClick={(e) => e.stopPropagation()}
-                            className="absolute bottom-2 right-2 w-7 h-7 rounded-lg bg-secondary flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
-                            style={{ background: "var(--secondary, #E7F6F0)" }}
-                          >
-                            <MoreHorizontal className="w-3.5 h-3.5" />
-                          </button>
-                        </Dropdown>
-                      </div>
-                    );
-                  })}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="More options"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFlowMenu({ open: true, flow });
+                        }}
+                        className="absolute bottom-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center bg-secondary border-0 p-0 appearance-none cursor-pointer"
+                      >
+                        <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -489,11 +484,81 @@ export default function RecentsPage() {
               No matching flows
             </div>
             <div className="text-sm text-muted-foreground">
-              No recent flows match “{query.trim()}”
+              No recent flows match "{query.trim()}"
             </div>
           </div>
         )}
       </div>
+
+      {/* ── Modals ── */}
+      <FlowMenuModal
+        open={flowMenu.open}
+        flow={flowMenu.flow}
+        onClose={() => setFlowMenu({ open: false, flow: null })}
+        onEdit={() => handleEdit(flowMenu.flow.id)}
+        onToggleFavorite={() => handleFavorite(flowMenu.flow.id)}
+        onRename={() =>
+          setRenameModal({
+            open: true,
+            id: flowMenu.flow.id,
+            name: flowMenu.flow.name,
+          })
+        }
+        onAssign={() =>
+          setAssignModal({
+            open: true,
+            flowId: flowMenu.flow.id,
+            currentProjectId: flowMenu.flow.projectId,
+          })
+        }
+        onShare={() => setShareModal({ open: true, flow: flowMenu.flow })}
+        onDuplicate={() => handleDuplicate(flowMenu.flow.id)}
+        onDelete={() => handleDelete(flowMenu.flow.id)}
+      />
+
+      <ShareFlowModal
+        open={shareModal.open}
+        flow={shareModal.flow}
+        onClose={() => setShareModal({ open: false, flow: null })}
+        onSuccess={fetchRecentFlows}
+      />
+
+      <AssignProjectModal
+        open={assignModal.open}
+        flowId={assignModal.flowId}
+        currentProjectId={assignModal.currentProjectId}
+        onClose={() => setAssignModal({ open: false, flowId: null })}
+        onSuccess={fetchRecentFlows}
+      />
+
+      <ModalShell
+        open={renameModal.open}
+        onClose={() => setRenameModal({ open: false, id: "", name: "" })}
+      >
+        <ModalHeader
+          title="Rename Flow"
+          close={() => setRenameModal({ open: false, id: "", name: "" })}
+        />
+        <div className="px-5 pb-5">
+          <Field label="New name" required>
+            <FieldInput
+              autoFocus
+              maxLength={255}
+              value={renameModal.name}
+              onChange={(e) =>
+                setRenameModal({ ...renameModal, name: e.target.value })
+              }
+              onKeyDown={(e) => e.key === "Enter" && handleRename()}
+            />
+          </Field>
+        </div>
+        <ModalFooter
+          close={() => setRenameModal({ open: false, id: "", name: "" })}
+          primary={handleRename}
+          primaryLabel="Save"
+          disabled={!renameModal.name.trim()}
+        />
+      </ModalShell>
     </div>
   );
 }

@@ -96,6 +96,15 @@ export function usePricing() {
         const data = await res.json();
         if (cancelled) return;
         if (data.success && data.data) {
+          // FEAT-010: multi-currency deferred — always display USD in the UI.
+          // Backend detection stays intact; we only override the display layer.
+          // Reset the WHOLE pricing object (currency, symbol AND prices) to the
+          // USD default so local-currency amounts can never leak through.
+          const FORCE_USD = true;
+          if (FORCE_USD) {
+            setPricing(FALLBACK_PRICING);
+            return;
+          }
           setPricing(data.data);
           setIsTestMode(!!data.data.isTestMode);
         } else {

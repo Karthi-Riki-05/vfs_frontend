@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown, Check, Users } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useAiBilling, type BillingOption } from "@/context/AiBillingContext";
+import { getClientAppType } from "@/lib/detectWebView";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -30,16 +31,23 @@ import { cn } from "@/lib/utils";
 interface SidebarTeamSwitcherProps {
   /** Rail collapsed → avatar-only trigger. */
   collapsed?: boolean;
+  /** navbar = compact pill for the top header bar */
+  variant?: "sidebar" | "navbar";
 }
 
 function roleLabel(opt: BillingOption): string {
-  if (opt.teamId === null) return "Owner"; // personal pool — user owns it
+  if (opt.teamId === null) return "Owner";
   if (!opt.role) return "Member";
   return opt.role.charAt(0).toUpperCase() + opt.role.slice(1).toLowerCase();
 }
 
+function displayName(opt: BillingOption): string {
+  return opt.ownerName || opt.label || "Team";
+}
+
 function avatarChar(opt: BillingOption): string {
   return (
+    opt.ownerName?.charAt(0).toUpperCase() ||
     opt.avatar?.charAt(0).toUpperCase() ||
     opt.label?.charAt(0).toUpperCase() ||
     "T"
@@ -48,6 +56,7 @@ function avatarChar(opt: BillingOption): string {
 
 const SidebarTeamSwitcher: React.FC<SidebarTeamSwitcherProps> = ({
   collapsed = false,
+  variant = "sidebar",
 }) => {
   const {
     options,
@@ -59,65 +68,193 @@ const SidebarTeamSwitcher: React.FC<SidebarTeamSwitcherProps> = ({
   } = useAiBilling();
   const [open, setOpen] = useState(false);
 
+  // Hide the sidebar variant on web — web uses the header (navbar) switcher instead.
+  if (getClientAppType() === "web" && variant === "sidebar") return null;
+
   // No teams to switch between → don't show the control at all (a lone
   // personal pool has nothing to switch to). Mirrors TeamContextSwitcher.
   if (!hasTeams && !loading) return null;
 
   const handleSelect = (opt: BillingOption) => {
     setOpen(false);
-    if (opt.teamId === activeBillingTeamId) return; // no-op re-select
-    // Fire-and-forget: switchBilling persists server-side but updates local
-    // state synchronously, so the UI reflects the new team immediately.
+    if (opt.teamId === activeBillingTeamId) return;
     void switchBilling(opt.teamId);
+    // If the user switches workspace while on the Pro route, navigate them to
+    // the team dashboard. ProGuard re-evaluates on the new workspace entitlement
+    // and would redirect to /upgrade-pro for users without standalone Pro
+    // (proPurchasedAt=null) — even if they never intended to use the Pro app.
+    if (
+      typeof window !== "undefined" &&
+      (window.location.pathname === "/dashboard/pro" ||
+        window.location.pathname.startsWith("/dashboard/pro/"))
+    ) {
+      window.location.href = "/dashboard/team";
+    }
   };
 
-  return (
-    <div className="px-3 pb-2">
+  // Deduplicate by owner — one entry per unique owner.
+  // Personal context (teamId=null) is always kept.
+  // If user is in 2 teams both owned by Mr Y → show ONE "Mr Y" entry (first team).
+  const dedupedOptions = options.reduce<BillingOption[]>((acc, opt) => {
+    const key =
+      opt.teamId === null
+        ? "personal"
+        : opt.ownerEmail || opt.ownerName || opt.teamId;
+    if (
+      !acc.some((o) => {
+        const oKey =
+          o.teamId === null
+            ? "personal"
+            : o.ownerEmail || o.ownerName || o.teamId;
+        return oKey === key;
+      })
+    ) {
+      acc.push(opt);
+    }
+    return acc;
+  }, []);
+
+  // Active deduped entry — match by teamId (same key used for dedup above).
+  const activeDedupedOption =
+    dedupedOptions.find((o) =>
+      o.teamId === null
+        ? activeBillingTeamId === null
+        : o.teamId === activeBillingTeamId,
+    ) ??
+    dedupedOptions[0] ??
+    activeOption;
+
+  // Shared dropdown content for both variants
+  const dropdownContent = (
+    <PopoverContent
+      align={variant === "navbar" ? "end" : "start"}
+      sideOffset={6}
+      className="tw min-w-[200px] p-1.5"
+    >
+      <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+        Switch Team
+      </div>
+      <div role="listbox" aria-label="Teams">
+        {dedupedOptions.map((opt) => {
+          const active =
+            opt.teamId === null
+              ? activeBillingTeamId === null
+              : opt.teamId === activeBillingTeamId;
+          return (
+            <button
+              key={opt.teamId || "personal"}
+              type="button"
+              role="option"
+              aria-selected={active}
+              onClick={() => handleSelect(opt)}
+              className={cn(
+                "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition",
+                active ? "bg-primary-tint" : "hover:bg-secondary/60",
+              )}
+            >
+              <span
+                className={cn(
+                  "w-8 h-8 shrink-0 rounded-lg font-bold text-sm flex items-center justify-center",
+                  active
+                    ? "bg-primary/20 text-primary-deep"
+                    : "bg-secondary text-primary-deep",
+                )}
+              >
+                {avatarChar(opt)}
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[13px] font-semibold text-foreground truncate leading-tight">
+                  {displayName(opt)}
+                </span>
+                <span className="block text-[11px] text-muted-foreground leading-tight">
+                  {roleLabel(opt)}
+                </span>
+              </span>
+              {active && <Check className="w-4 h-4 shrink-0 text-primary" />}
+            </button>
+          );
+        })}
+      </div>
+    </PopoverContent>
+  );
+
+  if (variant === "navbar") {
+    return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
             data-testid="team-switcher-trigger"
             aria-label="Switch team"
-            className={cn(
-              "w-full flex items-center gap-2.5 rounded-2xl border border-border bg-card transition hover:bg-secondary/50",
-              collapsed ? "justify-center p-1.5" : "px-2.5 py-2",
-            )}
+            className="hidden sm:inline-flex items-center gap-2 h-9 px-2.5 rounded-xl border border-border transition hover:bg-secondary/60"
           >
-            <span className="w-8 h-8 shrink-0 rounded-full bg-primary/15 text-primary-deep font-bold text-sm flex items-center justify-center">
-              {avatarChar(activeOption)}
+            <span className="w-7 h-7 shrink-0 rounded-lg bg-primary text-white font-bold text-xs flex items-center justify-center">
+              {avatarChar(activeDedupedOption)}
             </span>
-            {!collapsed && (
-              <>
-                <span className="flex-1 min-w-0 text-left">
-                  <span className="block text-[10px] font-bold uppercase tracking-wide text-muted-foreground leading-none">
-                    Team
-                  </span>
-                  <span className="block text-[13px] font-semibold text-foreground truncate leading-tight mt-0.5">
-                    {activeOption.label}
-                  </span>
-                </span>
-                <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" />
-              </>
-            )}
+            <span className="text-[13px] font-semibold text-foreground truncate max-w-[110px]">
+              {displayName(activeDedupedOption)}
+            </span>
+            <ChevronDown
+              className={cn(
+                "w-3.5 h-3.5 text-muted-foreground transition",
+                open && "rotate-180",
+              )}
+            />
           </button>
         </PopoverTrigger>
+        {dropdownContent}
+      </Popover>
+    );
+  }
 
-        <PopoverContent
-          align="start"
-          sideOffset={6}
-          className="w-[var(--radix-popover-trigger-width)] min-w-[200px] p-1.5"
-        >
-          <div className="flex items-center gap-1.5 px-2 pt-1 pb-2">
-            <Users className="w-3 h-3 text-muted-foreground" />
-            <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-              Switch Team
+  // Sidebar variant: inline expand/collapse — no Radix portal, WebView-safe.
+  // Radix Popover portals render at document.body and can render behind the
+  // Flutter WebView drawer overlay (wrong z-index stacking context).
+  return (
+    <div className="px-3 pb-2 pt-[5px]">
+      <button
+        type="button"
+        data-testid="team-switcher-trigger"
+        aria-label="Switch team"
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "w-full flex items-center gap-3 rounded-xl border border-border transition hover:bg-secondary/60",
+          collapsed ? "justify-center p-1.5" : "px-3 py-2",
+        )}
+      >
+        <span className="w-9 h-9 shrink-0 rounded-xl bg-primary text-white font-bold text-sm flex items-center justify-center">
+          {avatarChar(activeDedupedOption)}
+        </span>
+        {!collapsed && (
+          <>
+            <span className="flex-1 min-w-0 text-left">
+              <span className="block text-[10px] font-bold uppercase tracking-wide text-muted-foreground leading-none">
+                Team
+              </span>
+              <span className="block text-[13px] font-semibold text-foreground truncate leading-tight mt-0.5">
+                {displayName(activeDedupedOption)}
+              </span>
             </span>
+            <ChevronDown
+              className={cn(
+                "w-4 h-4 shrink-0 text-muted-foreground transition",
+                open && "rotate-180",
+              )}
+            />
+          </>
+        )}
+      </button>
+      {open && !collapsed && (
+        <div className="mt-1.5 rounded-xl border border-border bg-card shadow-md overflow-hidden">
+          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+            Switch Team
           </div>
-
           <div role="listbox" aria-label="Teams">
-            {options.map((opt) => {
-              const active = opt.teamId === activeBillingTeamId;
+            {dedupedOptions.map((opt) => {
+              const active =
+                opt.teamId === null
+                  ? activeBillingTeamId === null
+                  : opt.teamId === activeBillingTeamId;
               return (
                 <button
                   key={opt.teamId || "personal"}
@@ -126,23 +263,23 @@ const SidebarTeamSwitcher: React.FC<SidebarTeamSwitcherProps> = ({
                   aria-selected={active}
                   onClick={() => handleSelect(opt)}
                   className={cn(
-                    "w-full flex items-center gap-2.5 rounded-xl px-2 py-2 text-left transition",
-                    active ? "bg-primary/10" : "hover:bg-secondary/60",
+                    "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition",
+                    active ? "bg-primary-tint" : "hover:bg-secondary/60",
                   )}
                 >
                   <span
                     className={cn(
-                      "w-8 h-8 shrink-0 rounded-full font-bold text-sm flex items-center justify-center",
+                      "w-8 h-8 shrink-0 rounded-lg font-bold text-sm flex items-center justify-center",
                       active
                         ? "bg-primary/20 text-primary-deep"
-                        : "bg-secondary text-muted-foreground",
+                        : "bg-secondary text-primary-deep",
                     )}
                   >
                     {avatarChar(opt)}
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className="block text-[13px] font-semibold text-foreground truncate leading-tight">
-                      {opt.label}
+                      {displayName(opt)}
                     </span>
                     <span className="block text-[11px] text-muted-foreground leading-tight">
                       {roleLabel(opt)}
@@ -155,8 +292,8 @@ const SidebarTeamSwitcher: React.FC<SidebarTeamSwitcherProps> = ({
               );
             })}
           </div>
-        </PopoverContent>
-      </Popover>
+        </div>
+      )}
     </div>
   );
 };

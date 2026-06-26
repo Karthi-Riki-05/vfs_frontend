@@ -6,7 +6,6 @@ import { useIsMobile } from "@/hooks/useMediaQuery";
 export default function ProSubscriptionWidget() {
   const { activeOption, loading } = useAiBilling();
   const isMobile = useIsMobile();
-
   const planCredits = activeOption?.aiCredits?.planCredits ?? 0;
   const addonCredits = activeOption?.aiCredits?.addonCredits ?? 0;
   const total = planCredits + addonCredits;
@@ -140,7 +139,6 @@ export default function ProSubscriptionWidget() {
         <Row label="Plan" value="Pro" />
       </div>
 
-      {/* Top up CTA */}
       <button
         onClick={() => (window.location.href = "/dashboard/subscription")}
         style={{

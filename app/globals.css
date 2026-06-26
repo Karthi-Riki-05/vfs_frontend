@@ -513,6 +513,22 @@ img {
   }
 }
 
+/* ---- Touch targets — tablet extension (768px–1023px) ----
+   The mobile block above covers ≤767px. Tablets share the same 44px minimum.
+   Only buttons — inputs/pagination handled per the mobile block above.
+*/
+@media (min-width: 768px) and (max-width: 1023px) {
+  .ant-btn:not(.ant-btn-sm) {
+    min-height: 44px !important;
+    height: auto !important;
+  }
+  .ant-btn-icon-only {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 0 !important;
+  }
+}
+
 /* ==================== SAFE AREA INSETS (iOS notch / Android chin) ====================
    Ensures FAB, bottom navigation, and content padding respect device safe areas.
 */

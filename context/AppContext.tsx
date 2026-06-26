@@ -13,6 +13,7 @@ import {
   getAiBillingTeamId,
   AI_BILLING_EVENT,
   AI_BILLING_KEY,
+  PRO_BILLING_KEY,
 } from "@/lib/aiBilling";
 
 const STORAGE_KEY = "vc_active_context";
@@ -151,16 +152,54 @@ export function AppContextProvider({
       const detail = (e as CustomEvent<{ teamId: string | null }>).detail;
       setActiveTeamId(detail ? detail.teamId : getAiBillingTeamId());
     };
+    // GAP-03 (§5): enriched switch event from AiBillingContext.switchBilling().
+    // Updates activeContext.type so isTeamContext / effectivePlan / Chat unlock.
+    const onWorkspaceSwitch = (e: Event) => {
+      const detail = (
+        e as CustomEvent<{
+          teamId: string | null;
+          plan?: string | null;
+          teamName?: string | null;
+          hasPro?: boolean;
+          ownerName?: string | null;
+        }>
+      ).detail;
+      if (!detail) return;
+      if (detail.teamId) {
+        const plan = (detail.plan as "free" | "pro" | "team") || "team";
+        setActiveContext({
+          type: "team",
+          teamId: detail.teamId,
+          teamName: detail.teamName || "",
+          ownerId: "",
+          ownerName: detail.ownerName || null,
+          plan,
+          hasPro: detail.hasPro || plan !== "free",
+          proUnlimitedFlows: plan === "team",
+          proFlowLimit: plan === "free" ? 10 : 0,
+        });
+      } else {
+        setActiveContext({ type: "personal" });
+      }
+    };
     // Cross-tab: the editor opens in a NEW tab via window.open(). A switch in
     // another tab updates localStorage and fires a 'storage' event here (but
     // not the same-tab CustomEvent), so sync activeTeamId from it too.
     const onStorage = (e: StorageEvent) => {
-      if (e.key === AI_BILLING_KEY) setActiveTeamId(getAiBillingTeamId());
+      // Pro-app tabs persist the selection under PRO_BILLING_KEY, Team-app
+      // tabs under AI_BILLING_KEY. The editor opens in a NEW tab via
+      // window.open(), so a switch made in another tab must re-scope here
+      // regardless of which key carried it (cross-tab Pro-app sync).
+      if (e.key === AI_BILLING_KEY || e.key === PRO_BILLING_KEY) {
+        setActiveTeamId(getAiBillingTeamId());
+      }
     };
     window.addEventListener(AI_BILLING_EVENT, onBilling);
+    window.addEventListener("vc:workspace-switch", onWorkspaceSwitch);
     window.addEventListener("storage", onStorage);
     return () => {
       window.removeEventListener(AI_BILLING_EVENT, onBilling);
+      window.removeEventListener("vc:workspace-switch", onWorkspaceSwitch);
       window.removeEventListener("storage", onStorage);
     };
   }, []);
@@ -177,9 +216,9 @@ export function AppContextProvider({
         params: { appContext: sessAppCtx },
       });
       const data = res.data?.data || res.data;
-      // Unified ownership model: no team workspaces to switch into. We still
-      // fetch this endpoint for the resolved personalPlan, but never expose
-      // switchable teams.
+      // DEPRECATED: availableTeams is always [] — real team switching and the
+      // switchable-teams list live in AiBillingContext (useAiBilling()). This
+      // field is kept in the interface to avoid breaking any residual callers.
       setAvailableTeams([]);
       if (data?.personalPlan) {
         setPersonalPlan({
@@ -223,8 +262,8 @@ export function AppContextProvider({
     writeStored(next);
   }, []);
 
-  // Unified ownership model: team workspaces were removed. Kept as a stable
-  // no-op so any residual caller doesn't break; the context stays personal.
+  // DEPRECATED: real team switching is handled by AiBillingContext.switchBilling().
+  // This no-op exists only so callers that haven't been updated yet don't break.
   const switchToTeam = useCallback((_team: TeamContextOption) => {
     void _team;
   }, []);
@@ -260,6 +299,8 @@ export function AppContextProvider({
     effectivePlan,
     effectiveHasPro,
     effectiveFlowLimit,
+    // NOTE: always false — activeContext is pinned to "personal" (unified
+    // ownership model). Team data scope is driven by activeTeamId instead.
     isTeamContext: activeContext.type === "team",
     // Data scope follows the switcher selection (decoupled from entitlements).
     activeTeamId,

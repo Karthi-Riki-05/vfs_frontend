@@ -52,6 +52,8 @@ import {
   Minimize2,
   Trash2,
   LogOut,
+  Smile,
+  Pencil,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { upload } from "@/lib/axios";
@@ -60,6 +62,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAppContext } from "@/context/AppContext";
 import { usePro } from "@/hooks/usePro";
 import { useSocket } from "@/hooks/useSocket";
+import { usePresence } from "@/hooks/usePresence";
 
 const PRIMARY = "#3CB371";
 const TEXT = "#1A1A2E";
@@ -69,6 +72,7 @@ const TEAM_AVATAR_BG = "#7C3AED";
 const CONTACT_AVATAR_BG = "#3B82F6";
 const INPUT_BG = "#F8F9FA";
 const COLUMN_WIDTH = 430;
+const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
 // Mobile redesign tokens (DESIGN.md) — only used when `mobileRestyle` is set
 const M_PRIMARY = "#34A881";
@@ -179,8 +183,17 @@ interface ChatMessage {
   attachPath?: string;
   files?: ChatFile[];
   createdAt: string;
+  linkPreview?: {
+    url?: string;
+    title?: string;
+    description?: string;
+    image?: string;
+    siteName?: string;
+  } | null;
   _status?: "sending" | "sent" | "failed";
   _tempId?: string;
+  editedAt?: string;
+  deletedAt?: string;
 }
 
 interface TeamGroup {
@@ -257,7 +270,7 @@ export default function RightChatColumn({
     getUnreadCount,
     markGroupAsRead,
     refetch: refetchUnread,
-  } = useUnreadCount();
+  } = useUnreadCount(currentApp === "pro" ? "pro" : "team");
   const { socket } = useSocket();
 
   // View state
@@ -290,6 +303,43 @@ export default function RightChatColumn({
   const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Typing indicator
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const typingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
+  const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Read receipts: messageId -> userIds who have read it
+  const [readReceipts, setReadReceipts] = useState<Map<string, string[]>>(
+    new Map(),
+  );
+  // Mirror of `messages` so socket handlers read the latest without
+  // re-subscribing on every message.
+  const messagesRef = useRef<ChatMessage[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // Stable ref to fetchSidebar so socket handlers can call it without being
+  // listed as a dependency — prevents all socket listeners from detaching and
+  // re-attaching every time the workspace context changes.
+  const fetchSidebarRef = useRef<() => void>(() => {});
+
+  // Inline edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+
+  // Which message's action bar (react / edit / delete) is open. Tap-driven so
+  // it works on touch devices (the old hover-only reveal was invisible on
+  // mobile and easy to miss on desktop).
+  const [activeMsgId, setActiveMsgId] = useState<string | null>(null);
+
+  // Reactions: messageId -> { emoji -> userIds[] }
+  const [reactions, setReactions] = useState<
+    Map<string, Record<string, string[]>>
+  >(new Map());
 
   // Create group modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -347,12 +397,20 @@ export default function RightChatColumn({
     }
   }, [activeTeamId]);
 
+  // Keep the ref in sync so socket handlers always call the latest version
+  // without needing fetchSidebar in their dependency arrays.
+  useEffect(() => {
+    fetchSidebarRef.current = fetchSidebar;
+  }, [fetchSidebar]);
+
   useEffect(() => {
     fetchSidebar();
-    const interval = setInterval(fetchSidebar, 30000);
+    // Poll every 60 s as a fallback for missed socket events (group renames,
+    // members added by others, etc.). Real-time updates come via Socket.IO so
+    // the interval is a safety net, not the primary path — 60 s is enough.
+    const interval = setInterval(fetchSidebar, 60000);
     return () => clearInterval(interval);
     // Re-fetch when the workspace context flips (personal ↔ team A ↔ team B).
-    // The axios interceptor sends the new X-Team-Context header automatically.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchSidebar, activeTeamId]);
 
@@ -391,14 +449,10 @@ export default function RightChatColumn({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Polling for new messages
-  useEffect(() => {
-    if (!selectedGroupId || view !== "messages") return;
-    const interval = setInterval(() => {
-      fetchMessages(selectedGroupId);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [selectedGroupId, view, fetchMessages]);
+  // NOTE: no message polling — Socket.IO delivers new messages in real time
+  // via the "message:new" event. A setInterval here caused the entire message
+  // list to re-render every 5 s (full array replacement) and was the primary
+  // source of the visible UI flickering while a conversation was open.
 
   // ---- SOCKET.IO ----
   useEffect(() => {
@@ -420,26 +474,230 @@ export default function RightChatColumn({
           return [...prev, { ...data, _status: "sent" }];
         });
         api.put(`/chat/groups/${msgGroupId}/read`).catch(() => {});
+        // A delivered message means that sender is no longer typing.
+        const senderId =
+          data.senderId || data.userId || data.user?.id || data.sender?.id;
+        if (senderId) {
+          setTypingUsers((prev) => {
+            if (!prev.has(senderId)) return prev;
+            const n = new Set(prev);
+            n.delete(senderId);
+            return n;
+          });
+          const t = typingTimeouts.current.get(senderId);
+          if (t) clearTimeout(t);
+          typingTimeouts.current.delete(senderId);
+        }
       }
-      fetchSidebar();
+      // Update the sidebar last-message preview inline — no HTTP round-trip.
+      // A full fetchSidebar() here caused one API request per received message,
+      // making the sidebar re-render on every chat event (the main flicker source).
+      if (msgGroupId) {
+        const lastMsg = {
+          message: data.message,
+          createdAt: data.createdAt,
+          type: data.type,
+        };
+        setSidebarData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            teams: prev.teams.map((t) =>
+              t.conversationId === msgGroupId
+                ? { ...t, lastMessage: lastMsg }
+                : t,
+            ),
+            groups: prev.groups.map((g) =>
+              g.id === msgGroupId ? { ...g, lastMessage: lastMsg } : g,
+            ),
+            contacts: prev.contacts.map((c) =>
+              c.conversationId === msgGroupId
+                ? { ...c, lastMessage: lastMsg }
+                : c,
+            ),
+            allGroups: prev.allGroups.map((g) =>
+              g.id === msgGroupId ? { ...g, lastMessage: lastMsg } : g,
+            ),
+          };
+        });
+      }
       refetchUnread();
+    };
+
+    const onTypingStart = ({
+      groupId,
+      userId,
+    }: {
+      groupId: string;
+      userId: string;
+    }) => {
+      if (groupId !== selectedGroupIdRef.current) return;
+      setTypingUsers((prev) => new Set(prev).add(userId));
+      // Safety timeout — clear if no typing:stop / message arrives.
+      const existing = typingTimeouts.current.get(userId);
+      if (existing) clearTimeout(existing);
+      typingTimeouts.current.set(
+        userId,
+        setTimeout(() => {
+          setTypingUsers((prev) => {
+            const n = new Set(prev);
+            n.delete(userId);
+            return n;
+          });
+          typingTimeouts.current.delete(userId);
+        }, 5000),
+      );
+    };
+
+    const onTypingStop = ({
+      groupId,
+      userId,
+    }: {
+      groupId: string;
+      userId: string;
+    }) => {
+      if (groupId !== selectedGroupIdRef.current) return;
+      setTypingUsers((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
+      const t = typingTimeouts.current.get(userId);
+      if (t) clearTimeout(t);
+      typingTimeouts.current.delete(userId);
     };
 
     const onGroupDeleted = (data: { groupId: string }) => {
       if (selectedGroupIdRef.current === data.groupId) {
         backToList();
       }
-      fetchSidebar();
+      fetchSidebarRef.current();
+    };
+
+    // Link previews are resolved server-side after the message is stored and
+    // pushed out on this event. Merge the preview into the matching message.
+    const onLinkPreview = (data: {
+      messageId: string;
+      linkPreview: ChatMessage["linkPreview"];
+    }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === data.messageId ? { ...m, linkPreview: data.linkPreview } : m,
+        ),
+      );
+    };
+
+    const onMessageRead = ({
+      groupId,
+      userId,
+    }: {
+      groupId: string;
+      userId: string;
+    }) => {
+      if (groupId !== selectedGroupIdRef.current) return;
+      // Mark the latest message as read by this user.
+      const msgs = messagesRef.current;
+      if (msgs.length === 0) return;
+      const lastId = msgs[msgs.length - 1].id;
+      setReadReceipts((prev) => {
+        const map = new Map(prev);
+        const readers = map.get(lastId) || [];
+        if (!readers.includes(userId)) {
+          map.set(lastId, [...readers, userId]);
+        }
+        return map;
+      });
+    };
+
+    const onMessageEdited = ({
+      messageId,
+      content,
+      editedAt,
+    }: {
+      messageId: string;
+      content: string;
+      editedAt?: string;
+    }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, message: content, editedAt } : m,
+        ),
+      );
+    };
+
+    const onMessageDeleted = ({ messageId }: { messageId: string }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                message: "This message was deleted",
+                deletedAt: new Date().toISOString(),
+              }
+            : m,
+        ),
+      );
+    };
+
+    const onReaction = ({
+      messageId,
+      emoji,
+      userId,
+      action,
+    }: {
+      messageId: string;
+      emoji: string;
+      userId: string;
+      action: "add" | "remove";
+    }) => {
+      setReactions((prev) => {
+        const map = new Map(prev);
+        const forMsg = { ...(map.get(messageId) || {}) };
+        const users = forMsg[emoji] ? [...forMsg[emoji]] : [];
+        if (action === "add") {
+          if (!users.includes(userId)) users.push(userId);
+        } else {
+          const idx = users.indexOf(userId);
+          if (idx !== -1) users.splice(idx, 1);
+        }
+        if (users.length > 0) forMsg[emoji] = users;
+        else delete forMsg[emoji];
+        map.set(messageId, forMsg);
+        return map;
+      });
+    };
+
+    // Refresh sidebar when added to a new group by someone else
+    const onGroupCreated = () => {
+      fetchSidebarRef.current();
     };
 
     socket.on("message:new", onNewMessage);
     socket.on("group:deleted", onGroupDeleted);
+    socket.on("group:created", onGroupCreated);
+    socket.on("message:link-preview", onLinkPreview);
+    socket.on("typing:start", onTypingStart);
+    socket.on("typing:stop", onTypingStop);
+    socket.on("message:read", onMessageRead);
+    socket.on("message:edited", onMessageEdited);
+    socket.on("message:deleted", onMessageDeleted);
+    socket.on("message:reaction", onReaction);
 
     return () => {
       socket.off("message:new", onNewMessage);
       socket.off("group:deleted", onGroupDeleted);
+      socket.off("group:created", onGroupCreated);
+      socket.off("message:link-preview", onLinkPreview);
+      socket.off("typing:start", onTypingStart);
+      socket.off("typing:stop", onTypingStop);
+      socket.off("message:read", onMessageRead);
+      socket.off("message:edited", onMessageEdited);
+      socket.off("message:deleted", onMessageDeleted);
+      socket.off("message:reaction", onReaction);
     };
-  }, [socket, fetchSidebar, refetchUnread]);
+    // fetchSidebar intentionally omitted — accessed via fetchSidebarRef so the
+    // socket listeners don't detach/re-attach on every workspace context change.
+  }, [socket, refetchUnread]);
 
   // ---- ACTIONS ----
 
@@ -460,6 +718,7 @@ export default function RightChatColumn({
     setSelectedGroupId(null);
     setMessages([]);
     setMessageInput("");
+    setActiveMsgId(null);
   };
 
   const handleSend = async () => {
@@ -467,6 +726,12 @@ export default function RightChatColumn({
     const text = messageInput.trim();
     setMessageInput("");
     setSendingMessage(true);
+
+    // Stop the typing indicator the moment a message is sent.
+    if (socket && selectedGroupId) {
+      if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+      socket.emit("typing:stop", { groupId: selectedGroupId });
+    }
 
     const tempId = `temp-${Date.now()}`;
     const optimisticMsg: ChatMessage = {
@@ -493,7 +758,8 @@ export default function RightChatColumn({
             : m,
         ),
       );
-      fetchSidebar();
+      // No fetchSidebar() — the socket "message:new" event updates the sidebar
+      // last-message preview inline, avoiding a redundant HTTP request here.
     } catch {
       setMessages((prev) =>
         prev.map((m) =>
@@ -503,6 +769,69 @@ export default function RightChatColumn({
       message.error("Failed to send message");
     } finally {
       setSendingMessage(false);
+    }
+  };
+
+  const startEdit = (msg: ChatMessage) => {
+    setEditingId(msg.id);
+    setEditingText(msg.message || msg.content || "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingText("");
+  };
+
+  const saveEdit = async (msg: ChatMessage) => {
+    const content = editingText.trim();
+    if (!content) return;
+    if (content === (msg.message || msg.content || "")) {
+      cancelEdit();
+      return;
+    }
+    try {
+      const res = await api.put(`/chat/messages/${msg.id}`, { content });
+      const updated = res.data?.data;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msg.id
+            ? { ...m, message: content, editedAt: updated?.editedAt }
+            : m,
+        ),
+      );
+    } catch {
+      message.error("Failed to edit message");
+    } finally {
+      cancelEdit();
+    }
+  };
+
+  const handleDeleteMessage = async (msg: ChatMessage) => {
+    try {
+      await api.delete(`/chat/messages/${msg.id}`);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msg.id
+            ? {
+                ...m,
+                message: "This message was deleted",
+                deletedAt: new Date().toISOString(),
+              }
+            : m,
+        ),
+      );
+    } catch {
+      message.error("Failed to delete message");
+    }
+  };
+
+  const toggleReaction = async (messageId: string, emoji: string) => {
+    // The server emits message:reaction to the whole room (incl. sender),
+    // so state updates arrive via the socket listener.
+    try {
+      await api.post(`/chat/messages/${messageId}/reactions`, { emoji });
+    } catch {
+      message.error("Failed to react");
     }
   };
 
@@ -525,19 +854,18 @@ export default function RightChatColumn({
       const res = await upload("/chat/upload", formData);
       const data = res.data?.data || res.data;
       if (data?.id) {
-        // Message was created server-side, refresh
-        fetchMessages(selectedGroupId);
+        // Message was created server-side; socket "message:new" will append it.
+        // fetchMessages would replace the whole list — avoid it.
       } else if (data?.url) {
-        // File uploaded, create message manually
+        // File uploaded, create message manually; socket handles the update.
         const fileType = file.type.startsWith("image/") ? "image" : "docs";
         await api.post(`/chat/groups/${selectedGroupId}/messages`, {
           message: file.name,
           type: fileType,
           attachPath: data.url,
         });
-        fetchMessages(selectedGroupId);
       }
-      fetchSidebar();
+      // No fetchSidebar() — socket "message:new" updates sidebar inline.
     } catch {
       message.error(`Failed to upload ${file.name}`);
     } finally {
@@ -799,6 +1127,14 @@ export default function RightChatColumn({
     );
   }, [sidebarData?.contacts, searchQuery]);
 
+  // Presence: subscribe to online status for all contacts so the list shows
+  // live green dots. Keyed on the stable set of contact user-ids.
+  const contactUserIds = useMemo(
+    () => (sidebarData?.contacts || []).map((c) => c.id),
+    [sidebarData?.contacts],
+  );
+  const { isOnline } = usePresence(contactUserIds);
+
   const filteredFlatGroups = useMemo(() => {
     if (!searchQuery) return flatGroups;
     const q = searchQuery.toLowerCase();
@@ -924,9 +1260,9 @@ export default function RightChatColumn({
   // ===============================================================
 
   const TABS_DEF: Array<{ id: "team" | "group" | "direct"; label: string }> = [
-    { id: "team", label: "Projects" },
+    { id: "team", label: "Teams" },
     { id: "group", label: "Group" },
-    { id: "direct", label: "Direct" },
+    { id: "direct", label: "Personal" },
   ];
 
   // Colored round avatar with initial (prototype Avatar atom)
@@ -1220,6 +1556,7 @@ export default function RightChatColumn({
               time: shortTime(contact.lastMessage?.createdAt),
               unread: contact.unreadCount,
               hash: false,
+              online: isOnline(contact.id),
               onClick: () => handleContactChatOpen(contact),
             });
           })
@@ -1248,6 +1585,156 @@ export default function RightChatColumn({
     );
   };
 
+  // Link preview card (rendered under a message bubble when resolved)
+  const twLinkPreview = (msg: ChatMessage) => {
+    const lp = msg.linkPreview;
+    if (!lp || (!lp.title && !lp.description && !lp.image)) return null;
+    return (
+      <a
+        href={lp.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-1 block max-w-[80%] overflow-hidden rounded-2xl border border-border bg-card no-underline"
+      >
+        {lp.image && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={lp.image}
+            alt={lp.title || "link preview"}
+            className="max-h-40 w-full object-cover"
+          />
+        )}
+        <div className="p-3">
+          {lp.title && (
+            <div className="truncate text-[13px] font-semibold text-foreground">
+              {lp.title}
+            </div>
+          )}
+          {lp.description && (
+            <div className="mt-0.5 truncate text-[12px] text-muted-foreground">
+              {lp.description}
+            </div>
+          )}
+          <div className="mt-1 truncate text-[11px] text-primary">
+            {lp.siteName || lp.url}
+          </div>
+        </div>
+      </a>
+    );
+  };
+
+  // Always-visible trigger that opens a message's action bar on tap/click.
+  const twActionTrigger = (msg: ChatMessage) => {
+    const open = activeMsgId === msg.id;
+    return (
+      <button
+        onClick={() => setActiveMsgId(open ? null : msg.id)}
+        title="React / message actions"
+        aria-label="Message actions"
+        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-transparent border-0 cursor-pointer transition-colors ${
+          open
+            ? "text-primary bg-secondary"
+            : "text-muted-foreground hover:text-primary hover:bg-secondary"
+        }`}
+      >
+        <Smile className="w-4 h-4" />
+      </button>
+    );
+  };
+
+  // Expandable action bar (emoji reactions + edit/delete). Rendered as its own
+  // wrapping row below the bubble so it never overflows on narrow screens.
+  const twActionBar = (
+    msg: ChatMessage,
+    canModify: boolean,
+    align: "start" | "end",
+  ) => {
+    if (activeMsgId !== msg.id) return null;
+    return (
+      <div
+        className={`flex flex-wrap items-center gap-1 mt-1 ${
+          align === "end" ? "justify-end mr-1" : "ml-1"
+        }`}
+      >
+        {REACTION_EMOJIS.map((e) => (
+          <button
+            key={e}
+            onClick={() => {
+              toggleReaction(msg.id, e);
+              setActiveMsgId(null);
+            }}
+            title={`React ${e}`}
+            className="text-base leading-none px-1 py-0.5 rounded-full hover:bg-secondary bg-transparent border-0 cursor-pointer hover:scale-110 transition-transform"
+          >
+            {e}
+          </button>
+        ))}
+        {canModify && (
+          <>
+            <button
+              onClick={() => {
+                startEdit(msg);
+                setActiveMsgId(null);
+              }}
+              title="Edit"
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary bg-secondary rounded-full px-2 py-0.5 border-0 cursor-pointer"
+            >
+              <Pencil className="w-3 h-3" /> Edit
+            </button>
+            <Popconfirm
+              title="Delete this message?"
+              okText="Delete"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => {
+                handleDeleteMessage(msg);
+                setActiveMsgId(null);
+              }}
+            >
+              <button
+                title="Delete"
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-red-500 bg-secondary rounded-full px-2 py-0.5 border-0 cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" /> Delete
+              </button>
+            </Popconfirm>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Reaction count chips shown under a message
+  const twReactionChips = (msg: ChatMessage, align: "start" | "end") => {
+    const r = reactions.get(msg.id);
+    if (!r) return null;
+    const entries = Object.entries(r).filter(([, u]) => u.length > 0);
+    if (entries.length === 0) return null;
+    return (
+      <div
+        className={`flex flex-wrap gap-1 mt-1 ${
+          align === "end" ? "justify-end mr-1" : "ml-1"
+        }`}
+      >
+        {entries.map(([emoji, users]) => {
+          const mine = user?.id ? users.includes(user.id) : false;
+          return (
+            <button
+              key={emoji}
+              onClick={() => toggleReaction(msg.id, emoji)}
+              className={`text-[11px] px-1.5 py-0.5 rounded-full border cursor-pointer ${
+                mine
+                  ? "bg-primary-tint border-primary text-primary-deep"
+                  : "bg-secondary border-border text-muted-foreground"
+              }`}
+            >
+              {emoji} {users.length}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   // One message bubble (prototype ChatMsg)
   const twMsg = (msg: ChatMessage) => {
     const own = isOwnMessage(msg);
@@ -1256,20 +1743,83 @@ export default function RightChatColumn({
       minute: "2-digit",
     });
     if (own) {
+      const isDeleted = !!msg.deletedAt;
+      const canModify =
+        !isDeleted &&
+        msg._status !== "sending" &&
+        msg._status !== "failed" &&
+        (msg.type || "text") === "text" &&
+        !(msg.files && msg.files.length > 0);
+
+      // Inline edit mode
+      if (editingId === msg.id) {
+        return (
+          <div key={msg.id} className="flex flex-col items-end">
+            <div className="max-w-[78%] w-full flex flex-col gap-2 bg-card border border-border px-3 py-2 rounded-2xl">
+              <input
+                autoFocus
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveEdit(msg);
+                  if (e.key === "Escape") cancelEdit();
+                }}
+                className="bg-transparent outline-none text-sm border-0 p-0 text-foreground"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={cancelEdit}
+                  className="text-[11px] text-muted-foreground bg-transparent border-0 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => saveEdit(msg)}
+                  className="text-[11px] text-primary font-semibold bg-transparent border-0 cursor-pointer"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div key={msg.id} className="flex flex-col items-end">
-          <div className="max-w-[78%] bg-primary text-white px-4 py-3 rounded-2xl rounded-br-md text-[14px] leading-snug break-words">
-            {renderMessageContent(msg, true)}
+          <div className="flex items-center gap-1">
+            {!isDeleted && twActionTrigger(msg)}
+            <div
+              className={`max-w-[78%] px-4 py-3 rounded-2xl rounded-br-md text-[14px] leading-snug break-words ${
+                isDeleted
+                  ? "bg-secondary text-muted-foreground italic"
+                  : "bg-primary text-white"
+              }`}
+            >
+              {isDeleted
+                ? "This message was deleted"
+                : renderMessageContent(msg, true)}
+            </div>
           </div>
+          {!isDeleted && twActionBar(msg, canModify, "end")}
+          {twLinkPreview(msg)}
+          {twReactionChips(msg, "end")}
           <div className="text-[10px] text-muted-foreground mt-1 mr-1">
             {time}
+            {msg.editedAt && !isDeleted && " (edited)"}
             {msg._status === "sending" && " ⏳"}
             {msg._status === "failed" && " ❌"}
           </div>
+          {(readReceipts.get(msg.id)?.length ?? 0) > 0 && (
+            <span className="text-[10px] text-muted-foreground mr-1">
+              ✓✓ Seen
+            </span>
+          )}
         </div>
       );
     }
     const who = getSenderName(msg);
+    const otherDeleted = !!msg.deletedAt;
     return (
       <div key={msg.id}>
         <div className="text-[12px] font-semibold text-muted-foreground ml-11 mb-1">
@@ -1283,11 +1833,26 @@ export default function RightChatColumn({
             {who.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="max-w-[80%] bg-card border border-border px-4 py-3 rounded-2xl rounded-tl-md text-[14px] leading-snug text-foreground break-words">
-              {renderMessageContent(msg, false)}
+            <div className="flex items-center gap-1">
+              <div
+                className={`max-w-[80%] border border-border px-4 py-3 rounded-2xl rounded-tl-md text-[14px] leading-snug break-words ${
+                  otherDeleted
+                    ? "bg-secondary text-muted-foreground italic"
+                    : "bg-card text-foreground"
+                }`}
+              >
+                {otherDeleted
+                  ? "This message was deleted"
+                  : renderMessageContent(msg, false)}
+              </div>
+              {!otherDeleted && twActionTrigger(msg)}
             </div>
+            {!otherDeleted && twActionBar(msg, false, "start")}
+            {twLinkPreview(msg)}
+            {twReactionChips(msg, "start")}
             <div className="text-[10px] text-muted-foreground mt-1 ml-1">
               {time}
+              {msg.editedAt && !otherDeleted && " (edited)"}
             </div>
           </div>
         </div>
@@ -1320,7 +1885,17 @@ export default function RightChatColumn({
         <input
           placeholder="Type a message…"
           value={messageInput}
-          onChange={(e) => setMessageInput(e.target.value)}
+          onChange={(e) => {
+            setMessageInput(e.target.value);
+            if (socket && selectedGroupId) {
+              socket.emit("typing:start", { groupId: selectedGroupId });
+              if (typingDebounceRef.current)
+                clearTimeout(typingDebounceRef.current);
+              typingDebounceRef.current = setTimeout(() => {
+                socket.emit("typing:stop", { groupId: selectedGroupId });
+              }, 2500);
+            }
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSend();
           }}
@@ -1409,6 +1984,13 @@ export default function RightChatColumn({
           ) : (
             messages.map((msg) => twMsg(msg))
           )}
+          {typingUsers.size > 0 && (
+            <div className="px-1 py-1 text-xs text-muted-foreground italic">
+              {typingUsers.size === 1
+                ? "Someone is typing…"
+                : `${typingUsers.size} people are typing…`}
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
         {renderTwInputBar()}
@@ -1490,50 +2072,54 @@ export default function RightChatColumn({
                   No team members found.
                 </div>
               ) : (
-                createGroupMembers.map((tg) => (
-                  <div key={tg.teamId}>
-                    <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                      <Users className="w-3 h-3" /> {tg.teamName}
-                    </div>
-                    {tg.members.map((m) => {
-                      const picked = createSelectedMemberIds.has(m.userId);
-                      return (
-                        <button
-                          key={m.userId}
-                          type="button"
-                          onClick={() => toggle(m.userId)}
-                          className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-full flex items-center gap-3 p-3 hover:bg-secondary text-left"
+                // Flat deduplicated user list — no team grouping headers
+                (() => {
+                  const seen = new Set<string>();
+                  const flatUsers = createGroupMembers
+                    .flatMap((tg) => tg.members)
+                    .filter((m) => {
+                      if (seen.has(m.userId)) return false;
+                      seen.add(m.userId);
+                      return true;
+                    });
+                  return flatUsers.map((m) => {
+                    const picked = createSelectedMemberIds.has(m.userId);
+                    return (
+                      <button
+                        key={m.userId}
+                        type="button"
+                        onClick={() => toggle(m.userId)}
+                        className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-full flex items-center gap-3 p-3 hover:bg-secondary text-left"
+                      >
+                        <div
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                          style={{ background: hashColor(m.name) }}
                         >
-                          <div
-                            className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                            style={{ background: hashColor(m.name) }}
-                          >
-                            {(m.name || m.email || "?").charAt(0).toUpperCase()}
-                          </div>
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-sm font-semibold truncate">
-                              {m.name}
-                            </span>
-                            <span className="block text-[11px] text-muted-foreground truncate">
-                              {m.email}
-                            </span>
+                          {(m.name || m.email || "?").charAt(0).toUpperCase()}
+                        </div>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-semibold truncate">
+                            {m.name}
                           </span>
-                          <span
-                            className={`w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${
-                              picked
-                                ? "bg-primary border-primary"
-                                : "border-border"
-                            }`}
-                          >
-                            {picked && (
-                              <Check className="w-3.5 h-3.5 text-white" />
-                            )}
+                          <span className="block text-[11px] text-muted-foreground truncate">
+                            {m.email}
                           </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))
+                        </span>
+                        <span
+                          className={`w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${
+                            picked
+                              ? "bg-primary border-primary"
+                              : "border-border"
+                          }`}
+                        >
+                          {picked && (
+                            <Check className="w-3.5 h-3.5 text-white" />
+                          )}
+                        </span>
+                      </button>
+                    );
+                  });
+                })()
               )}
             </div>
             <div className="text-[11px] text-muted-foreground mt-1.5">
@@ -1581,50 +2167,50 @@ export default function RightChatColumn({
                 No additional team members available to add.
               </div>
             ) : (
-              addMembersGroups.map((tg) => (
-                <div key={tg.teamId}>
-                  <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                    <Users className="w-3 h-3" /> {tg.teamName}
-                  </div>
-                  {tg.members.map((m) => {
-                    const picked = addMembersSelected.has(m.userId);
-                    return (
-                      <button
-                        key={m.userId}
-                        type="button"
-                        onClick={() => toggle(m.userId)}
-                        className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-full flex items-center gap-3 p-3 hover:bg-secondary text-left"
+              // Flat deduplicated user list — no team grouping headers
+              (() => {
+                const seen = new Set<string>();
+                const flatUsers = addMembersGroups
+                  .flatMap((tg) => tg.members)
+                  .filter((m) => {
+                    if (seen.has(m.userId)) return false;
+                    seen.add(m.userId);
+                    return true;
+                  });
+                return flatUsers.map((m) => {
+                  const picked = addMembersSelected.has(m.userId);
+                  return (
+                    <button
+                      key={m.userId}
+                      type="button"
+                      onClick={() => toggle(m.userId)}
+                      className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-full flex items-center gap-3 p-3 hover:bg-secondary text-left"
+                    >
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        style={{ background: hashColor(m.name) }}
                       >
-                        <div
-                          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                          style={{ background: hashColor(m.name) }}
-                        >
-                          {(m.name || m.email || "?").charAt(0).toUpperCase()}
-                        </div>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-sm font-semibold truncate">
-                            {m.name}
-                          </span>
-                          <span className="block text-[11px] text-muted-foreground truncate">
-                            {m.email}
-                          </span>
+                        {(m.name || m.email || "?").charAt(0).toUpperCase()}
+                      </div>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm font-semibold truncate">
+                          {m.name}
                         </span>
-                        <span
-                          className={`w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${
-                            picked
-                              ? "bg-primary border-primary"
-                              : "border-border"
-                          }`}
-                        >
-                          {picked && (
-                            <Check className="w-3.5 h-3.5 text-white" />
-                          )}
+                        <span className="block text-[11px] text-muted-foreground truncate">
+                          {m.email}
                         </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))
+                      </span>
+                      <span
+                        className={`w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${
+                          picked ? "bg-primary border-primary" : "border-border"
+                        }`}
+                      >
+                        {picked && <Check className="w-3.5 h-3.5 text-white" />}
+                      </span>
+                    </button>
+                  );
+                });
+              })()
             )}
           </div>
           <div className="text-[11px] text-muted-foreground">

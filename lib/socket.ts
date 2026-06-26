@@ -44,6 +44,11 @@ export async function connectSocket(token: string): Promise<Socket> {
   socket.on("connect", () => {
     // console.log('[Socket] Connected:', socket?.id);
     socket?.emit("chat:join-groups");
+    // Notify useUnreadCount instances that may have tried getSocket() before
+    // the connection was established (race condition on first page load).
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("vc:socket-ready"));
+    }
   });
 
   socket.io.on("reconnect", () => {

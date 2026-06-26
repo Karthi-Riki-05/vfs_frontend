@@ -19,11 +19,14 @@ export const notificationsApi = {
   markAllRead: () => api.put("/notifications/read-all"),
   broadcast: (payload: { title: string; body: string; url?: string }) =>
     api.post("/notifications/broadcast", payload),
+  deleteOne: (id: string) => api.delete(`/notifications/${id}`),
+  deleteAll: () => api.delete("/notifications/delete-all"),
 };
 
 export const flowPackApi = {
-  pickerList: () => api.get("/flows/picker-list"),
-  confirmSelection: (selectedFlowIds: string[]) =>
-    api.post("/flows/confirm-selection", { selectedFlowIds }),
+  pickerList: (teamPicker = false) =>
+    api.get("/flows/picker-list", { params: { teamPicker } }),
+  confirmSelection: (selectedFlowIds: string[], teamPicker = false) =>
+    api.post("/flows/confirm-selection", { selectedFlowIds, teamPicker }),
   packStatus: () => api.get("/flows/pack-status"),
 };

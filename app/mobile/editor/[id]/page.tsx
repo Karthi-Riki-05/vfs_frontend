@@ -356,13 +356,24 @@ function MobileEditorInner() {
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-      const data: { error?: { message?: string }; data?: { xml?: string } } =
-        await res.json();
+      const data: {
+        error?: { message?: string; code?: string };
+        data?: { xml?: string };
+      } = await res.json();
       if (!res.ok) {
-        message.error({
-          content: data?.error?.message || "Failed to generate diagram",
-          key: "docUpload",
-        });
+        if (data?.error?.code === "INSUFFICIENT_CREDITS") {
+          message.warning({
+            content:
+              data?.error?.message || "You have used all your diagram credits.",
+            duration: 5,
+            key: "docUpload",
+          });
+        } else {
+          message.error({
+            content: data?.error?.message || "Failed to generate diagram",
+            key: "docUpload",
+          });
+        }
         return;
       }
       message.success({

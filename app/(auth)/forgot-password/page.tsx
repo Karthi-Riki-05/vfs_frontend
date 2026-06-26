@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { message } from "antd";
 import { Mail, Loader2, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
 import { authApi } from "@/api/auth.api";
-import { getLogoForApp, getForcedMode } from "@/lib/getLogo";
+import { getLogoForApp } from "@/lib/getLogo";
+import { useAppBrand } from "@/hooks/useAppBrand";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
 import AuthShell from "@/components/auth/AuthShell";
 import DesktopAuthShell from "@/components/auth/DesktopAuthShell";
@@ -15,19 +16,12 @@ export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
-  const [logoSrc, setLogoSrc] = useState("/images/image.png");
 
-  // Full logo — Pro vs standard by app context.
-  useEffect(() => {
-    const appParam = new URLSearchParams(window.location.search).get("app");
-    const mode =
-      appParam === "pro"
-        ? "pro"
-        : appParam === "team"
-          ? "team"
-          : getForcedMode();
-    setLogoSrc(getLogoForApp(mode));
-  }, []);
+  // Full logo follows the app SHELL (WebView UA), read post-mount via the
+  // hydration-safe useAppBrand hook (UA wins over ?app= / stored). Web visitors
+  // (brand="web") keep the standard logo.
+  const brand = useAppBrand();
+  const logoSrc = getLogoForApp(brand === "web" ? null : brand);
 
   const isDesktop = useIsDesktop();
   const Shell = isDesktop ? DesktopAuthShell : AuthShell;

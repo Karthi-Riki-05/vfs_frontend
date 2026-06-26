@@ -33,6 +33,57 @@ const iconWrap: React.CSSProperties = {
   alignItems: "center",
 };
 
+// Password strength: +1 each for length>=8, uppercase, number, special char.
+const getPasswordStrength = (pwd: string) => {
+  let score = 0;
+  if (pwd.length >= 8) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/[0-9]/.test(pwd)) score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+  return score; // 0-4
+};
+
+const STRENGTH_META = [
+  { label: "Weak", color: "#EF4444" },
+  { label: "Weak", color: "#EF4444" },
+  { label: "Fair", color: "#F59E0B" },
+  { label: "Good", color: "#EAB308" },
+  { label: "Strong", color: "#22C55E" },
+];
+
+function PasswordStrengthBar({ password }: { password: string }) {
+  if (!password) return null;
+  const score = getPasswordStrength(password);
+  const meta = STRENGTH_META[score];
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            style={{
+              height: 6,
+              flex: 1,
+              borderRadius: 9999,
+              background: i < score ? meta.color : "#E5E7EB",
+            }}
+          />
+        ))}
+      </div>
+      <p
+        style={{
+          marginTop: 4,
+          fontSize: 11,
+          fontWeight: 600,
+          color: meta.color,
+        }}
+      >
+        {meta.label}
+      </p>
+    </div>
+  );
+}
+
 function ResetPasswordForm() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -274,6 +325,7 @@ function ResetPasswordForm() {
               </svg>
             </button>
           </div>
+          <PasswordStrengthBar password={password} />
         </div>
 
         {/* Confirm Password */}

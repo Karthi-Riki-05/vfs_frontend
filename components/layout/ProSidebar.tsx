@@ -8,6 +8,7 @@ import {
   Workflow,
   Shapes as ShapesIcon,
   Users,
+  User,
   MessageCircle,
   FolderKanban,
   Star,
@@ -18,11 +19,11 @@ import {
   Plus,
   Crown,
   LogOut,
-  Sparkles,
   X,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { logout } from "@/lib/logout";
 import { aiApi } from "@/api/ai.api";
 import { createNewFlow } from "@/lib/flow";
 import { useDeviceMode } from "@/hooks/useDeviceMode";
@@ -163,12 +164,12 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
           <button
             type="button"
             onClick={() => switchToApp("team")}
-            title="ValueChart"
+            title="Team"
             role="tab"
             aria-selected={false}
             className="flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition bg-transparent text-muted-foreground hover:text-foreground"
           >
-            ValueChart
+            <Users className="w-3.5 h-3.5" /> Team
           </button>
           {/* PRO (active) */}
           <button
@@ -179,7 +180,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
             aria-selected={true}
             className="flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition bg-[var(--orange)] text-white shadow"
           >
-            <Crown className="w-3.5 h-3.5" /> PRO
+            <User className="w-3.5 h-3.5" /> PRO
           </button>
         </div>
       </div>
@@ -238,7 +239,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
         active={sel === "chat"}
         collapsed={railCollapsed}
         variant={variant}
-        badge={totalUnread}
+        badge={(session?.user as any)?.hasTeamAccess ? totalUnread : undefined}
         onClick={handleChatClick}
       />
       <NavTile
@@ -267,17 +268,6 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
         collapsed={railCollapsed}
         variant={variant}
         onClick={handleNavClick}
-      />
-      <NavTile
-        icon={Sparkles}
-        label="Value Charts AI"
-        accent="orange"
-        collapsed={railCollapsed}
-        variant={variant}
-        onClick={() => {
-          window.dispatchEvent(new Event("openAIAssistant"));
-          handleNavClick();
-        }}
       />
       <NavTile
         icon={CreditCard}
@@ -323,7 +313,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
     <div className="border-t border-border p-2">
       <button
         type="button"
-        onClick={() => signOut({ callbackUrl: "/login" })}
+        onClick={() => logout({ callbackUrl: "/login" })}
         title="Log out"
         className="appearance-none cursor-pointer border-0 bg-transparent w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-secondary/60 transition"
       >
@@ -351,9 +341,17 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-full bg-white/15 ring-2 ring-white/30 flex items-center justify-center text-white font-bold text-lg shrink-0">
-                {name.charAt(0).toUpperCase()}
-              </div>
+              {(session?.user as any)?.image ? (
+                <img
+                  src={(session?.user as any).image}
+                  alt={name}
+                  className="w-12 h-12 rounded-full object-cover ring-2 ring-white/30 shrink-0"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-white/15 ring-2 ring-white/30 flex items-center justify-center text-white font-bold text-lg shrink-0">
+                  {name.charAt(0).toUpperCase()}
+                </div>
+              )}
               <div className="min-w-0">
                 <div className="font-bold text-[15px] truncate">{name}</div>
                 <div className="text-xs text-white/80 truncate">{email}</div>
@@ -376,14 +374,14 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
 
         {proTeamSwitcher}
         <SidebarTeamSwitcher />
-        <div className="px-3 pt-3">{createPill}</div>
+        {!isMobileApp && <div className="px-3 pt-3">{createPill}</div>}
         {nav}
 
         {/* Log out + version footer (prototype Drawer foot) */}
         <div className="border-t border-border">
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => logout({ callbackUrl: "/login" })}
             className="appearance-none cursor-pointer border-0 bg-transparent hover:bg-secondary/60 w-full flex items-center gap-3 px-5 py-3 text-left transition"
           >
             <div className="w-9 h-9 rounded-xl bg-secondary text-[var(--coral)] flex items-center justify-center">
@@ -426,7 +424,11 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
       <div className="tw flex flex-col h-full bg-card">
         {proTeamSwitcher}
         <SidebarTeamSwitcher collapsed={railCollapsed} />
-        <div className={`p-3 ${railCollapsed ? "px-2" : ""}`}>{createPill}</div>
+        {!isMobileApp && (
+          <div className={`p-3 ${railCollapsed ? "px-2" : ""}`}>
+            {createPill}
+          </div>
+        )}
         {nav}
         {footer}
       </div>

@@ -1,19 +1,23 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
-  Row,
-  Col,
-  Input,
   Select,
-  Pagination,
-  Spin,
-  Table,
-  Button,
-  Dropdown,
-  Typography,
-  Tag,
-} from "antd";
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import {
   ModalShell,
   ModalHeader,
@@ -21,32 +25,22 @@ import {
 } from "@/components/common/Modal";
 import { Field, FieldInput } from "@/components/common/Field";
 import {
-  SearchOutlined,
-  PlusOutlined,
-  EditOutlined,
-  StarOutlined,
-  StarFilled,
-  CopyOutlined,
-  DeleteOutlined,
-  MoreOutlined,
-  FormOutlined,
-  FolderAddOutlined,
-  FolderOutlined,
-  ShareAltOutlined,
-  EyeOutlined,
-} from "@ant-design/icons";
-import {
-  MoreHorizontal,
-  List as ListIcon,
-  LayoutGrid,
   Search,
   Filter,
   Plus,
+  MoreHorizontal,
+  List as ListIcon,
+  LayoutGrid,
+  Star,
+  Folder,
+  Share2,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SectionHeader from "@/components/common/SectionHeader";
 import EmptyState from "@/components/common/EmptyState";
-import FlowCard from "@/components/flows/FlowCard";
 import ShareFlowModal from "@/components/flows/ShareFlowModal";
 import AssignProjectModal from "@/components/flows/AssignProjectModal";
 import FlowMenuModal from "@/components/flows/FlowMenuModal";
@@ -54,13 +48,15 @@ import { useFlows } from "@/hooks/useFlows";
 import { useTabFocus } from "@/hooks/useTabFocus";
 import { createNewFlow } from "@/lib/flow";
 import api from "@/lib/axios";
-import { message } from "antd";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { TEMPLATE_CATEGORIES } from "@/lib/templateCategories";
 import TemplateBrowser from "@/components/templates/TemplateBrowser";
 import FlowPackBanner from "@/components/flows/FlowPackBanner";
-
-const { Text } = Typography;
+import { usePackStatus } from "@/hooks/usePackStatus";
+import { useProjects } from "@/hooks/useProjects";
+import MiniFlow from "@/components/dashboard/MiniFlow";
+import { BRAND_GREEN } from "@/lib/theme";
+import { useAppContext } from "@/context/AppContext";
 
 const PLACEHOLDER_COLORS = [
   "#E8F5E9",
@@ -76,15 +72,6 @@ const MOBILE_THUMB_GRADIENTS = [
   "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)",
   "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)",
 ];
-
-const TEMPLATE_CHIP_BG: Record<string, string> = {
-  flowchart: "#E7F6F0",
-  mindmap: "#f5f3ff",
-  charts: "#fef3c7",
-  business: "#eff6ff",
-  software: "#fef2f2",
-  wireframe: "#f3f4f6",
-};
 
 function timeAgo(dateStr: string): string {
   const now = new Date();
@@ -104,7 +91,99 @@ function timeAgo(dateStr: string): string {
   });
 }
 
-/* ── Local Atoms (defined here to avoid collision with parallel agents) ── */
+function Spinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
+  const sz =
+    size === "lg" ? "w-10 h-10" : size === "sm" ? "w-5 h-5" : "w-7 h-7";
+  return (
+    <div
+      className={`${sz} rounded-full border-2 border-border border-t-primary animate-spin`}
+    />
+  );
+}
+
+function Badge({
+  children,
+  color = "default",
+}: {
+  children: React.ReactNode;
+  color?: "default" | "blue" | "green" | "gray";
+}) {
+  const cls =
+    color === "blue"
+      ? "bg-blue-50 text-blue-600 border-blue-200"
+      : color === "green"
+        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+        : "bg-secondary text-muted-foreground border-border";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${cls}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function SimplePager({
+  current,
+  pageSize,
+  total,
+  onChange,
+}: {
+  current: number;
+  pageSize: number;
+  total: number;
+  onChange: (page: number, size: number) => void;
+}) {
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) return null;
+  const pages: (number | "…")[] = [];
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || Math.abs(i - current) <= 1) {
+      pages.push(i);
+    } else if (pages[pages.length - 1] !== "…") {
+      pages.push("…");
+    }
+  }
+  return (
+    <div className="flex items-center justify-center gap-1 mt-6">
+      <button
+        disabled={current === 1}
+        onClick={() => onChange(current - 1, pageSize)}
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground border border-border bg-card hover:bg-secondary disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      {pages.map((p, i) =>
+        p === "…" ? (
+          <span key={`e${i}`} className="w-8 text-center text-muted-foreground">
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => onChange(p as number, pageSize)}
+            className={`w-8 h-8 rounded-lg text-sm font-medium cursor-pointer border ${
+              p === current
+                ? "bg-primary text-white border-primary"
+                : "bg-card border-border text-foreground hover:bg-secondary"
+            }`}
+          >
+            {p}
+          </button>
+        ),
+      )}
+      <button
+        disabled={current === totalPages}
+        onClick={() => onChange(current + 1, pageSize)}
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground border border-border bg-card hover:bg-secondary disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+/* ── Local Atoms ── */
 
 function LocalTabs({
   tabs,
@@ -116,14 +195,15 @@ function LocalTabs({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="flex p-1 rounded-2xl bg-secondary">
+    <div className="flex p-1 rounded-2xl bg-[#F0F0F0]">
       {tabs.map((t) => (
         <button
           key={t.id}
           onClick={() => onChange(t.id)}
-          className={`flex-1 h-10 rounded-xl text-sm font-semibold transition bg-transparent border-0 p-0 appearance-none cursor-pointer ${
+          style={value === t.id ? { backgroundColor: "#fff" } : {}}
+          className={`flex-1 h-10 rounded-xl text-sm font-semibold transition border-0 p-0 appearance-none cursor-pointer ${
             value === t.id
-              ? "bg-card text-primary shadow-sm"
+              ? "shadow-sm text-foreground"
               : "text-muted-foreground"
           }`}
         >
@@ -138,14 +218,18 @@ function LocalSearchBar({
   value,
   onChange,
   placeholder,
+  onFilterClick,
+  filterActive = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
+  onFilterClick?: () => void;
+  filterActive?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2 h-11 px-3 rounded-2xl bg-card border border-border mb-4">
-      <Search className="w-4 h-4 text-muted-foreground" />
+      <Search className="w-4 h-4 text-muted-foreground shrink-0" />
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -155,9 +239,16 @@ function LocalSearchBar({
       <button
         type="button"
         aria-label="Filter"
-        className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
+        onClick={onFilterClick}
+        className="relative w-7 h-7 rounded-lg flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
       >
         <Filter className="w-3.5 h-3.5 text-primary" />
+        {filterActive && (
+          <span
+            className="absolute top-0 right-0 w-2 h-2 rounded-full"
+            style={{ backgroundColor: "#3CB371" }}
+          />
+        )}
       </button>
     </div>
   );
@@ -200,6 +291,36 @@ function LocalViewToggle({
   );
 }
 
+function FlowLimitBar({
+  flowCount,
+  flowLimit,
+  isUnlimited,
+}: {
+  flowCount: number;
+  flowLimit: number;
+  isUnlimited: boolean;
+}) {
+  if (isUnlimited || !flowLimit || flowLimit <= 0) return null;
+  const pct = Math.min((flowCount / flowLimit) * 100, 100);
+  const color = pct > 90 ? "#F5222D" : pct >= 70 ? "#FA8C16" : "#34A881";
+  return (
+    <div className="mb-4">
+      <div className="flex justify-between text-[13px] text-muted-foreground mb-1.5">
+        <span>Flows used</span>
+        <span className="font-semibold" style={{ color }}>
+          {flowCount} / {flowLimit}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+        <div
+          style={{ width: `${pct}%`, background: color }}
+          className="h-full transition-all duration-300 rounded-full"
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────────────────── */
 
 export default function FlowsPage() {
@@ -216,6 +337,12 @@ export default function FlowsPage() {
     total,
     sort,
     setSort,
+    sortDirection,
+    setSortDirection,
+    isFavorite,
+    setIsFavorite,
+    projectId,
+    setProjectId,
     fetchFlows,
     deleteFlow,
     duplicateFlow,
@@ -225,6 +352,42 @@ export default function FlowsPage() {
   useTabFocus(fetchFlows);
   const router = useRouter();
   const isMobile = useIsMobile();
+  const { projects } = useProjects();
+  const {
+    status: packStatus,
+    effectiveLimit: packLimit,
+    effectiveUnlimited: packUnlimited,
+  } = usePackStatus();
+  const { activeTeamId } = useAppContext();
+  const [masterFlows, setMasterFlows] = useState<any[]>([]);
+  const [masterLoading, setMasterLoading] = useState(false);
+  useEffect(() => {
+    if (!activeTeamId) {
+      setMasterFlows([]);
+      return;
+    }
+    setMasterLoading(true);
+    api
+      .get("/flows/master-view")
+      .then((r) => {
+        const data = r.data?.data || r.data;
+        setMasterFlows(Array.isArray(data?.flows) ? data.flows : []);
+      })
+      .catch(() => setMasterFlows([]))
+      .finally(() => setMasterLoading(false));
+  }, [activeTeamId]);
+
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("vc:sheet-open", { detail: filterDrawerOpen }),
+    );
+  }, [filterDrawerOpen]);
+  const activeFilterCount =
+    (isFavorite ? 1 : 0) +
+    (projectId ? 1 : 0) +
+    (sort !== "updatedAt" ? 1 : 0) +
+    (sortDirection !== "desc" ? 1 : 0);
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
   const [tab, setTab] = useState<"templates" | "all">("all");
   const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false);
@@ -232,33 +395,28 @@ export default function FlowsPage() {
 
   const displayFlows = Array.isArray(flows) ? flows : [];
 
-  // Rename state
   const [renameModal, setRenameModal] = React.useState<{
     open: boolean;
     id: string;
     name: string;
   }>({ open: false, id: "", name: "" });
 
-  // Assign to project state
   const [assignModal, setAssignModal] = React.useState<{
     open: boolean;
     flowId: string | null;
     currentProjectId?: string | null;
   }>({ open: false, flowId: null });
 
-  // Share state
   const [shareModal, setShareModal] = React.useState<{
     open: boolean;
     flow: any | null;
   }>({ open: false, flow: null });
 
-  // Mobile flow-options bottom-sheet state
   const [flowMenu, setFlowMenu] = React.useState<{
     open: boolean;
     flow: any | null;
   }>({ open: false, flow: null });
 
-  // Load saved view mode
   useEffect(() => {
     const saved = localStorage.getItem("flows_view_mode");
     if (saved === "grid" || saved === "list") setViewMode(saved);
@@ -283,303 +441,13 @@ export default function FlowsPage() {
       await api.put(`/flows/${renameModal.id}`, {
         name: renameModal.name.trim(),
       });
-      message.success("Flow renamed");
+      toast.success("Flow renamed");
       setRenameModal({ open: false, id: "", name: "" });
       fetchFlows();
     } catch {
-      message.error("Failed to rename flow");
+      toast.error("Failed to rename flow");
     }
   };
-
-  const getMenuItems = (flow: any) => [
-    {
-      key: "edit",
-      label: "Edit",
-      icon: <EditOutlined />,
-      onClick: () => handleEdit(flow.id),
-    },
-    {
-      key: "favorite",
-      label: flow.isFavorite ? "Remove Favorite" : "Mark as Favorite",
-      icon: flow.isFavorite ? (
-        <StarFilled style={{ color: "#FAAD14" }} />
-      ) : (
-        <StarOutlined />
-      ),
-      onClick: () => favoriteFlow(flow.id),
-    },
-    {
-      key: "rename",
-      label: "Rename",
-      icon: <FormOutlined />,
-      onClick: () =>
-        setRenameModal({ open: true, id: flow.id, name: flow.name }),
-    },
-    {
-      key: "assign-project",
-      label: "Assign to Project",
-      icon: <FolderAddOutlined />,
-      onClick: () =>
-        setAssignModal({
-          open: true,
-          flowId: flow.id,
-          currentProjectId: flow.projectId,
-        }),
-    },
-    {
-      key: "share",
-      label: "Share",
-      icon: <ShareAltOutlined />,
-      onClick: () => setShareModal({ open: true, flow }),
-    },
-    {
-      key: "duplicate",
-      label: "Duplicate",
-      icon: <CopyOutlined />,
-      onClick: () => duplicateFlow(flow.id),
-    },
-    { type: "divider" as const },
-    {
-      key: "delete",
-      label: "Delete",
-      icon: <DeleteOutlined />,
-      danger: true,
-      onClick: () => deleteFlow(flow.id),
-    },
-  ];
-
-  const getSharedMenuItems = (flow: any) => {
-    const items: any[] = [];
-    if (flow.accessType === "edit") {
-      items.push({
-        key: "edit",
-        label: "Edit",
-        icon: <EditOutlined />,
-        onClick: () => handleEdit(flow.id),
-      });
-    } else {
-      items.push({
-        key: "open",
-        label: "Open (view only)",
-        icon: <EyeOutlined />,
-        onClick: () => handleEdit(flow.id),
-      });
-    }
-    items.push({
-      key: "favorite",
-      label: flow.isFavorite ? "Remove Favorite" : "Mark as Favorite",
-      icon: flow.isFavorite ? (
-        <StarFilled style={{ color: "#FAAD14" }} />
-      ) : (
-        <StarOutlined />
-      ),
-      onClick: () => favoriteFlow(flow.id),
-    });
-    if (flow.accessType === "edit") {
-      items.push({
-        key: "duplicate",
-        label: "Duplicate",
-        icon: <CopyOutlined />,
-        onClick: () => duplicateFlow(flow.id),
-      });
-    }
-    items.push({ type: "divider" as const });
-    if (flow.shareId) {
-      items.push({
-        key: "remove-shared",
-        label: "Remove from Shared",
-        icon: <ShareAltOutlined />,
-        danger: true,
-        onClick: () => removeSharedFlow(flow.id, flow.shareId),
-      });
-    }
-    return items;
-  };
-
-  const listColumns = [
-    {
-      title: "",
-      dataIndex: "thumbnail",
-      key: "thumbnail",
-      width: 60,
-      render: (thumb: string, record: any) => (
-        <div
-          style={{
-            width: 48,
-            height: 36,
-            borderRadius: 6,
-            overflow: "hidden",
-            background: "#F8F9FA",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-          }}
-          onClick={() => handleEdit(record.id)}
-        >
-          {thumb ? (
-            <img
-              src={thumb}
-              alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          ) : (
-            <span style={{ fontSize: 16, color: "#BFBFBF" }}>&#9633;</span>
-          )}
-        </div>
-      ),
-    },
-    {
-      title: "Name",
-      dataIndex: "name",
-      key: "name",
-      render: (name: string, record: any) => (
-        <div
-          style={{ cursor: "pointer" }}
-          onClick={() => handleEdit(record.id)}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Text strong style={{ fontSize: 14 }}>
-              {name}
-            </Text>
-            {record.isFavorite && (
-              <StarFilled style={{ color: "#FAAD14", fontSize: 14 }} />
-            )}
-            {(record.shareCount ?? 0) > 0 && (
-              <Tag color="green" style={{ fontSize: 11 }}>
-                <ShareAltOutlined /> Shared with {record.shareCount}
-              </Tag>
-            )}
-          </div>
-          {record.projectName && (
-            <Text style={{ fontSize: 11, color: "#8C8C8C" }}>
-              <FolderOutlined style={{ marginRight: 4 }} />
-              {record.projectName}
-            </Text>
-          )}
-        </div>
-      ),
-    },
-    {
-      title: "Last Modified",
-      dataIndex: "updatedAt",
-      key: "updatedAt",
-      width: 180,
-      render: (d: string) => (
-        <Text type="secondary" style={{ fontSize: 13 }}>
-          {timeAgo(d)}
-        </Text>
-      ),
-    },
-    {
-      title: "",
-      key: "actions",
-      width: 50,
-      render: (_: any, record: any) => (
-        <Dropdown menu={{ items: getMenuItems(record) }} trigger={["click"]}>
-          <Button
-            type="text"
-            icon={<MoreOutlined />}
-            size="small"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </Dropdown>
-      ),
-    },
-  ];
-
-  const sharedListColumns = [
-    {
-      title: "",
-      dataIndex: "thumbnail",
-      key: "thumbnail",
-      width: 60,
-      render: (thumb: string, record: any) => (
-        <div
-          style={{
-            width: 48,
-            height: 36,
-            borderRadius: 6,
-            overflow: "hidden",
-            background: "#F8F9FA",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-          }}
-          onClick={() => handleEdit(record.id)}
-        >
-          {thumb ? (
-            <img
-              src={thumb}
-              alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          ) : (
-            <span style={{ fontSize: 16, color: "#BFBFBF" }}>&#9633;</span>
-          )}
-        </div>
-      ),
-    },
-    {
-      title: "Name",
-      dataIndex: "name",
-      key: "name",
-      render: (name: string, record: any) => (
-        <div
-          style={{ cursor: "pointer" }}
-          onClick={() => handleEdit(record.id)}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Text strong style={{ fontSize: 14 }}>
-              {name}
-            </Text>
-            <Tag
-              color={record.accessType === "edit" ? "green" : "blue"}
-              style={{ fontSize: 11 }}
-            >
-              {record.accessType === "edit" ? "Can edit" : "View only"}
-            </Tag>
-          </div>
-          {record.sharedByName && (
-            <Text style={{ fontSize: 11, color: "#1890FF" }}>
-              <ShareAltOutlined style={{ marginRight: 4 }} />
-              Shared by {record.sharedByName}
-            </Text>
-          )}
-        </div>
-      ),
-    },
-    {
-      title: "Last Modified",
-      dataIndex: "updatedAt",
-      key: "updatedAt",
-      width: 180,
-      render: (d: string) => (
-        <Text type="secondary" style={{ fontSize: 13 }}>
-          {timeAgo(d)}
-        </Text>
-      ),
-    },
-    {
-      title: "",
-      key: "actions",
-      width: 50,
-      render: (_: any, record: any) => (
-        <Dropdown
-          menu={{ items: getSharedMenuItems(record) }}
-          trigger={["click"]}
-        >
-          <Button
-            type="text"
-            icon={<MoreOutlined />}
-            size="small"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </Dropdown>
-      ),
-    },
-  ];
 
   const handleTemplateInsert = async (xml: string, name: string) => {
     setTemplateBrowserOpen(false);
@@ -590,37 +458,68 @@ export default function FlowsPage() {
       });
       const newFlow = response.data?.data || response.data;
       if (!newFlow?.id) throw new Error("No flow ID returned");
-
       sessionStorage.setItem("ai_generated_xml", xml);
       sessionStorage.setItem("ai_generated_name", name);
       window.open(`/dashboard/flows/${newFlow.id}`, "_blank");
     } catch (error) {
       console.error("Failed to create flow from template:", error);
-      message.error("Failed to create flow from template");
+      toast.error("Failed to create flow from template");
     }
   };
 
+  /* ── Flow action menu (opens FlowMenuModal — same as mobile) ── */
+  const renderFlowActions = (flow: any) => (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        setFlowMenu({ open: true, flow });
+      }}
+      className="w-7 h-7 rounded-lg flex items-center justify-center border-0 cursor-pointer bg-secondary hover:bg-border transition"
+    >
+      <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+    </button>
+  );
+
+  const renderSharedActions = (flow: any) => (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        setFlowMenu({ open: true, flow });
+      }}
+      className="w-7 h-7 rounded-lg flex items-center justify-center border-0 cursor-pointer bg-secondary hover:bg-border transition"
+    >
+      <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+    </button>
+  );
+
   return (
     <div className="tw">
-      {/* ══════════ MOBILE (<1024px) — prototype design ══════════ */}
+      {/* ══════════ MOBILE (<1024px) ══════════ */}
       <div className="lg:hidden px-5 pt-3 pb-28 min-h-screen bg-background">
-        {/* Search bar */}
         <LocalSearchBar
           value={search}
           onChange={setSearch}
           placeholder="Search flows and templates"
+          onFilterClick={() => setFilterDrawerOpen(true)}
+          filterActive={activeFilterCount > 0}
         />
 
-        {/* New Flow CTA */}
+        {packStatus && (
+          <FlowLimitBar
+            flowCount={packStatus.flowCount}
+            flowLimit={packLimit}
+            isUnlimited={packUnlimited}
+          />
+        )}
+
         <button
           onClick={handleNewFlow}
-          className="w-full mb-3 h-12 rounded-2xl bg-primary text-white font-bold text-sm inline-flex items-center justify-center gap-2 shadow-[var(--shadow-fab)] bg-transparent border-0 p-0 appearance-none cursor-pointer"
+          className="w-full mb-3 h-12 rounded-2xl font-bold text-sm inline-flex items-center justify-center gap-2 border-0 p-0 appearance-none cursor-pointer"
           style={{ background: "var(--color-primary, #34A881)", color: "#fff" }}
         >
           <Plus className="w-4 h-4" /> New Flow
         </button>
 
-        {/* Tabs: Templates | All Flows */}
         <LocalTabs
           tabs={[
             { id: "templates", label: "Templates" },
@@ -639,7 +538,6 @@ export default function FlowsPage() {
           </div>
         )}
 
-        {/* Templates tab */}
         {tab === "templates" ? (
           <>
             <div className="flex items-center justify-between mt-4 mb-3">
@@ -668,10 +566,7 @@ export default function FlowsPage() {
                 >
                   <div
                     className="h-28 relative flex items-center justify-center"
-                    style={{
-                      background:
-                        (TEMPLATE_CHIP_BG[cat.id] || cat.color) + "30",
-                    }}
+                    style={{ background: (cat.color || "#F0F0F0") + "28" }}
                   >
                     <div className="w-10 h-10">{cat.icon(cat.iconColor)}</div>
                   </div>
@@ -687,9 +582,9 @@ export default function FlowsPage() {
               ))}
             </div>
           </>
-        ) : /* All Flows tab */ loading ? (
+        ) : loading ? (
           <div className="flex items-center justify-center py-16">
-            <Spin size="large" />
+            <Spinner size="lg" />
           </div>
         ) : displayFlows.length > 0 ? (
           <>
@@ -717,7 +612,7 @@ export default function FlowsPage() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-2xl">📄</span>
+                        <MiniFlow color={BRAND_GREEN} />
                       )}
                     </div>
                     <div
@@ -736,10 +631,7 @@ export default function FlowsPage() {
                         e.stopPropagation();
                         setFlowMenu({ open: true, flow });
                       }}
-                      className="w-9 h-9 rounded-lg flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
-                      style={{
-                        background: "var(--color-secondary, #E7F6F0)",
-                      }}
+                      className="w-9 h-9 rounded-lg flex items-center justify-center border-0 p-0 appearance-none cursor-pointer bg-secondary"
                     >
                       <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -747,7 +639,7 @@ export default function FlowsPage() {
                 ))}
               </div>
             ) : (
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="mt-3 grid grid-cols-1 gap-3">
                 {displayFlows.map((flow: any, index: number) => (
                   <div
                     key={flow.id}
@@ -758,7 +650,7 @@ export default function FlowsPage() {
                       className="w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
                     >
                       <div
-                        className="h-24 flex items-center justify-center text-3xl"
+                        className="h-36 w-full relative overflow-hidden flex items-center justify-center text-3xl"
                         style={{
                           background:
                             MOBILE_THUMB_GRADIENTS[
@@ -770,10 +662,10 @@ export default function FlowsPage() {
                           <img
                             src={flow.thumbnail}
                             alt=""
-                            className="w-full h-full object-cover"
+                            className="absolute inset-0 w-full h-full object-cover"
                           />
                         ) : (
-                          "📄"
+                          <MiniFlow color={BRAND_GREEN} />
                         )}
                       </div>
                       <div className="p-3 pr-9">
@@ -783,6 +675,14 @@ export default function FlowsPage() {
                         <div className="text-[11px] text-muted-foreground">
                           Edited {timeAgo(flow.updatedAt)}
                         </div>
+                        {!flow.createdBySelf && flow.createdByName && (
+                          <div
+                            className="text-[11px] mt-0.5"
+                            style={{ color: "#1890FF" }}
+                          >
+                            Created by {flow.createdByName}
+                          </div>
+                        )}
                       </div>
                     </button>
                     <button
@@ -790,16 +690,12 @@ export default function FlowsPage() {
                         e.stopPropagation();
                         setFlowMenu({ open: true, flow });
                       }}
-                      className="absolute bottom-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
-                      style={{
-                        background: "var(--color-secondary, #E7F6F0)",
-                      }}
+                      className="absolute bottom-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center border-0 p-0 appearance-none cursor-pointer bg-secondary"
                     >
                       <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
                   </div>
                 ))}
-                {/* Dashed "New Flow" card */}
                 <div
                   onClick={handleNewFlow}
                   className="border-2 border-dashed border-border rounded-2xl h-44 flex flex-col items-center justify-center bg-background cursor-pointer gap-1"
@@ -812,20 +708,15 @@ export default function FlowsPage() {
               </div>
             )}
 
-            {total > pageSize && (
-              <div className="text-center mt-5">
-                <Pagination
-                  current={page}
-                  pageSize={pageSize}
-                  total={total}
-                  onChange={(p, ps) => {
-                    setPage(p);
-                    setPageSize(ps);
-                  }}
-                  size="small"
-                />
-              </div>
-            )}
+            <SimplePager
+              current={page}
+              pageSize={pageSize}
+              total={total}
+              onChange={(p, ps) => {
+                setPage(p);
+                setPageSize(ps);
+              }}
+            />
           </>
         ) : (
           <div className="text-center py-12 px-4">
@@ -838,11 +729,10 @@ export default function FlowsPage() {
             </div>
             <button
               onClick={handleNewFlow}
-              className="h-11 px-6 rounded-full font-bold text-sm text-white shadow-[var(--shadow-fab)] bg-transparent border-0 p-0 appearance-none cursor-pointer"
+              className="h-11 px-6 rounded-full font-bold text-sm border-0 appearance-none cursor-pointer"
               style={{
                 background: "var(--color-primary, #34A881)",
                 color: "#fff",
-                padding: "0 24px",
               }}
             >
               + Create Flow
@@ -852,122 +742,103 @@ export default function FlowsPage() {
       </div>
 
       {/* ══════════ DESKTOP (≥1024px) ══════════ */}
-      <div className="hidden lg:block" style={{ padding: isMobile ? 16 : 24 }}>
+      <div className="hidden lg:block md:max-w-6xl md:mx-auto md:px-8 pt-6 pb-10">
+        {packStatus && (
+          <FlowLimitBar
+            flowCount={packStatus.flowCount}
+            flowLimit={packLimit}
+            isUnlimited={packUnlimited}
+          />
+        )}
         <FlowPackBanner />
-        <SectionHeader
-          title="MY FLOWS"
-          right={
-            <>
-              <Input
-                prefix={<SearchOutlined style={{ color: "#8C8C8C" }} />}
-                placeholder="Search flows..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                allowClear
-                style={{
-                  width: isMobile ? "100%" : 220,
-                  backgroundColor: "#F8F9FA",
-                  borderRadius: 8,
-                  border: "none",
-                }}
-                variant="borderless"
-              />
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  width: isMobile ? "100%" : "auto",
-                  marginBottom: isMobile ? 4 : 0,
-                }}
-              >
-                <Select
-                  aria-label="Sort flows"
-                  value={sort}
-                  onChange={setSort}
-                  style={{
-                    width: isMobile ? "100%" : 150,
-                    flex: isMobile ? 1 : "none",
-                  }}
-                  options={[
-                    { label: "Last Modified", value: "updatedAt" },
-                    { label: "Name", value: "name" },
-                    { label: "Created", value: "createdAt" },
-                  ]}
-                />
-                <div style={{ flexShrink: 0 }}>
-                  <LocalViewToggle
-                    view={viewMode}
-                    onChange={handleViewChange}
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleNewFlow}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: isMobile ? "8px 16px" : "6px 16px",
-                  backgroundColor: "#34A881",
-                  color: "#FFFFFF",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  width: isMobile ? "100%" : "auto",
-                  justifyContent: "center",
-                  minHeight: 44,
-                }}
-              >
-                <PlusOutlined /> New Flow
-              </button>
-            </>
-          }
-        />
 
-        {/* Template Section */}
-        {/* TODO: Owner decided 2026-06-15 — ALIGN desktop to prototype
-            Templates/All-Flows tabs + MiniFlow template cards ("Nk uses").
-            This ERP category-icon row is the interim model until that screen
-            port lands (queued as its own screen task). See DESIGN.md §7.3/§7.4. */}
-        <div style={{ marginBottom: 24 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 12,
-            }}
+        {/* ── Title header ── */}
+        <div className="mb-4">
+          <h1 className="text-2xl font-extrabold text-foreground">Flows</h1>
+        </div>
+
+        {/* ── Desktop toolbar ── */}
+        <div className="flex items-center gap-2 mb-5 flex-wrap">
+          {/* Search */}
+          <div className="flex items-center gap-2 h-10 px-3 rounded-xl bg-card border border-border flex-1 min-w-[180px]">
+            <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search flows…"
+              className="flex-1 bg-transparent outline-none text-sm border-0 p-0 appearance-none min-w-0"
+            />
+          </div>
+
+          {/* Project filter */}
+          <Select
+            value={projectId || "all"}
+            onValueChange={(v) => setProjectId(v === "all" ? null : v)}
           >
-            <Text
-              strong
-              style={{
-                fontSize: 12,
-                color: "#8C8C8C",
-                textTransform: "uppercase",
-                letterSpacing: 1,
-              }}
-            >
-              START FROM A TEMPLATE
-            </Text>
+            <SelectTrigger className="w-36 h-10 rounded-xl border-border bg-card text-sm">
+              <SelectValue placeholder="All Projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              {Array.isArray(projects) &&
+                projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+
+          {/* Favorites toggle */}
+          <button
+            onClick={() => setIsFavorite(!isFavorite)}
+            aria-label="Show starred only"
+            className={`h-10 px-3 rounded-xl border border-border inline-flex items-center gap-2 text-[13px] font-medium transition shrink-0 cursor-pointer ${isFavorite ? "bg-primary/10 text-primary border-primary/30" : "bg-card text-muted-foreground"}`}
+          >
+            <Star className={`w-4 h-4 ${isFavorite ? "fill-current" : ""}`} />
+          </button>
+
+          {/* Sort by */}
+          <Select value={sort} onValueChange={setSort}>
+            <SelectTrigger className="w-36 h-10 rounded-xl border-border bg-card text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="updatedAt">Last Modified</SelectItem>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="createdAt">Created</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Sort direction */}
+          <Select
+            value={sortDirection}
+            onValueChange={(v) => setSortDirection(v as "asc" | "desc")}
+          >
+            <SelectTrigger className="w-32 h-10 rounded-xl border-border bg-card text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="desc">Newest first</SelectItem>
+              <SelectItem value="asc">Oldest first</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <LocalViewToggle view={viewMode} onChange={handleViewChange} />
+        </div>
+
+        {/* ── Template Section ── */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+              Start from a template
+            </span>
             <button
               onClick={() => {
                 setTemplateBrowserCategory("All");
                 setTemplateBrowserOpen(true);
               }}
-              style={{
-                fontSize: 12,
-                color: "#34A881",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-              }}
+              className="flex items-center gap-1 text-xs font-semibold text-primary bg-transparent border-0 p-0 cursor-pointer"
             >
               Browse All
               <svg
@@ -987,146 +858,164 @@ export default function FlowsPage() {
             </button>
           </div>
 
-          {/* Desktop: 6-col grid with bigger cards */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(6, 1fr)",
-              gap: 14,
-            }}
-          >
+          <div className="grid grid-cols-3 2xl:grid-cols-6 gap-3">
             {TEMPLATE_CATEGORIES.map((cat) => (
-              <div
+              <button
                 key={cat.id}
                 onClick={() => {
                   setTemplateBrowserCategory(cat.category);
                   setTemplateBrowserOpen(true);
                 }}
-                style={{
-                  padding: "20px 8px 14px",
-                  borderRadius: 16,
-                  background: cat.color + "30",
-                  border: "1px solid transparent",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 10,
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow =
-                    "0 4px 16px rgba(0,0,0,0.1)";
-                  e.currentTarget.style.borderColor = "#E0E0E0";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "none";
-                  e.currentTarget.style.borderColor = "transparent";
-                }}
+                className="group flex flex-col items-center gap-3 p-4 rounded-2xl bg-card border border-border cursor-pointer text-left transition-all hover:border-primary/60 hover:shadow-md hover:-translate-y-0.5 appearance-none"
               >
                 <div
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 18,
-                    background: cat.color,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "transform 0.2s",
-                  }}
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105"
+                  style={{ background: cat.color || "#F0F0F0" }}
                 >
-                  <div style={{ width: 36, height: 36 }}>
-                    {cat.icon(cat.iconColor)}
-                  </div>
+                  <div className="w-8 h-8">{cat.icon(cat.iconColor)}</div>
                 </div>
-                <Text
-                  strong
-                  style={{ fontSize: 12, color: "#333", whiteSpace: "nowrap" }}
-                >
+                <span className="text-[12px] font-semibold text-foreground text-center leading-tight">
                   {cat.label}
-                </Text>
-              </div>
+                </span>
+              </button>
             ))}
           </div>
         </div>
 
+        {/* ── Flows grid/list ── */}
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+            My Flows
+            {total > 0 && (
+              <span className="ml-2 font-normal normal-case tracking-normal text-muted-foreground/70">
+                ({total})
+              </span>
+            )}
+          </span>
+          <button
+            onClick={handleNewFlow}
+            className="inline-flex items-center gap-2 px-5 h-11 rounded-xl text-sm font-semibold text-white border-0 cursor-pointer shrink-0 shadow-[var(--shadow-fab)]"
+            style={{ background: "#34A881" }}
+          >
+            <Plus className="w-4 h-4" /> New Flow
+          </button>
+        </div>
+
         {loading ? (
-          <div style={{ textAlign: "center", padding: "100px 0" }}>
-            <Spin size="large" />
+          <div className="flex items-center justify-center py-24">
+            <Spinner size="lg" />
           </div>
         ) : displayFlows.length > 0 ? (
           <>
             {viewMode === "grid" ? (
-              <Row gutter={[16, 16]}>
-                {displayFlows.map((flow: any, index: number) => (
-                  <Col xs={24} sm={12} md={8} lg={6} key={flow.id}>
-                    <FlowCard
-                      flow={flow}
-                      onEdit={handleEdit}
-                      onDelete={deleteFlow}
-                      onDuplicate={duplicateFlow}
-                      onFavorite={favoriteFlow}
-                      onRename={(id, name) =>
-                        setRenameModal({ open: true, id, name })
-                      }
-                      onAssignProject={(id) =>
-                        setAssignModal({
-                          open: true,
-                          flowId: id,
-                          currentProjectId: flow.projectId,
-                        })
-                      }
-                      onShare={(f) => setShareModal({ open: true, flow: f })}
-                      variant="default"
-                      placeholderColor={
-                        PLACEHOLDER_COLORS[index % PLACEHOLDER_COLORS.length]
-                      }
-                    />
-                  </Col>
+              <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
+                {displayFlows.map((flow: any) => (
+                  <div
+                    key={flow.id}
+                    className="relative rounded-2xl bg-card border border-border overflow-hidden shadow-[var(--shadow-card)] hover:-translate-y-0.5 transition"
+                  >
+                    <button
+                      onClick={() => handleEdit(flow.id)}
+                      className="w-full text-left appearance-none border-0 p-0 bg-transparent cursor-pointer"
+                    >
+                      <div
+                        className="h-28 flex items-center justify-center overflow-hidden"
+                        style={{ background: `${BRAND_GREEN}14` }}
+                      >
+                        {flow.thumbnail ? (
+                          <img
+                            src={flow.thumbnail}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <MiniFlow color={BRAND_GREEN} />
+                        )}
+                      </div>
+                      <div className="p-3 pr-10">
+                        <div className="font-semibold text-[13px] truncate text-foreground flex items-center gap-1">
+                          {flow.name}
+                          {flow.isFavorite && (
+                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 shrink-0" />
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          Edited {timeAgo(flow.updatedAt)}
+                        </div>
+                        {!flow.createdBySelf && flow.createdByName && (
+                          <div
+                            className="text-[11px] mt-0.5"
+                            style={{ color: "#1890FF" }}
+                          >
+                            Created by {flow.createdByName}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                    <div className="absolute bottom-2 right-2">
+                      {renderFlowActions(flow)}
+                    </div>
+                  </div>
                 ))}
-              </Row>
+              </div>
             ) : (
-              <div
-                style={{
-                  overflowX: "auto",
-                  background: "#fff",
-                  borderRadius: 12,
-                }}
-              >
-                <Table
-                  dataSource={Array.isArray(displayFlows) ? displayFlows : []}
-                  columns={listColumns}
-                  rowKey="id"
-                  pagination={false}
-                  size="middle"
-                  scroll={{ x: 600 }}
-                />
+              <div className="space-y-2">
+                {displayFlows.map((flow: any) => (
+                  <div
+                    key={flow.id}
+                    className="flex items-center gap-3 p-3 rounded-2xl bg-card border border-border shadow-[var(--shadow-card)]"
+                  >
+                    <div
+                      className="w-14 h-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center"
+                      style={{ background: `${BRAND_GREEN}1a` }}
+                    >
+                      {flow.thumbnail ? (
+                        <img
+                          src={flow.thumbnail}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <MiniFlow color={BRAND_GREEN} />
+                      )}
+                    </div>
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => handleEdit(flow.id)}
+                    >
+                      <div className="font-semibold text-sm truncate text-foreground flex items-center gap-1">
+                        {flow.name}
+                        {flow.isFavorite && (
+                          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 shrink-0" />
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Edited {timeAgo(flow.updatedAt)}
+                      </div>
+                      {!flow.createdBySelf && flow.createdByName && (
+                        <div
+                          className="text-[11px] mt-0.5"
+                          style={{ color: "#1890FF" }}
+                        >
+                          Created by {flow.createdByName}
+                        </div>
+                      )}
+                    </div>
+                    {renderFlowActions(flow)}
+                  </div>
+                ))}
               </div>
             )}
-            {total > pageSize && (
-              <div
-                style={{
-                  textAlign: "center",
-                  marginTop: 24,
-                  overflowX: "auto",
-                }}
-              >
-                <Pagination
-                  current={page}
-                  pageSize={pageSize}
-                  total={total}
-                  onChange={(p, ps) => {
-                    setPage(p);
-                    setPageSize(ps);
-                  }}
-                  showSizeChanger
-                  size={isMobile ? "small" : "default"}
-                />
-              </div>
-            )}
+
+            <SimplePager
+              current={page}
+              pageSize={pageSize}
+              total={total}
+              onChange={(p, ps) => {
+                setPage(p);
+                setPageSize(ps);
+              }}
+            />
           </>
         ) : (
           <EmptyState
@@ -1135,44 +1024,185 @@ export default function FlowsPage() {
           />
         )}
 
-        {/* Shared With Me Section */}
+        {/* ── Team master view (§5 owner sees all member flows) ── */}
+        {(masterLoading || masterFlows.length > 0) && (
+          <div className="mt-12">
+            <SectionHeader title="TEAM — ALL FLOWS" />
+            {masterLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Spinner />
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-secondary/50">
+                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">
+                        Project
+                      </th>
+                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-[11px] uppercase tracking-wider w-40">
+                        Last Modified
+                      </th>
+                      <th className="w-20" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {masterFlows.map((flow: any) => (
+                      <tr
+                        key={flow.id}
+                        className="hover:bg-secondary/30 transition"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-foreground">
+                            {flow.name}
+                          </div>
+                          {!flow.createdBySelf && (
+                            <Badge color="blue">
+                              Created by {flow.createdByName || "member"}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {flow.projectName ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Folder className="w-3.5 h-3.5" />
+                              {flow.projectName}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground text-[12px]">
+                          {timeAgo(flow.updatedAt)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleEdit(flow.id)}
+                            className="inline-flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-medium border border-border bg-background hover:bg-secondary transition cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" /> Open
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Shared With Me ── */}
         {Array.isArray(sharedFlows) && sharedFlows.length > 0 && (
-          <div style={{ marginTop: 40 }}>
+          <div className="mt-12">
             <SectionHeader title="SHARED WITH ME" />
             {viewMode === "grid" ? (
-              <Row gutter={[16, 16]}>
-                {sharedFlows.map((flow: any, index: number) => (
-                  <Col xs={24} sm={12} md={8} lg={6} key={flow.id}>
-                    <FlowCard
-                      flow={flow}
-                      onEdit={handleEdit}
-                      onFavorite={favoriteFlow}
-                      onDuplicate={duplicateFlow}
-                      onRemoveShared={removeSharedFlow}
-                      variant="shared"
-                      placeholderColor={
-                        PLACEHOLDER_COLORS[index % PLACEHOLDER_COLORS.length]
-                      }
-                    />
-                  </Col>
+              <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
+                {sharedFlows.map((flow: any) => (
+                  <div
+                    key={flow.id}
+                    className="relative rounded-2xl bg-card border border-border overflow-hidden shadow-[var(--shadow-card)] hover:-translate-y-0.5 transition"
+                  >
+                    <button
+                      onClick={() => handleEdit(flow.id)}
+                      className="w-full text-left appearance-none border-0 p-0 bg-transparent cursor-pointer"
+                    >
+                      <div
+                        className="h-28 flex items-center justify-center overflow-hidden"
+                        style={{ background: `${BRAND_GREEN}14` }}
+                      >
+                        {flow.thumbnail ? (
+                          <img
+                            src={flow.thumbnail}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <MiniFlow color={BRAND_GREEN} />
+                        )}
+                      </div>
+                      <div className="p-3 pr-10">
+                        <div className="font-semibold text-[13px] truncate text-foreground flex items-center gap-1">
+                          {flow.name}
+                          {flow.isFavorite && (
+                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 shrink-0" />
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          Edited {timeAgo(flow.updatedAt)}
+                        </div>
+                        {flow.sharedByName && (
+                          <div className="text-[11px] text-blue-500 mt-0.5 flex items-center gap-1">
+                            <Share2 className="w-3 h-3" />
+                            By {flow.sharedByName}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                    <div className="absolute bottom-2 right-2">
+                      {renderSharedActions(flow)}
+                    </div>
+                  </div>
                 ))}
-              </Row>
+              </div>
             ) : (
-              <div
-                style={{
-                  overflowX: "auto",
-                  background: "#fff",
-                  borderRadius: 12,
-                }}
-              >
-                <Table
-                  dataSource={Array.isArray(sharedFlows) ? sharedFlows : []}
-                  columns={sharedListColumns}
-                  rowKey="id"
-                  pagination={false}
-                  size="middle"
-                  scroll={{ x: 600 }}
-                />
+              <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-secondary/50">
+                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-[11px] uppercase tracking-wider w-44">
+                        Last Modified
+                      </th>
+                      <th className="w-12" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {sharedFlows.map((flow: any) => (
+                      <tr
+                        key={flow.id}
+                        className="hover:bg-secondary/30 transition"
+                      >
+                        <td
+                          className="px-4 py-3 cursor-pointer"
+                          onClick={() => handleEdit(flow.id)}
+                        >
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-foreground">
+                              {flow.name}
+                            </span>
+                            <Badge
+                              color={
+                                flow.accessType === "edit" ? "green" : "blue"
+                              }
+                            >
+                              {flow.accessType === "edit"
+                                ? "Can edit"
+                                : "View only"}
+                            </Badge>
+                          </div>
+                          {flow.sharedByName && (
+                            <div className="flex items-center gap-1 text-[11px] text-blue-500 mt-0.5">
+                              <Share2 className="w-3 h-3" />
+                              Shared by {flow.sharedByName}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground text-[12px]">
+                          {timeAgo(flow.updatedAt)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {renderSharedActions(flow)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -1187,7 +1217,7 @@ export default function FlowsPage() {
         onInsert={handleTemplateInsert}
       />
 
-      {/* Rename Modal — new_design ModalShell (prototype 1798–1808) */}
+      {/* Rename Modal */}
       <ModalShell
         open={renameModal.open}
         onClose={() => setRenameModal({ open: false, id: "", name: "" })}
@@ -1217,7 +1247,6 @@ export default function FlowsPage() {
         />
       </ModalShell>
 
-      {/* Assign to Project Modal */}
       <AssignProjectModal
         open={assignModal.open}
         flowId={assignModal.flowId}
@@ -1226,7 +1255,6 @@ export default function FlowsPage() {
         onSuccess={fetchFlows}
       />
 
-      {/* Share Flow Modal */}
       <ShareFlowModal
         open={shareModal.open}
         flow={shareModal.flow}
@@ -1234,7 +1262,6 @@ export default function FlowsPage() {
         onSuccess={fetchFlows}
       />
 
-      {/* Mobile flow-options bottom-sheet (new_design FlowMenuModal 1773–1795) */}
       <FlowMenuModal
         open={flowMenu.open}
         flow={flowMenu.flow}
@@ -1259,6 +1286,123 @@ export default function FlowsPage() {
         onDuplicate={() => duplicateFlow(flowMenu.flow.id)}
         onDelete={() => deleteFlow(flowMenu.flow.id)}
       />
+
+      {/* Filter & Sort — mobile bottom sheet */}
+      <Sheet open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
+        <SheetContent side="bottom" className="tw rounded-t-2xl pb-8">
+          <SheetHeader className="mb-6">
+            <SheetTitle>Filter &amp; Sort</SheetTitle>
+          </SheetHeader>
+
+          <div className="flex flex-col gap-6">
+            {/* Favorites */}
+            <div className="flex items-center justify-between">
+              <Label className="font-semibold">⭐ Favorites only</Label>
+              <Switch checked={isFavorite} onCheckedChange={setIsFavorite} />
+            </div>
+
+            {/* Project */}
+            <div className="flex flex-col gap-2">
+              <Label className="font-semibold">📁 Project</Label>
+              <Select
+                value={projectId || "all"}
+                onValueChange={(v) => setProjectId(v === "all" ? null : v)}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {Array.isArray(projects) &&
+                    projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Sort by */}
+            <div className="flex flex-col gap-3">
+              <Label className="font-semibold">🔃 Sort by</Label>
+              <RadioGroup
+                value={sort}
+                onValueChange={setSort}
+                className="grid grid-cols-3 gap-2"
+              >
+                {[
+                  { value: "updatedAt", label: "Modified" },
+                  { value: "name", label: "Name" },
+                  { value: "createdAt", label: "Created" },
+                ].map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-center justify-center gap-2 h-9 rounded-xl border text-sm font-medium cursor-pointer transition ${
+                      sort === opt.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-card text-muted-foreground"
+                    }`}
+                  >
+                    <RadioGroupItem value={opt.value} className="sr-only" />
+                    {opt.label}
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
+
+            {/* Order */}
+            <div className="flex flex-col gap-3">
+              <Label className="font-semibold">↕️ Order</Label>
+              <RadioGroup
+                value={sortDirection}
+                onValueChange={(v) => setSortDirection(v as "asc" | "desc")}
+                className="grid grid-cols-2 gap-2"
+              >
+                {[
+                  { value: "desc", label: "Newest first" },
+                  { value: "asc", label: "Oldest first" },
+                ].map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-center justify-center gap-2 h-9 rounded-xl border text-sm font-medium cursor-pointer transition ${
+                      sortDirection === opt.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-card text-muted-foreground"
+                    }`}
+                  >
+                    <RadioGroupItem value={opt.value} className="sr-only" />
+                    {opt.label}
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setIsFavorite(false);
+                  setProjectId(null);
+                  setSort("updatedAt");
+                  setSortDirection("desc");
+                  setFilterDrawerOpen(false);
+                }}
+                className="flex-1 h-11 rounded-xl border border-border bg-card font-semibold text-sm cursor-pointer"
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => setFilterDrawerOpen(false)}
+                className="flex-1 h-11 rounded-xl font-semibold text-sm text-white cursor-pointer border-0"
+                style={{ background: "#34A881" }}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

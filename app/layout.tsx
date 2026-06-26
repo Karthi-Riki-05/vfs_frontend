@@ -1,13 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
+import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 
-const inter = Inter({ subsets: ["latin"] });
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+});
 
 export const metadata: Metadata = {
   title: "Value Charts 2.0",
   description: "AI-powered diagramming tool",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "ValueFlow",
+  },
   icons: {
     // Apple home-screen icon (iPhone, iPad)
     apple: "/Logo/Pro/icon-sizes-alt/180.png",
@@ -43,7 +53,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className} suppressHydrationWarning>
+      <body className={plusJakarta.className} suppressHydrationWarning>
+        <ServiceWorkerRegistrar />
         <Providers>{children}</Providers>
       </body>
     </html>

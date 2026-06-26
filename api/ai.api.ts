@@ -15,14 +15,6 @@ export const aiApi = {
       conversationId,
     }),
 
-  generateDiagramFromDocument: (file: File) => {
-    const formData = new FormData();
-    formData.append("document", file);
-    return api.post("/ai-assistant/generate-diagram-from-document", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-  },
-
   getContext: () => api.get("/ai-assistant/context"),
 
   getConsent: () => api.get("/ai-assistant/consent"),

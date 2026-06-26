@@ -16,6 +16,7 @@ export default function EditorFABs() {
   const isMobile = useIsMobile();
   const [unreadCount, setUnreadCount] = useState(0);
   const [aiOpen, setAiOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Poll unread count every 30s for badge
   useEffect(() => {
@@ -36,19 +37,21 @@ export default function EditorFABs() {
     }
   }, [session]);
 
-  // Listen for AI panel open/close to hide/show FABs
+  // Hide FABs when AI or chat panel opens
   useEffect(() => {
-    function onAiOpen() {
-      setAiOpen(true);
-    }
-    function onAiClose() {
-      setAiOpen(false);
-    }
+    const onAiOpen = () => setAiOpen(true);
+    const onAiClose = () => setAiOpen(false);
+    const onChatOpen = () => setChatOpen(true);
+    const onChatClose = () => setChatOpen(false);
     window.addEventListener("aiPanelOpened", onAiOpen);
     window.addEventListener("aiPanelClosed", onAiClose);
+    window.addEventListener("chatPanelOpened", onChatOpen);
+    window.addEventListener("chatPanelClosed", onChatClose);
     return () => {
       window.removeEventListener("aiPanelOpened", onAiOpen);
       window.removeEventListener("aiPanelClosed", onAiClose);
+      window.removeEventListener("chatPanelOpened", onChatOpen);
+      window.removeEventListener("chatPanelClosed", onChatClose);
     };
   }, []);
 
@@ -64,18 +67,19 @@ export default function EditorFABs() {
     <div
       style={{
         position: "fixed",
-        bottom: isMobile ? 120 : 65,
+        bottom: isMobile ? 120 : 90,
         right: isMobile ? 20 : 28,
         zIndex: 500,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         gap: 12,
-        opacity: aiOpen ? 0 : 1,
-        transform: aiOpen
-          ? "scale(0.8) translateY(20px)"
-          : "scale(1) translateY(0)",
-        pointerEvents: aiOpen ? "none" : "auto",
+        opacity: aiOpen || chatOpen ? 0 : 1,
+        transform:
+          aiOpen || chatOpen
+            ? "scale(0.8) translateY(20px)"
+            : "scale(1) translateY(0)",
+        pointerEvents: aiOpen || chatOpen ? "none" : "auto",
         transition: "opacity 0.25s ease, transform 0.25s ease",
       }}
     >

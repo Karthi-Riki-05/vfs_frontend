@@ -41,7 +41,9 @@ export function ProGuard({ children }: { children: React.ReactNode }) {
   // So the route is the reliable, switcher-and-deep-link-covering signal;
   // forcedMode alone would miss the switcher path.
   const inProApp =
-    forcedMode === "pro" || (pathname?.startsWith("/dashboard/pro") ?? false);
+    forcedMode === "pro" ||
+    pathname === "/dashboard/pro" ||
+    (pathname?.startsWith("/dashboard/pro/") ?? false);
 
   useEffect(() => {
     if (loading || grantAttempted.current) return;

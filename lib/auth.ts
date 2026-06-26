@@ -38,6 +38,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "text" },
         password: { label: "Password", type: "password" },
+        remember: { label: "Remember me", type: "text", optional: true },
       },
       async authorize(credentials) {
         try {
@@ -54,7 +55,10 @@ export const authOptions: NextAuthOptions = {
           );
 
           if (response.data?.success && response.data?.data) {
-            return response.data.data;
+            return {
+              ...response.data.data,
+              remember: credentials?.remember === "true",
+            };
           }
           return null;
         } catch (error: any) {
@@ -97,6 +101,7 @@ export const authOptions: NextAuthOptions = {
             (user as any).role = response.data.data.role;
             (user as any).hasPro = response.data.data.hasPro;
             (user as any).currentVersion = response.data.data.currentVersion;
+            (user as any).hasTeamAccess = response.data.data.hasTeamAccess;
           }
         } catch (error) {
           console.error("OAuth sync error:", error);
@@ -114,6 +119,13 @@ export const authOptions: NextAuthOptions = {
         token.hasPro = (user as any).hasPro;
         token.currentVersion = (user as any).currentVersion;
         token.hasTeamAccess = (user as any).hasTeamAccess ?? false;
+        // "Remember me": 30-day session when checked, else 24-hour default.
+        // The session/jwt cookie ceiling is 30 days; this token.exp is the
+        // real cutoff that distinguishes the two cases.
+        const rememberMe = (user as any).remember === true;
+        token.exp =
+          Math.floor(Date.now() / 1000) +
+          (rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
       }
 
       // Re-fetch user data from DB when session is explicitly updated
@@ -154,10 +166,10 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24 hours
+    maxAge: 30 * 24 * 60 * 60, // 30-day cookie ceiling; real cutoff is token.exp
   },
   jwt: {
-    maxAge: 24 * 60 * 60, // 24 hours
+    maxAge: 30 * 24 * 60 * 60, // 30-day ceiling; remember-me sets token.exp
   },
   pages: {
     signIn: "/login",

@@ -50,6 +50,8 @@ import type {
 } from "@/components/flows/shape-association/types";
 import { useSession } from "next-auth/react";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { getClientAppType } from "@/lib/detectWebView";
+import TeamUpgradeModal from "@/components/common/TeamUpgradeModal";
 
 const HIDE_AI_CSS = `
   /* Hide draw.io AI/Gemini/Save&Exit affordances */
@@ -302,6 +304,9 @@ export default function EditorView({
   // the user picked File → Export As from inside draw.io and the response
   // should become a file download instead.
   const isInternalSaveRef = useRef(false);
+  // FEAT-002: true when the next internal save should create a version
+  // snapshot (manual save / Save button); false for autosaves.
+  const createVersionRef = useRef(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle",
   );
@@ -317,6 +322,7 @@ export default function EditorView({
   const [saveFileName, setSaveFileName] = useState("valuechart-flow");
   const [saveTarget, setSaveTarget] = useState<"cloud" | "device">("cloud");
   const [saveLoading, setSaveLoading] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [flowShareModalOpen, setFlowShareModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -361,7 +367,9 @@ export default function EditorView({
 
   const handleRestore = async (versionId: string) => {
     if (
-      !window.confirm("Restore this version? Current changes will be replaced.")
+      !window.confirm(
+        "Your current version will be saved before restoring. You can always undo this.",
+      )
     )
       return;
     setRestoring(true);
@@ -753,6 +761,7 @@ export default function EditorView({
             clearTimeout(autosaveTimerRef.current);
             autosaveTimerRef.current = null;
           }
+          createVersionRef.current = true; // manual save → version snapshot
           triggerExport();
         }
 
@@ -762,6 +771,7 @@ export default function EditorView({
           if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
           autosaveTimerRef.current = setTimeout(() => {
             autosaveTimerRef.current = null;
+            createVersionRef.current = false; // autosave → no version
             triggerExport();
           }, 5000);
         }
@@ -778,9 +788,25 @@ export default function EditorView({
 
           const wasInternalSave = isInternalSaveRef.current;
           isInternalSaveRef.current = false;
+          const shouldCreateVersion = createVersionRef.current;
+          createVersionRef.current = false;
 
           // (b) DOWNLOAD BRANCH — user picked a format from draw.io's menu
           if (!wasInternalSave) {
+            // Export tier gate (FEAT-005): only SVG/PDF are premium. PNG, XML,
+            // JPEG, WEBP and HTML stay free for everyone. Free users inside the
+            // Team app are blocked only on the premium formats.
+            const sess = sessionRef.current;
+            const tier = (sess?.user as any)?.currentVersion ?? "free";
+            const isPaid =
+              (sess?.user as any)?.hasPro || tier === "pro" || tier === "team";
+            const isTeamApp = getClientAppType() === "team";
+            const isPremiumFormat = format === "svg" || format === "pdf";
+            if (isTeamApp && !isPaid && isPremiumFormat) {
+              setExportModalOpen(true);
+              return;
+            }
+
             const baseName = (flowName || "valuechart-flow").trim();
 
             if (
@@ -843,6 +869,7 @@ export default function EditorView({
                 name: flowName,
                 xml: xmlData,
                 thumbnail: safeThumbnail,
+                createVersion: shouldCreateVersion,
               }),
             });
 
@@ -1415,7 +1442,10 @@ export default function EditorView({
           {!isViewMode && !isReadOnly && (
             <Button
               icon={<SaveOutlined />}
-              onClick={triggerExport}
+              onClick={() => {
+                createVersionRef.current = true; // manual save → version snapshot
+                triggerExport();
+              }}
               loading={saveStatus === "saving"}
               type="primary"
               style={{ background: "#3CB371", borderColor: "#3CB371" }}
@@ -1519,6 +1549,13 @@ export default function EditorView({
           flow={flowShareModalOpen ? { id: flowId, name: flowName } : null}
           onClose={() => setFlowShareModalOpen(false)}
           onSuccess={() => setFlowShareModalOpen(false)}
+        />
+
+        {/* Export tier gate (FEAT-005) — free users inside the Team app. */}
+        <TeamUpgradeModal
+          open={exportModalOpen}
+          onClose={() => setExportModalOpen(false)}
+          feature="export"
         />
 
         {/* Shape → Team / Chat Group association modals — opened from the
@@ -1733,6 +1770,7 @@ export default function EditorView({
                   setSaveLoading(true);
                   try {
                     if (saveTarget === "device") {
+                      // Saves as HTML — never a premium format, always allowed.
                       const html =
                         "<!DOCTYPE html>\n" +
                         "<!-- ValueFlowSoft Diagram -->\n" +

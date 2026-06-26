@@ -17,7 +17,7 @@ export function useChat(groupId?: string) {
   const fetchGroups = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await chatApi.listGroups();
+      const res = await chatApi.listGroups(activeTeamId || undefined);
       const data = res.data?.data?.groups || res.data?.data || res.data;
       setGroups(Array.isArray(data) ? data : []);
     } catch {

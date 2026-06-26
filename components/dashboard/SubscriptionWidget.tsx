@@ -364,7 +364,6 @@ export default function SubscriptionWidget() {
           )}
       </div>
 
-      {/* CTA */}
       {((daysLeft !== null && daysLeft <= 30) || !sub.is_active) && (
         <button
           onClick={() => {

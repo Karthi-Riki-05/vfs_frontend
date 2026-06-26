@@ -68,7 +68,7 @@ export function ModalHeader({
       <button
         type="button"
         onClick={close}
-        className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center"
+        className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-8 h-8 max-lg:w-11 max-lg:h-11 rounded-full hover:bg-secondary flex items-center justify-center"
       >
         <X className="w-4 h-4 text-muted-foreground" />
       </button>

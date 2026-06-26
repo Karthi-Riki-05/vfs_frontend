@@ -18,13 +18,15 @@ interface PickerFlow {
 interface FlowPickerModalProps {
   open: boolean;
   onConfirm: () => void;
+  maxKeep?: number;
+  pickerType?: "pro" | "team";
 }
-
-const MAX_KEEP = 10;
 
 export default function FlowPickerModal({
   open,
   onConfirm,
+  maxKeep = 10,
+  pickerType = "pro",
 }: FlowPickerModalProps) {
   const [flows, setFlows] = useState<PickerFlow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,14 +37,14 @@ export default function FlowPickerModal({
     if (!open) return;
     setLoading(true);
     flowPackApi
-      .pickerList()
+      .pickerList(pickerType === "team")
       .then((res) => {
         const data = res.data?.data || res.data;
         setFlows(Array.isArray(data) ? data : []);
         // Pre-select shared flows up to the cap.
         const pre = new Set<string>();
         for (const f of data) {
-          if (pre.size >= MAX_KEEP) break;
+          if (pre.size >= maxKeep) break;
           if (f.isShared) pre.add(f.id);
         }
         setSelected(pre);
@@ -55,7 +57,7 @@ export default function FlowPickerModal({
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
-      else if (next.size < MAX_KEEP) next.add(id);
+      else if (next.size < maxKeep) next.add(id);
       return next;
     });
   };
@@ -63,7 +65,7 @@ export default function FlowPickerModal({
   const selectAllShared = () => {
     const next = new Set(selected);
     for (const f of flows) {
-      if (next.size >= MAX_KEEP) break;
+      if (next.size >= maxKeep) break;
       if (f.isShared) next.add(f.id);
     }
     setSelected(next);
@@ -76,7 +78,10 @@ export default function FlowPickerModal({
     }
     setSubmitting(true);
     try {
-      const res = await flowPackApi.confirmSelection(Array.from(selected));
+      const res = await flowPackApi.confirmSelection(
+        Array.from(selected),
+        pickerType === "team",
+      );
       const data = res.data?.data || res.data;
       message.success(
         `${data.keptFlows} kept, ${data.trashedFlows} moved to trash`,
@@ -97,7 +102,7 @@ export default function FlowPickerModal({
 
   const renderCard = (f: PickerFlow) => {
     const isSelected = selected.has(f.id);
-    const isLocked = !isSelected && selected.size >= MAX_KEEP;
+    const isLocked = !isSelected && selected.size >= maxKeep;
     return (
       <div
         key={f.id}
@@ -191,7 +196,9 @@ export default function FlowPickerModal({
       title={
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#cf1322" }}>
-            Your flow pack has expired
+            {pickerType === "team"
+              ? "Your team subscription has expired"
+              : "Your flow pack has expired"}
           </div>
           <div
             style={{
@@ -201,7 +208,7 @@ export default function FlowPickerModal({
               fontWeight: 400,
             }}
           >
-            Select up to {MAX_KEEP} flows to keep. Others will move to trash for
+            Select up to {maxKeep} flows to keep. Others will move to trash for
             30 days — renew anytime within that window to auto-restore.
           </div>
         </div>
@@ -288,7 +295,7 @@ export default function FlowPickerModal({
         }}
       >
         <div style={{ fontSize: 14, fontWeight: 600 }}>
-          {selected.size} / {MAX_KEEP} selected
+          {selected.size} / {maxKeep} selected
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Button

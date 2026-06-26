@@ -1,20 +1,22 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { usePathname } from "next/navigation";
-import { getLogoForApp, getForcedMode } from "@/lib/getLogo";
+import { getLogoForApp } from "@/lib/getLogo";
+import { useAppBrand } from "@/hooks/useAppBrand";
 
 export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [logoSrc, setLogoSrc] = useState("/images/image.png");
   const pathname = usePathname();
 
-  useEffect(() => {
-    setLogoSrc(getLogoForApp(getForcedMode()));
-  }, []);
+  // Shared-shell logo (shown on reset-password / verify-otp; CSS-hidden on the
+  // login/register/forgot hero pages) follows the app SHELL via the hydration-
+  // safe useAppBrand hook (WebView UA wins). Web visitors keep the standard logo.
+  const brand = useAppBrand();
+  const logoSrc = getLogoForApp(brand === "web" ? null : brand);
 
   // Login, Register & Forgot-password render their own full-bleed mobile hero
   // (green band + white card). On <=600px the layout steps aside for them: no

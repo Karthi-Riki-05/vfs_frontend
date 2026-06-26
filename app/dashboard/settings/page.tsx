@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, type ReactNode } from "react";
-import { Upload, message, Modal, Spin } from "antd";
+import { Upload, message, Modal, Spin, Input } from "antd";
+import { signOut } from "next-auth/react";
+import { accountApi } from "@/api/account.api";
 import {
   Camera,
   Users,
@@ -17,13 +19,14 @@ import {
   Trash2,
   Eye,
   EyeOff,
+  CreditCard,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { useAuth } from "@/hooks/useAuth";
 import { useAi } from "@/hooks/useAi";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { logout } from "@/lib/logout";
 
 const RESET = "appearance-none cursor-pointer outline-none";
 
@@ -114,6 +117,39 @@ export default function SettingsPage() {
   const [pCurrent, setPCurrent] = useState("");
   const [pNew, setPNew] = useState("");
   const [pConfirm, setPConfirm] = useState("");
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDeleteAccount = async () => {
+    setDeleteError(null);
+    setDeleteLoading(true);
+    try {
+      await accountApi.deleteAccount(deletePassword);
+      message.success("Account deleted");
+      signOut({ callbackUrl: "/login" });
+    } catch (err: any) {
+      const code = err?.response?.data?.error?.code;
+      const msg = err?.response?.data?.error?.message;
+      if (code === "TEAMS_MUST_BE_HANDLED") {
+        setDeleteError(
+          msg || "Delete your teams first before deleting your account.",
+        );
+      } else if (code === "ADMIN_DELETION_BLOCKED") {
+        setDeleteError(
+          "Admin accounts cannot be self-deleted. Contact support.",
+        );
+      } else if (code === "INVALID_CREDENTIALS") {
+        setDeleteError("Password is incorrect. Please try again.");
+      } else {
+        setDeleteError(msg || "Failed to delete account. Please try again.");
+      }
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const planName = subStatus?.planName || (user as any)?.plan || "Free";
 
@@ -356,7 +392,7 @@ export default function SettingsPage() {
       <div className="rounded-2xl bg-card border border-border overflow-hidden">
         <button
           onClick={() => router.push("/dashboard/settings/billing")}
-          className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4`}
+          className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4 border-b border-border`}
         >
           <ShieldCheck className="w-4 h-4 text-foreground" />
           <span className="flex-1 text-left text-sm font-semibold">
@@ -364,14 +400,94 @@ export default function SettingsPage() {
           </span>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </button>
+        <button
+          onClick={() => router.push("/dashboard/settings/payment-methods")}
+          className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4`}
+        >
+          <CreditCard className="w-4 h-4 text-foreground" />
+          <span className="flex-1 text-left text-sm font-semibold">
+            Payment Methods
+          </span>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </button>
       </div>
 
       <button
-        onClick={() => signOut({ callbackUrl: "/login" })}
+        onClick={() => logout({ callbackUrl: "/login" })}
         className={`${RESET} w-full mt-2 h-12 rounded-2xl bg-card border border-border text-coral font-bold inline-flex items-center justify-center gap-2`}
       >
         <LogOut className="w-4 h-4" /> Log Out
       </button>
+
+      <SectionLabel>Danger Zone</SectionLabel>
+      <div className="rounded-2xl bg-card border border-[#FFA39E] overflow-hidden mb-6">
+        <button
+          onClick={() => {
+            setDeletePassword("");
+            setDeleteError(null);
+            setDeleteModalOpen(true);
+          }}
+          className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4`}
+        >
+          <Trash2 className="w-4 h-4 text-[#FF4D4F]" />
+          <span className="flex-1 text-left text-sm font-semibold text-[#FF4D4F]">
+            Delete Account
+          </span>
+          <ChevronRight className="w-4 h-4 text-[#FF4D4F]" />
+        </button>
+      </div>
+
+      <Modal
+        open={deleteModalOpen}
+        title={
+          <span style={{ color: "#FF4D4F" }}>
+            ⚠️ Permanently Delete Account
+          </span>
+        }
+        okText="Permanently Delete Account"
+        okButtonProps={{ danger: true, loading: deleteLoading }}
+        cancelText="Cancel"
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setDeletePassword("");
+          setDeleteError(null);
+        }}
+        onOk={async () => {
+          await handleDeleteAccount();
+        }}
+        centered
+        maskClosable={!deleteLoading}
+      >
+        <p style={{ marginBottom: 16, color: "#595959", fontSize: 14 }}>
+          All your data will be <strong>permanently deleted</strong>. This
+          cannot be undone.
+        </p>
+        <p style={{ marginBottom: 12, fontSize: 13, color: "#595959" }}>
+          Enter your password to confirm:
+        </p>
+        <Input.Password
+          value={deletePassword}
+          onChange={(e) => {
+            setDeletePassword(e.target.value);
+            setDeleteError(null);
+          }}
+          placeholder="Your current password"
+          disabled={deleteLoading}
+          onPressEnter={handleDeleteAccount}
+        />
+        {deleteError && (
+          <div
+            style={{
+              marginTop: 10,
+              color: "#FF4D4F",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            {deleteError}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 
@@ -430,6 +546,8 @@ export default function SettingsPage() {
         <Field label="Phone">
           <FieldInput
             icon={<Phone className="w-4 h-4" />}
+            type="tel"
+            inputMode="tel"
             value={contactNo}
             onChange={(e) => setContactNo(e.target.value)}
             placeholder="Phone number"

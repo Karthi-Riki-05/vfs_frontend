@@ -6,6 +6,9 @@ export const flowsApi = {
     limit?: number;
     search?: string;
     sort?: string;
+    sortDirection?: "asc" | "desc";
+    isFavorite?: boolean;
+    projectId?: string;
     teamId?: string | null;
   }) => api.get("/flows", { params }),
 

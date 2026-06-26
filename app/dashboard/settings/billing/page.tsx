@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, ReactNode } from "react";
-import { Spin } from "antd";
+import { Spin, message } from "antd";
 import {
   ArrowLeft,
   Crown,
@@ -9,11 +9,14 @@ import {
   ChevronDown,
   Zap,
   Building2,
+  CreditCard,
 } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { paymentsApi } from "@/api/payments.api";
 import { usePro } from "@/hooks/usePro";
 import { useRouter } from "next/navigation";
+import { getClientAppType } from "@/lib/detectWebView";
+import api from "@/lib/axios";
 
 // Buttons inherit a UA-grey background unless they set their own bg (the
 // "preflight-off button trap" — see Settings page). RESET strips native
@@ -29,13 +32,44 @@ function Row({ k, v }: { k: string; v: ReactNode }) {
   );
 }
 
+// Status-aware transaction badge — never assume "Paid" (a refunded or failed
+// charge would otherwise render green).
+function getTransactionBadge(status?: string) {
+  const base = "text-[10px] font-bold px-1.5 rounded";
+  switch (status?.toLowerCase()) {
+    case "refunded":
+    case "partially_refunded":
+      return (
+        <span className={`${base} bg-[#FFF3E0] text-orange`}>Refunded</span>
+      );
+    case "failed":
+      return (
+        <span className={`${base} bg-[#FEE2E2] text-destructive`}>Failed</span>
+      );
+    case "pending":
+      return (
+        <span className={`${base} bg-[#E6F4FF] text-[#1677FF]`}>Pending</span>
+      );
+    default:
+      return (
+        <span className={`${base} bg-primary-tint text-primary-deep`}>
+          Paid
+        </span>
+      );
+  }
+}
+
 export default function BillingPage() {
   const router = useRouter();
   const { subscription, status, loading, cancel } = useSubscription();
   const { currentApp, loading: proLoading, status: proStatus } = usePro();
-  // Pro app billing must NEVER surface the Team subscription (separate
-  // product): show the Pro one-time purchase instead.
-  const isProApp = !proLoading && currentApp === "pro";
+  // UA is the authoritative shell signal — works on mobile even when the root
+  // page (which sets vc_app_param) was never visited (deep-link to /login).
+  // currentApp is DB-stored (user.currentVersion) and can be "pro" even when
+  // the user is inside the Team native shell.
+  const clientAppType = getClientAppType();
+  const isProApp =
+    !proLoading && currentApp === "pro" && clientAppType !== "team";
 
   const [transactions, setTransactions] = useState<any[]>([]);
   const [txLoading, setTxLoading] = useState(true);
@@ -43,7 +77,6 @@ export default function BillingPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [txOpen, setTxOpen] = useState(true);
   const [subOpen, setSubOpen] = useState(true);
-
   // Re-fetch whenever the user toggles between Pro and Team apps so each
   // billing surface stays scoped to its own purchases. Wait until usePro
   // has resolved — otherwise we'd default to "enterprise" while currentApp
@@ -51,7 +84,7 @@ export default function BillingPage() {
   useEffect(() => {
     if (proLoading) return;
     setTxLoading(true);
-    const appType = currentApp === "pro" ? "individual" : "enterprise";
+    const appType = isProApp ? "individual" : "enterprise";
     paymentsApi
       .getTransactions({ appType })
       .then((res) => {
@@ -62,27 +95,30 @@ export default function BillingPage() {
         setTransactions([]);
       })
       .finally(() => setTxLoading(false));
-  }, [proLoading, currentApp]);
+  }, [proLoading, isProApp]);
 
   // Subscription history is Team-app only (Pro lifetime is a one-time
   // purchase, not a subscription). Skip the call inside the Pro app.
   useEffect(() => {
     if (proLoading) return;
-    if (currentApp === "pro") {
+    if (isProApp) {
       setHistory([]);
       setHistoryLoading(false);
       return;
     }
     setHistoryLoading(true);
-    fetch("/api/subscription/history")
-      .then((r) => r.json())
+    // Use axios (not fetch) so the interceptor adds X-App-Context: team.
+    // The backend's getHistory() falls back to user.currentVersion when no
+    // header is present — which can be "pro" — and returns the wrong history.
+    api
+      .get("/subscription/history")
       .then((res) => {
-        const data = res?.data?.history || res?.data || [];
+        const data = res.data?.data?.history || res.data?.data || [];
         setHistory(Array.isArray(data) ? data : []);
       })
       .catch(() => setHistory([]))
       .finally(() => setHistoryLoading(false));
-  }, [proLoading, currentApp]);
+  }, [proLoading, isProApp]);
 
   // Wait for usePro too — otherwise the Team subscription card flashes
   // inside the Pro app before currentApp resolves.
@@ -206,6 +242,24 @@ export default function BillingPage() {
     };
   });
 
+  // Open the Stripe Customer Portal — download invoices, update payment
+  // method, view billing history (handled entirely by Stripe).
+  const openCustomerPortal = async () => {
+    try {
+      const res = await fetch("/api/subscription/customer-portal", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        window.location.href = data.data.url;
+      } else {
+        message.error("Could not open billing portal. Please try again.");
+      }
+    } catch (e) {
+      message.error("Could not open billing portal. Please try again.");
+    }
+  };
+
   const changePlanLabel = isProApp
     ? "Manage Plan"
     : subscription
@@ -271,6 +325,15 @@ export default function BillingPage() {
             {changePlanLabel}
           </button>
         </div>
+
+        {(subscription || proStatus?.hasPro) && (
+          <button
+            onClick={openCustomerPortal}
+            className={`${RESET} mt-2 w-full h-11 rounded-xl border border-border bg-card text-foreground font-semibold text-sm inline-flex items-center justify-center gap-2`}
+          >
+            <CreditCard className="w-4 h-4" /> Manage Billing &amp; Invoices
+          </button>
+        )}
 
         <div className="border-t border-border my-4" />
 
@@ -427,9 +490,7 @@ export default function BillingPage() {
                         </div>
                         <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-2">
                           {t.date}
-                          <span className="text-[10px] font-bold px-1.5 rounded bg-primary-tint text-primary-deep">
-                            Paid
-                          </span>
+                          {getTransactionBadge(t.status)}
                         </div>
                       </div>
                       <div className="font-bold text-sm shrink-0 ml-3">

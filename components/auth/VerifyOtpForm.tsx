@@ -4,6 +4,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { message } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "@/lib/axios";
+import { ArrowLeft } from "lucide-react";
+import AuthShell from "@/components/auth/AuthShell";
+import DesktopAuthShell from "@/components/auth/DesktopAuthShell";
+import { getLogoForApp } from "@/lib/getLogo";
+import { useAppBrand } from "@/hooks/useAppBrand";
+import { useIsDesktop } from "@/hooks/useMediaQuery";
 
 const GREEN = "#3CB371";
 const OTP_LEN = 6;
@@ -20,6 +26,11 @@ export default function VerifyOtpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const emailFromQuery = searchParams?.get("email") || "";
+
+  const brand = useAppBrand();
+  const logoSrc = getLogoForApp(brand === "web" ? null : brand);
+  const isDesktop = useIsDesktop();
+  const Shell = isDesktop ? DesktopAuthShell : AuthShell;
 
   const [email, setEmail] = useState(emailFromQuery);
   const [digits, setDigits] = useState<string[]>(Array(OTP_LEN).fill(""));
@@ -45,12 +56,13 @@ export default function VerifyOtpForm() {
 
   const handleDigit = (i: number, val: string) => {
     const v = val.replace(/\D/g, "").slice(-1);
-    setDigits((prev) => {
-      const next = [...prev];
-      next[i] = v;
-      return next;
-    });
+    const next = [...digits];
+    next[i] = v;
+    setDigits(next);
     if (v && i < OTP_LEN - 1) inputs.current[i + 1]?.focus();
+    // Auto-submit once all six boxes are filled.
+    const otp = next.join("");
+    if (otp.length === OTP_LEN) submitOtp(otp);
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
@@ -64,6 +76,9 @@ export default function VerifyOtpForm() {
     for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
     setDigits(next);
     inputs.current[Math.min(pasted.length, OTP_LEN - 1)]?.focus();
+    // Auto-submit when a full code is pasted.
+    const otp = next.join("");
+    if (otp.length === OTP_LEN) submitOtp(otp);
   };
 
   const handleKeyDown = (
@@ -75,13 +90,12 @@ export default function VerifyOtpForm() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitOtp = async (otp: string) => {
+    if (loading) return; // guard against double-submit (auto + manual)
     if (!email.trim()) {
       setError("Email is required");
       return;
     }
-    const otp = digits.join("");
     if (otp.length !== OTP_LEN) {
       setError("Enter the 6-digit code");
       return;
@@ -99,6 +113,11 @@ export default function VerifyOtpForm() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitOtp(digits.join(""));
   };
 
   const handleResend = async () => {
@@ -123,23 +142,21 @@ export default function VerifyOtpForm() {
   };
 
   return (
-    <div style={{ width: "100%" }}>
-      <div style={{ textAlign: "center", marginBottom: 20 }}>
-        <h1
-          style={{
-            fontSize: 22,
-            fontWeight: 700,
-            color: "#111827",
-            margin: "0 0 4px",
-          }}
-        >
-          Verify your email
-        </h1>
-        <p style={{ color: "#6B7280", fontSize: 14, margin: 0 }}>
-          Enter the 6-digit code we emailed you
+    <Shell
+      logoSrc={logoSrc}
+      title="Verify your email"
+      subtitle="Enter the 6-digit code we emailed you"
+      footer={
+        <p className="text-center text-sm">
+          <a
+            href="/login"
+            className="inline-flex items-center gap-1.5 font-bold text-primary-deep"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to sign in
+          </a>
         </p>
-      </div>
-
+      }
+    >
       {info && (
         <div
           style={{
@@ -189,6 +206,7 @@ export default function VerifyOtpForm() {
               justifyContent: "space-between",
               width: "100%",
               maxWidth: 320,
+              margin: "0 auto",
             }}
           >
             {digits.map((d, i) => (
@@ -294,23 +312,6 @@ export default function VerifyOtpForm() {
               : "Resend code"}
         </button>
       </form>
-
-      <p
-        style={{
-          textAlign: "center",
-          fontSize: 14,
-          color: "#6B7280",
-          marginTop: 20,
-          marginBottom: 0,
-        }}
-      >
-        <a
-          href="/login"
-          style={{ color: GREEN, fontWeight: 600, textDecoration: "none" }}
-        >
-          Back to login
-        </a>
-      </p>
-    </div>
+    </Shell>
   );
 }

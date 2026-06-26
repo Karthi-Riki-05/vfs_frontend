@@ -5,7 +5,8 @@ import { message } from "antd";
 import { signIn, signOut } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
-import { getLogoForApp, getForcedMode } from "@/lib/getLogo";
+import { getLogoForApp } from "@/lib/getLogo";
+import { useAppBrand } from "@/hooks/useAppBrand";
 import { getPostLoginDashboardUrl } from "@/lib/postLoginRedirect";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
 import AuthShell from "./AuthShell";
@@ -37,6 +38,7 @@ export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [fieldErr, setFieldErr] = useState<{
     email?: string;
@@ -47,23 +49,18 @@ export default function LoginForm() {
   const [isWebView, setIsWebView] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
-  const [logoSrc, setLogoSrc] = useState("/images/image.png");
   const router = useRouter();
   const searchParams = useSearchParams();
   const verified = searchParams?.get("verified") ?? null;
+  const isDesktop = useIsDesktop();
 
-  // Full logo for the hero — Pro vs standard by app context.
-  // ?app= is most explicit; fall back to the per-tab sessionStorage context.
-  useEffect(() => {
-    const appParam = searchParams?.get("app");
-    const mode =
-      appParam === "pro"
-        ? "pro"
-        : appParam === "team"
-          ? "team"
-          : getForcedMode();
-    setLogoSrc(getLogoForApp(mode));
-  }, [searchParams]);
+  // Full logo for the hero follows the app SHELL (WebView UA), read post-mount
+  // via the hydration-safe useAppBrand hook (UA wins over ?app= / stored). On a
+  // genuine web visitor (brand="web") we keep the standard logo — there is no
+  // billing context to consult pre-login. This fixes the wrong-shell logo flash
+  // when a Pro/Team app opens /login with no seeded sessionStorage.
+  const brand = useAppBrand();
+  const logoSrc = getLogoForApp(brand === "web" ? null : brand);
 
   useEffect(() => {
     if (verified === "1") setInfo("Your email is verified. Please log in.");
@@ -119,15 +116,30 @@ export default function LoginForm() {
       redirect: false,
       email,
       password,
+      // Desktop honors the checkbox; mobile has no checkbox and defaults to a
+      // persistent 30-day session.
+      remember: String(rememberMe || !isDesktop),
     });
 
     setLoading(false);
 
     if (result?.error) {
-      message.error("Login failed: " + result.error);
-      setError(result.error);
-      if (/verify your email/i.test(result.error)) setShowResend(true);
-      // EMAIL_NOT_VERIFIED is now bounced to OTP page
+      const raw = result.error || "";
+      // Map raw backend/NextAuth error strings to user-friendly copy. The
+      // verify-email case keeps its existing OTP-resend flow.
+      let friendly: string;
+      if (/verify|verified/i.test(raw)) {
+        friendly = raw; // keep the backend's verify-email wording for the OTP flow
+        setShowResend(true);
+      } else if (/credential|invalid/i.test(raw)) {
+        friendly = "Invalid email or password. Please try again.";
+      } else if (/inactive|suspend/i.test(raw)) {
+        friendly = "This account is inactive. Please contact support.";
+      } else {
+        friendly = "Login failed. Please try again.";
+      }
+      message.error(friendly);
+      setError(friendly);
     } else {
       // Block super admins from using the user login page — they must log
       // in via /super-admin/login so the admin portal is a distinct entry.
@@ -161,8 +173,6 @@ export default function LoginForm() {
       setTimeout(() => setCopied(false), 2000);
     });
   };
-
-  const isDesktop = useIsDesktop();
 
   const socialLogin = (provider: "google" | "linkedin" | "facebook") =>
     signIn(provider, { callbackUrl: getPostLoginDashboardUrl() });
@@ -314,7 +324,8 @@ export default function LoginForm() {
           <label className="flex items-center gap-2 text-muted-foreground">
             <input
               type="checkbox"
-              defaultChecked
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
               className="h-4 w-4 rounded accent-primary"
             />
             Remember me

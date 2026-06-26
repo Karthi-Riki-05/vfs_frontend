@@ -6,7 +6,8 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { User, Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import axios from "@/lib/axios";
-import { getLogoForApp, getForcedMode } from "@/lib/getLogo";
+import { getLogoForApp } from "@/lib/getLogo";
+import { useAppBrand } from "@/hooks/useAppBrand";
 import { getPostLoginDashboardUrl } from "@/lib/postLoginRedirect";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
 import AuthShell from "./AuthShell";
@@ -14,11 +15,55 @@ import DesktopAuthShell from "./DesktopAuthShell";
 import PillInput from "./PillInput";
 import { SocialRow, OrDivider } from "./AuthSocial";
 
+// Password strength: +1 each for length>=8, uppercase, number, special char.
+const getPasswordStrength = (pwd: string) => {
+  let score = 0;
+  if (pwd.length >= 8) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/[0-9]/.test(pwd)) score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+  return score; // 0-4
+};
+
+const STRENGTH_META = [
+  { label: "Weak", color: "#EF4444" }, // 0-1
+  { label: "Weak", color: "#EF4444" },
+  { label: "Fair", color: "#F59E0B" }, // 2
+  { label: "Good", color: "#EAB308" }, // 3
+  { label: "Strong", color: "#22C55E" }, // 4
+];
+
+function PasswordStrengthBar({ password }: { password: string }) {
+  if (!password) return null;
+  const score = getPasswordStrength(password);
+  const meta = STRENGTH_META[score];
+  return (
+    <div className="mt-2">
+      <div className="flex gap-1.5">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="h-1.5 flex-1 rounded-full"
+            style={{ background: i < score ? meta.color : "#E5E7EB" }}
+          />
+        ))}
+      </div>
+      <p
+        className="mt-1 text-[11px] font-semibold"
+        style={{ color: meta.color }}
+      >
+        {meta.label}
+      </p>
+    </div>
+  );
+}
+
 export default function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isWebView, setIsWebView] = useState(false);
@@ -27,20 +72,13 @@ export default function RegisterForm() {
   const [existsCode, setExistsCode] = useState<
     "PRO_USER_EXISTS" | "TEAM_USER_EXISTS" | "USER_EXISTS" | null
   >(null);
-  const [logoSrc, setLogoSrc] = useState("/images/image.png");
   const router = useRouter();
 
-  // Full logo — Pro vs standard by app context.
-  useEffect(() => {
-    const appParam = new URLSearchParams(window.location.search).get("app");
-    const mode =
-      appParam === "pro"
-        ? "pro"
-        : appParam === "team"
-          ? "team"
-          : getForcedMode();
-    setLogoSrc(getLogoForApp(mode));
-  }, []);
+  // Full logo follows the app SHELL (WebView UA), read post-mount via the
+  // hydration-safe useAppBrand hook (UA wins over ?app= / stored). Web visitors
+  // (brand="web") keep the standard logo — no billing context exists pre-signup.
+  const brand = useAppBrand();
+  const logoSrc = getLogoForApp(brand === "web" ? null : brand);
 
   useEffect(() => {
     const ua = navigator.userAgent;
@@ -67,8 +105,17 @@ export default function RegisterForm() {
       setError("Please enter your email");
       return;
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setError("Please enter a valid email address");
+      return;
+    }
     if (!password || password.length < 8) {
       setError("Password must be at least 8 characters");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
       return;
     }
     setError("");
@@ -257,6 +304,22 @@ export default function RegisterForm() {
                 )}
               </button>
             }
+          />
+          <PasswordStrengthBar password={password} />
+        </div>
+
+        {/* Confirm Password */}
+        <div>
+          <label className="text-[13px] font-bold text-foreground">
+            Confirm Password
+          </label>
+          <PillInput
+            icon={Lock}
+            type={showPassword ? "text" : "password"}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Re-enter password"
+            autoComplete="new-password"
           />
         </div>
 

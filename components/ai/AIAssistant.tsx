@@ -139,6 +139,28 @@ export default function AIAssistant({
   // Header credits counter
   const [credits, setCredits] = useState<number | null>(null);
 
+  // Hide collapsed button when a bottom sheet is open on mobile
+  const [sheetOpen, setSheetOpen] = useState(false);
+  useEffect(() => {
+    const handler = (e: Event) =>
+      setSheetOpen((e as CustomEvent<boolean>).detail);
+    window.addEventListener("vc:sheet-open", handler);
+    return () => window.removeEventListener("vc:sheet-open", handler);
+  }, []);
+
+  // Hide collapsed AI button when the chat panel is open
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setChatPanelOpen(true);
+    const onClose = () => setChatPanelOpen(false);
+    window.addEventListener("chatPanelOpened", onOpen);
+    window.addEventListener("chatPanelClosed", onClose);
+    return () => {
+      window.removeEventListener("chatPanelOpened", onOpen);
+      window.removeEventListener("chatPanelClosed", onClose);
+    };
+  }, []);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1048,14 +1070,21 @@ export default function AIAssistant({
   if (isOnCheckoutSuccess) return null;
 
   if (state === "collapsed") {
-    const size = isMobile ? "w-12 h-12" : "w-14 h-14";
+    const size = "w-12 h-12";
     return (
       <div className="tw">
         <div
           className="fixed z-[200]"
           style={{
-            bottom: isMobile ? (isEditorPage ? 60 : 24) : 24,
+            bottom: isMobile ? (isEditorPage ? 60 : 24) : 28,
             right: isMobile ? 20 : 24,
+            opacity: (isMobile && sheetOpen) || chatPanelOpen ? 0 : 1,
+            pointerEvents:
+              (isMobile && sheetOpen) || chatPanelOpen ? "none" : "auto",
+            transition: "opacity 0.25s ease, transform 0.25s ease",
+            transform: chatPanelOpen
+              ? "scale(0.8) translateY(20px)"
+              : "scale(1) translateY(0)",
           }}
         >
           {/* Auto-dismissing greeting bubble */}
@@ -1084,7 +1113,7 @@ export default function AIAssistant({
               "rounded-full bg-[#FF9A30] text-white border-0 flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(255,154,48,0.55)]",
             )}
           >
-            <Sparkles className={isMobile ? "w-5 h-5" : "w-6 h-6"} />
+            <Sparkles className="w-5 h-5" />
           </button>
         </div>
         {modals}

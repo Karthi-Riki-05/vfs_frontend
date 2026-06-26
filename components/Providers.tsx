@@ -6,6 +6,7 @@ import { ConfigProvider } from "antd";
 import { antdTheme } from "@/lib/theme";
 import { AppContextProvider } from "@/context/AppContext";
 import { AiBillingProvider } from "@/context/AiBillingContext";
+import { Toaster } from "@/components/ui/sonner";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -13,7 +14,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <AntdRegistry>
         <ConfigProvider theme={antdTheme}>
           <AppContextProvider>
-            <AiBillingProvider>{children}</AiBillingProvider>
+            <AiBillingProvider>
+              {children}
+              <Toaster position="top-right" richColors />
+            </AiBillingProvider>
           </AppContextProvider>
         </ConfigProvider>
       </AntdRegistry>

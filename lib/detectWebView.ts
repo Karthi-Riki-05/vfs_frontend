@@ -69,26 +69,15 @@ export function resolveAppType(opts: {
 }
 
 /**
- * Client-side app type. Combines the live User-Agent with the legacy `?app=`
- * URL param and the persisted `vc_app_param` (set by app/page.tsx) for
- * backward compatibility. SSR-safe (returns "web" with no window).
+ * Client-side app type resolved from the User-Agent only.
+ * ?app= URL param and vc_app_param sessionStorage are intentionally
+ * removed — UA is the sole app-type signal.
+ * SSR-safe (returns "web" with no window/navigator).
  */
 export function getClientAppType(): AppType {
   if (typeof window === "undefined" || typeof navigator === "undefined")
     return "web";
-
-  const ua = navigator.userAgent;
-
-  let appParam: string | null = null;
-  let stored: string | null = null;
-  try {
-    appParam = new URLSearchParams(window.location.search).get("app");
-    stored = sessionStorage.getItem("vc_app_param");
-  } catch {
-    // Restricted WebView — UA alone still resolves below.
-  }
-
-  return resolveAppType({ ua, appParam, stored });
+  return appTypeFromUserAgent(navigator.userAgent);
 }
 
 /**

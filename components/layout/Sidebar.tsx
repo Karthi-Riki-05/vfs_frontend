@@ -10,6 +10,7 @@ import {
   Workflow,
   Shapes as ShapesIcon,
   Users,
+  User,
   MessageCircle,
   FolderKanban,
   Star,
@@ -60,7 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const { isWeb, isMobileApp } = useDeviceMode();
   const { isTeamContext, effectivePlan } = useAppContext();
   const { data: session } = useSession();
-  const { totalUnread } = useUnreadCount();
+  const { totalUnread } = useUnreadCount(currentApp === "pro" ? "pro" : "team");
   const sessionHasTeamAccess = (session?.user as any)?.hasTeamAccess ?? false;
 
   // Lock is driven by the ACTIVE context, not by whether invitations exist.
@@ -139,7 +140,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       const res = await fetch("/api/subscription/status");
       const data = await res.json();
       const subData = data.data || data;
-      if (subData?.hasSubscription && subData?.status === "active") {
+      if (
+        subData?.hasSubscription &&
+        (subData?.status === "active" || subData?.status === "cancelling")
+      ) {
         router.push("/dashboard/teams");
         handleNavClick();
       } else {
@@ -259,7 +263,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={() => switchToApp("team")}
-            title="ValueChart"
+            title="Team"
             role="tab"
             aria-selected={!isProApp}
             className={`flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition ${
@@ -268,7 +272,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 : "bg-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            ValueChart
+            <Users className="w-3.5 h-3.5" /> Team
           </button>
           {/* PRO */}
           <button
@@ -283,7 +287,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 : "bg-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Crown className="w-3.5 h-3.5" /> PRO
+            <User className="w-3.5 h-3.5" /> PRO
           </button>
         </div>
       </div>
@@ -374,17 +378,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         collapsed={railCollapsed}
         variant={variant}
         onClick={handleNavClick}
-      />
-      <NavTile
-        icon={Sparkles}
-        label="Value Charts AI"
-        accent="orange"
-        collapsed={railCollapsed}
-        variant={variant}
-        onClick={() => {
-          window.dispatchEvent(new Event("openAIAssistant"));
-          handleNavClick();
-        }}
       />
       <NavTile
         icon={CreditCard}
@@ -553,7 +546,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     >
       <div className="tw flex flex-col h-full bg-card">
         {proTeamSwitcher}
-        <SidebarTeamSwitcher collapsed={railCollapsed} />
         <div className={`p-3 ${railCollapsed ? "px-2" : ""}`}>{createPill}</div>
         {nav}
         {footer}

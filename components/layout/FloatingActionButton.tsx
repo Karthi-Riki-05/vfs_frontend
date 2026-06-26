@@ -32,6 +32,14 @@ export default function FloatingActionButton({
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) =>
+      setSheetOpen((e as CustomEvent<boolean>).detail);
+    window.addEventListener("vc:sheet-open", handler);
+    return () => window.removeEventListener("vc:sheet-open", handler);
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -162,9 +170,10 @@ export default function FloatingActionButton({
         right,
         zIndex: 1000,
         // Fade out (matching the AI button) when the mobile sidebar is open.
-        opacity: hidden ? 0 : 1,
-        pointerEvents: hidden ? "none" : "auto",
-        transform: hidden ? "scale(0.9)" : "scale(1)",
+        opacity: hidden || (isMobile && sheetOpen) ? 0 : 1,
+        pointerEvents: hidden || (isMobile && sheetOpen) ? "none" : "auto",
+        transform:
+          hidden || (isMobile && sheetOpen) ? "scale(0.9)" : "scale(1)",
         transition: "opacity 0.3s ease, transform 0.3s ease",
       }}
     >

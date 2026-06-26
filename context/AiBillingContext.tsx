@@ -40,6 +40,7 @@ export interface BillingOption {
   avatar?: string | null;
   role?: string;
   plan?: string;
+  hasPro?: boolean;
   aiCredits: BillingCredits | null;
 }
 
@@ -138,6 +139,8 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
         ownerEmail: t.ownerEmail,
         avatar: t.avatar || t.label?.[0]?.toUpperCase() || null,
         role: t.role,
+        plan: t.plan,
+        hasPro: !!t.hasPro,
         aiCredits: t.aiCredits || null,
       }));
       const nextOptions = [personal, ...teams];
@@ -160,9 +163,11 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
           try {
             // sessionStorage is per-tab — immune to cross-tab overwrites from
             // another tab opening ?app=pro concurrently (Fix 4).
+            // UA fallback for Flutter Pro WebView (sessionStorage empty in mobile).
             return (
               sessionStorage.getItem("vc_app_context") === "pro" ||
-              sessionStorage.getItem("vc_forced_app_mode") === "pro"
+              sessionStorage.getItem("vc_forced_app_mode") === "pro" ||
+              /ValueChartsMobile\/Pro-App/i.test(navigator.userAgent)
             );
           } catch {
             return false;
@@ -178,6 +183,26 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
       // Keep localStorage in sync with the server-resolved value (without
       // re-POSTing — this is a read reconcile, not a user switch).
       if (getAiBillingTeamId() !== resolved) setAiBillingTeamId(resolved);
+      // B1 fix: fire workspace-switch on page load/refresh so AppContext
+      // updates activeContext.type (isTeamContext / effectivePlan) without
+      // requiring a user click. switchBilling() does the same on explicit
+      // switch; this covers the initial hydration path.
+      try {
+        const matched = nextOptions.find((o) => o.teamId === resolved) ?? null;
+        window.dispatchEvent(
+          new CustomEvent("vc:workspace-switch", {
+            detail: {
+              teamId: resolved || null,
+              plan: matched?.plan || (resolved ? "team" : null),
+              teamName: matched?.label || null,
+              hasPro: matched?.hasPro || false,
+              ownerName: matched?.ownerName || null,
+            },
+          }),
+        );
+      } catch {
+        /* no-op */
+      }
     } catch {
       // Non-critical: fall back to personal-only.
       setOptions([PERSONAL_FALLBACK]);
@@ -195,39 +220,68 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }, [refresh, sessionStatus]);
 
-  const switchBilling = useCallback(async (teamId: string | null) => {
-    // 0. Flush workspace data cache immediately so useFlows / useTeams drop
-    //    their stale arrays before the new fetch arrives — eliminates ghost-
-    //    renders of the previous team's content during the loading window.
-    flushWorkspaceCache();
-    // 1. Local state + storage + event (drives the scoped axios header).
-    setActive(teamId);
-    setAiBillingTeamId(teamId);
-    // 2. Tell credit displays to refetch with the new billing pool.
-    try {
-      window.dispatchEvent(new Event("aiCreditsChanged"));
-    } catch {
-      /* no-op */
-    }
-    // 3. Persist server-side (WebView-safe). Non-blocking — localStorage is
-    //    the fallback if this fails.
-    try {
-      // appMode tells the backend which context field to write so the Pro app's
-      // selection lands in lastActiveProTeamId, not the Team app's context.
-      // (axios also attaches X-App-Context; body value takes precedence.)
-      const appMode =
-        (typeof window !== "undefined" &&
-          (sessionStorage.getItem("vc_app_context") ||
-            sessionStorage.getItem("vc_forced_app_mode"))) ||
-        "team";
-      await api.post("/users/active-context", {
-        teamId: teamId || null,
-        appMode,
-      });
-    } catch {
-      /* ignore — selection still active for this session */
-    }
-  }, []);
+  const switchBilling = useCallback(
+    async (teamId: string | null) => {
+      // 0. Flush workspace data cache immediately so useFlows / useTeams drop
+      //    their stale arrays before the new fetch arrives — eliminates ghost-
+      //    renders of the previous team's content during the loading window.
+      flushWorkspaceCache();
+      // 1. Local state + storage + event (drives the scoped axios header).
+      setActive(teamId);
+      setAiBillingTeamId(teamId);
+      // 2. Tell credit displays to refetch with the new billing pool.
+      try {
+        window.dispatchEvent(new Event("aiCreditsChanged"));
+      } catch {
+        /* no-op */
+      }
+      // 3. Dispatch enriched workspace-switch event so AppContext can update
+      //    activeContext.type → enables isTeamContext, effectivePlan, Chat/Teams
+      //    unlock (§5 GAP-03: wire AiBillingContext → AppContext.activeContext).
+      try {
+        const matched = options.find((o) => o.teamId === teamId) ?? null;
+        window.dispatchEvent(
+          new CustomEvent("vc:workspace-switch", {
+            detail: {
+              teamId: teamId || null,
+              plan: matched?.plan || (teamId ? "team" : null),
+              teamName: matched?.label || null,
+              hasPro: matched?.hasPro || false,
+              ownerName: matched?.ownerName || null,
+            },
+          }),
+        );
+      } catch {
+        /* no-op */
+      }
+      // 4. Persist server-side (WebView-safe). Non-blocking — localStorage is
+      //    the fallback if this fails.
+      try {
+        // appMode tells the backend which context field to write so the Pro app's
+        // selection lands in lastActiveProTeamId, not the Team app's context.
+        // (axios also attaches X-App-Context; body value takes precedence.)
+        const appMode = (() => {
+          if (typeof window === "undefined") return "team";
+          if (
+            sessionStorage.getItem("vc_app_context") === "pro" ||
+            sessionStorage.getItem("vc_forced_app_mode") === "pro"
+          )
+            return "pro";
+          // Flutter Pro WebView has empty sessionStorage — UA is source of truth.
+          if (/ValueChartsMobile\/Pro-App/i.test(navigator.userAgent))
+            return "pro";
+          return "team";
+        })();
+        await api.post("/users/active-context", {
+          teamId: teamId || null,
+          appMode,
+        });
+      } catch {
+        /* ignore — selection still active for this session */
+      }
+    },
+    [options],
+  );
 
   // Cross-tab / cross-component sync of the selection.
   useEffect(() => {

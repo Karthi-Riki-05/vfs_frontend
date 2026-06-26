@@ -1,12 +1,12 @@
-import api from '@/lib/axios';
+import api from "@/lib/axios";
 
 export const chatApi = {
-  listGroups: () =>
-    api.get('/chat/groups'),
+  listGroups: (teamId?: string) =>
+    api.get("/chat/groups", { params: teamId ? { teamId } : undefined }),
 
   // Backend expects { title }, not { name }
   createGroup: (data: { title: string; memberIds: string[] }) =>
-    api.post('/chat/groups', data),
+    api.post("/chat/groups", data),
 
   getMessages: (groupId: string, params?: { page?: number; limit?: number }) =>
     api.get(`/chat/groups/${groupId}/messages`, { params }),

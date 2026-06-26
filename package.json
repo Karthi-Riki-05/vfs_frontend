@@ -47,6 +47,8 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@stripe/react-stripe-js": "^6.6.0",
+    "@stripe/stripe-js": "^9.8.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.12.12",
     "@types/react": "^18.3.3",
