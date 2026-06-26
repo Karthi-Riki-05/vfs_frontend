@@ -2,11 +2,7 @@
 
 import React, { Suspense, useState, useEffect } from "react";
 import { Button, Typography, message, Spin, Alert } from "antd";
-import {
-  CheckCircleFilled,
-  CrownOutlined,
-  ArrowLeftOutlined,
-} from "@ant-design/icons";
+import { CheckCircleFilled, CrownOutlined } from "@ant-design/icons";
 import { usePro } from "@/hooks/usePro";
 import { usePricing } from "@/hooks/usePricing";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -26,34 +22,6 @@ const FEATURES = [
 
 const STRIPE_PENDING_KEY = "vc_stripe_pending_pro";
 const PRO_REDIRECT_KEY = "vc_pro_purchase_redirect";
-
-function BackToDashboard({
-  router,
-  backUrl,
-}: {
-  router: ReturnType<typeof useRouter>;
-  backUrl: string;
-}) {
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <Button
-        type="text"
-        icon={<ArrowLeftOutlined />}
-        onClick={() => router.push(backUrl)}
-        style={{
-          color: "#8C8C8C",
-          paddingLeft: 0,
-          fontSize: 14,
-          minHeight: 44,
-          display: "inline-flex",
-          alignItems: "center",
-        }}
-      >
-        Back to Dashboard
-      </Button>
-    </div>
-  );
-}
 
 function UpgradeProContent() {
   const { hasPro, proPurchasedAt, purchasePro, loading: proLoading } = usePro();
@@ -174,7 +142,6 @@ function UpgradeProContent() {
   if (hasProLifetime && !wasCancelled && !returnedFromStripe) {
     return (
       <div style={{ maxWidth: 500, margin: "80px auto", textAlign: "center" }}>
-        <BackToDashboard router={router} backUrl={backUrl} />
         <CrownOutlined style={{ fontSize: 48, color: "#F59E0B" }} />
         <Title level={3} style={{ marginTop: 16 }}>
           You already have Pro!
@@ -206,8 +173,6 @@ function UpgradeProContent() {
         textAlign: "center",
       }}
     >
-      <BackToDashboard router={router} backUrl={backUrl} />
-
       {wasCancelled && (
         <Alert
           message="Payment cancelled"
@@ -322,15 +287,6 @@ function UpgradeProContent() {
           }}
         >
           Purchase Pro{proMonthly ? ` — ${proMonthly.display} lifetime` : ""}
-        </Button>
-
-        <Button
-          block
-          size="large"
-          onClick={() => router.push(backUrl)}
-          style={{ marginTop: 12, height: 44 }}
-        >
-          Back to Dashboard
         </Button>
       </div>
     </div>

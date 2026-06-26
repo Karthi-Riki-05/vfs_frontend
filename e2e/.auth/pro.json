@@ -2,8 +2,8 @@
   "cookies": [
     {
       "name": "next-auth.csrf-token",
-      "value": "3c428e56efaa0c3e7d5ea184043db29cde63ff3066b195d5bbb744648ed03c0c%7C41e696697c02112c9fc7bad7fe8ed3bc809f9073ba28bbf956ddc286209af860",
-      "domain": "localhost",
+      "value": "c033cdbe4b09a81905f1bec640eb95101571912275e515c0103386ba0b751913%7C6a36410bc0f13634e6132f83d45a7bd738f878052ae078a6628e6147b477cca7",
+      "domain": "192.168.0.101",
       "path": "/",
       "expires": -1,
       "httpOnly": true,
@@ -12,8 +12,8 @@
     },
     {
       "name": "next-auth.callback-url",
-      "value": "http%3A%2F%2Flocalhost%3A3002",
-      "domain": "localhost",
+      "value": "http%3A%2F%2F192.168.0.101%3A3002",
+      "domain": "192.168.0.101",
       "path": "/",
       "expires": -1,
       "httpOnly": true,
@@ -22,10 +22,10 @@
     },
     {
       "name": "next-auth.session-token",
-      "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..uL8u6wqcATjxXlQ4.3AYFvuiPp6m-uUdU3LvmPk27puBiDw7M59nTekF9Pyxa740K5e1NgfRoJS1sWZrQLHeiDlLP54K7kAPBnWvKi3LYtOD0M4l2UuUbOgdDnrRZQ-zMmtHl-Yy0YO-bX2Kfu0unfyheH6gqqxCtsunFL058mOiZVsbTwbqJ2Pozh2-YAFggEFQGfXzDhL9G5puFG0Mvf3EnHDC1k0rkGxuXD59wV8XsSf28SEDY_Z53uXipcxv-_LMt9xkgstZbLMGUlMs4yzzPGEtjcQLGaYxhBeOAl36iHrMjZ3umt5XEe-we87z4Lx6qlGybQeGJcQ5aMPoMLnFM0l9ui37xQqzSYg3p3a-9_9T8T_Abg3CyuxFvuybx.IdiaCFl0F_8giXehQpNndw",
-      "domain": "localhost",
+      "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..t3csL85fJNSA3rwx.ZGKy8pjWmWHbnkYPx9CNpQhA08CrHzWGdboq7ANYmiWzwnkOUfaIr-GhLrusEMshA-cI1a6R8SgQBTSOB_ouWs8OqQTd3Rp0Tr7nC8EiJhydgw28MWru_TJJlwEthVdofSxPmfXvnxVS5O5LExazK5cuCKHNKHF1iMpPcXn6k4lKN43eW4rbGbE2JhsmdMPdgTsUO-nkGx9cBVBPwVJxRwYJXJZidRjVRVJoPz1Dy5afuEfb7mtYBGL13VJ_CsjPvXzv1q-MiPOlwO4m4QZQ8Bx5q9NPEerERu0sMHf-E7Y76oxkXy7nggc29RI8joJ9KsUTAsvkN4GYc2XQM9SvrHCmNSwwS43qcOuiwuPvMj6c_pzJ.q8gNKi8rhNvtGhMFnB1A7A",
+      "domain": "192.168.0.101",
       "path": "/",
-      "expires": 1784993781,
+      "expires": 1785084255,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"

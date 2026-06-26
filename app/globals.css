@@ -2,9 +2,6 @@
    intentionally NOT imported so Ant Design's own resets stay intact. */
 @layer theme, base, components, utilities;
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
-
 /* Tailwind v4 — theme + utilities only (no preflight). */
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
@@ -527,6 +524,42 @@ img {
     min-height: 44px !important;
     padding: 0 !important;
   }
+}
+
+/* ---- Typography — mobile/tablet minimum sizes (max-width: 1023px) ----
+   Raises P1 too-small text to 12px floor on mobile + tablet only.
+   Desktop (≥1024px) is completely untouched.
+   :not(.anticon) excludes AntD SVG icon spans — their fontSize controls
+   glyph size, not text, so we must not enlarge them here.
+*/
+@media (max-width: 1023px) {
+  /* Tailwind arbitrary-size classes */
+  .text-\[10px\] {
+    font-size: 12px !important;
+  }
+  .text-\[9px\] {
+    font-size: 12px !important;
+  }
+
+  /* Inline React styles: fontSize:9 / fontSize:10 (teams labels, section headers) */
+  [style*="font-size: 9px"]:not(.anticon) {
+    font-size: 12px !important;
+  }
+  [style*="font-size: 10px"]:not(.anticon) {
+    font-size: 12px !important;
+  }
+}
+
+/* ---- Section overline utility ----
+   11px bold uppercase label pattern used in multiple pages.
+   Not retroactively applied — define here for future usage.
+*/
+.section-overline {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted-foreground);
 }
 
 /* ==================== SAFE AREA INSETS (iOS notch / Android chin) ====================

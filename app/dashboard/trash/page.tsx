@@ -152,7 +152,7 @@ export default function TrashPage() {
           {flows.length > 0 && (
             <button
               onClick={handleEmptyTrash}
-              className="h-9 px-4 rounded-xl bg-[#FDE7E0] text-[#F85729] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 border-0 appearance-none cursor-pointer"
+              className="h-9 max-lg:h-11 px-4 rounded-xl bg-[#FDE7E0] text-[#F85729] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 border-0 appearance-none cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" /> Empty Trash
             </button>
@@ -219,14 +219,14 @@ export default function TrashPage() {
                   <button
                     onClick={() => handleRestore(flow.id)}
                     title="Restore"
-                    className="h-9 px-3 rounded-xl bg-secondary text-[#1F7D5E] text-xs font-bold inline-flex items-center gap-1 border-0 appearance-none cursor-pointer"
+                    className="h-9 max-lg:h-11 px-3 rounded-xl bg-secondary text-[#1F7D5E] text-xs font-bold inline-flex items-center gap-1 border-0 appearance-none cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" /> Restore
                   </button>
                   <button
                     onClick={() => handlePermanentDelete(flow.id)}
                     title="Delete permanently"
-                    className="w-9 h-9 rounded-xl bg-[#fef2f2] text-[#F85729] inline-flex items-center justify-center border-0 appearance-none cursor-pointer"
+                    className="w-9 h-9 max-lg:w-11 max-lg:h-11 rounded-xl bg-[#fef2f2] text-[#F85729] inline-flex items-center justify-center border-0 appearance-none cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

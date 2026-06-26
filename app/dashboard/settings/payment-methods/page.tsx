@@ -390,19 +390,11 @@ export default function PaymentMethodsPage() {
   return (
     <div className="max-w-lg mx-auto py-8 px-4">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => router.back()}
-          className={`${RESET} flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card`}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <div>
-          <h1 className="text-lg font-bold text-foreground">Payment Methods</h1>
-          <p className="text-xs text-muted-foreground">
-            Manage your saved cards for subscriptions and purchases
-          </p>
-        </div>
+      <div className="mb-6">
+        <h1 className="text-lg font-bold text-foreground">Payment Methods</h1>
+        <p className="text-xs text-muted-foreground">
+          Manage your saved cards for subscriptions and purchases
+        </p>
       </div>
 
       {loading ? (

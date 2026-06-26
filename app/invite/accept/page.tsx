@@ -137,6 +137,17 @@ function AcceptInvitationContent() {
           icon={<ClockCircleOutlined style={{ color: "#faad14" }} />}
           title="Invitation Expired"
           subTitle="This invitation has expired. Please ask the team admin to send a new one."
+          extra={
+            <Button
+              type="primary"
+              onClick={() => {
+                window.location.href = "/login";
+              }}
+              style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
+            >
+              Go to Sign In
+            </Button>
+          }
         />
       </div>
     );
@@ -188,6 +199,17 @@ function AcceptInvitationContent() {
           subTitle={
             errorMessage ||
             "This invitation link is invalid or has been revoked."
+          }
+          extra={
+            <Button
+              type="primary"
+              onClick={() => {
+                window.location.href = "/login";
+              }}
+              style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
+            >
+              Go to Sign In
+            </Button>
           }
         />
       </div>

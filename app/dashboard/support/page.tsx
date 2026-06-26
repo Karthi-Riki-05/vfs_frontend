@@ -27,36 +27,42 @@ const helpCards = [
     title: "Getting Started",
     description:
       "Learn the basics of creating your first value chart and navigating the dashboard.",
+    href: "mailto:support@valuecharts.com?subject=Help%3A%20Getting%20Started",
   },
   {
     icon: <PartitionOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
     title: "Flow Editor",
     description:
       "Master the flow editor with tips on connections, layouts, and keyboard shortcuts.",
+    href: "/dashboard/flows",
   },
   {
     icon: <AppstoreOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
     title: "Shapes Library",
     description:
       "Explore built-in shapes, upload custom shapes, and manage your shape collections.",
+    href: "/dashboard/shapes",
   },
   {
     icon: <TeamOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
     title: "Team Collaboration",
     description:
       "Invite team members, manage roles, and collaborate on shared flows in real-time.",
+    href: "/dashboard/teams",
   },
   {
     icon: <CreditCardOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
     title: "Billing & Plans",
     description:
       "Understand pricing tiers, manage your subscription, and view billing history.",
+    href: "/dashboard/subscription",
   },
   {
     icon: <ApiOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
     title: "API & Integrations",
     description:
       "Connect with external tools, use our REST API, and set up webhooks.",
+    href: "mailto:support@valuecharts.com?subject=Help%3A%20API%20%26%20Integrations",
   },
 ];
 
@@ -165,27 +171,29 @@ export default function SupportPage() {
       <Row gutter={[20, 20]} style={{ marginBottom: 40 }}>
         {helpCards.map((card, idx) => (
           <Col xs={24} sm={12} md={8} key={idx}>
-            <div
+            <a
+              href={card.href}
               style={{
                 background: "#fff",
                 borderRadius: 12,
                 border: "1px solid #F0F0F0",
                 padding: "24px",
-                cursor: "pointer",
                 transition: "box-shadow 0.2s, transform 0.2s",
                 height: "100%",
                 display: "flex",
                 flexDirection: "column",
+                textDecoration: "none",
+                color: "inherit",
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLDivElement).style.boxShadow =
+                (e.currentTarget as HTMLAnchorElement).style.boxShadow =
                   "0 8px 24px rgba(0,0,0,0.08)";
-                (e.currentTarget as HTMLDivElement).style.transform =
+                (e.currentTarget as HTMLAnchorElement).style.transform =
                   "translateY(-2px)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
-                (e.currentTarget as HTMLDivElement).style.transform = "none";
+                (e.currentTarget as HTMLAnchorElement).style.boxShadow = "none";
+                (e.currentTarget as HTMLAnchorElement).style.transform = "none";
               }}
             >
               <div style={{ marginBottom: 16 }}>{card.icon}</div>
@@ -212,7 +220,7 @@ export default function SupportPage() {
               >
                 {card.description}
               </Text>
-            </div>
+            </a>
           </Col>
         ))}
       </Row>
@@ -280,9 +288,12 @@ export default function SupportPage() {
                 >
                   Email Support
                 </Text>
-                <Text type="secondary" style={{ fontSize: 13 }}>
+                <a
+                  href="mailto:support@valuecharts.com"
+                  style={{ fontSize: 13, color: "#3CB371" }}
+                >
                   support@valuecharts.com
-                </Text>
+                </a>
               </div>
             </div>
           </Col>

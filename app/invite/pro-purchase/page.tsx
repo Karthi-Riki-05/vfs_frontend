@@ -127,6 +127,14 @@ function ProPurchaseContent() {
           >
             Sign in
           </Button>
+          <div style={{ textAlign: "center", marginTop: 12 }}>
+            <a
+              href="/login"
+              style={{ fontSize: 13, color: "#999", textDecoration: "none" }}
+            >
+              ← Back to Sign In
+            </a>
+          </div>
         </Card>
       </div>
     );
@@ -254,6 +262,14 @@ function ProPurchaseContent() {
             After payment you'll be redirected back and added to the team
             automatically.
           </Paragraph>
+          <div style={{ textAlign: "center", marginTop: 12 }}>
+            <a
+              href="/dashboard"
+              style={{ fontSize: 13, color: "#999", textDecoration: "none" }}
+            >
+              ← Back to Dashboard
+            </a>
+          </div>
         </div>
       </Card>
     </div>

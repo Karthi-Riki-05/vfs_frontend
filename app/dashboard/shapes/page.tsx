@@ -208,7 +208,7 @@ function CreateGroupOverlay({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="appearance-none border-0 bg-transparent cursor-pointer w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary"
+            className="appearance-none border-0 bg-transparent cursor-pointer w-8 h-8 max-lg:w-11 max-lg:h-11 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary"
           >
             <PlusIcon className="w-4 h-4 rotate-45" />
           </button>
@@ -612,7 +612,7 @@ function ShapesContent() {
                       setCreateGroupName("");
                       setShowCreateGroup(true);
                     }}
-                    className="appearance-none border-0 cursor-pointer h-9 px-3 rounded-xl bg-primary text-white font-semibold text-xs inline-flex items-center gap-1.5"
+                    className="appearance-none border-0 cursor-pointer h-9 max-lg:h-11 px-3 rounded-xl bg-primary text-white font-semibold text-xs inline-flex items-center gap-1.5"
                   >
                     <PlusIcon className="w-3.5 h-3.5" /> New Group
                   </button>
@@ -697,7 +697,7 @@ function ShapesContent() {
                             e.stopPropagation();
                             setOpenMenu(openMenu === key ? null : key);
                           }}
-                          className="appearance-none border-0 bg-transparent cursor-pointer w-9 h-9 rounded-lg hover:bg-secondary flex items-center justify-center"
+                          className="appearance-none border-0 bg-transparent cursor-pointer w-9 h-9 max-lg:w-11 max-lg:h-11 rounded-lg hover:bg-secondary flex items-center justify-center"
                         >
                           <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
                         </button>
@@ -755,7 +755,7 @@ function ShapesContent() {
                             e.stopPropagation();
                             setOpenMenu(openMenu === key ? null : key);
                           }}
-                          className="appearance-none border-0 bg-transparent cursor-pointer absolute right-1.5 top-1.5 w-8 h-8 rounded-lg hover:bg-secondary flex items-center justify-center"
+                          className="appearance-none border-0 bg-transparent cursor-pointer absolute right-1.5 top-1.5 w-8 h-8 max-lg:w-11 max-lg:h-11 rounded-lg hover:bg-secondary flex items-center justify-center"
                         >
                           <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
                         </button>
@@ -794,7 +794,7 @@ function ShapesContent() {
                 <button
                   type="button"
                   onClick={handleNewShapeInGroup}
-                  className="appearance-none border-0 cursor-pointer h-9 px-3 rounded-xl bg-primary text-white font-semibold text-xs inline-flex items-center gap-1.5"
+                  className="appearance-none border-0 cursor-pointer h-9 max-lg:h-11 px-3 rounded-xl bg-primary text-white font-semibold text-xs inline-flex items-center gap-1.5"
                 >
                   <PlusIcon className="w-3.5 h-3.5" /> New Shape
                 </button>

@@ -70,7 +70,6 @@ export default function NewFlowPage() {
   const [loading, setLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [form] = Form.useForm();
-  const router = useRouter();
   const isMobile = useIsMobile();
 
   const handleCreate = async () => {
@@ -203,7 +202,6 @@ export default function NewFlowPage() {
 
       <div style={{ textAlign: "right" }}>
         <Space>
-          <Button onClick={() => router.back()}>Cancel</Button>
           <Button
             type="primary"
             icon={<FileTextOutlined />}

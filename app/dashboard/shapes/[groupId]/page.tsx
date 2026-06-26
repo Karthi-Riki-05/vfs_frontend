@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Typography, Button, Row, Col, Spin, Empty, Card, message } from "antd";
-import { ArrowLeftOutlined } from "@ant-design/icons";
+import { Typography, Row, Col, Spin, Empty, Card, message } from "antd";
 import { shapesApi } from "@/api/shapes.api";
 import { shapeGroupsApi } from "@/api/shape-groups.api";
 import ShapeCard from "@/components/shapes/ShapeCard";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 
@@ -14,7 +13,6 @@ const { Title, Text } = Typography;
 
 export default function ShapeGroupDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const isMobile = useIsMobile();
   const { activeTeamId } = useAppContext();
   const groupId = params?.groupId as string;
@@ -62,26 +60,6 @@ export default function ShapeGroupDetailPage() {
         padding: isMobile ? "0 12px" : "0 16px",
       }}
     >
-      <Button
-        type="text"
-        shape={isMobile ? "circle" : "default"}
-        icon={<ArrowLeftOutlined />}
-        onClick={() => router.push("/dashboard/shapes")}
-        aria-label="Back to Shapes"
-        style={
-          isMobile
-            ? {
-                marginBottom: 16,
-                border: "1px solid #F0F0F0",
-                background: "#FFFFFF",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-              }
-            : { marginBottom: 16 }
-        }
-      >
-        {isMobile ? null : "Back to Shapes"}
-      </Button>
-
       <div style={{ marginBottom: 24 }}>
         <Title level={3} style={{ margin: 0 }}>
           {group?.name || "Shape Group"}

@@ -92,6 +92,7 @@ interface ProSubStatus {
 function CreditAddOns({ balance }: { balance?: number }) {
   const [buying, setBuying] = useState<string | null>(null);
   const { pricing } = usePricing();
+  const hasCredits = typeof balance === "number" && balance > 0;
 
   const handleBuy = async (packType: "starter" | "standard" | "proppack") => {
     setBuying(packType);
@@ -125,9 +126,13 @@ function CreditAddOns({ balance }: { balance?: number }) {
             </span>
           </div>
         </div>
-        {typeof balance === "number" && (
+        {hasCredits ? (
           <div className="inline-flex items-center gap-1.5 rounded-full bg-primary-tint px-3 py-1.5 text-[13px] font-bold text-primary-deep">
             <Zap className="w-3.5 h-3.5" /> {balance} credits
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-[13px] font-medium text-muted-foreground">
+            <Zap className="w-3.5 h-3.5" /> No credits yet
           </div>
         )}
       </div>
@@ -186,7 +191,7 @@ function ProSubscriptionContent() {
   const searchParams = useSearchParams();
   const { pricing } = usePricing();
   const { status: packStatus, refresh: refreshPackStatus } = usePackStatus();
-  const { activeOption } = useAiBilling();
+  const { activeOption, refresh: refreshAiBilling } = useAiBilling();
   const planCredits = activeOption.aiCredits?.planCredits || 0;
   const addonCredits = activeOption.aiCredits?.addonCredits || 0;
   const totalCredits = planCredits + addonCredits;
@@ -202,6 +207,28 @@ function ProSubscriptionContent() {
   const [proSelectedCardId, setProSelectedCardId] = useState<string | "new">(
     "new",
   );
+
+  // This component renders ONLY when currentApp === "pro" (DB-backed, set by
+  // switchApp → cannot be self-granted via URL). On a fresh tab / direct load
+  // of /dashboard/subscription, sessionStorage has no vc_app_context (or a
+  // stale "team"), so the axios interceptor sends X-App-Context: team — which
+  // bills AI-credit + flow-pack purchases to the TEAM pool and shows the team
+  // credit balance in the Pro UI. Pin the context to "pro" here so both the
+  // credit display and every purchase route to the pro pool, then refresh the
+  // billing context so the displayed balance reloads with the correct pool.
+  useEffect(() => {
+    try {
+      if (
+        typeof window !== "undefined" &&
+        sessionStorage.getItem("vc_app_context") !== "pro"
+      ) {
+        sessionStorage.setItem("vc_app_context", "pro");
+        refreshAiBilling();
+      }
+    } catch {
+      /* sessionStorage may be blocked in restricted WebViews */
+    }
+  }, [refreshAiBilling]);
 
   useEffect(() => {
     paymentsApi
@@ -234,10 +261,11 @@ function ProSubscriptionContent() {
             // Silent — webhook may have already activated it
           }
         }
-        message.success(`${label} subscription activated!`);
         fetchProSubStatus();
         refreshPackStatus();
-        router.replace("/dashboard/subscription");
+        router.replace(
+          `/subscription/success?plan=${encodeURIComponent(label)}&type=addon&app_context=pro`,
+        );
       };
       finishAddon();
       return;
@@ -254,10 +282,11 @@ function ProSubscriptionContent() {
           // Silent — webhook may have already credited
         }
       }
-      message.success(`${label} purchased successfully!`);
       await fetchProSubStatus();
       refreshPackStatus();
-      router.replace("/dashboard/subscription");
+      router.replace(
+        `/subscription/success?plan=${encodeURIComponent(label)}&type=purchase&app_context=pro`,
+      );
     };
     finish();
   }, [searchParams, router, refreshPackStatus]);
@@ -451,12 +480,10 @@ function ProSubscriptionContent() {
   ];
 
   return (
-    <div className="tw px-4 md:px-8 max-w-5xl mx-auto pb-24 space-y-4">
-      <div className="flex items-center gap-2 pt-1">
+    <div className="tw px-4 md:px-8 max-w-5xl mx-auto pt-6 pb-24 space-y-4">
+      <div className="flex items-center gap-2">
         <Crown className="w-5 h-5 text-primary-deep" />
-        <div className="text-xl md:text-2xl font-extrabold text-foreground">
-          Pro Plan
-        </div>
+        <h1 className="text-2xl font-extrabold text-foreground">Pro Plan</h1>
       </div>
 
       {/* Past-due warning */}
@@ -484,7 +511,7 @@ function ProSubscriptionContent() {
       {/* Current Plan card */}
       <div className="rounded-2xl bg-card border border-border p-5">
         <div className="font-bold text-base text-foreground">Current Plan</div>
-        <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mt-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mt-3">
           {stats.map(([k, v]) => (
             <div key={k}>
               <div className="text-[10px] font-bold tracking-wider text-muted-foreground">
@@ -504,7 +531,9 @@ function ProSubscriptionContent() {
         ) : (
           <div className="mt-4">
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>Usage</span>
+              <span>
+                {flows.used} of {flows.total} flows used
+              </span>
               <span className="font-semibold text-foreground">
                 {usagePercent}%
               </span>
@@ -515,6 +544,12 @@ function ProSubscriptionContent() {
                 style={{ width: `${Math.min(usagePercent, 100)}%` }}
               />
             </div>
+            {flows.remaining > 0 && (
+              <div className="text-[11px] text-muted-foreground mt-1">
+                {flows.remaining} flow{flows.remaining === 1 ? "" : "s"}{" "}
+                remaining
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -657,7 +692,9 @@ function ProSubscriptionContent() {
                 disabled={!!purchasing}
                 className={`${RESET} mt-5 w-full h-11 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
               >
-                {purchasing === "standard" ? "Loading…" : "$10/month"}
+                {purchasing === "standard"
+                  ? "Loading…"
+                  : "Subscribe — Standard"}
               </button>
             </div>
 
@@ -687,7 +724,7 @@ function ProSubscriptionContent() {
                 disabled={!!purchasing}
                 className={`${RESET} mt-4 w-full h-11 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
               >
-                {purchasing === "unlimited" ? "Loading…" : "$20/month"}
+                {purchasing === "unlimited" ? "Loading…" : "Get Unlimited"}
               </button>
             </div>
           </div>
@@ -820,12 +857,27 @@ function SubscriptionPageInner() {
   // Handle direct-charge success redirect (?subscribed=1)
   useEffect(() => {
     if (searchParams?.get("subscribed") === "1") {
-      message.success("Subscription activated successfully!");
       fetchCurrent();
       fetchStatus();
-      router.replace("/dashboard/subscription");
+      const plan = searchParams?.get("plan") ?? "Team Plan";
+      router.replace(
+        `/subscription/success?plan=${encodeURIComponent(plan)}&type=team&app_context=team`,
+      );
     }
   }, [searchParams, router, fetchCurrent, fetchStatus]);
+
+  // Re-fetch subscription status when the user returns from an external
+  // browser (e.g. after completing Stripe payment in Chrome on mobile).
+  // The Flutter shell dispatches this event only when the WebView URL
+  // contains /dashboard/subscription, so it never fires on other pages.
+  useEffect(() => {
+    const handler = () => {
+      fetchCurrent();
+      fetchStatus();
+    };
+    window.addEventListener("payment-return", handler);
+    return () => window.removeEventListener("payment-return", handler);
+  }, [fetchCurrent, fetchStatus]);
 
   const openCustomerPortal = async () => {
     setPortalLoading(true);
@@ -1116,11 +1168,11 @@ function SubscriptionPageInner() {
   };
 
   return (
-    <div className="tw px-4 md:px-8 max-w-5xl mx-auto pb-24 space-y-4">
-      <div className="pt-1">
-        <div className="text-[22px] font-bold text-foreground">
+    <div className="tw px-4 md:px-8 max-w-5xl mx-auto pt-6 pb-24 space-y-4">
+      <div>
+        <h1 className="text-2xl font-extrabold text-foreground">
           Plan &amp; Pricing
-        </div>
+        </h1>
         <div className="text-sm text-muted-foreground mt-0.5">
           Manage your team subscription and billing
         </div>

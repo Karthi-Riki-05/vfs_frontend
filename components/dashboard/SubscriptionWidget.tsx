@@ -155,7 +155,7 @@ export default function SubscriptionWidget() {
             letterSpacing: 1,
           }}
         >
-          SUBSCRIPTION
+          SUBSCRIPTION 
         </Text>
         <span
           style={{

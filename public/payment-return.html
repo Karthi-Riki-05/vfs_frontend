@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Payment successful</title>
+    <!--
+      Redirect runs in <head>, BEFORE the body paints. This is what stops the
+      website from ever flashing the "✅ Payment successful" screen: on a desktop
+      / mobile web browser we navigate straight to the real success page before
+      anything renders. Only the Flutter app (which needs the deep-link hop)
+      sees the body content while Android closes the Custom Tab.
+    -->
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+
+        // 'redirect' holds the destination path (/subscription/success, etc.).
+        // All other params (session_id, type, plan, credits…) are forwarded as-is.
+        var redirect = params.get("redirect") || "/subscription/success";
+        var forward = new URLSearchParams(params);
+        forward.delete("redirect");
+        var fallbackUrl =
+          redirect + (forward.toString() ? "?" + forward.toString() : "");
+
+        // ── Website (desktop or mobile web) ─────────────────────────────────
+        // No native shell. Navigate to the real success page immediately — runs
+        // before the body paints, so no intermediate HTML page is ever shown.
+        // The web session is already authenticated, so NextAuth won't bounce
+        // to login.
+        var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (!isMobile) {
+          window.location.replace(fallbackUrl);
+          return;
+        }
+
+        // ── Flutter app (mobile) ────────────────────────────────────────────
+        // Fire the valuecharts:// deep link. Android intercepts it, closes the
+        // Custom Tab, and brings the Flutter app to the foreground — the
+        // in-app WebView then loads the success page with its own session.
+        window.location.replace(
+          "valuecharts://payment-success?" + params.toString(),
+        );
+
+        // Fallback for mobile web (real browser, not the app): if the scheme
+        // wasn't handled, go to the real success page after a short grace period.
+        setTimeout(function () {
+          window.location.replace(fallbackUrl);
+        }, 2000);
+      })();
+    </script>
+    <style>
+      body {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        font-family: sans-serif;
+        background: #f0f9f4;
+      }
+      .box {
+        text-align: center;
+        padding: 32px;
+      }
+      .icon {
+        font-size: 56px;
+      }
+      h2 {
+        color: #3cb371;
+        margin: 16px 0 8px;
+      }
+      p {
+        color: #555;
+        margin: 0;
+        font-size: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Only shown in the Flutter app while Android closes the Custom Tab. -->
+    <div class="box">
+      <div class="icon">✅</div>
+      <h2>Payment successful!</h2>
+      <p>Returning you to the app…</p>
+    </div>
+  </body>
+</html>

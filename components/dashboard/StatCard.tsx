@@ -35,7 +35,7 @@ export default function StatCard({
         <Icon className="w-4 h-4" />
       </div>
       <div className="mt-3 text-2xl font-extrabold tracking-tight text-foreground">
-        {value}
+        {value} 
       </div>
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="text-[10px] font-semibold text-primary mt-1">{trend}</div>

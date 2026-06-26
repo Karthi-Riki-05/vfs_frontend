@@ -290,19 +290,7 @@ function ResetPasswordForm() {
             <button
               type="button"
               onClick={() => setShowPassword((p) => !p)}
-              style={{
-                position: "absolute",
-                right: 12,
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#9CA3AF",
-                padding: 0,
-                display: "flex",
-                alignItems: "center",
-              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center bg-transparent border-0 cursor-pointer text-[#9CA3AF] p-0 max-lg:right-0 max-lg:w-11 max-lg:h-11 max-lg:justify-center"
             >
               <svg
                 style={{ width: 16, height: 16 }}

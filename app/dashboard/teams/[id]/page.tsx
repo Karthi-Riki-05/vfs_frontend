@@ -315,27 +315,6 @@ export default function TeamDetailPage() {
               </button>
             )}
 
-            {/* Back button */}
-            <button
-              onClick={() => router.back()}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: "none",
-                border: "none",
-                color: "rgba(255,255,255,0.85)",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                marginBottom: 14,
-                padding: 0,
-                minHeight: 44,
-              }}
-            >
-              ← My Teams
-            </button>
-
             {/* Team info row */}
             <div
               style={{
@@ -762,27 +741,6 @@ export default function TeamDetailPage() {
                 ⚙️
               </button>
             )}
-
-            {/* Back button */}
-            <button
-              onClick={() => router.back()}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: "none",
-                border: "none",
-                color: "rgba(255,255,255,0.85)",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                marginBottom: 14,
-                padding: 0,
-                minHeight: 44,
-              }}
-            >
-              ← My Teams
-            </button>
 
             {/* Team info */}
             <div

@@ -14,6 +14,7 @@ import {
   Crown,
   ChevronRight,
   Sparkles,
+  Gift,
 } from "lucide-react";
 import StatCard from "@/components/dashboard/StatCard";
 import MiniFlow from "@/components/dashboard/MiniFlow";
@@ -86,6 +87,7 @@ export default function TeamDashboardPage() {
   const { activeTeamId } = useAppContext();
 
   const [subStatus, setSubStatus] = useState<string | null>(null);
+  const [subLoaded, setSubLoaded] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [aiCredits, setAiCredits] = useState<number | null>(null);
 
@@ -96,8 +98,13 @@ export default function TeamDashboardPage() {
         const d = res.data?.data || res.data;
         setSubStatus(d?.status ?? null);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setSubLoaded(true));
   }, []);
+
+  // Active team plan = a live (or cancelling-but-still-active) subscription.
+  // Free users have status null → show the Free Plan badge instead of Team.
+  const isTeamPlan = subStatus === "active" || subStatus === "cancelling";
 
   // Remaining AI credits — refresh on the `aiCreditsChanged` event.
   useEffect(() => {
@@ -244,13 +251,19 @@ export default function TeamDashboardPage() {
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1F7D5E] via-primary to-[#2A9272] p-5 text-white shadow-card">
           <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/10" />
           <div className="flex items-center gap-2">
-            <Crown className="w-4 h-4 text-[#FFD27A]" />
+            {isTeamPlan ? (
+              <Crown className="w-4 h-4 text-[#FFD27A]" />
+            ) : (
+              <Gift className="w-4 h-4 text-[#FFD27A]" />
+            )}
             <span className="text-[11px] font-bold tracking-wider uppercase">
-              Team Plan
+              {!subLoaded ? "—" : isTeamPlan ? "Team Plan" : "Free Plan"}
             </span>
           </div>
           <div className="mt-2 text-lg font-extrabold">
-            {loading ? "—" : (stats?.teamMembers ?? 0)} members
+            {isTeamPlan
+              ? `${loading ? "—" : (stats?.teamMembers ?? 0)} members`
+              : "No active subscription"}
           </div>
           {aiCredits != null && (
             <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-xs font-semibold">
@@ -259,14 +272,17 @@ export default function TeamDashboardPage() {
             </div>
           )}
           <div className="mt-2 text-xs text-white/85">
-            Manage your team plan and billing
+            {isTeamPlan
+              ? "Manage your team plan and billing"
+              : "Upgrade to a Team plan to collaborate"}
           </div>
           <button
             onClick={() => router.push("/dashboard/subscription")}
             className="bg-transparent border-0 p-0 appearance-none cursor-pointer mt-4 h-10 px-4 rounded-xl font-bold text-sm inline-flex items-center gap-2 text-[#1F7D5E]"
             style={{ background: "white" }}
           >
-            Manage Subscription <ChevronRight className="w-4 h-4" />
+            {isTeamPlan ? "Manage Subscription" : "View Plans"}{" "}
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 

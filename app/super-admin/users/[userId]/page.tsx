@@ -25,7 +25,6 @@ import {
   message,
 } from "antd";
 import {
-  ArrowLeftOutlined,
   EditOutlined,
   StopOutlined,
   UndoOutlined,
@@ -383,12 +382,6 @@ export default function UserDetailPage() {
         }}
       >
         <Space size="middle">
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => router.push("/super-admin/users")}
-          >
-            Users
-          </Button>
           <Avatar src={user.image || undefined} size={48}>
             {user.name?.[0] || user.email?.[0]}
           </Avatar>

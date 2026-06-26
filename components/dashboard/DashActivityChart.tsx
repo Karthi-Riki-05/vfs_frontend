@@ -149,7 +149,7 @@ export function DashActivityChart({
                   fontSize={10}
                   fill="#8C8C8C"
                 >
-                  {day.label}
+                  {day.label} 
                 </text>
               </g>
             );

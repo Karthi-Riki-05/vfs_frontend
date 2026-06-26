@@ -262,12 +262,12 @@ export default function FavouritesPage() {
                       <button
                         onClick={(e) => toggleFavourite(flow.id, e)}
                         title="Remove from favourites"
-                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
+                        className="absolute top-2 right-2 w-7 h-7 max-lg:w-11 max-lg:h-11 rounded-full bg-white/90 flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
                       >
                         <Heart className="w-3.5 h-3.5 text-[#F85729] fill-[#F85729]" />
                       </button>
                     </div>
-                    <div className="p-3 pr-9">
+                    <div className="p-3 pr-9 max-lg:pr-13">
                       <div className="font-semibold text-[13px] truncate">
                         {flow.name}
                       </div>
@@ -288,7 +288,7 @@ export default function FavouritesPage() {
                       type="button"
                       aria-label="More options"
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute bottom-2 right-2 w-7 h-7 rounded-lg bg-secondary flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
+                      className="absolute bottom-2 right-2 w-7 h-7 max-lg:w-11 max-lg:h-11 rounded-lg bg-secondary flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
                     >
                       <MoreHorizontal className="w-3.5 h-3.5" />
                     </button>

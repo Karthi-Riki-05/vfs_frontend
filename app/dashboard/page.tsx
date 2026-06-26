@@ -134,10 +134,12 @@ export default function DashboardPage() {
           </Button>
         </div>
       )}
-      {isProApp && (
+      {(isProApp || (!isProApp && subStatus !== "active")) && (
         <FlowUsageBar
-          proFlows={proFlows}
-          isUnlimited={isUnlimited}
+          proFlows={
+            isProApp ? proFlows : { used: stats?.totalFlows ?? 0, max: 50 }
+          }
+          isUnlimited={isProApp ? isUnlimited : false}
           onBuyMore={() => router.push("/dashboard/subscription")}
         />
       )}

@@ -107,6 +107,22 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
       } catch {}
       return;
     }
+    // Ensure vc_app_context is written to sessionStorage BEFORE the API calls
+    // so the axios interceptor attaches the correct X-App-Context header.
+    // Without this, a user navigating directly to /dashboard/pro (e.g. after
+    // login redirect or bookmark) gets no stored context → axios defaults to
+    // "team" → getMyContexts returns the team balance → pro dashboard shows
+    // team addon credits instead of pro credits.
+    try {
+      if (
+        typeof window !== "undefined" &&
+        !sessionStorage.getItem("vc_app_context")
+      ) {
+        if (window.location.pathname.startsWith("/dashboard/pro")) {
+          sessionStorage.setItem("vc_app_context", "pro");
+        }
+      }
+    } catch {}
     try {
       // Server copy of the selection wins over localStorage — it survives a
       // WebView kill where localStorage may have been cleared/blocked.

@@ -214,7 +214,7 @@ export default function ProjectsPage() {
                       <button
                         type="button"
                         aria-label="Project actions"
-                        className="w-9 h-9 rounded-lg hover:bg-secondary flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                        className="w-9 h-9 max-lg:w-11 max-lg:h-11 rounded-lg hover:bg-secondary flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
                       >
                         <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
                       </button>

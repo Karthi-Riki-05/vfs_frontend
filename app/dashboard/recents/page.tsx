@@ -448,7 +448,7 @@ export default function RecentsPage() {
                             <MiniFlow color={BRAND_GREEN} />
                           )}
                         </div>
-                        <div className="p-3 pr-9">
+                        <div className="p-3 pr-9 max-lg:pr-13">
                           <div className="font-semibold text-[13px] truncate text-foreground">
                             {flow.name}
                           </div>
@@ -464,7 +464,7 @@ export default function RecentsPage() {
                           e.stopPropagation();
                           setFlowMenu({ open: true, flow });
                         }}
-                        className="absolute bottom-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center bg-secondary border-0 p-0 appearance-none cursor-pointer"
+                        className="absolute bottom-2 right-2 w-7 h-7 max-lg:w-11 max-lg:h-11 rounded-lg flex items-center justify-center bg-secondary border-0 p-0 appearance-none cursor-pointer"
                       >
                         <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
                       </button>

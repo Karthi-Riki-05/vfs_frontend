@@ -1,8 +1,8 @@
 "use client";
-import { Button, Progress, Typography } from "antd";
-import { useIsMobile } from "@/hooks/useMediaQuery";
 
-const { Text } = Typography;
+import { Zap } from "lucide-react";
+
+const RESET = "appearance-none cursor-pointer outline-none border-0";
 
 interface FlowUsageBarProps {
   proFlows: any;
@@ -15,73 +15,60 @@ export function FlowUsageBar({
   isUnlimited,
   onBuyMore,
 }: FlowUsageBarProps) {
-  const isMobile = useIsMobile();
-
   if (!proFlows) return null;
+
   const isLimited = !isUnlimited && proFlows.max > 0;
   const percent = isLimited
-    ? Math.round((proFlows.used / proFlows.max) * 100)
+    ? Math.min(Math.round((proFlows.used / proFlows.max) * 100), 100)
     : 0;
   const isNearLimit = percent >= 80;
+  const isFull = percent >= 100;
 
   return (
-    <div
-      style={{
-        background: "#FAFAFA",
-        borderRadius: 12,
-        border: "1px solid #E8E8E8",
-        padding: isMobile ? "12px 16px" : "16px 20px",
-        marginBottom: isMobile ? 20 : 28,
-        display: "flex",
-        flexDirection: isMobile ? "column" : "row",
-        alignItems: isMobile ? "stretch" : "center",
-        gap: isMobile ? 12 : 16,
-      }}
-    >
-      <div style={{ flex: 1 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: 8,
-            flexWrap: "wrap",
-            gap: 4,
-          }}
-        >
-          <Text strong style={{ fontSize: 14 }}>
-            FLOW USAGE
-          </Text>
-          <Text type="secondary" style={{ fontSize: 13 }}>
+    <div className="tw">
+      <div className="rounded-2xl bg-card border border-border p-4 mb-5 shadow-[var(--shadow-card)]">
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-primary-deep" />
+            <span className="text-[11px] font-bold uppercase tracking-wide text-primary-deep">
+              Flow Usage
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground font-medium">
             {isUnlimited
-              ? `${proFlows.used} flows used (Unlimited)`
-              : `${proFlows.used} / ${proFlows.max} flows used`}
-          </Text>
+              ? `${proFlows.used} used · Unlimited`
+              : `${proFlows.used} / ${proFlows.max}`}
+          </span>
         </div>
+
+        {/* Progress bar */}
         {isLimited && (
-          <Progress
-            percent={percent}
-            showInfo={false}
-            strokeColor={isNearLimit ? "#FF4D4F" : "#3CB371"}
-            trailColor="#E8E8E8"
-            size="small"
-          />
+          <div className="w-full h-2 rounded-full bg-secondary overflow-hidden mb-3">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${percent}%`,
+                background: isFull
+                  ? "#F85729"
+                  : isNearLimit
+                    ? "#FF9A30"
+                    : "#34A881",
+              }}
+            />
+          </div>
+        )}
+
+        {/* Buy more */}
+        {!isUnlimited && (
+          <button
+            onClick={onBuyMore}
+            className={`${RESET} w-full h-9 rounded-xl bg-primary text-white text-sm font-semibold`}
+          >
+            Buy More Flows
+          </button>
         )}
       </div>
-      {!isUnlimited && (
-        <Button
-          type="primary"
-          onClick={onBuyMore}
-          block={isMobile}
-          style={{
-            backgroundColor: "#3CB371",
-            borderColor: "#3CB371",
-            borderRadius: 8,
-            fontWeight: 600,
-          }}
-        >
-          Buy More Flows
-        </Button>
-      )}
     </div>
   );
 }
