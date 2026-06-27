@@ -247,12 +247,16 @@ const Sidebar: React.FC<SidebarProps> = ({
   // native shell from the `ValueChartsMobile/*` User-Agent signature (with the
   // legacy `?app=`/vc_device_mode flag folded in as a backward-compat fallback,
   // covering restricted WebViews where sessionStorage is blocked).
-  // Visibility: desktop web ONLY — also hidden on mobile/tablet viewports since
-  // the switcher is a desktop-only affordance per spec.
+  // Visibility: ANY web browser — desktop AND mobile web. The Team|Pro
+  // directory switcher must stay reachable on small screens for mobile-web
+  // users (they are NOT in the native app). It is hidden ONLY inside the native
+  // mobile app shell (locked to a single variant) and when the rail is
+  // collapsed. On mobile web the sidebar renders as a drawer (isMobileDrawer),
+  // so railCollapsed is false and the switcher shows there too.
   const isMobileAppShell = isMobileApp;
-  const isDesktopWeb = isWeb && !isMobileAppShell && !isMobile && !isTablet;
+  const isWebBrowser = isWeb && !isMobileAppShell;
   const proTeamSwitcher =
-    !railCollapsed && isDesktopWeb ? (
+    !railCollapsed && isWebBrowser ? (
       <div data-testid="app-switcher" className="px-3 pt-3 pb-1">
         <div
           className="flex items-center gap-1 p-1 rounded-2xl bg-secondary/70 border border-border"

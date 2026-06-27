@@ -148,12 +148,13 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
   // shell from the `ValueChartsMobile/*` User-Agent signature (with the legacy
   // `?app=`/vc_device_mode flag folded in as a backward-compat fallback,
   // covering restricted WebViews where sessionStorage is blocked).
-  // Visibility: desktop web ONLY — also hidden on mobile/tablet viewports since
-  // the switcher is a desktop-only affordance per spec.
+  // Visibility: ANY web browser — desktop AND mobile web. Mobile-web users must
+  // be able to switch directories from the Pro app back to Team. Hidden ONLY
+  // inside the native mobile app shell and when the rail is collapsed.
   const isMobileAppShell = isMobileApp;
-  const isDesktopWeb = isWeb && !isMobileAppShell && !isMobile && !isTablet;
+  const isWebBrowser = isWeb && !isMobileAppShell;
   const proTeamSwitcher =
-    !railCollapsed && isDesktopWeb ? (
+    !railCollapsed && isWebBrowser ? (
       <div data-testid="app-switcher" className="px-3 pt-3 pb-1">
         <div
           className="flex items-center gap-1 p-1 rounded-2xl bg-secondary/70 border border-border"

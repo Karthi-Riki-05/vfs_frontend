@@ -3,35 +3,38 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getFlowById } from "@/lib/flow";
 import {
-  Spin,
-  Input,
-  Button,
-  message,
-  Tag,
-  Drawer,
-  Modal,
-  Space,
-  Upload,
-  Tooltip,
-} from "antd";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
-  ArrowLeftOutlined,
-  LockOutlined,
-  EditOutlined,
-  CheckCircleFilled,
-  LoadingOutlined,
-  HistoryOutlined,
-  SaveOutlined,
-  CheckCircleOutlined,
-  CloudOutlined,
-  DownloadOutlined,
-  ShareAltOutlined,
-  CopyOutlined,
-  ImportOutlined,
-  InboxOutlined,
-  EyeOutlined,
-  CloseOutlined,
-} from "@ant-design/icons";
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { toast } from "sonner";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ArrowLeft,
+  Lock,
+  Pencil,
+  CheckCircle,
+  Loader2,
+  History,
+  Save,
+  Cloud,
+  Download,
+  Copy,
+  Upload,
+  Eye,
+  X,
+} from "lucide-react";
 import TemplateBrowser from "@/components/templates/TemplateBrowser";
 import CustomShapesPanel, {
   type EditorShape,
@@ -359,7 +362,7 @@ export default function EditorView({
       const data = await res.json();
       if (data.success) setVersions(data.data || []);
     } catch (err) {
-      message.error("Failed to load version history");
+      toast.error("Failed to load version history");
     } finally {
       setVersionsLoading(false);
     }
@@ -380,13 +383,13 @@ export default function EditorView({
       );
       const data = await res.json();
       if (data.success) {
-        message.success("Restored! Reloading editor...");
+        toast.success("Restored! Reloading editor...");
         setTimeout(() => window.location.reload(), 1000);
       } else {
-        message.error("Restore failed");
+        toast.error("Restore failed");
       }
     } catch (err) {
-      message.error("Restore failed");
+      toast.error("Restore failed");
     } finally {
       setRestoring(false);
     }
@@ -476,7 +479,7 @@ export default function EditorView({
         // in over-ride.js fires this when the Share sidebar icon is clicked).
         if (msg.action === "openShare") {
           if (permRef.current === "view" || isViewMode) {
-            message.warning("You cannot share a flow you don't own");
+            toast.warning("You cannot share a flow you don't own");
             return;
           }
           setFlowShareModalOpen(true);
@@ -493,7 +496,7 @@ export default function EditorView({
           msg.action === "removeAssociation"
         ) {
           if (permRef.current === "view" || isViewMode) {
-            message.warning("This flow is view-only");
+            toast.warning("This flow is view-only");
             return;
           }
           const ref: ShapeRef = {
@@ -531,9 +534,7 @@ export default function EditorView({
             } catch {}
           }
           if (!assoc) {
-            message.warning(
-              "This shape is not associated with a team or group",
-            );
+            toast.warning("This shape is not associated with a team or group");
             return;
           }
           if (msg.action === "editTeam") {
@@ -604,13 +605,8 @@ export default function EditorView({
             return;
           }
 
-          Modal.confirm({
+          const confirmed = await confirmDialog({
             title: `Delete ${affected.length} associated shape${affected.length === 1 ? "" : "s"}?`,
-            width: 460,
-            centered: true,
-            okText: "Delete",
-            okButtonProps: { danger: true },
-            cancelText: "Cancel",
             content: (
               <div>
                 <p style={{ marginBottom: 8 }}>
@@ -632,7 +628,9 @@ export default function EditorView({
                 </ul>
               </div>
             ),
-            onOk: async () => {
+            confirmLabel: "Delete",
+            danger: true,
+            onConfirm: async () => {
               try {
                 await fetch("/api/shapes/bulk-delete", {
                   method: "DELETE",
@@ -642,12 +640,11 @@ export default function EditorView({
                   }),
                 });
               } catch {
-                // Best-effort — the canvas delete still proceeds
+                // Best-effort — canvas delete still proceeds
               }
-              approve(true);
             },
-            onCancel: () => approve(false),
           });
+          approve(confirmed);
           return;
         }
 
@@ -674,7 +671,7 @@ export default function EditorView({
         // 0e. Iframe → parent: show our Ant Design "Import" modal.
         if (msg.event === "showImportDialog") {
           if (permRef.current === "view" || isViewMode) {
-            message.warning("This flow is view-only");
+            toast.warning("This flow is view-only");
             return;
           }
           importFileRef.current = null;
@@ -754,7 +751,7 @@ export default function EditorView({
         // 2. SAVE BUTTON CLICKED IN DRAW.IO
         if (msg.event === "save") {
           if (permRef.current === "view") {
-            message.warning("You have view-only access to this flow");
+            toast.warning("You have view-only access to this flow");
             return;
           }
           if (autosaveTimerRef.current) {
@@ -892,14 +889,14 @@ export default function EditorView({
             } else {
               setSaveStatus("idle");
               const errData = await response.json().catch(() => ({}));
-              message.error(
+              toast.error(
                 errData?.error?.message ||
                   "Save failed — you may have view-only access",
               );
             }
           } catch (err) {
             setSaveStatus("idle");
-            message.error("Save failed!");
+            toast.error("Save failed!");
           }
         }
 
@@ -1023,7 +1020,7 @@ export default function EditorView({
 
   const handleCustomShapeInsert = (shape: EditorShape) => {
     if (!iframeRef.current?.contentWindow) {
-      message.error("Editor not ready");
+      toast.error("Editor not ready");
       return;
     }
     const xml = buildShapeXml(shape);
@@ -1031,7 +1028,7 @@ export default function EditorView({
       JSON.stringify({ action: "mergeAiXml", xml }),
       "*",
     );
-    message.success(`"${shape.name}" inserted`);
+    toast.success(`"${shape.name}" inserted`);
   };
 
   const handleImportFile = async (file: File): Promise<void> => {
@@ -1150,11 +1147,10 @@ export default function EditorView({
           "*",
         );
       } catch {}
-      message.info({
-        content:
-          'Use "Save as PDF" in the print dialog that opened in the editor.',
-        duration: 5,
-      });
+      toast.info(
+        'Use "Save as PDF" in the print dialog that opened in the editor.',
+        { duration: 5000 },
+      );
       return;
     }
     isInternalSaveRef.current = false;
@@ -1204,7 +1200,7 @@ export default function EditorView({
     return looksEmpty && nameIsDefault;
   };
 
-  const handleExit = () => {
+  const handleExit = async () => {
     // Read-only viewers and shared-edit users can't delete the flow —
     // never prompt them with Discard.
     if (isReadOnly || isSharedEdit || !isUntouchedFlow()) {
@@ -1212,42 +1208,32 @@ export default function EditorView({
       return;
     }
 
-    Modal.confirm({
+    const timerClear = () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+
+    const shouldDiscard = await confirmDialog({
       title: "Save this flow?",
       content:
         "This flow is empty and still named 'Untitled'. Save it to your flows or discard it permanently?",
-      okText: "Save",
-      cancelText: "Discard",
-      centered: true,
-      width: 440,
-      okButtonProps: {
-        style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
-      },
-      cancelButtonProps: { danger: true },
-      onOk: () => {
-        // Cancel any pending autosave and close — backend already has the
-        // most recent state (or nothing, which is fine for an empty flow).
-        if (autosaveTimerRef.current) {
-          clearTimeout(autosaveTimerRef.current);
-          autosaveTimerRef.current = null;
-        }
-        closeEditor();
-      },
-      onCancel: async () => {
-        // Discard → permanently delete the flow.
-        if (autosaveTimerRef.current) {
-          clearTimeout(autosaveTimerRef.current);
-          autosaveTimerRef.current = null;
-        }
-        try {
-          await fetch(`/api/flows/${flowId}`, { method: "DELETE" });
-        } catch {
-          // Non-fatal — closing anyway. The flow is empty so leftover
-          // is harmless and will be cleared by the next sweep.
-        }
-        closeEditor();
-      },
+      confirmLabel: "Discard",
+      cancelLabel: "Save",
+      danger: true,
     });
+
+    timerClear();
+    if (shouldDiscard) {
+      // Discard → permanently delete the flow.
+      try {
+        await fetch(`/api/flows/${flowId}`, { method: "DELETE" });
+      } catch {
+        // Non-fatal — closing anyway.
+      }
+    }
+    closeEditor();
   };
 
   if (!isMounted) return null;
@@ -1282,127 +1268,77 @@ export default function EditorView({
       >
         {/* Permission banner */}
         {isReadOnly && (
-          <div
-            style={{
-              height: 36,
-              background: "#FFF7E6",
-              borderBottom: "1px solid #FFD591",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              fontSize: 13,
-              color: "#AD6800",
-            }}
-          >
-            <LockOutlined /> View only — You can view this flow but cannot edit
-            it
+          <div className="h-9 bg-[#FFF7E6] border-b border-[#FFD591] flex items-center justify-center gap-2 text-[13px] text-[#AD6800]">
+            <Lock className="w-3.5 h-3.5" /> View only — You can view this flow
+            but cannot edit it
           </div>
         )}
         {isSharedEdit && (
-          <div
-            style={{
-              height: 36,
-              background: "#F6FFED",
-              borderBottom: "1px solid #B7EB8F",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              fontSize: 13,
-              color: "#389E0D",
-            }}
-          >
-            <EditOutlined /> Shared flow — You have edit access
+          <div className="h-9 bg-[#F6FFED] border-b border-[#B7EB8F] flex items-center justify-center gap-2 text-[13px] text-[#389E0D]">
+            <Pencil className="w-3.5 h-3.5" /> Shared flow — You have edit
+            access
           </div>
         )}
 
         {/* TOP BAR FOR NAME EDITING */}
         <div
-          style={{
-            minHeight: 50,
-            background: "#f3f3f3",
-            display: "flex",
-            alignItems: "center",
-            padding: isMobile ? "0 8px" : "0 15px",
-            borderBottom: "1px solid #ddd",
-            gap: isMobile ? 6 : 12,
-            flexWrap: "nowrap",
-            overflow: "hidden",
-          }}
+          className={`tw flex items-center border-b border-border bg-card overflow-hidden flex-nowrap ${isMobile ? "h-12 gap-1.5 px-2" : "h-14 gap-3 px-4"}`}
         >
-          <Button
-            icon={<ArrowLeftOutlined />}
+          <button
             onClick={handleExit}
-            type="text"
-          />
-
-          <Tooltip
-            title={flowName || undefined}
-            placement="bottom"
-            trigger={["hover", "focus"]}
-            mouseEnterDelay={0.3}
+            aria-label="Back"
+            className="appearance-none cursor-pointer outline-none w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center shrink-0 hover:bg-secondary transition"
           >
-            <Input
-              value={flowName}
-              onChange={(e) => setFlowName(e.target.value)}
-              style={{
-                flex: 1,
-                minWidth: 80,
-                maxWidth: isMobile ? "100%" : 300,
-                fontWeight: "bold",
-                fontSize: isMobile ? 13 : 14,
-              }}
-              variant="borderless"
-              placeholder="Diagram Name"
-              disabled={isReadOnly}
-            />
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                style={{
+                  flex: 1,
+                  minWidth: 80,
+                  maxWidth: isMobile ? "100%" : 300,
+                  display: "inline-flex",
+                }}
+              >
+                <input
+                  value={flowName}
+                  onChange={(e) => setFlowName(e.target.value)}
+                  placeholder="Diagram Name"
+                  disabled={isReadOnly}
+                  className="w-full bg-transparent border-0 outline-none font-semibold text-foreground text-sm placeholder:text-muted-foreground disabled:opacity-60"
+                />
+              </span>
+            </TooltipTrigger>
+            {flowName && (
+              <TooltipContent side="bottom" className="tw">
+                {flowName}
+              </TooltipContent>
+            )}
           </Tooltip>
 
           <div style={{ flex: 1 }} />
 
           {!isMobile && (saveStatus !== "idle" || lastSavedAt) && (
             <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 12,
-                color: saveStatus === "saved" ? "#3CB371" : "#888",
-                minWidth: 110,
-                justifyContent: "flex-end",
-              }}
+              className={`flex items-center gap-1.5 text-xs min-w-[110px] justify-end ${saveStatus === "saved" ? "text-primary" : "text-muted-foreground"}`}
             >
               {saveStatus === "saving" && (
                 <>
-                  <LoadingOutlined /> <span>Saving…</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Saving…</span>
                 </>
               )}
               {saveStatus === "saved" && lastSavedAt && (
                 <>
-                  <CheckCircleFilled style={{ color: "#3CB371" }} />
+                  <CheckCircle className="w-3.5 h-3.5 text-primary" />
                   <span>{formatSaveTime(lastSavedAt)}</span>
                 </>
               )}
               {saveStatus === "idle" && lastSavedAt && (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontSize: 12,
-                    color: "#888",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: "#52c41a",
-                      display: "inline-block",
-                    }}
-                  />
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />
                   {!isMobile && "Autosave on · "}
                   {formatSaveTime(lastSavedAt)}
                 </span>
@@ -1410,58 +1346,58 @@ export default function EditorView({
             </div>
           )}
 
-          {/* Templates moved to floating left-sidebar icon (Phase 2) */}
-          {/* Doc → Diagram moved to AI Chat paperclip (Phase 3) */}
-
           {isViewMode && (
-            <Tag
-              color="blue"
-              icon={<EyeOutlined />}
-              style={{ borderRadius: 10, fontSize: 11, margin: 0 }}
-            >
-              View Only
-            </Tag>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-[11px] font-semibold shrink-0">
+              <Eye className="w-3 h-3" /> View Only
+            </span>
           )}
 
           {!isViewMode && permission === "owner" && (
-            <Button
-              icon={<HistoryOutlined />}
+            <button
               onClick={() => {
                 setVersionsOpen(true);
                 loadVersions();
               }}
-              type="text"
-              style={{ fontSize: 13, color: "#555" }}
+              className="appearance-none cursor-pointer outline-none border-0 bg-transparent px-2 py-1.5 rounded-lg hover:bg-secondary text-sm text-foreground/60 flex items-center gap-1.5 shrink-0"
             >
+              <History className="w-4 h-4" />
               {!isMobile && "History"}
-            </Button>
+            </button>
           )}
 
           {!isViewMode && <AiCreditsDisplay compact={isMobile} />}
 
           {!isViewMode && !isReadOnly && (
-            <Button
-              icon={<SaveOutlined />}
+            <button
               onClick={() => {
-                createVersionRef.current = true; // manual save → version snapshot
+                createVersionRef.current = true;
                 triggerExport();
               }}
-              loading={saveStatus === "saving"}
-              type="primary"
-              style={{ background: "#3CB371", borderColor: "#3CB371" }}
+              disabled={saveStatus === "saving"}
+              className="appearance-none cursor-pointer outline-none border-0 h-9 px-3 rounded-lg bg-primary text-white font-bold text-sm flex items-center gap-1.5 disabled:opacity-60 shrink-0"
             >
+              {saveStatus === "saving" ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
               {!isMobile && "Save"}
-            </Button>
+            </button>
           )}
 
-          <Button
+          <button
             onClick={handleExit}
-            type="default"
-            icon={isMobile ? <CloseOutlined /> : undefined}
             title={isViewMode ? "Close" : "Exit"}
+            className="appearance-none cursor-pointer outline-none h-9 px-3 rounded-lg border border-border bg-card text-sm text-foreground/70 font-medium flex items-center gap-1.5 shrink-0 hover:bg-secondary"
           >
-            {!isMobile && (isViewMode ? "Close" : "Exit")}
-          </Button>
+            {isMobile ? (
+              <X className="w-4 h-4" />
+            ) : isViewMode ? (
+              "Close"
+            ) : (
+              "Exit"
+            )}
+          </button>
         </div>
 
         {/* IFRAME EDITOR — Templates icon is injected inside draw.io sidebar via injectEditorCustomisations */}
@@ -1475,7 +1411,10 @@ export default function EditorView({
                 transform: "translate(-50%, -50%)",
               }}
             >
-              <Spin size="large" tip="Loading Editor..." />
+              <div className="flex flex-col items-center gap-2 text-[#888] text-[13px]">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                Loading Editor…
+              </div>
             </div>
           )}
           <iframe
@@ -1528,7 +1467,7 @@ export default function EditorView({
                 }),
                 "*",
               );
-              message.success(`Template "${name}" inserted`);
+              toast.success(`Template "${name}" inserted`);
             }
             setTemplateBrowserOpen(false);
           }}
@@ -1603,19 +1542,15 @@ export default function EditorView({
         {/* Custom "Save As" modal — replaces draw.io's native save dialog.
           Triggered by App.prototype.saveFile(true) interception in
           over-ride.js → 'showSaveDialog' postMessage. */}
-        <Modal
+        <ModalShell
           open={saveModalOpen}
-          onCancel={() => setSaveModalOpen(false)}
-          title={
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <SaveOutlined style={{ color: "#3CB371" }} />
-              <span>Save Diagram</span>
-            </div>
-          }
-          footer={null}
-          width={440}
-          centered
+          onClose={() => setSaveModalOpen(false)}
+          size="md"
         >
+          <ModalHeader
+            title="Save Diagram"
+            close={() => setSaveModalOpen(false)}
+          />
           <div style={{ padding: "8px 0" }}>
             <div
               style={{
@@ -1631,7 +1566,7 @@ export default function EditorView({
                 gap: 6,
               }}
             >
-              <CheckCircleOutlined />
+              <CheckCircle className="w-4 h-4 shrink-0" />
               Your diagram is automatically saved to ValueCharts
             </div>
 
@@ -1647,16 +1582,19 @@ export default function EditorView({
               >
                 File name
               </label>
-              <Input
-                value={saveFileName}
-                onChange={(e) => setSaveFileName(e.target.value)}
-                placeholder="valuechart-flow"
-                suffix={
-                  <span style={{ color: "#999", fontSize: 11 }}>
-                    {saveTarget === "device" ? ".html" : ""}
+              <div className="relative flex items-center">
+                <input
+                  value={saveFileName}
+                  onChange={(e) => setSaveFileName(e.target.value)}
+                  placeholder="valuechart-flow"
+                  className="w-full h-9 px-3 border border-[#d9d9d9] rounded-lg text-sm outline-none focus:border-primary pr-10"
+                />
+                {saveTarget === "device" && (
+                  <span className="absolute right-3 text-[11px] text-[#999]">
+                    .html
                   </span>
-                }
-              />
+                )}
+              </div>
             </div>
 
             <div style={{ marginBottom: 20 }}>
@@ -1692,12 +1630,10 @@ export default function EditorView({
                     transition: "all 0.2s",
                   }}
                 >
-                  <CloudOutlined
+                  <Cloud
+                    className="w-5 h-5 mx-auto mb-1"
                     style={{
-                      fontSize: 20,
                       color: saveTarget === "cloud" ? "#3CB371" : "#999",
-                      display: "block",
-                      marginBottom: 4,
                     }}
                   />
                   <div
@@ -1728,12 +1664,10 @@ export default function EditorView({
                     transition: "all 0.2s",
                   }}
                 >
-                  <DownloadOutlined
+                  <Download
+                    className="w-5 h-5 mx-auto mb-1"
                     style={{
-                      fontSize: 20,
                       color: saveTarget === "device" ? "#3CB371" : "#999",
-                      display: "block",
-                      marginBottom: 4,
                     }}
                   />
                   <div
@@ -1759,11 +1693,16 @@ export default function EditorView({
                 justifyContent: "flex-end",
               }}
             >
-              <Button onClick={() => setSaveModalOpen(false)}>Cancel</Button>
-              <Button
-                type="primary"
-                loading={saveLoading}
-                style={{ background: "#3CB371", borderColor: "#3CB371" }}
+              <button
+                type="button"
+                onClick={() => setSaveModalOpen(false)}
+                className="appearance-none cursor-pointer outline-none h-10 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saveLoading}
                 onClick={async () => {
                   const cleanName =
                     (saveFileName || "").trim() || "valuechart-flow";
@@ -1782,7 +1721,7 @@ export default function EditorView({
                         type: "text/html;charset=utf-8",
                       });
                       downloadBlob(blob, `${cleanName}.html`);
-                      message.success("Downloaded!");
+                      toast.success("Downloaded!");
                     } else {
                       setFlowName(cleanName);
                       try {
@@ -1807,38 +1746,39 @@ export default function EditorView({
                         }),
                         "*",
                       );
-                      message.success("Saved to ValueCharts");
+                      toast.success("Saved to ValueCharts");
                     }
                     setSaveModalOpen(false);
                   } finally {
                     setSaveLoading(false);
                   }
                 }}
+                className="appearance-none cursor-pointer outline-none border-0 h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {saveTarget === "device" ? "Download" : "Done"}
-              </Button>
+                {saveLoading
+                  ? "…"
+                  : saveTarget === "device"
+                    ? "Download"
+                    : "Done"}
+              </button>
             </div>
           </div>
-        </Modal>
+        </ModalShell>
 
         {/* Custom Share modal — replaces draw.io's "Publish Link" /
           diagrams.net viewer URLs. Triggered by
           EditorUi.prototype.showPublishLinkDialog interception. */}
-        <Modal
+        <ModalShell
           open={shareModalOpen}
-          onCancel={() => setShareModalOpen(false)}
-          title={
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <ShareAltOutlined style={{ color: "#3CB371" }} />
-              <span>Share Diagram</span>
-            </div>
-          }
-          footer={null}
-          width={480}
-          centered
+          onClose={() => setShareModalOpen(false)}
+          size="lg"
         >
-          <div style={{ padding: "8px 0" }}>
-            <div style={{ marginBottom: 16 }}>
+          <ModalHeader
+            title="Share Diagram"
+            close={() => setShareModalOpen(false)}
+          />
+          <div className="tw px-5 pb-5 space-y-4">
+            <div>
               <label
                 style={{
                   display: "block",
@@ -1850,30 +1790,32 @@ export default function EditorView({
               >
                 Share link (view only)
               </label>
-              <Space.Compact style={{ width: "100%" }}>
-                <Input
+              <div style={{ display: "flex", gap: 0 }}>
+                <input
+                  readOnly
                   value={
                     typeof window !== "undefined"
                       ? `${window.location.origin}/dashboard/flows/${flowId}?view=true`
                       : ""
                   }
-                  readOnly
+                  className="appearance-none outline-none h-9 flex-1 px-3 text-sm border border-border rounded-l-lg bg-muted min-w-0"
                 />
-                <Button
-                  icon={<CopyOutlined />}
+                <button
+                  type="button"
                   onClick={() => {
                     navigator.clipboard.writeText(
                       `${window.location.origin}/dashboard/flows/${flowId}?view=true`,
                     );
-                    message.success("Link copied!");
+                    toast.success("Link copied!");
                   }}
+                  className="appearance-none cursor-pointer outline-none border-0 h-9 px-3 rounded-r-lg bg-muted border border-l-0 border-border flex items-center gap-1.5 text-sm font-medium hover:bg-accent"
                 >
-                  Copy
-                </Button>
-              </Space.Compact>
+                  <Copy className="w-3.5 h-3.5" /> Copy
+                </button>
+              </div>
             </div>
 
-            <div style={{ marginBottom: 16 }}>
+            <div>
               <label
                 style={{
                   display: "block",
@@ -1885,27 +1827,29 @@ export default function EditorView({
               >
                 Edit link (requires login)
               </label>
-              <Space.Compact style={{ width: "100%" }}>
-                <Input
+              <div style={{ display: "flex", gap: 0 }}>
+                <input
+                  readOnly
                   value={
                     typeof window !== "undefined"
                       ? `${window.location.origin}/dashboard/flows/${flowId}`
                       : ""
                   }
-                  readOnly
+                  className="appearance-none outline-none h-9 flex-1 px-3 text-sm border border-border rounded-l-lg bg-muted min-w-0"
                 />
-                <Button
-                  icon={<CopyOutlined />}
+                <button
+                  type="button"
                   onClick={() => {
                     navigator.clipboard.writeText(
                       `${window.location.origin}/dashboard/flows/${flowId}`,
                     );
-                    message.success("Link copied!");
+                    toast.success("Link copied!");
                   }}
+                  className="appearance-none cursor-pointer outline-none border-0 h-9 px-3 rounded-r-lg bg-muted border border-l-0 border-border flex items-center gap-1.5 text-sm font-medium hover:bg-accent"
                 >
-                  Copy
-                </Button>
-              </Space.Compact>
+                  <Copy className="w-3.5 h-3.5" /> Copy
+                </button>
+              </div>
             </div>
 
             <div
@@ -1922,29 +1866,29 @@ export default function EditorView({
               a ValueCharts account.
             </div>
           </div>
-        </Modal>
+        </ModalShell>
 
         {/* Custom Import modal — replaces draw.io's native open/import file
           picker. Triggered by EditorUi.prototype.importLocalFile +
           App.prototype.pickFile interception in over-ride.js. */}
-        <Modal
+        <ModalShell
           open={importModalOpen}
-          onCancel={() => {
+          onClose={() => {
             setImportModalOpen(false);
             importFileRef.current = null;
             setImportFileName("");
           }}
-          title={
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <ImportOutlined style={{ color: "#3CB371" }} />
-              <span>Import Diagram</span>
-            </div>
-          }
-          footer={null}
-          width={480}
-          centered
+          size="md"
         >
-          <div style={{ padding: "8px 0" }}>
+          <ModalHeader
+            title="Import Diagram"
+            close={() => {
+              setImportModalOpen(false);
+              importFileRef.current = null;
+              setImportFileName("");
+            }}
+          />
+          <div className="tw px-5 pb-2">
             <div style={{ marginBottom: 16, fontSize: 12, color: "#666" }}>
               Supported formats:
               <div
@@ -1964,37 +1908,50 @@ export default function EditorView({
                   ".html",
                   ".json",
                 ].map((fmt) => (
-                  <Tag key={fmt} style={{ margin: 0 }}>
+                  <span
+                    key={fmt}
+                    className="inline-block px-2 py-0.5 rounded text-xs font-mono bg-muted border border-border"
+                  >
                     {fmt}
-                  </Tag>
+                  </span>
                 ))}
               </div>
             </div>
 
-            <Upload.Dragger
-              name="file"
-              multiple={false}
-              showUploadList={false}
-              beforeUpload={(file) => {
-                importFileRef.current = file;
-                setImportFileName(file.name);
-                return false;
+            <label
+              className="flex flex-col items-center justify-center gap-2 mb-4 p-6 border-2 border-dashed border-border rounded-xl cursor-pointer bg-muted/40 hover:bg-muted/70 transition-colors"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files[0];
+                if (file) {
+                  importFileRef.current = file;
+                  setImportFileName(file.name);
+                }
               }}
-              accept=".drawio,.xml,.svg,.png,.jpg,.jpeg,.gif,.webp,.html,.json"
-              style={{ marginBottom: 16 }}
             >
-              <p className="ant-upload-drag-icon">
-                <InboxOutlined style={{ color: "#3CB371", fontSize: 40 }} />
-              </p>
-              <p style={{ fontSize: 14, fontWeight: 500 }}>
+              <input
+                type="file"
+                accept=".drawio,.xml,.svg,.png,.jpg,.jpeg,.gif,.webp,.html,.json"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    importFileRef.current = file;
+                    setImportFileName(file.name);
+                  }
+                }}
+              />
+              <Upload className="w-10 h-10 text-primary" />
+              <p className="text-sm font-medium">
                 {importFileName
                   ? `Selected: ${importFileName}`
                   : "Click or drag file to import"}
               </p>
-              <p style={{ fontSize: 12, color: "#999" }}>
+              <p className="text-xs text-muted-foreground">
                 Supports all diagram formats
               </p>
-            </Upload.Dragger>
+            </label>
 
             <div
               style={{
@@ -2004,61 +1961,42 @@ export default function EditorView({
                 padding: "8px 12px",
                 fontSize: 12,
                 color: "#ad6800",
-                marginBottom: 16,
+                marginBottom: 8,
               }}
             >
               Importing will replace the current diagram content. This action
               can be undone with Ctrl+Z inside the editor.
             </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                justifyContent: "flex-end",
-              }}
-            >
-              <Button
-                onClick={() => {
-                  setImportModalOpen(false);
-                  importFileRef.current = null;
-                  setImportFileName("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="primary"
-                loading={importLoading}
-                icon={<ImportOutlined />}
-                style={{ background: "#3CB371", borderColor: "#3CB371" }}
-                onClick={async () => {
-                  const file = importFileRef.current;
-                  if (!file) {
-                    message.warning("Please select a file first");
-                    return;
-                  }
-                  setImportLoading(true);
-                  try {
-                    await handleImportFile(file);
-                    setImportModalOpen(false);
-                    importFileRef.current = null;
-                    setImportFileName("");
-                    message.success("Diagram imported");
-                  } catch (err) {
-                    message.error(
-                      "Import failed. Check file format and try again.",
-                    );
-                  } finally {
-                    setImportLoading(false);
-                  }
-                }}
-              >
-                Import
-              </Button>
-            </div>
           </div>
-        </Modal>
+          <ModalFooter
+            close={() => {
+              setImportModalOpen(false);
+              importFileRef.current = null;
+              setImportFileName("");
+            }}
+            primary={async () => {
+              const file = importFileRef.current;
+              if (!file) {
+                toast.warning("Please select a file first");
+                return;
+              }
+              setImportLoading(true);
+              try {
+                await handleImportFile(file);
+                setImportModalOpen(false);
+                importFileRef.current = null;
+                setImportFileName("");
+                toast.success("Diagram imported");
+              } catch {
+                toast.error("Import failed. Check file format and try again.");
+              } finally {
+                setImportLoading(false);
+              }
+            }}
+            primaryLabel="Import"
+            loading={importLoading}
+          />
+        </ModalShell>
 
         {/* Template chooser — auto-shown on new/empty flow */}
         <TemplateBrowser
@@ -2086,104 +2024,104 @@ export default function EditorView({
           }}
         />
 
-        <Drawer
-          title="Version History"
-          open={versionsOpen}
-          onClose={() => setVersionsOpen(false)}
-          width={340}
-          placement="right"
-        >
-          {versionsLoading ? (
-            <div style={{ textAlign: "center", padding: 40 }}>
-              <Spin />
-            </div>
-          ) : versions.length === 0 ? (
-            <div style={{ color: "#888", textAlign: "center", padding: 40 }}>
-              No saved versions yet
-            </div>
-          ) : (
-            <div>
-              {versions.map((v: any) => (
-                <div
-                  key={v.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "10px 0",
-                    borderBottom: "1px solid #f0f0f0",
-                  }}
-                >
-                  {v.thumbnail ? (
-                    <div
-                      onClick={() => setPreviewVersion(v)}
-                      style={{
-                        width: 72,
-                        height: 54,
-                        borderRadius: 4,
-                        border: "1px solid #eee",
-                        overflow: "hidden",
-                        cursor: "pointer",
-                        flexShrink: 0,
-                        background: "#fafafa",
-                      }}
-                    >
-                      <img
-                        src={v.thumbnail}
-                        alt="preview"
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        width: 72,
-                        height: 54,
-                        borderRadius: 4,
-                        background: "#f5f5f5",
-                        color: "#bbb",
-                        fontSize: 11,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      No preview
-                    </div>
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 500 }}>
-                      {formatVersionTime(v.createdAt)}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "#888",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {v.savedBy?.name || v.savedBy?.email || "Unknown"}
-                    </div>
-                  </div>
-                  <Button
-                    size="small"
-                    disabled={restoring}
-                    onClick={() => handleRestore(v.id)}
+        <Sheet open={versionsOpen} onOpenChange={setVersionsOpen}>
+          <SheetContent side="right" className="tw w-[340px] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Version History</SheetTitle>
+            </SheetHeader>
+            {versionsLoading ? (
+              <div style={{ textAlign: "center", padding: 40 }}>
+                <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
+              </div>
+            ) : versions.length === 0 ? (
+              <div style={{ color: "#888", textAlign: "center", padding: 40 }}>
+                No saved versions yet
+              </div>
+            ) : (
+              <div>
+                {versions.map((v: any) => (
+                  <div
+                    key={v.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "10px 0",
+                      borderBottom: "1px solid #f0f0f0",
+                    }}
                   >
-                    Restore
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </Drawer>
+                    {v.thumbnail ? (
+                      <div
+                        onClick={() => setPreviewVersion(v)}
+                        style={{
+                          width: 72,
+                          height: 54,
+                          borderRadius: 4,
+                          border: "1px solid #eee",
+                          overflow: "hidden",
+                          cursor: "pointer",
+                          flexShrink: 0,
+                          background: "#fafafa",
+                        }}
+                      >
+                        <img
+                          src={v.thumbnail}
+                          alt="preview"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          width: 72,
+                          height: 54,
+                          borderRadius: 4,
+                          background: "#f5f5f5",
+                          color: "#bbb",
+                          fontSize: 11,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        No preview
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500 }}>
+                        {formatVersionTime(v.createdAt)}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "#888",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {v.savedBy?.name || v.savedBy?.email || "Unknown"}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={restoring}
+                      onClick={() => handleRestore(v.id)}
+                      className="appearance-none cursor-pointer outline-none border border-border rounded-lg px-2.5 py-1 text-xs font-medium bg-card hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Restore
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
 
         {previewVersion && (
           <div
@@ -2259,19 +2197,28 @@ export default function EditorView({
                   justifyContent: "flex-end",
                 }}
               >
-                <Button onClick={() => setPreviewVersion(null)}>Close</Button>
-                <Button
-                  type="primary"
-                  loading={restoring}
-                  style={{ background: "#3CB371", borderColor: "#3CB371" }}
+                <button
+                  type="button"
+                  onClick={() => setPreviewVersion(null)}
+                  className="appearance-none cursor-pointer outline-none h-9 px-4 rounded-xl border border-border bg-card font-semibold text-sm"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  disabled={restoring}
                   onClick={() => {
                     const id = previewVersion.id;
                     setPreviewVersion(null);
                     handleRestore(id);
                   }}
+                  className="appearance-none cursor-pointer outline-none border-0 h-9 px-4 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                 >
+                  {restoring && (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  )}
                   Restore This Version
-                </Button>
+                </button>
               </div>
             </div>
           </div>

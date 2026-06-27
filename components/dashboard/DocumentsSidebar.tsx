@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Menu, Typography, Button, message } from "antd";
+import { Menu, Typography, Button } from "antd";
+import { toast } from "sonner";
 import { PlusOutlined } from "@ant-design/icons";
 // App axios client — carries the workspace-scoping X-Team-Context header.
 import api from "@/lib/axios";
@@ -34,7 +35,7 @@ export default function DocumentsSidebar() {
       window.open(`/viewer/${newFlow.id}`, "_blank");
     } catch (error) {
       console.error("Failed to create flow:", error);
-      message.error("Failed to create flow");
+      toast.error("Failed to create flow");
     } finally {
       setCreating(false);
     }

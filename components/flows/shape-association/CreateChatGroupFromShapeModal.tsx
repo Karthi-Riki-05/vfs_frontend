@@ -1,8 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { Modal, Form, Input, Select, message } from "antd";
-import { MessageOutlined } from "@ant-design/icons";
+import { toast } from "sonner";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
+import { EmailTagInput } from "@/components/common/EmailTagInput";
 import api from "@/lib/axios";
 import { shapesApi } from "@/api/shapes.api";
 import type { ShapeRef, AssociationResult } from "./types";
@@ -20,23 +26,32 @@ export default function CreateChatGroupFromShapeModal({
   onClose,
   onSuccess,
 }: Props) {
-  const [form] = Form.useForm();
+  const [name, setName] = useState("");
+  const [emails, setEmails] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const reset = () => {
+    setName("");
+    setEmails([]);
+  };
+
+  const close = () => {
+    reset();
+    onClose();
+  };
 
   const handleSubmit = async () => {
     if (!shapeRef) return;
-    let values;
-    try {
-      values = await form.validateFields();
-    } catch {
+    if (!name.trim()) {
+      toast.error("Group name is required");
       return;
     }
     setLoading(true);
     try {
       // 1. Create the chat group (backend resolves memberEmails → user ids)
       const groupRes = await api.post("/chat/groups", {
-        title: values.name,
-        memberEmails: values.emails || [],
+        title: name.trim(),
+        memberEmails: emails,
       });
       const group = groupRes.data?.data || groupRes.data;
       if (!group?.id) throw new Error("Group creation failed");
@@ -54,15 +69,15 @@ export default function CreateChatGroupFromShapeModal({
       );
       const assocData = assocRes.data?.data || assocRes.data;
 
-      message.success(`Group "${group.title}" created and shape associated`);
-      form.resetFields();
+      toast.success(`Group "${group.title}" created and shape associated`);
+      reset();
       onSuccess({
         shapeId: assocData?.shape?.id || shapeRef.shapeId || "",
         cellId: shapeRef.cellId,
         association: { type: "group", id: group.id, name: group.title },
       });
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to create chat group",
       );
     } finally {
@@ -71,62 +86,37 @@ export default function CreateChatGroupFromShapeModal({
   };
 
   return (
-    <Modal
-      open={open}
-      onCancel={() => {
-        form.resetFields();
-        onClose();
-      }}
-      onOk={handleSubmit}
-      confirmLoading={loading}
-      okText="Create Group"
-      okButtonProps={{
-        style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
-      }}
-      title={
-        <span>
-          <MessageOutlined style={{ color: "#3CB371", marginRight: 8 }} />
-          Create Chat Group from Shape
-        </span>
-      }
-      width={440}
-      centered
-      destroyOnClose
-    >
-      <div style={{ fontSize: 12, color: "#888", marginBottom: 16 }}>
-        Shape: <strong>{shapeRef?.shapeName || "Unnamed shape"}</strong> — it
-        will be shared within the new chat group.
-      </div>
-      <Form form={form} layout="vertical">
-        <Form.Item
-          name="name"
-          label="Group name"
-          rules={[{ required: true, message: "Group name is required" }]}
-        >
-          <Input placeholder="e.g. Process Discussion" maxLength={255} />
-        </Form.Item>
-        <Form.Item
-          name="emails"
-          label="Member emails (optional)"
-          rules={[
-            {
-              validator: (_, value: string[]) =>
-                !value ||
-                value.every((v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))
-                  ? Promise.resolve()
-                  : Promise.reject(new Error("One or more emails are invalid")),
-            },
-          ]}
-        >
-          <Select
-            mode="tags"
-            tokenSeparators={[",", " "]}
-            placeholder="Type emails and press Enter"
-            open={false}
-            suffixIcon={null}
+    <ModalShell open={open} onClose={close}>
+      <ModalHeader title="Create Chat Group from Shape" close={close} />
+      <div className="px-5 pb-5 space-y-4">
+        <div className="text-xs text-muted-foreground">
+          Shape: <strong>{shapeRef?.shapeName || "Unnamed shape"}</strong> — it
+          will be shared within the new chat group.
+        </div>
+        <Field label="Group name" required>
+          <FieldInput
+            placeholder="e.g. Process Discussion"
+            maxLength={255}
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
           />
-        </Form.Item>
-      </Form>
-    </Modal>
+        </Field>
+        <Field label="Member emails (optional)">
+          <EmailTagInput
+            value={emails}
+            onChange={setEmails}
+            placeholder="Type emails and press Enter"
+          />
+        </Field>
+      </div>
+      <ModalFooter
+        close={close}
+        primary={handleSubmit}
+        primaryLabel="Create Group"
+        loading={loading}
+        disabled={!name.trim()}
+      />
+    </ModalShell>
   );
 }

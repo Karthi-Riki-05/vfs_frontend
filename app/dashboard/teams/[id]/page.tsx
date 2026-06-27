@@ -1,8 +1,24 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Modal, Form, Input, message, Spin, Dropdown, Button } from "antd";
-import { MailOutlined, MoreOutlined } from "@ant-design/icons";
+import { Spin, Button } from "antd";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import { Mail } from "lucide-react";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
+import { MoreOutlined } from "@ant-design/icons";
 import { teamsApi } from "@/api/teams.api";
 import { useParams, useRouter } from "next/navigation";
 import { useIsMobile } from "@/hooks/useMediaQuery";
@@ -69,10 +85,11 @@ export default function TeamDetailPage() {
   const [inviting, setInviting] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [settingsForm] = Form.useForm();
+  const [settingsName, setSettingsName] = useState("");
+  const [settingsDesc, setSettingsDesc] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
-  const [form] = Form.useForm();
+  const [inviteEmail, setInviteEmail] = useState("");
 
   const refreshInvites = () => {
     if (!teamId) return;
@@ -96,17 +113,21 @@ export default function TeamDetailPage() {
         const mData = membersRes.data?.data || membersRes.data;
         setMembers(Array.isArray(mData) ? mData : []);
       })
-      .catch(() => message.error("Failed to load team"))
+      .catch(() => toast.error("Failed to load team"))
       .finally(() => setLoading(false));
   }, [teamId]);
 
   const handleInvite = async () => {
+    const email = inviteEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
     try {
-      const values = await form.validateFields();
       setInviting(true);
-      await teamsApi.invite({ email: values.email, teamId });
-      message.success("Invitation sent");
-      form.resetFields();
+      await teamsApi.invite({ email, teamId });
+      toast.success("Invitation sent");
+      setInviteEmail("");
       setInviteOpen(false);
       // Refresh members + pending invites
       const res = await teamsApi.listMembers(teamId);
@@ -118,7 +139,7 @@ export default function TeamDetailPage() {
         err?.response?.data?.error?.message ||
         err?.response?.data?.message ||
         "Failed to invite";
-      message.error(errMsg);
+      toast.error(errMsg);
     } finally {
       setInviting(false);
     }
@@ -127,80 +148,80 @@ export default function TeamDetailPage() {
   const handleRemove = async (userId: string) => {
     try {
       await teamsApi.removeMember(teamId, userId);
-      message.success("Member removed");
+      toast.success("Member removed");
       setMembers((prev) =>
         prev.filter((m) => m.userId !== userId && m.id !== userId),
       );
     } catch {
-      message.error("Failed to remove member");
+      toast.error("Failed to remove member");
     }
   };
 
   const handleRoleChange = async (userId: string, role: "ADMIN" | "MEMBER") => {
     try {
       await teamsApi.updateMemberRole(teamId, userId, role);
-      message.success("Member role updated");
+      toast.success("Member role updated");
       const res = await teamsApi.listMembers(teamId);
       const mData = res.data?.data || res.data;
       setMembers(Array.isArray(mData) ? mData : []);
     } catch {
-      message.error("Failed to update member role");
+      toast.error("Failed to update member role");
     }
   };
 
   const handleCancelInvite = async (inviteId: string) => {
     try {
       await teamsApi.cancelInvite(inviteId);
-      message.success("Invite cancelled");
+      toast.success("Invite cancelled");
       refreshInvites();
     } catch {
-      message.error("Failed to cancel invite");
+      toast.error("Failed to cancel invite");
     }
   };
 
   const openSettings = () => {
-    settingsForm.setFieldsValue({
-      name: team?.name,
-      description: team?.description,
-    });
+    setSettingsName(team?.name || "");
+    setSettingsDesc(team?.description || "");
     setSettingsOpen(true);
   };
 
   const handleSaveSettings = async () => {
+    const name = settingsName.trim();
+    if (!name) {
+      toast.error("Team name is required");
+      return;
+    }
     try {
-      const values = await settingsForm.validateFields();
       setSavingSettings(true);
       const res = await teamsApi.update(teamId, {
-        name: values.name,
-        description: values.description,
+        name,
+        description: settingsDesc,
       });
       const updated = res.data?.data || res.data;
       setTeam((prev: any) => ({ ...prev, ...updated }));
-      message.success("Team updated");
+      toast.success("Team updated");
       setSettingsOpen(false);
     } catch (err: any) {
-      if (err?.errorFields) return; // form validation error
-      message.error("Failed to update team");
+      toast.error("Failed to update team");
     } finally {
       setSavingSettings(false);
     }
   };
 
   const handleDeleteTeam = () => {
-    Modal.confirm({
+    confirmDialog({
       title: "Delete team?",
       content:
         "This permanently deletes the team for all members. This cannot be undone.",
-      okText: "Delete",
-      okButtonProps: { danger: true },
-      cancelText: "Cancel",
-      onOk: async () => {
+      confirmLabel: "Delete",
+      danger: true,
+      onConfirm: async () => {
         try {
           await teamsApi.delete(teamId);
-          message.success("Team deleted");
+          toast.success("Team deleted");
           router.push("/dashboard/teams");
         } catch {
-          message.error("Failed to delete team");
+          toast.error("Failed to delete team");
         }
       },
     });
@@ -581,16 +602,36 @@ export default function TeamDetailPage() {
                     </div>
                   )}
                   {isOwner && !mIsOwner && (
-                    <Dropdown
-                      trigger={["click"]}
-                      menu={{ items: memberMenuItems(member) }}
-                    >
-                      <Button
-                        icon={<MoreOutlined />}
-                        type="text"
-                        size="small"
-                      />
-                    </Dropdown>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="tw appearance-none cursor-pointer outline-none border-0 bg-transparent w-7 h-7 rounded flex items-center justify-center hover:bg-secondary text-muted-foreground"
+                        >
+                          <MoreOutlined />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="tw">
+                        {(memberMenuItems(member) as any[]).map(
+                          (item: any, i: number) =>
+                            item.type === "divider" ? (
+                              <DropdownMenuSeparator key={`sep-${i}`} />
+                            ) : (
+                              <DropdownMenuItem
+                                key={item.key}
+                                onSelect={item.onClick}
+                                className={
+                                  item.danger
+                                    ? "text-destructive focus:text-destructive"
+                                    : ""
+                                }
+                              >
+                                {item.label}
+                              </DropdownMenuItem>
+                            ),
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
               );
@@ -1008,16 +1049,36 @@ export default function TeamDetailPage() {
                     </div>
                   )}
                   {isOwner && !mIsOwner && (
-                    <Dropdown
-                      trigger={["click"]}
-                      menu={{ items: memberMenuItems(member) }}
-                    >
-                      <Button
-                        icon={<MoreOutlined />}
-                        type="text"
-                        size="small"
-                      />
-                    </Dropdown>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="tw appearance-none cursor-pointer outline-none border-0 bg-transparent w-7 h-7 rounded flex items-center justify-center hover:bg-secondary text-muted-foreground"
+                        >
+                          <MoreOutlined />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="tw">
+                        {(memberMenuItems(member) as any[]).map(
+                          (item: any, i: number) =>
+                            item.type === "divider" ? (
+                              <DropdownMenuSeparator key={`sep-${i}`} />
+                            ) : (
+                              <DropdownMenuItem
+                                key={item.key}
+                                onSelect={item.onClick}
+                                className={
+                                  item.danger
+                                    ? "text-destructive focus:text-destructive"
+                                    : ""
+                                }
+                              >
+                                {item.label}
+                              </DropdownMenuItem>
+                            ),
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
               );
@@ -1117,76 +1178,74 @@ export default function TeamDetailPage() {
         </div>
       </div>
 
-      {/* Invite modal — always rendered (portaled) */}
-      <Modal
-        title="Invite Member"
-        open={inviteOpen}
-        onCancel={() => setInviteOpen(false)}
-        onOk={handleInvite}
-        confirmLoading={inviting}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="email"
-            label="Email Address"
-            rules={[
-              {
-                required: true,
-                type: "email",
-                message: "Please enter a valid email address",
-              },
-            ]}
-          >
-            <Input prefix={<MailOutlined />} placeholder="member@example.com" />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Settings modal — owner only */}
-      <Modal
-        title="Team Settings"
-        open={settingsOpen}
-        onCancel={() => setSettingsOpen(false)}
-        onOk={handleSaveSettings}
-        okText="Save"
-        confirmLoading={savingSettings}
-      >
-        <Form form={settingsForm} layout="vertical">
-          <Form.Item
-            name="name"
-            label="Team Name"
-            rules={[{ required: true, message: "Team name is required" }]}
-          >
-            <Input placeholder="Team name" />
-          </Form.Item>
-          <Form.Item name="description" label="Description">
-            <Input.TextArea rows={3} placeholder="Team description" />
-          </Form.Item>
-        </Form>
-        <div
-          style={{
-            borderTop: "1px solid #f0f0f0",
-            marginTop: 8,
-            paddingTop: 16,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: "#ef4444",
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Danger Zone
-          </div>
-          <Button danger onClick={handleDeleteTeam}>
-            Delete Team
-          </Button>
+      {/* Invite modal — new_design ModalShell */}
+      <ModalShell open={inviteOpen} onClose={() => setInviteOpen(false)}>
+        <ModalHeader title="Invite Member" close={() => setInviteOpen(false)} />
+        <div className="px-5 pb-5">
+          <Field label="Email Address" required>
+            <FieldInput
+              type="email"
+              icon={<Mail className="w-4 h-4" />}
+              placeholder="member@example.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+            />
+          </Field>
         </div>
-      </Modal>
+        <ModalFooter
+          close={() => setInviteOpen(false)}
+          primary={handleInvite}
+          primaryLabel="Invite"
+          loading={inviting}
+          disabled={!inviteEmail.trim()}
+        />
+      </ModalShell>
+
+      {/* Settings modal — owner only — new_design ModalShell */}
+      <ModalShell open={settingsOpen} onClose={() => setSettingsOpen(false)}>
+        <ModalHeader
+          title="Team Settings"
+          close={() => setSettingsOpen(false)}
+        />
+        <div className="px-5 pb-5 space-y-4">
+          <Field label="Team Name" required>
+            <FieldInput
+              placeholder="Team name"
+              value={settingsName}
+              onChange={(e) => setSettingsName(e.target.value)}
+            />
+          </Field>
+          <div>
+            <label className="text-xs font-semibold">Description</label>
+            <textarea
+              placeholder="Team description"
+              value={settingsDesc}
+              onChange={(e) => setSettingsDesc(e.target.value)}
+              className="mt-1.5 w-full min-h-20 rounded-xl border border-border bg-background p-3 text-sm font-sans outline-none resize-none"
+            />
+          </div>
+          <div className="border-t border-border pt-4">
+            <div className="text-xs font-bold uppercase tracking-wide text-coral mb-2">
+              Danger Zone
+            </div>
+            <button
+              type="button"
+              onClick={handleDeleteTeam}
+              className="appearance-none cursor-pointer outline-none h-10 px-4 rounded-xl border-2 border-coral bg-transparent text-coral font-bold text-sm"
+            >
+              Delete Team
+            </button>
+          </div>
+        </div>
+        <ModalFooter
+          close={() => setSettingsOpen(false)}
+          primary={handleSaveSettings}
+          primaryLabel="Save"
+          loading={savingSettings}
+          disabled={!settingsName.trim()}
+        />
+      </ModalShell>
     </>
   );
 }

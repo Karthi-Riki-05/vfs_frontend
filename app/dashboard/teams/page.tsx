@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Button, Modal, Spin, Typography, Dropdown, message } from "antd";
+import { Button, Spin, Typography } from "antd";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import {
   ModalShell,
   ModalHeader,
@@ -296,7 +305,7 @@ export default function TeamsPage() {
 
   const handleCreate = async () => {
     if (!createName.trim()) {
-      message.error("Please enter a team name");
+      toast.error("Please enter a team name");
       return;
     }
     try {
@@ -317,7 +326,7 @@ export default function TeamsPage() {
 
   const handleInvite = async () => {
     if (!inviteEmails.trim()) {
-      message.error("Please enter at least one email address");
+      toast.error("Please enter at least one email address");
       return;
     }
     try {
@@ -329,12 +338,12 @@ export default function TeamsPage() {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       const invalid = emailList.filter((e: string) => !emailRegex.test(e));
       if (invalid.length > 0) {
-        message.error(`Invalid email format: ${invalid.join(", ")}`);
+        toast.error(`Invalid email format: ${invalid.join(", ")}`);
         setInviting(false);
         return;
       }
       await teamsApi.invite({ teamId: inviteTeamId!, emails: emailList });
-      message.success(`Invitation${emailList.length > 1 ? "s" : ""} sent`);
+      toast.success(`Invitation${emailList.length > 1 ? "s" : ""} sent`);
       setInviteEmails("");
       setInviteModalOpen(false);
       fetchTeams();
@@ -343,7 +352,7 @@ export default function TeamsPage() {
         err?.response?.data?.error?.message ||
         err?.response?.data?.message ||
         "Failed to send invitation";
-      message.error(errMsg);
+      toast.error(errMsg);
     } finally {
       setInviting(false);
     }
@@ -365,7 +374,7 @@ export default function TeamsPage() {
 
   const handleEdit = async () => {
     if (!editName.trim()) {
-      message.error("Please enter a team name");
+      toast.error("Please enter a team name");
       return;
     }
     try {
@@ -384,14 +393,13 @@ export default function TeamsPage() {
 
   const handleDelete = (team: any, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    Modal.confirm({
+    confirmDialog({
       title: `Delete "${team.name || "this team"}"?`,
       content:
         "This will permanently delete the team and remove all members. This action cannot be undone.",
-      okText: "Delete",
-      okType: "danger",
-      cancelText: "Cancel",
-      onOk: async () => {
+      confirmLabel: "Delete",
+      danger: true,
+      onConfirm: async () => {
         await deleteTeam(team.id);
         setExpanded((cur) => (cur === team.id ? null : cur));
       },
@@ -400,18 +408,17 @@ export default function TeamsPage() {
 
   const handleRemoveMember = (m: any) => {
     const name = memberName(m);
-    Modal.confirm({
+    confirmDialog({
       title: `Remove "${name}"?`,
       content: "This member will lose access to the team workspace.",
-      okText: "Remove",
-      okType: "danger",
-      cancelText: "Cancel",
-      onOk: async () => {
+      confirmLabel: "Remove",
+      danger: true,
+      onConfirm: async () => {
         const uid = memberId(m);
         setRemovingId(uid);
         try {
           await teamsApi.removeMember(m.teamId, uid);
-          message.success(`${name} removed`);
+          toast.success(`${name} removed`);
           await fetchAllMembers(teams);
           // Also refresh accordion cache for this team
           setMembersByTeam((p) => {
@@ -420,7 +427,7 @@ export default function TeamsPage() {
             return updated;
           });
         } catch (err: any) {
-          message.error(
+          toast.error(
             err?.response?.data?.error?.message || "Failed to remove member",
           );
         } finally {
@@ -435,7 +442,7 @@ export default function TeamsPage() {
     setRoleChangingId(uid + m.teamId);
     try {
       await teamsApi.updateMemberRole(m.teamId, uid, newRole);
-      message.success("Role updated");
+      toast.success("Role updated");
       await fetchAllMembers(teams);
       setMembersByTeam((p) => {
         const updated = { ...p };
@@ -443,7 +450,7 @@ export default function TeamsPage() {
         return updated;
       });
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to update role",
       );
     } finally {
@@ -701,19 +708,42 @@ export default function TeamsPage() {
 
                       {/* Actions */}
                       {isTeamOwner && !isOwnerRole && !isCurrentUser && (
-                        <Dropdown
-                          menu={{ items: actionItems }}
-                          trigger={["click"]}
-                          disabled={isChanging || !!isRemoving}
-                        >
-                          <button className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary border-0 bg-transparent cursor-pointer appearance-none transition-colors">
-                            {isChanging || isRemoving ? (
-                              <Spin size="small" />
-                            ) : (
-                              <MoreHorizontal className="w-4 h-4" />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              disabled={isChanging || !!isRemoving}
+                              className="tw shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary border-0 bg-transparent cursor-pointer appearance-none transition-colors disabled:opacity-50"
+                            >
+                              {isChanging || isRemoving ? (
+                                <Spin size="small" />
+                              ) : (
+                                <MoreHorizontal className="w-4 h-4" />
+                              )}
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="tw">
+                            {(actionItems as any[]).map(
+                              (item: any, i: number) =>
+                                item.type === "divider" ? (
+                                  <DropdownMenuSeparator key={`sep-${i}`} />
+                                ) : (
+                                  <DropdownMenuItem
+                                    key={item.key}
+                                    onSelect={item.onClick}
+                                    disabled={item.disabled}
+                                    className={
+                                      item.danger
+                                        ? "text-destructive focus:text-destructive"
+                                        : ""
+                                    }
+                                  >
+                                    {item.icon}
+                                    {item.label}
+                                  </DropdownMenuItem>
+                                ),
                             )}
-                          </button>
-                        </Dropdown>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
                   );
@@ -772,28 +802,6 @@ export default function TeamsPage() {
                   const members = membersByTeam[team.id] || team.members || [];
                   const isLoadingMembers =
                     loadingMembers === team.id && !members.length;
-                  const menuItems = [
-                    {
-                      key: "edit",
-                      label: "Edit team",
-                      icon: <Pencil className="w-3.5 h-3.5" />,
-                      onClick: (info: any) => {
-                        info.domEvent.stopPropagation();
-                        openEditModal(team, info.domEvent);
-                      },
-                    },
-                    { type: "divider" as const },
-                    {
-                      key: "delete",
-                      label: "Delete team",
-                      icon: <Trash2 className="w-3.5 h-3.5" />,
-                      danger: true,
-                      onClick: (info: any) => {
-                        info.domEvent.stopPropagation();
-                        handleDelete(team, info.domEvent);
-                      },
-                    },
-                  ];
 
                   return (
                     <div
@@ -832,17 +840,33 @@ export default function TeamsPage() {
                         </button>
 
                         {isTeamOwner && (
-                          <Dropdown
-                            menu={{ items: menuItems }}
-                            trigger={["click"]}
-                          >
-                            <button
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors bg-transparent border-0 p-0 cursor-pointer appearance-none shrink-0"
-                            >
-                              <MoreHorizontal className="w-5 h-5" />
-                            </button>
-                          </Dropdown>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={(e) => e.stopPropagation()}
+                                className="tw w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors bg-transparent border-0 p-0 cursor-pointer appearance-none shrink-0"
+                              >
+                                <MoreHorizontal className="w-5 h-5" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="tw">
+                              <DropdownMenuItem
+                                onSelect={() => openEditModal(team)}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                                Edit team
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onSelect={() => handleDelete(team)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Delete team
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                         <button
                           onClick={() => toggleExpand(team)}

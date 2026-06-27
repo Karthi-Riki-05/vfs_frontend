@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { Search, Plus, FolderKanban, Check, FolderInput } from "lucide-react";
 import {
   ModalShell,
@@ -78,16 +78,16 @@ export default function AssignProjectModal({
     try {
       if (selectedProjectId === null) {
         await flowsApi.update(flowId, { projectId: null } as any);
-        message.success("Flow removed from project");
+        toast.success("Flow removed from project");
       } else {
         await projectsApi.assignFlow(selectedProjectId, flowId);
         const project = projects.find((p) => p.id === selectedProjectId);
-        message.success(`Flow assigned to "${project?.name}"`);
+        toast.success(`Flow assigned to "${project?.name}"`);
       }
       onSuccess();
       onClose();
     } catch {
-      message.error("Failed to assign flow");
+      toast.error("Failed to assign flow");
     } finally {
       setAssigning(false);
     }
@@ -101,12 +101,12 @@ export default function AssignProjectModal({
       const project = res.data?.data || res.data;
       if (project?.id) {
         await projectsApi.assignFlow(project.id, flowId);
-        message.success(`Flow assigned to "${project.name}"`);
+        toast.success(`Flow assigned to "${project.name}"`);
         onSuccess();
         onClose();
       }
     } catch {
-      message.error("Failed to create project");
+      toast.error("Failed to create project");
     } finally {
       setCreating(false);
     }

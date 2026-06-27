@@ -9,9 +9,9 @@ import {
   Space,
   Input,
   Button,
-  Form,
-  message,
+  Form
 } from "antd";
+import { toast } from "sonner";
 import {
   ApartmentOutlined,
   NodeIndexOutlined,
@@ -83,11 +83,11 @@ export default function NewFlowPage() {
       });
       const newFlow = res.data?.data || res.data;
       if (!newFlow?.id) throw new Error("No flow ID returned");
-      message.success("Document created");
+      toast.success("Document created");
       window.open(`/dashboard/flows/${newFlow.id}`, "_blank");
     } catch (err: any) {
       if (err.errorFields) return; // form validation
-      message.error("Failed to create document");
+      toast.error("Failed to create document");
     } finally {
       setLoading(false);
     }

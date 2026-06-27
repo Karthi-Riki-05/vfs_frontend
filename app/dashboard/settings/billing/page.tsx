@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, ReactNode } from "react";
-import { Spin, message } from "antd";
+import { Spin } from "antd";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Crown,
@@ -253,10 +254,10 @@ export default function BillingPage() {
       if (data.success && data.data?.url) {
         window.location.href = data.data.url;
       } else {
-        message.error("Could not open billing portal. Please try again.");
+        toast.error("Could not open billing portal. Please try again.");
       }
     } catch (e) {
-      message.error("Could not open billing portal. Please try again.");
+      toast.error("Could not open billing portal. Please try again.");
     }
   };
 
@@ -309,79 +310,31 @@ export default function BillingPage() {
           </div>
         )}
 
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex flex-col sm:flex-row gap-2">
+          <button
+            onClick={() => router.push("/dashboard/subscription")}
+            className={`${RESET} w-full sm:flex-1 h-11 rounded-xl bg-primary text-white font-bold text-sm`}
+          >
+            {changePlanLabel}
+          </button>
           {!isProApp && subscription && (
             <button
               onClick={cancel}
-              className={`${RESET} flex-1 h-11 rounded-xl border-2 border-[var(--coral)] bg-card text-[var(--coral)] font-bold text-sm`}
+              className={`${RESET} w-full sm:flex-1 h-11 rounded-xl border-2 border-[var(--coral)] bg-card text-[var(--coral)] font-bold text-sm`}
             >
               Cancel Subscription
             </button>
           )}
-          <button
-            onClick={() => router.push("/dashboard/subscription")}
-            className={`${RESET} flex-1 h-11 rounded-xl bg-primary text-white font-bold text-sm`}
-          >
-            {changePlanLabel}
-          </button>
         </div>
 
-        {(subscription || proStatus?.hasPro) && (
+        {/* {(subscription || proStatus?.hasPro) && (
           <button
             onClick={openCustomerPortal}
             className={`${RESET} mt-2 w-full h-11 rounded-xl border border-border bg-card text-foreground font-semibold text-sm inline-flex items-center justify-center gap-2`}
           >
             <CreditCard className="w-4 h-4" /> Manage Billing &amp; Invoices
           </button>
-        )}
-
-        <div className="border-t border-border my-4" />
-
-        <div className="space-y-2 text-sm">
-          <Row
-            k="Plan"
-            v={
-              <span className="font-semibold text-primary-deep">
-                {planName}
-              </span>
-            }
-          />
-          {planPrice && (
-            <Row
-              k="Price"
-              v={
-                <span className="font-semibold text-primary-deep">
-                  {planPrice}
-                  {isYearly ? "/year" : "/mo"}
-                </span>
-              }
-            />
-          )}
-          <Row
-            k="Status"
-            v={
-              <span
-                className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${
-                  isActive
-                    ? "bg-primary-tint text-primary-deep border-primary/20"
-                    : "bg-[#FDE7E0] text-[var(--coral)] border-[var(--coral)]/20"
-                }`}
-              >
-                {statusLabel}
-              </span>
-            }
-          />
-          {startedAt && (
-            <Row
-              k="Started"
-              v={
-                <span className="font-semibold text-foreground">
-                  {startedAt}
-                </span>
-              }
-            />
-          )}
-        </div>
+        )} */}
 
         {/* Resource breakdown (Pro flows / Team plan) */}
         {isProApp && proStatus?.hasPro && (

@@ -1,6 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Skeleton, Typography, Tooltip } from "antd";
+import { Skeleton, Typography } from "antd";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { aiApi } from "@/api/ai.api";
 
 const { Text } = Typography;
@@ -155,7 +160,7 @@ export default function SubscriptionWidget() {
             letterSpacing: 1,
           }}
         >
-          SUBSCRIPTION 
+          SUBSCRIPTION
         </Text>
         <span
           style={{
@@ -293,8 +298,13 @@ export default function SubscriptionWidget() {
                   >
                     {/* Headline = plan + addon COMBINED total. Breakdown lives
                         in the tooltip so users see one clear number. */}
-                    <Tooltip
-                      title={
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span style={{ cursor: "default" }}>
+                          {aiCredits.totalCredits} credits
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="tw">
                         <div style={{ fontSize: 12, lineHeight: 1.6 }}>
                           <div>Plan credits: {aiCredits.planCredits}</div>
                           <div>Addon credits: {aiCredits.addonCredits}</div>
@@ -308,11 +318,7 @@ export default function SubscriptionWidget() {
                             </div>
                           )}
                         </div>
-                      }
-                    >
-                      <span style={{ cursor: "default" }}>
-                        {aiCredits.totalCredits} credits
-                      </span>
+                      </TooltipContent>
                     </Tooltip>
                     {!sub.is_pro && (
                       <a

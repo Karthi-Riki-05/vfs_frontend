@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Dropdown, message } from "antd";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 import { EditOutlined, HeartFilled } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import {
@@ -114,7 +120,6 @@ export default function FavouritesPage() {
   const [flows, setFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"list" | "grid">("grid");
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   // activeTeamId in deps → re-scopes + refetches the favourites bucket on
   // switch. The X-Team-Context header is attached by the axios interceptor,
@@ -154,9 +159,9 @@ export default function FavouritesPage() {
     try {
       await flowsApi.toggleFavorite(id, false);
       setFlows((prev) => prev.filter((f) => f.id !== id));
-      message.success("Removed from favourites");
+      toast.success("Removed from favourites");
     } catch {
-      message.error("Failed to update favourite");
+      toast.error("Failed to update favourite");
     }
   };
 
@@ -181,7 +186,7 @@ export default function FavouritesPage() {
       <div className="tw min-h-screen bg-background">
         <div className="max-w-6xl mx-auto px-5 pt-3">
           <div className="h-9 w-48 rounded-lg bg-card border border-border mb-5 animate-pulse" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {[1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
@@ -234,7 +239,7 @@ export default function FavouritesPage() {
           </div>
         ) : view === "grid" ? (
           /* Grid view */
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {flows.map((flow: any, index: number) => {
               const color = FLOW_COLORS[index % FLOW_COLORS.length];
               return (
@@ -242,13 +247,15 @@ export default function FavouritesPage() {
                   key={flow.id}
                   className="relative rounded-2xl bg-card border border-border overflow-hidden shadow-card"
                 >
-                  <button
-                    onClick={() => handleEdit(flow.id)}
-                    className="w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                  {/* Thumbnail area */}
+                  <div
+                    className="h-24 relative overflow-hidden"
+                    style={{ background: `${color}14` }}
                   >
-                    <div
-                      className="h-24 relative"
-                      style={{ background: `${color}14` }}
+                    <button
+                      onClick={() => handleEdit(flow.id)}
+                      className="w-full h-full block bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                      aria-label={`Open ${flow.name}`}
                     >
                       {flow.thumbnail ? (
                         <img
@@ -259,40 +266,62 @@ export default function FavouritesPage() {
                       ) : (
                         <MiniFlow color={color} />
                       )}
-                      <button
-                        onClick={(e) => toggleFavourite(flow.id, e)}
-                        title="Remove from favourites"
-                        className="absolute top-2 right-2 w-7 h-7 max-lg:w-11 max-lg:h-11 rounded-full bg-white/90 flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
-                      >
-                        <Heart className="w-3.5 h-3.5 text-[#F85729] fill-[#F85729]" />
-                      </button>
-                    </div>
-                    <div className="p-3 pr-9 max-lg:pr-13">
-                      <div className="font-semibold text-[13px] truncate">
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavourite(flow.id, e);
+                      }}
+                      title="Remove from favourites"
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 flex items-center justify-center border-0 p-0 appearance-none cursor-pointer z-10"
+                    >
+                      <Heart className="w-3.5 h-3.5 text-[#F85729] fill-[#F85729]" />
+                    </button>
+                  </div>
+                  {/* Info row */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 min-w-0">
+                    <button
+                      onClick={() => handleEdit(flow.id)}
+                      className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 appearance-none cursor-pointer overflow-hidden"
+                    >
+                      <div className="font-semibold text-[13px] truncate leading-tight">
                         {flow.name}
                       </div>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="text-[11px] text-muted-foreground truncate mt-0.5">
                         Edited {timeAgo(flow.updatedAt)}
                       </div>
-                    </div>
-                  </button>
-                  <Dropdown
-                    menu={{ items: getMenuItems(flow) }}
-                    trigger={["click"]}
-                    open={menuOpenId === flow.id}
-                    onOpenChange={(open) =>
-                      setMenuOpenId(open ? flow.id : null)
-                    }
-                  >
-                    <button
-                      type="button"
-                      aria-label="More options"
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute bottom-2 right-2 w-7 h-7 max-lg:w-11 max-lg:h-11 rounded-lg bg-secondary flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
-                    >
-                      <MoreHorizontal className="w-3.5 h-3.5" />
                     </button>
-                  </Dropdown>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="More options"
+                          onClick={(e) => e.stopPropagation()}
+                          className="tw w-8 h-8 shrink-0 rounded-lg hover:bg-secondary flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
+                        >
+                          <MoreHorizontal className="w-3.5 h-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="tw">
+                        {(getMenuItems(flow) as any[]).map(
+                          (item: any, i: number) => (
+                            <DropdownMenuItem
+                              key={item.key ?? i}
+                              onSelect={item.onClick}
+                              className={
+                                item.danger
+                                  ? "text-destructive focus:text-destructive"
+                                  : ""
+                              }
+                            >
+                              {item.icon}
+                              {item.label}
+                            </DropdownMenuItem>
+                          ),
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               );
             })}
@@ -303,25 +332,60 @@ export default function FavouritesPage() {
             {flows.map((flow: any, index: number) => {
               const color = FLOW_COLORS[index % FLOW_COLORS.length];
               return (
-                <Dropdown
+                <div
                   key={flow.id}
-                  menu={{ items: getMenuItems(flow) }}
-                  trigger={["click"]}
-                  open={menuOpenId === flow.id}
-                  onOpenChange={(open) => setMenuOpenId(open ? flow.id : null)}
+                  className="w-full flex items-center gap-3 p-3 rounded-2xl bg-card border border-border mb-2"
                 >
-                  <div>
-                    <ListItem
-                      title={flow.name}
-                      subtitle={`Edited ${timeAgo(flow.updatedAt)}`}
-                      color={color}
-                      onClick={() => handleEdit(flow.id)}
-                      onMenu={() =>
-                        setMenuOpenId(menuOpenId === flow.id ? null : flow.id)
-                      }
-                    />
-                  </div>
-                </Dropdown>
+                  <button
+                    onClick={() => handleEdit(flow.id)}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: `${color}1a` }}
+                    >
+                      <Workflow className="w-5 h-5" style={{ color }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm truncate">
+                        {flow.name}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        Edited {timeAgo(flow.updatedAt)}
+                      </div>
+                    </div>
+                  </button>
+                  <Heart className="w-4 h-4 text-[#F85729] fill-[#F85729] shrink-0" />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.stopPropagation()}
+                        className="tw w-9 h-9 rounded-lg hover:bg-secondary flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                      >
+                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="tw">
+                      {(getMenuItems(flow) as any[]).map(
+                        (item: any, i: number) => (
+                          <DropdownMenuItem
+                            key={item.key ?? i}
+                            onSelect={item.onClick}
+                            className={
+                              item.danger
+                                ? "text-destructive focus:text-destructive"
+                                : ""
+                            }
+                          >
+                            {item.icon}
+                            {item.label}
+                          </DropdownMenuItem>
+                        ),
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               );
             })}
           </div>

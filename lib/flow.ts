@@ -3,7 +3,8 @@
 // the npm module bypasses interceptors and caused team-context flow
 // creations to fall back to personal.
 import api from "@/lib/axios";
-import { message, Modal } from "antd";
+import { Modal } from "antd";
+import { toast } from "sonner";
 
 export async function getFlowById(flowId: string) {
   const res = await api.get(`/flows/${flowId}`);
@@ -30,7 +31,7 @@ function showFlowLimitModal(errorMsg: string) {
           window.location.href = data.url;
         }
       } catch {
-        message.error("Failed to start purchase");
+        toast.error("Failed to start purchase");
       }
     },
   });
@@ -101,7 +102,7 @@ async function doCreateNewFlow(options?: {
       // dev-overlay axios error.
       return null;
     }
-    message.error(errorMsg);
+    toast.error(errorMsg);
     return null;
   }
 }

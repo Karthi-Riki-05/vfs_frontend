@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { subscriptionsApi } from "@/api/subscriptions.api";
-import { message } from "antd";
+import { toast } from "sonner";
 
 interface ScheduledChange {
   plan: string;
@@ -73,11 +73,11 @@ export function useSubscription() {
   const subscribe = async (planId: string) => {
     try {
       await subscriptionsApi.subscribe({ planId });
-      message.success("Subscribed successfully");
+      toast.success("Subscribed successfully");
       fetchCurrent();
       fetchStatus();
     } catch {
-      message.error("Failed to subscribe");
+      toast.error("Failed to subscribe");
     }
   };
 
@@ -108,7 +108,7 @@ export function useSubscription() {
       const msg =
         err?.response?.data?.error?.message ||
         "Failed to create checkout session";
-      message.error(msg);
+      toast.error(msg);
       throw err;
     }
   };
@@ -129,7 +129,7 @@ export function useSubscription() {
       if (data?.type === "needs_payment_method" && data?.url) {
         // Active sub but no card on file → send the user to the Stripe
         // billing portal to add a card, then come back and retry.
-        message.info(
+        toast.info(
           data?.message ||
             "Add a payment method, then come back and try again.",
         );
@@ -139,22 +139,22 @@ export function useSubscription() {
       if (data?.type === "confirm_in_stripe" && data?.url) {
         // Stripe-hosted upgrade confirmation — user reviews the prorated
         // charge and confirms on Stripe's page, then is redirected back.
-        message.info(
+        toast.info(
           data?.message || "Redirecting to Stripe to confirm payment…",
         );
         window.location.href = data.url;
         return data;
       }
       if (data?.type === "scheduled") {
-        message.success(
+        toast.success(
           "Plan change scheduled for end of current billing period",
         );
       } else if (data?.type === "updated") {
-        message.success(
+        toast.success(
           data?.message || "Team member count updated successfully",
         );
       } else {
-        message.success("Plan updated successfully");
+        toast.success("Plan updated successfully");
       }
       fetchCurrent();
       fetchStatus();
@@ -163,11 +163,11 @@ export function useSubscription() {
       const code = err?.response?.data?.error?.code;
       const apiMsg = err?.response?.data?.error?.message;
       if (code === "DOWNGRADE_NOT_ALLOWED") {
-        message.warning(
+        toast.warning(
           apiMsg || "Downgrading from yearly to monthly is not available",
         );
       } else {
-        message.error(apiMsg || "Failed to change plan");
+        toast.error(apiMsg || "Failed to change plan");
       }
       // Log full error so the browser console shows what Stripe / the API actually returned.
       // eslint-disable-next-line no-console
@@ -184,13 +184,13 @@ export function useSubscription() {
   const cancel = async () => {
     try {
       await subscriptionsApi.cancel();
-      message.success(
+      toast.success(
         "Subscription will be cancelled at end of billing period",
       );
       fetchCurrent();
       fetchStatus();
     } catch {
-      message.error("Failed to cancel subscription");
+      toast.error("Failed to cancel subscription");
     }
   };
 
@@ -201,24 +201,24 @@ export function useSubscription() {
       if (data?.url) {
         window.location.href = data.url;
       } else {
-        message.success("Scheduled plan activated");
+        toast.success("Scheduled plan activated");
         fetchCurrent();
         fetchStatus();
       }
       return data;
     } catch {
-      message.error("Failed to activate scheduled plan");
+      toast.error("Failed to activate scheduled plan");
     }
   };
 
   const cancelScheduledChange = async () => {
     try {
       await subscriptionsApi.cancelScheduled();
-      message.success("Scheduled plan change cancelled");
+      toast.success("Scheduled plan change cancelled");
       fetchCurrent();
       fetchStatus();
     } catch {
-      message.error("Failed to cancel scheduled change");
+      toast.error("Failed to cancel scheduled change");
     }
   };
 

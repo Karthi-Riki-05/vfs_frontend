@@ -10,7 +10,6 @@ import {
   Empty,
   Form,
   Input,
-  Modal,
   Row,
   Select,
   Space,
@@ -20,10 +19,22 @@ import {
   Tabs,
   Tag,
   Timeline,
-  Tooltip as AntdTooltip,
   Typography,
-  message,
 } from "antd";
+import {
+  Tooltip as AntdTooltip,
+  TooltipContent as AntdTooltipContent,
+  TooltipTrigger as AntdTooltipTrigger,
+} from "@/components/ui/tooltip";
+import { toast } from "sonner";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
+import { promptDialog } from "@/components/common/PromptDialog";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
 import {
   EditOutlined,
   StopOutlined,
@@ -107,11 +118,11 @@ export default function UserDetailPage() {
         addonCredits: adjustAddon,
         reason: adjustReason || undefined,
       });
-      message.success("Credits adjusted");
+      toast.success("Credits adjusted");
       setAdjustOpen(false);
       load();
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to adjust credits",
       );
     } finally {
@@ -120,19 +131,19 @@ export default function UserDetailPage() {
   };
 
   const handleForceExpire = () => {
-    Modal.confirm({
+    confirmDialog({
       title: "Force-expire subscription?",
       content:
         "Marks status=expired, sets expiresAt to now, downgrades user to free, resets AI credits to 20, and migrates flows back to free workspace. Use for testing the post-expiry state.",
-      okText: "Expire Now",
-      okButtonProps: { danger: true },
-      onOk: async () => {
+      confirmLabel: "Expire Now",
+      danger: true,
+      onConfirm: async () => {
         try {
           await superAdminApi.forceExpireSubscription(userId);
-          message.success("Subscription expired");
+          toast.success("Subscription expired");
           load();
         } catch (err: any) {
-          message.error(
+          toast.error(
             err?.response?.data?.error?.message || "Failed to expire",
           );
           throw err;
@@ -141,55 +152,34 @@ export default function UserDetailPage() {
     });
   };
 
+  const [cancelSubOpen, setCancelSubOpen] = useState(false);
+  const [cancelSubMode, setCancelSubMode] = useState<
+    "immediate" | "period_end"
+  >("period_end");
+  const [cancelSubReason, setCancelSubReason] = useState("");
+  const [cancelSubLoading, setCancelSubLoading] = useState(false);
+
   const handleCancelSubscription = () => {
-    let mode: "immediate" | "period_end" = "period_end";
-    let reason = "";
-    Modal.confirm({
-      title: "Cancel subscription?",
-      content: (
-        <div>
-          <div style={{ marginBottom: 8 }}>
-            <Text>Cancel type:</Text>
-          </div>
-          <Select
-            defaultValue="period_end"
-            style={{ width: "100%" }}
-            options={[
-              { value: "period_end", label: "At period end" },
-              { value: "immediate", label: "Immediate (downgrade now)" },
-            ]}
-            onChange={(v) => {
-              mode = v as any;
-            }}
-          />
-          <div style={{ marginTop: 12 }}>
-            <Text>Reason (optional):</Text>
-          </div>
-          <Input.TextArea
-            rows={2}
-            style={{ marginTop: 6 }}
-            onChange={(e) => {
-              reason = e.target.value;
-            }}
-          />
-        </div>
-      ),
-      okText: "Confirm Cancel",
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        try {
-          await superAdminApi.cancelSubscription(userId, {
-            immediate: mode === "immediate",
-            reason,
-          });
-          message.success("Subscription cancelled");
-          load();
-        } catch (err: any) {
-          message.error(err?.response?.data?.error?.message || "Cancel failed");
-          throw err;
-        }
-      },
-    });
+    setCancelSubMode("period_end");
+    setCancelSubReason("");
+    setCancelSubOpen(true);
+  };
+
+  const submitCancelSubscription = async () => {
+    setCancelSubLoading(true);
+    try {
+      await superAdminApi.cancelSubscription(userId, {
+        immediate: cancelSubMode === "immediate",
+        reason: cancelSubReason,
+      });
+      toast.success("Subscription cancelled");
+      setCancelSubOpen(false);
+      load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message || "Cancel failed");
+    } finally {
+      setCancelSubLoading(false);
+    }
   };
 
   const load = async () => {
@@ -211,9 +201,7 @@ export default function UserDetailPage() {
         });
       }
     } catch (err: any) {
-      message.error(
-        err?.response?.data?.error?.message || "Failed to load user",
-      );
+      toast.error(err?.response?.data?.error?.message || "Failed to load user");
     } finally {
       setLoading(false);
     }
@@ -234,7 +222,7 @@ export default function UserDetailPage() {
       setActivity(res.data?.data || null);
       setActivityPage(page);
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to load activity",
       );
     } finally {
@@ -248,7 +236,7 @@ export default function UserDetailPage() {
       const res = await superAdminApi.getUserAiUsage(userId);
       setAiUsage(res.data?.data || null);
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to load AI usage",
       );
     } finally {
@@ -267,12 +255,12 @@ export default function UserDetailPage() {
       const values = (await editForm.validateFields()) as UpdateUserPayload;
       setSaving(true);
       await superAdminApi.updateUser(userId, values);
-      message.success("Profile updated");
+      toast.success("Profile updated");
       setEditMode(false);
       await load();
     } catch (err: any) {
       if (err?.errorFields) return;
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to save profile",
       );
     } finally {
@@ -284,72 +272,65 @@ export default function UserDetailPage() {
     if (!user || note === (user.adminNote || "")) return;
     try {
       await superAdminApi.updateUser(userId, { adminNote: note });
-      message.success("Note saved");
+      toast.success("Note saved");
       setUser({ ...user, adminNote: note });
     } catch (err: any) {
-      message.error(
-        err?.response?.data?.error?.message || "Failed to save note",
-      );
+      toast.error(err?.response?.data?.error?.message || "Failed to save note");
     }
   };
 
-  const handleSuspendToggle = () => {
+  const handleSuspendToggle = async () => {
     if (!user) return;
     if (user.suspendedAt) {
-      Modal.confirm({
+      confirmDialog({
         title: "Reactivate user?",
-        onOk: async () => {
+        confirmLabel: "Reactivate",
+        onConfirm: async () => {
           await superAdminApi.reactivateUser(userId);
-          message.success("User reactivated");
+          toast.success("User reactivated");
           load();
         },
       });
     } else {
-      let reason = "";
-      Modal.confirm({
+      const reason = await promptDialog({
         title: "Suspend user?",
-        content: (
-          <Input.TextArea
-            rows={3}
-            placeholder="Reason (optional)"
-            onChange={(e) => {
-              reason = e.target.value;
-            }}
-          />
-        ),
-        okText: "Suspend",
-        okButtonProps: { danger: true },
-        onOk: async () => {
-          await superAdminApi.suspendUser(userId, reason);
-          message.success("User suspended");
-          load();
-        },
+        label: "Reason (optional)",
+        placeholder: "Reason (optional)",
+        multiline: true,
+        confirmLabel: "Suspend",
+        danger: true,
       });
+      if (reason == null) return;
+      try {
+        await superAdminApi.suspendUser(userId, reason);
+        toast.success("User suspended");
+        load();
+      } catch (err: any) {
+        toast.error(
+          err?.response?.data?.error?.message || "Failed to suspend user",
+        );
+      }
     }
   };
 
-  const handleResetPassword = () => {
-    let pwd = "";
-    Modal.confirm({
+  const handleResetPassword = async () => {
+    const pwd = await promptDialog({
       title: "Reset password",
-      content: (
-        <Input.Password
-          placeholder="New password (min 8 chars)"
-          onChange={(e) => {
-            pwd = e.target.value;
-          }}
-        />
-      ),
-      okText: "Reset",
-      onOk: async () => {
-        if (!pwd || pwd.length < 8) {
-          message.error("Password must be at least 8 characters");
-          throw new Error("invalid");
-        }
-        await superAdminApi.resetUserPassword(userId, pwd);
-        message.success("Password reset");
-      },
+      label: "New password",
+      placeholder: "New password (min 8 chars)",
+      password: true,
+      confirmLabel: "Reset",
+      minLength: 8,
     });
+    if (pwd == null) return;
+    try {
+      await superAdminApi.resetUserPassword(userId, pwd);
+      toast.success("Password reset");
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.error?.message || "Failed to reset password",
+      );
+    }
   };
 
   if (loading) {
@@ -862,15 +843,20 @@ export default function UserDetailPage() {
                               title: "Archived",
                               dataIndex: "archivedAt",
                               render: (v: string) => (
-                                <AntdTooltip
-                                  title={dayjs(v).format("YYYY-MM-DD HH:mm")}
-                                >
-                                  <Text
-                                    type="secondary"
-                                    style={{ fontSize: 12 }}
-                                  >
-                                    {dayjs(v).fromNow()}
-                                  </Text>
+                                <AntdTooltip>
+                                  <AntdTooltipTrigger asChild>
+                                    <span
+                                      style={{
+                                        fontSize: 12,
+                                        color: "rgba(0,0,0,0.45)",
+                                      }}
+                                    >
+                                      {dayjs(v).fromNow()}
+                                    </span>
+                                  </AntdTooltipTrigger>
+                                  <AntdTooltipContent className="tw">
+                                    {dayjs(v).format("YYYY-MM-DD HH:mm")}
+                                  </AntdTooltipContent>
                                 </AntdTooltip>
                               ),
                             },
@@ -1236,26 +1222,22 @@ export default function UserDetailPage() {
         }
       />
 
-      <Modal
-        title="Adjust AI Credits"
-        open={adjustOpen}
-        onCancel={() => setAdjustOpen(false)}
-        onOk={handleAdjustSave}
-        confirmLoading={adjustSaving}
-        okText="Save"
-        okButtonProps={{ style: { background: PRIMARY, borderColor: PRIMARY } }}
-      >
-        <Form layout="vertical">
-          <Form.Item label="Plan credits" required>
-            <Input
+      <ModalShell open={adjustOpen} onClose={() => setAdjustOpen(false)}>
+        <ModalHeader
+          title="Adjust AI Credits"
+          close={() => setAdjustOpen(false)}
+        />
+        <div className="tw px-5 py-4 space-y-3">
+          <Field label="Plan credits" required>
+            <FieldInput
               type="number"
               min={0}
               value={adjustPlan}
               onChange={(e) => setAdjustPlan(parseInt(e.target.value, 10) || 0)}
             />
-          </Form.Item>
-          <Form.Item label="Addon credits" required>
-            <Input
+          </Field>
+          <Field label="Addon credits" required>
+            <FieldInput
               type="number"
               min={0}
               value={adjustAddon}
@@ -1263,17 +1245,71 @@ export default function UserDetailPage() {
                 setAdjustAddon(parseInt(e.target.value, 10) || 0)
               }
             />
-          </Form.Item>
-          <Form.Item label="Reason / note (optional)">
-            <Input.TextArea
+          </Field>
+          <Field label="Reason / note (optional)">
+            <textarea
               rows={2}
               value={adjustReason}
               onChange={(e) => setAdjustReason(e.target.value)}
               placeholder="e.g. customer credit refund"
+              className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none resize-none font-sans"
             />
-          </Form.Item>
-        </Form>
-      </Modal>
+          </Field>
+        </div>
+        <ModalFooter
+          close={() => setAdjustOpen(false)}
+          primary={handleAdjustSave}
+          primaryLabel="Save"
+          loading={adjustSaving}
+        />
+      </ModalShell>
+
+      <ModalShell open={cancelSubOpen} onClose={() => setCancelSubOpen(false)}>
+        <ModalHeader
+          title="Cancel subscription?"
+          close={() => setCancelSubOpen(false)}
+        />
+        <div className="px-5 pb-5 space-y-3 text-sm">
+          <div>
+            <div className="mb-1.5">Cancel type:</div>
+            <div className="inline-flex rounded-lg border border-border p-0.5 bg-secondary">
+              {[
+                { label: "At period end", value: "period_end" },
+                { label: "Immediate (downgrade now)", value: "immediate" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setCancelSubMode(opt.value as any)}
+                  className={`appearance-none cursor-pointer outline-none border-0 h-8 px-3 rounded-md text-xs font-semibold ${
+                    cancelSubMode === opt.value
+                      ? "bg-card text-foreground shadow-sm"
+                      : "bg-transparent text-muted-foreground"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block mb-1.5">Reason (optional):</label>
+            <textarea
+              rows={2}
+              value={cancelSubReason}
+              onChange={(e) => setCancelSubReason(e.target.value)}
+              className="w-full min-h-16 rounded-xl border border-border bg-background p-3 text-sm font-sans outline-none resize-none"
+            />
+          </div>
+        </div>
+        <ModalFooter
+          close={() => setCancelSubOpen(false)}
+          primary={submitCancelSubscription}
+          primaryLabel="Confirm Cancel"
+          loading={cancelSubLoading}
+          danger
+        />
+      </ModalShell>
     </div>
   );
 }

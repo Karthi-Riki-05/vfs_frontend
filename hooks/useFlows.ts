@@ -5,7 +5,7 @@ import { flowsApi } from "@/api/flows.api";
 import { useDebounce } from "./useDebounce";
 import { useAppContext } from "@/context/AppContext";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
-import { message } from "antd";
+import { toast } from "sonner";
 
 export function useFlows() {
   const { activeTeamId, hydrated } = useAppContext();
@@ -97,20 +97,20 @@ export function useFlows() {
   const deleteFlow = async (id: string) => {
     try {
       await flowsApi.delete(id);
-      message.success("Flow deleted");
+      toast.success("Flow deleted");
       fetchFlows();
     } catch {
-      message.error("Failed to delete flow");
+      toast.error("Failed to delete flow");
     }
   };
 
   const duplicateFlow = async (id: string) => {
     try {
       await flowsApi.duplicate(id);
-      message.success("Flow duplicated");
+      toast.success("Flow duplicated");
       fetchFlows();
     } catch {
-      message.error("Failed to duplicate flow");
+      toast.error("Failed to duplicate flow");
     }
   };
 
@@ -123,17 +123,17 @@ export function useFlows() {
         prev.map((f) => (f.id === id ? { ...f, isFavorite: newState } : f)),
       );
     } catch {
-      message.error("Failed to update favorite");
+      toast.error("Failed to update favorite");
     }
   };
 
   const removeSharedFlow = async (flowId: string, shareId: string) => {
     try {
       await flowsApi.removeShare(flowId, shareId);
-      message.success("Removed from shared");
+      toast.success("Removed from shared");
       fetchFlows();
     } catch {
-      message.error("Failed to remove shared flow");
+      toast.error("Failed to remove shared flow");
     }
   };
 

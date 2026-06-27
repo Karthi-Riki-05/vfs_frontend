@@ -42,11 +42,13 @@ export default function DashboardLayout({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatFullView, setChatFullView] = useState(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [isContextReady, setIsContextReady] = useState(false);
   const [isFlowsReady, setIsFlowsReady] = useState(false);
-  // Tracks whether the sidebar was auto-collapsed when chat opened so we can
-  // restore it when chat closes without clobbering a user-initiated collapse.
+  // Tracks whether the sidebar was auto-collapsed when chat/AI opened so we can
+  // restore it when they close without clobbering a user-initiated collapse.
   const sidebarAutoCollapsedRef = useRef(false);
+  const aiSidebarAutoCollapsedRef = useRef(false);
   const pathname = usePathname() || "";
   const {
     currentApp,
@@ -175,6 +177,32 @@ export default function DashboardLayout({
     );
   }, [chatOpen]);
 
+  // Listen to AI panel open/close events to track panel width for content margin
+  useEffect(() => {
+    const onOpen = () => setAiPanelOpen(true);
+    const onClose = () => setAiPanelOpen(false);
+    window.addEventListener("aiPanelOpened", onOpen);
+    window.addEventListener("aiPanelClosed", onClose);
+    return () => {
+      window.removeEventListener("aiPanelOpened", onOpen);
+      window.removeEventListener("aiPanelClosed", onClose);
+    };
+  }, []);
+
+  // When AI panel opens on desktop, auto-collapse sidebar for room.
+  useEffect(() => {
+    if (isMobile || isTablet) return;
+    if (aiPanelOpen) {
+      setCollapsed((prev) => {
+        if (!prev) aiSidebarAutoCollapsedRef.current = true;
+        return true;
+      });
+    } else if (aiSidebarAutoCollapsedRef.current) {
+      aiSidebarAutoCollapsedRef.current = false;
+      setCollapsed(false);
+    }
+  }, [aiPanelOpen, isMobile, isTablet]);
+
   // Prevent body scroll when mobile drawer is open
   useEffect(() => {
     if (mobileOpen) {
@@ -273,6 +301,11 @@ export default function DashboardLayout({
   // stable brand signal; fall back to currentApp only for genuine web visitors.
   const isProBrand =
     brand === "pro" || (brand === "web" && currentApp === "pro");
+  console.log("[DashboardLayout] brand/currentApp:", {
+    brand,
+    currentApp,
+    isProBrand,
+  });
   const SidebarComponent = isProBrand ? ProSidebar : Sidebar;
 
   // Mobile: no fixed sidebar, use drawer. No right chat column on mobile.
@@ -331,6 +364,9 @@ export default function DashboardLayout({
   // collide with the chat input/send (column open, full view, or the
   // standalone mobile /dashboard/chat page).
   const chatActive = chatOpen || isChatPage;
+  // AI panel width — only on desktop when chat is not active
+  const aiPanelWidth =
+    !chatActive && aiPanelOpen && !isTablet && !hideChatColumn ? 400 : 0;
 
   return (
     <AppContextLoader
@@ -349,7 +385,7 @@ export default function DashboardLayout({
               className="responsive-content"
               style={{
                 marginLeft: siderWidth,
-                marginRight: chatColumnWidth,
+                marginRight: chatColumnWidth + aiPanelWidth,
                 padding: isTablet ? "20px 24px" : "24px 32px",
                 background: contentBg,
                 minHeight: "calc(100dvh - 56px)",
@@ -367,15 +403,12 @@ export default function DashboardLayout({
                 <ErrorBoundary>{children}</ErrorBoundary>
               </div>
               {!chatActive && (
-                <AIAssistant
-                  contentLeft={siderWidth}
-                  contentRight={chatColumnWidth}
-                />
+                <AIAssistant contentLeft={siderWidth} contentRight={0} />
               )}
             </Content>
           )}
 
-          <FloatingActionButton hidden={chatActive} />
+          <FloatingActionButton hidden={chatActive || aiPanelOpen} />
 
           {/* Right chat column — normal mode (430px fixed right) */}
           {showChatColumn && !chatFullView && (

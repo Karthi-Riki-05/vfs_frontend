@@ -8,16 +8,19 @@ import {
   Card,
   Col,
   Input,
-  Modal,
   Row,
   Select,
   Space,
   Table,
   Tag,
-  Typography,
-  message,
-  Segmented,
+  Typography
 } from "antd";
+import { toast } from "sonner";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
 import type { ColumnsType } from "antd/es/table";
 import {
   PlusOutlined,
@@ -73,7 +76,7 @@ export default function SubscriptionsPage() {
       setTotal(d?.pagination?.total || 0);
       setStatusCounts(d?.statusCounts || {});
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to load subscriptions",
       );
     } finally {
@@ -94,7 +97,7 @@ export default function SubscriptionsPage() {
         immediate: cancelMode === "immediate",
         reason: cancelReason,
       });
-      message.success(
+      toast.success(
         cancelMode === "immediate"
           ? "Subscription cancelled immediately"
           : "Subscription will cancel at period end",
@@ -104,7 +107,7 @@ export default function SubscriptionsPage() {
       setCancelMode("period_end");
       load();
     } catch (err: any) {
-      message.error(err?.response?.data?.error?.message || "Cancel failed");
+      toast.error(err?.response?.data?.error?.message || "Cancel failed");
     } finally {
       setCancelling(false);
     }
@@ -416,50 +419,63 @@ export default function SubscriptionsPage() {
         onSuccess={load}
       />
 
-      <Modal
-        title="Cancel Subscription"
-        open={!!cancelTarget}
-        onCancel={() => setCancelTarget(null)}
-        onOk={handleConfirmCancel}
-        okText="Confirm Cancel"
-        okButtonProps={{ danger: true, loading: cancelling }}
-      >
+      <ModalShell open={!!cancelTarget} onClose={() => setCancelTarget(null)}>
+        <ModalHeader
+          title="Cancel Subscription"
+          close={() => setCancelTarget(null)}
+        />
         {cancelTarget && (
-          <div>
-            <Text strong>User:</Text>{" "}
-            <Text>{cancelTarget.user.name || cancelTarget.user.email}</Text>
-            <div style={{ marginTop: 8 }}>
-              <Text strong>Plan:</Text>{" "}
-              <Text>
-                {cancelTarget.plan?.name || cancelTarget.productType || "—"}
-              </Text>
+          <div className="px-5 pb-5 space-y-3 text-sm">
+            <div>
+              <span className="font-semibold">User:</span>{" "}
+              {cancelTarget.user.name || cancelTarget.user.email}
             </div>
-            <div style={{ marginTop: 16 }}>
-              <Text>Cancel type:</Text>
-              <div style={{ marginTop: 6 }}>
-                <Segmented
-                  options={[
-                    { label: "At period end", value: "period_end" },
-                    { label: "Immediate", value: "immediate" },
-                  ]}
-                  value={cancelMode}
-                  onChange={(v) => setCancelMode(v as any)}
-                />
+            <div>
+              <span className="font-semibold">Plan:</span>{" "}
+              {cancelTarget.plan?.name || cancelTarget.productType || "—"}
+            </div>
+            <div>
+              <div className="mb-1.5">Cancel type:</div>
+              <div className="inline-flex rounded-lg border border-border p-0.5 bg-secondary">
+                {[
+                  { label: "At period end", value: "period_end" },
+                  { label: "Immediate", value: "immediate" },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setCancelMode(opt.value as any)}
+                    className={`appearance-none cursor-pointer outline-none border-0 h-8 px-3 rounded-md text-xs font-semibold ${
+                      cancelMode === opt.value
+                        ? "bg-card text-foreground shadow-sm"
+                        : "bg-transparent text-muted-foreground"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
-            <div style={{ marginTop: 12 }}>
-              <Text>Reason (optional):</Text>
-              <Input.TextArea
+            <div>
+              <label className="block mb-1.5">Reason (optional):</label>
+              <textarea
                 rows={3}
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
                 placeholder="Internal reason for cancellation"
-                style={{ marginTop: 6 }}
+                className="w-full min-h-20 rounded-xl border border-border bg-background p-3 text-sm font-sans outline-none resize-none"
               />
             </div>
           </div>
         )}
-      </Modal>
+        <ModalFooter
+          close={() => setCancelTarget(null)}
+          primary={handleConfirmCancel}
+          primaryLabel="Confirm Cancel"
+          loading={cancelling}
+          danger
+        />
+      </ModalShell>
     </div>
   );
 }

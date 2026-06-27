@@ -86,7 +86,7 @@ export default function EditorFABs() {
       {/* Chat FAB — only FAB on desktop editor */}
       <Fab
         onClick={handleChatClick}
-        color="#1a73e8"
+        color="#3CB371"
         tooltip="Chat"
         badge={unreadCount}
         icon={

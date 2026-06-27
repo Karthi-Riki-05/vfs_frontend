@@ -4,28 +4,29 @@ import React, { Suspense, useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Button,
-  Modal,
   Form,
   Input,
   Select,
-  message,
   Row,
   Col,
   Spin,
   Radio,
   Upload,
   Divider,
-  Space,
+  Space
 } from "antd";
+import { toast } from "sonner";
 import {
-  PlusOutlined,
-  FileImageOutlined,
-  ExclamationCircleOutlined,
-} from "@ant-design/icons";
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
+import { PlusOutlined, FileImageOutlined } from "@ant-design/icons";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import ShapeCard from "@/components/shapes/ShapeCard";
 import api from "@/lib/axios";
 import { RcFile } from "antd/es/upload";
-import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useAppContext } from "@/context/AppContext";
 import { useTabFocus } from "@/hooks/useTabFocus";
 import {
@@ -260,7 +261,6 @@ const MAX_IMAGE_MB = 18;
 
 function ShapesContent() {
   const searchParams = useSearchParams();
-  const isMobile = useIsMobile();
   // Re-scope shapes to the active account/team on switch (same as flows).
   const { activeTeamId } = useAppContext();
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -268,10 +268,10 @@ function ShapesContent() {
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [form] = Form.useForm();
-  const [editGroupForm] = Form.useForm();
   const [editGroupModalOpen, setEditGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<any>(null);
   const [editingGroupLoading, setEditingGroupLoading] = useState(false);
+  const [editGroupName, setEditGroupName] = useState("");
   // Mobile (new design) name search — desktop keeps the group filter dropdown.
   const [mobileSearch, setMobileSearch] = useState("");
 
@@ -342,9 +342,9 @@ function ShapesContent() {
       setGroups([newGroup, ...groups]);
       form.setFieldsValue({ groupId: newGroup.id });
       setNewGroupName("");
-      message.success("Group created");
+      toast.success("Group created");
     } catch (error) {
-      message.error("Failed to create group");
+      toast.error("Failed to create group");
     } finally {
       setAddingGroup(false);
     }
@@ -353,22 +353,28 @@ function ShapesContent() {
   const handleEditGroup = (group: any, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setEditingGroup(group);
-    editGroupForm.setFieldsValue({ name: group.name });
+    setEditGroupName(group.name);
     setEditGroupModalOpen(true);
   };
 
+  const closeEditGroupModal = () => {
+    setEditGroupModalOpen(false);
+    setEditGroupName("");
+    setEditingGroup(null);
+  };
+
   const handleSaveGroupEdit = async () => {
+    if (!editGroupName.trim()) return;
+    setEditingGroupLoading(true);
     try {
-      const values = await editGroupForm.validateFields();
-      setEditingGroupLoading(true);
-      await api.put(`/shape-groups/${editingGroup.id}`, { name: values.name });
-      message.success("Group renamed");
-      setEditGroupModalOpen(false);
-      setEditingGroup(null);
-      editGroupForm.resetFields();
+      await api.put(`/shape-groups/${editingGroup.id}`, {
+        name: editGroupName.trim(),
+      });
+      toast.success("Group renamed");
+      closeEditGroupModal();
       fetchGroups();
     } catch {
-      message.error("Failed to rename group");
+      toast.error("Failed to rename group");
     } finally {
       setEditingGroupLoading(false);
     }
@@ -377,20 +383,18 @@ function ShapesContent() {
   const handleDeleteGroup = (group: any, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const shapeCount = groupShapeCounts[group.id] || group._count?.shapes || 0;
-    Modal.confirm({
+    confirmDialog({
       title: `Delete "${group.name}"?`,
-      icon: <ExclamationCircleOutlined />,
       content:
         shapeCount > 0
           ? `This will delete the group and all ${shapeCount} shape${shapeCount !== 1 ? "s" : ""} inside it. This cannot be undone.`
           : "This will delete the empty group. This cannot be undone.",
-      okText: "Delete",
-      okType: "danger",
-      cancelText: "Cancel",
-      onOk: async () => {
+      confirmLabel: "Delete",
+      danger: true,
+      onConfirm: async () => {
         try {
           await api.delete(`/shape-groups/${group.id}`);
-          message.success("Group deleted");
+          toast.success("Group deleted");
           setGroups((prev) => prev.filter((g) => g.id !== group.id));
           // Also remove shapes that belonged to this group from local state
           setShapes((prev) =>
@@ -403,7 +407,7 @@ function ShapesContent() {
             setOpenGroupId(null);
           }
         } catch {
-          message.error("Failed to delete group");
+          toast.error("Failed to delete group");
         }
       },
     });
@@ -470,7 +474,7 @@ function ShapesContent() {
       };
 
       await api.post("/shapes", payload);
-      message.success("Shape added successfully");
+      toast.success("Shape added successfully");
       setIsModalVisible(false);
       form.resetFields();
       fetchShapes();
@@ -484,9 +488,9 @@ function ShapesContent() {
         if (fieldName) {
           form.setFields([{ name: fieldName, errors: [detail.message] }]);
         }
-        message.error(detail.message);
+        toast.error(detail.message);
       } else {
-        message.error(err?.message || "Failed to add shape");
+        toast.error(err?.message || "Failed to add shape");
       }
     }
   };
@@ -495,10 +499,24 @@ function ShapesContent() {
     try {
       await api.delete(`/shapes/${id}`);
       setShapes(shapes.filter((s) => s.id !== id));
-      message.success("Shape deleted");
+      toast.success("Shape deleted");
     } catch (error) {
       setShapes(shapes.filter((s) => s.id !== id));
-      message.info("Shape removed from view");
+      toast.info("Shape removed from view");
+    }
+  };
+
+  // Duplicate a shape (POST /shapes/:id/copy). The copy keeps the same group,
+  // so refetch to surface it in the current drill-in view.
+  const handleCopyShape = async (id: string) => {
+    try {
+      await api.post(`/shapes/${id}/copy`);
+      toast.success("Shape copied");
+      fetchShapes();
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error?.message || "Failed to copy shape",
+      );
     }
   };
 
@@ -521,9 +539,9 @@ function ShapesContent() {
       setGroups((prev) => [newGroup, ...prev]);
       setCreateGroupName("");
       setShowCreateGroup(false);
-      message.success("Group created");
+      toast.success("Group created");
     } catch {
-      message.error("Failed to create group");
+      toast.error("Failed to create group");
     } finally {
       setCreatingGroup(false);
     }
@@ -542,9 +560,9 @@ function ShapesContent() {
             : s,
         ),
       );
-      message.success(`Moved to ${target?.name || "group"}`);
+      toast.success(`Moved to ${target?.name || "group"}`);
     } catch {
-      message.error("Failed to move shape");
+      toast.error("Failed to move shape");
     }
   };
 
@@ -600,25 +618,39 @@ function ShapesContent() {
           {!openGroup ? (
             /* ───────── Root: list of GROUPS ───────── */
             <>
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <h1 className="text-foreground font-extrabold text-[22px] lg:text-[28px] leading-tight">
-                  Shapes
-                </h1>
-                <div className="flex items-center gap-2 shrink-0">
-                  <ViewToggle view={groupsView} onChange={setGroupsView} />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCreateGroupName("");
-                      setShowCreateGroup(true);
-                    }}
-                    className="appearance-none border-0 cursor-pointer h-9 max-lg:h-11 px-3 rounded-xl bg-primary text-white font-semibold text-xs inline-flex items-center gap-1.5"
-                  >
-                    <PlusIcon className="w-3.5 h-3.5" /> New Group
-                  </button>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                {/* This div keeps the title and toggle side-by-side on mobile view */}
+                <div className="flex items-center justify-between w-full md:w-auto gap-3">
+                  <h1 className="text-foreground font-extrabold text-[22px] lg:text-[28px] leading-tight">
+                    Shapes
+                  </h1>
+                  {/* Visible only on mobile layout */}
+                  <div className="md:hidden shrink-0">
+                    <ViewToggle view={groupsView} onChange={setGroupsView} />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+                  {/* Visible only on tablet and desktop layouts */}
+                  <div className="hidden md:block">
+                    <ViewToggle view={groupsView} onChange={setGroupsView} />
+                  </div>
+
+                  {/* Condition: Button renders only if groups exist */}
+                  {groups.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreateGroupName("");
+                        setShowCreateGroup(true);
+                      }}
+                      className="appearance-none border-0 cursor-pointer h-9 max-lg:h-11 px-3 rounded-xl bg-primary text-white font-semibold text-xs inline-flex items-center justify-center gap-1.5 w-full md:w-auto"
+                    >
+                      <PlusIcon className="w-3.5 h-3.5" /> New Group
+                    </button>
+                  )}
                 </div>
               </div>
-
               <SearchBar
                 placeholder="Search groups"
                 value={groupQuery}
@@ -718,7 +750,7 @@ function ShapesContent() {
                   })}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3">
                   {filteredGroups.map((g) => {
                     const tone = groupTone(g.name);
                     const key = `g-${g.id}`;
@@ -780,21 +812,11 @@ function ShapesContent() {
           ) : (
             /* ───────── Drill-in: shapes INSIDE the group ───────── */
             <>
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenGroupId(null);
-                    setMobileSearch("");
-                  }}
-                  className="appearance-none border-0 bg-transparent cursor-pointer inline-flex items-center gap-1.5 text-sm font-semibold text-primary-deep hover:underline"
-                >
-                  <ArrowLeft className="w-4 h-4" /> Back to Groups
-                </button>
+              <div className="flex items-center justify-start md:justify-end mb-3">
                 <button
                   type="button"
                   onClick={handleNewShapeInGroup}
-                  className="appearance-none border-0 cursor-pointer h-9 max-lg:h-11 px-3 rounded-xl bg-primary text-white font-semibold text-xs inline-flex items-center gap-1.5"
+                  className="appearance-none border-0 cursor-pointer h-9 max-lg:h-11 px-3 rounded-xl bg-primary text-white font-semibold text-xs inline-flex items-center justify-center gap-1.5 w-full md:w-auto"
                 >
                   <PlusIcon className="w-3.5 h-3.5" /> New Shape
                 </button>
@@ -828,7 +850,7 @@ function ShapesContent() {
               />
 
               {loading && shapes.length === 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div
                       key={i}
@@ -843,7 +865,7 @@ function ShapesContent() {
                     : "No shapes in this group. Add a shape to get started."}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                   {shapesInGroup.map((shape) => (
                     <ShapeCard
                       key={shape.id}
@@ -851,10 +873,11 @@ function ShapesContent() {
                       onDelete={handleDeleteShape}
                       moveGroups={moveTargets}
                       onMove={handleMoveShape}
+                      onCopy={handleCopyShape}
                     />
                   ))}
                   {/* Add shape dashed card */}
-                  <button
+                  {/* <button
                     type="button"
                     onClick={handleNewShapeInGroup}
                     className="appearance-none cursor-pointer rounded-2xl border-2 border-dashed border-border bg-background flex flex-col items-center justify-center gap-1 min-h-[140px] hover:border-primary/50 transition-colors"
@@ -863,7 +886,7 @@ function ShapesContent() {
                     <div className="text-xs font-semibold text-primary">
                       Add shape
                     </div>
-                  </button>
+                  </button> */}
                 </div>
               )}
             </>
@@ -881,256 +904,233 @@ function ShapesContent() {
         )}
 
         {/* Edit Group Modal */}
-        <Modal
-          title="Rename Group"
-          open={editGroupModalOpen}
-          onCancel={() => {
-            setEditGroupModalOpen(false);
-            editGroupForm.resetFields();
-            setEditingGroup(null);
-          }}
-          onOk={handleSaveGroupEdit}
-          confirmLoading={editingGroupLoading}
-          okButtonProps={{
-            style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
-          }}
-          okText="Save"
-          width={isMobile ? "95vw" : 480}
-          centered
-        >
-          <Form
-            form={editGroupForm}
-            layout="vertical"
-            style={{ marginTop: 16 }}
-          >
-            <Form.Item
-              name="name"
-              label="Group Name"
-              rules={[{ required: true, message: "Please enter a group name" }]}
-            >
-              <Input
+        <ModalShell open={editGroupModalOpen} onClose={closeEditGroupModal}>
+          <ModalHeader title="Rename Group" close={closeEditGroupModal} />
+          <div className="px-5 py-4">
+            <Field label="Group Name" required>
+              <FieldInput
+                autoFocus
+                value={editGroupName}
+                onChange={(e) => setEditGroupName(e.target.value)}
                 placeholder="Group name"
-                size="large"
-                style={{ borderRadius: 8 }}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    editGroupName.trim() &&
+                    !editingGroupLoading
+                  )
+                    handleSaveGroupEdit();
+                }}
               />
-            </Form.Item>
-          </Form>
-        </Modal>
+            </Field>
+          </div>
+          <ModalFooter
+            close={closeEditGroupModal}
+            primary={handleSaveGroupEdit}
+            primaryLabel="Save"
+            loading={editingGroupLoading}
+            disabled={!editGroupName.trim()}
+          />
+        </ModalShell>
 
         {/* Add Shape Modal */}
-        <Modal
-          title="Add New Shape"
-          open={isModalVisible}
-          onCancel={handleCancel}
-          footer={null}
-          width={isMobile ? "95vw" : 700}
-          centered
-          styles={{
-            body: {
-              maxHeight: isMobile ? "calc(100dvh - 200px)" : "70dvh",
-              overflowY: "auto",
-              overscrollBehavior: "contain",
-            },
-          }}
-        >
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleAddShape}
-            initialValues={{ type: "stencil", textAlignment: "bottom" }}
-          >
-            <Row gutter={16}>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="name"
-                  label="Name"
-                  rules={[{ required: true }]}
-                >
-                  <Input placeholder="Shape name" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="type"
-                  label="Shape Type"
-                  rules={[{ required: true }]}
-                >
-                  <Select
-                    // Render the popup inside the modal — otherwise the Ant
-                    // Design portal places it on document.body where the
-                    // modal mask/stacking context can hide it.
-                    getPopupContainer={(trigger) =>
-                      trigger.parentElement || document.body
-                    }
+        <ModalShell open={isModalVisible} onClose={handleCancel} size="xl">
+          <ModalHeader title="Add New Shape" close={handleCancel} />
+          <div className="px-5 pb-5">
+            <Form
+              form={form}
+              layout="vertical"
+              onFinish={handleAddShape}
+              initialValues={{ type: "stencil", textAlignment: "bottom" }}
+            >
+              <Row gutter={16}>
+                <Col xs={24} sm={12}>
+                  <Form.Item
+                    name="name"
+                    label="Name"
+                    rules={[{ required: true }]}
                   >
-                    <Option value="stencil">Stencil</Option>
-                    <Option value="image">Image</Option>
-                    <Option value="html">HTML</Option>
-                    <Option value="shape">XML</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Form.Item
-              name="groupId"
-              label="Group"
-              rules={[{ required: true, message: "Please select a group" }]}
-            >
-              <Select
-                placeholder="Select a group"
-                // Keep the popup inside the modal (same reason as the Shape
-                // Type select above) and use the new API for custom footer.
-                getPopupContainer={(trigger) =>
-                  trigger.parentElement || document.body
-                }
-                popupRender={(menu) => (
-                  <>
-                    {menu}
-                    <Divider style={{ margin: "8px 0" }} />
-                    <Space style={{ padding: "0 8px 4px" }}>
-                      <Input
-                        placeholder="New group name"
-                        value={newGroupName}
-                        onChange={(e) => setNewGroupName(e.target.value)}
-                      />
-                      <Button
-                        type="text"
-                        icon={<PlusOutlined />}
-                        onClick={handleCreateGroup}
-                        loading={addingGroup}
-                      >
-                        Add
-                      </Button>
-                    </Space>
-                  </>
-                )}
-              >
-                {groups.map((g) => (
-                  <Option key={g.id} value={g.id}>
-                    {g.name}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-
-            {shapeType === "image" ? (
-              <Form.Item
-                name="upload"
-                label="Image Upload"
-                valuePropName="fileList"
-                getValueFromEvent={normFile}
-                rules={[{ required: true, message: "Please upload an image" }]}
-              >
-                <Dragger
-                  name="files"
-                  maxCount={1}
-                  beforeUpload={(file) => {
-                    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
-                      message.error(
-                        `Image is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max is ${MAX_IMAGE_MB}MB.`,
-                      );
-                      return Upload.LIST_IGNORE;
-                    }
-                    return false;
-                  }}
-                  accept="image/*"
-                >
-                  <p className="ant-upload-drag-icon">
-                    <FileImageOutlined />
-                  </p>
-                  <p className="ant-upload-text">
-                    Click or drag file to this area to upload
-                  </p>
-                </Dragger>
-              </Form.Item>
-            ) : (
-              <>
-                {shapeType === "shape" && (
-                  <Form.Item label="Upload XML File">
-                    <Dragger
-                      name="xmlfile"
-                      maxCount={1}
-                      showUploadList={false}
-                      accept=".xml,.svg,.txt,text/xml,application/xml,image/svg+xml"
-                      beforeUpload={(file) => {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          const text = String(reader.result || "").trim();
-                          if (!text) {
-                            message.error("File is empty");
-                            return;
-                          }
-                          form.setFieldsValue({ content: text });
-                          message.success(`Loaded ${file.name}`);
-                        };
-                        reader.onerror = () =>
-                          message.error("Failed to read file");
-                        reader.readAsText(file);
-                        return false;
-                      }}
-                    >
-                      <p className="ant-upload-drag-icon">
-                        <FileImageOutlined />
-                      </p>
-                      <p className="ant-upload-text">
-                        Click or drag an XML / SVG file
-                      </p>
-                      <p
-                        className="ant-upload-hint"
-                        style={{ fontSize: 12, color: "#888" }}
-                      >
-                        File contents will populate the field below
-                      </p>
-                    </Dragger>
+                    <Input placeholder="Shape name" />
                   </Form.Item>
-                )}
-                <Form.Item
-                  name="content"
-                  label="Content (SVG/HTML/XML)"
-                  rules={[
-                    { required: true, message: "Please enter content" },
-                    {
-                      max: MAX_CONTENT_CHARS,
-                      message: `Content is too large (max ${MAX_CONTENT_CHARS / 1_000_000}M characters)`,
-                    },
-                  ]}
-                  help="Paste your SVG / HTML / mxGraph XML here, or upload a file above."
-                >
-                  <Input.TextArea rows={6} placeholder="<svg...>...</svg>" />
-                </Form.Item>
-              </>
-            )}
+                </Col>
+                <Col xs={24} sm={12}>
+                  <Form.Item
+                    name="type"
+                    label="Shape Type"
+                    rules={[{ required: true }]}
+                  >
+                    <Select
+                      // Render the popup inside the modal — otherwise the Ant
+                      // Design portal places it on document.body where the
+                      // modal mask/stacking context can hide it.
+                      getPopupContainer={(trigger) =>
+                        trigger.parentElement || document.body
+                      }
+                    >
+                      <Option value="stencil">Stencil</Option>
+                      <Option value="image">Image</Option>
+                      <Option value="html">HTML</Option>
+                      <Option value="shape">XML</Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
 
-            <Form.Item
-              name="textAlignment"
-              label="Text Alignment"
-              rules={[{ required: true }]}
-            >
-              <Radio.Group>
-                <Radio value="top">Top</Radio>
-                <Radio value="center">Center</Radio>
-                <Radio value="bottom">Bottom</Radio>
-              </Radio.Group>
-            </Form.Item>
-
-            <Form.Item>
-              <Button
-                type="primary"
-                htmlType="submit"
-                block
-                size="large"
-                style={{
-                  background: "#3CB371",
-                  borderColor: "#3CB371",
-                  borderRadius: 8,
-                }}
+              <Form.Item
+                name="groupId"
+                label="Group"
+                rules={[{ required: true, message: "Please select a group" }]}
               >
-                Save Shape
-              </Button>
-            </Form.Item>
-          </Form>
-        </Modal>
+                <Select
+                  placeholder="Select a group"
+                  // Keep the popup inside the modal (same reason as the Shape
+                  // Type select above) and use the new API for custom footer.
+                  getPopupContainer={(trigger) =>
+                    trigger.parentElement || document.body
+                  }
+                  popupRender={(menu) => (
+                    <>
+                      {menu}
+                      <Divider style={{ margin: "8px 0" }} />
+                      <Space style={{ padding: "0 8px 4px" }}>
+                        <Input
+                          placeholder="New group name"
+                          value={newGroupName}
+                          onChange={(e) => setNewGroupName(e.target.value)}
+                        />
+                        <Button
+                          type="text"
+                          icon={<PlusOutlined />}
+                          onClick={handleCreateGroup}
+                          loading={addingGroup}
+                        >
+                          Add
+                        </Button>
+                      </Space>
+                    </>
+                  )}
+                >
+                  {groups.map((g) => (
+                    <Option key={g.id} value={g.id}>
+                      {g.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
+              {shapeType === "image" ? (
+                <Form.Item
+                  name="upload"
+                  label="Image Upload"
+                  valuePropName="fileList"
+                  getValueFromEvent={normFile}
+                  rules={[
+                    { required: true, message: "Please upload an image" },
+                  ]}
+                >
+                  <Dragger
+                    name="files"
+                    maxCount={1}
+                    beforeUpload={(file) => {
+                      if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+                        toast.error(
+                          `Image is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max is ${MAX_IMAGE_MB}MB.`,
+                        );
+                        return Upload.LIST_IGNORE;
+                      }
+                      return false;
+                    }}
+                    accept="image/*"
+                  >
+                    <p className="ant-upload-drag-icon">
+                      <FileImageOutlined />
+                    </p>
+                    <p className="ant-upload-text">
+                      Click or drag file to this area to upload
+                    </p>
+                  </Dragger>
+                </Form.Item>
+              ) : (
+                <>
+                  {shapeType === "shape" && (
+                    <Form.Item label="Upload XML File">
+                      <Dragger
+                        name="xmlfile"
+                        maxCount={1}
+                        showUploadList={false}
+                        accept=".xml,.svg,.txt,text/xml,application/xml,image/svg+xml"
+                        beforeUpload={(file) => {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const text = String(reader.result || "").trim();
+                            if (!text) {
+                              toast.error("File is empty");
+                              return;
+                            }
+                            form.setFieldsValue({ content: text });
+                            toast.success(`Loaded ${file.name}`);
+                          };
+                          reader.onerror = () =>
+                            toast.error("Failed to read file");
+                          reader.readAsText(file);
+                          return false;
+                        }}
+                      >
+                        <p className="ant-upload-drag-icon">
+                          <FileImageOutlined />
+                        </p>
+                        <p className="ant-upload-text">
+                          Click or drag an XML / SVG file
+                        </p>
+                        <p
+                          className="ant-upload-hint"
+                          style={{ fontSize: 12, color: "#888" }}
+                        >
+                          File contents will populate the field below
+                        </p>
+                      </Dragger>
+                    </Form.Item>
+                  )}
+                  <Form.Item
+                    name="content"
+                    label="Content (SVG/HTML/XML)"
+                    rules={[
+                      { required: true, message: "Please enter content" },
+                      {
+                        max: MAX_CONTENT_CHARS,
+                        message: `Content is too large (max ${MAX_CONTENT_CHARS / 1_000_000}M characters)`,
+                      },
+                    ]}
+                    help="Paste your SVG / HTML / mxGraph XML here, or upload a file above."
+                  >
+                    <Input.TextArea rows={6} placeholder="<svg...>...</svg>" />
+                  </Form.Item>
+                </>
+              )}
+
+              <Form.Item
+                name="textAlignment"
+                label="Text Alignment"
+                rules={[{ required: true }]}
+              >
+                <Radio.Group>
+                  <Radio value="top">Top</Radio>
+                  <Radio value="center">Center</Radio>
+                  <Radio value="bottom">Bottom</Radio>
+                </Radio.Group>
+              </Form.Item>
+
+              <Form.Item>
+                <button
+                  type="submit"
+                  className="w-full h-11 rounded-xl bg-primary text-white font-bold text-sm border-0 appearance-none cursor-pointer hover:opacity-90"
+                >
+                  Save Shape
+                </button>
+              </Form.Item>
+            </Form>
+          </div>
+        </ModalShell>
       </div>
     </>
   );

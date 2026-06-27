@@ -1,7 +1,21 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Modal, Input, message, Checkbox, Dropdown } from "antd";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowLeft,
   Plus,
@@ -12,12 +26,24 @@ import {
   Pencil,
   ExternalLink,
   X,
+  List as ListIcon,
+  LayoutGrid,
 } from "lucide-react";
 import { projectsApi } from "@/api/projects.api";
 import { flowsApi } from "@/api/flows.api";
 import { useRouter, useParams } from "next/navigation";
 import api from "@/lib/axios";
 import { timeAgo } from "@/lib/flowUtils";
+import FlowCard from "@/components/flows/FlowCard";
+
+const PLACEHOLDER_COLORS = [
+  "#E8F5E9",
+  "#E3F2FD",
+  "#FFF3E0",
+  "#F3E5F5",
+  "#E0F7FA",
+  "#FFF8E1",
+];
 
 interface ProjectFlow {
   id: string;
@@ -45,6 +71,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<any>(null);
   const [flows, setFlows] = useState<ProjectFlow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [flowsView, setFlowsView] = useState<"list" | "grid">("list");
 
   // Rename project modal
   const [renameOpen, setRenameOpen] = useState(false);
@@ -66,7 +93,7 @@ export default function ProjectDetailPage() {
       setProjectName(d.name || "");
       setFlows(Array.isArray(d.flows) ? d.flows : []);
     } catch {
-      message.error("Failed to load project");
+      toast.error("Failed to load project");
     } finally {
       setLoading(false);
     }
@@ -83,10 +110,10 @@ export default function ProjectDetailPage() {
   const handleRemoveFromProject = async (flowId: string) => {
     try {
       await projectsApi.unassignFlow(projectId, flowId);
-      message.success("Flow removed from project");
+      toast.success("Flow removed from project");
       fetchProject();
     } catch {
-      message.error("Failed to remove flow");
+      toast.error("Failed to remove flow");
     }
   };
 
@@ -97,7 +124,7 @@ export default function ProjectDetailPage() {
       setRenameOpen(false);
       fetchProject();
     } catch {
-      message.error("Failed to rename project");
+      toast.error("Failed to rename project");
     }
   };
 
@@ -113,7 +140,7 @@ export default function ProjectDetailPage() {
         fetchProject();
       }
     } catch {
-      message.error("Failed to create flow");
+      toast.error("Failed to create flow");
     }
   };
 
@@ -146,18 +173,18 @@ export default function ProjectDetailPage() {
     ) as PromiseRejectedResult[];
     const succeeded = results.length - failures.length;
 
-    if (succeeded > 0) message.success(`${succeeded} flow(s) added to project`);
+    if (succeeded > 0) toast.success(`${succeeded} flow(s) added to project`);
     if (failures.length > 0) {
       const mismatch = failures.find(
         (f) => f.reason?.response?.data?.error?.code === "CONTEXT_MISMATCH",
       );
       if (mismatch) {
-        message.error(
+        toast.error(
           `${failures.length} flow(s) couldn't be added — they belong to a different workspace (team vs. personal).`,
         );
       } else {
         const apiMsg = failures[0]?.reason?.response?.data?.error?.message;
-        message.error(apiMsg || `Failed to add ${failures.length} flow(s)`);
+        toast.error(apiMsg || `Failed to add ${failures.length} flow(s)`);
       }
     }
 
@@ -248,27 +275,58 @@ export default function ProjectDetailPage() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-3">
+        <div className="flex flex-col md:flex-row gap-3">
           <button
             type="button"
             onClick={handleCreateNewFlow}
-            className="flex-1 h-12 rounded-2xl bg-primary hover:bg-[#1F7D5E] text-white font-bold text-sm inline-flex items-center justify-center gap-2 shadow-[var(--shadow-fab)] border-0 appearance-none cursor-pointer transition-colors"
+            className="w-full md:flex-1 h-12 rounded-2xl bg-primary hover:bg-[#1F7D5E] text-white font-bold text-sm inline-flex items-center justify-center gap-2 shadow-[var(--shadow-fab)] border-0 appearance-none cursor-pointer transition-colors"
           >
             <Plus className="w-4 h-4" /> Create Flow
           </button>
           <button
             type="button"
             onClick={openAddModal}
-            className="flex-1 h-12 rounded-2xl bg-card border border-border text-primary-deep font-bold text-sm inline-flex items-center justify-center gap-2 appearance-none cursor-pointer hover:bg-secondary"
+            className="w-full md:flex-1 h-12 rounded-2xl bg-card border border-border text-primary-deep font-bold text-sm inline-flex items-center justify-center gap-2 appearance-none cursor-pointer hover:bg-secondary"
           >
             <FilePlus2 className="w-4 h-4" /> Add Existing
           </button>
         </div>
-
         {/* Flows in this project */}
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
-            Flows in this project
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Flows in this project
+            </div>
+            {flows.length > 0 && (
+              <div className="inline-flex p-1 rounded-xl bg-secondary">
+                <button
+                  type="button"
+                  onClick={() => setFlowsView("list")}
+                  aria-label="List view"
+                  aria-pressed={flowsView === "list"}
+                  className={`w-8 h-7 rounded-lg flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer ${
+                    flowsView === "list"
+                      ? "bg-card shadow-sm text-primary"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  <ListIcon className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFlowsView("grid")}
+                  aria-label="Grid view"
+                  aria-pressed={flowsView === "grid"}
+                  className={`w-8 h-7 rounded-lg flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer ${
+                    flowsView === "grid"
+                      ? "bg-card shadow-sm text-primary"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
 
           {loading ? (
@@ -291,6 +349,20 @@ export default function ProjectDetailPage() {
               <div className="text-sm text-muted-foreground mt-1">
                 Add a new flow or assign an existing one
               </div>
+            </div>
+          ) : flowsView === "grid" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {flows.map((flow, index) => (
+                <FlowCard
+                  key={flow.id}
+                  flow={flow}
+                  onEdit={handleEdit}
+                  onRemoveFromProject={() => handleRemoveFromProject(flow.id)}
+                  placeholderColor={
+                    PLACEHOLDER_COLORS[index % PLACEHOLDER_COLORS.length]
+                  }
+                />
+              ))}
             </div>
           ) : (
             flows.map((flow, index) => {
@@ -323,15 +395,38 @@ export default function ProjectDetailPage() {
                     </div>
                   </button>
                   <div onClick={(e) => e.stopPropagation()}>
-                    <Dropdown menu={flowMenu(flow)} trigger={["click"]}>
-                      <button
-                        type="button"
-                        aria-label="Flow actions"
-                        className="w-9 h-9 rounded-lg hover:bg-secondary flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
-                      >
-                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                      </button>
-                    </Dropdown>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="Flow actions"
+                          className="tw w-9 h-9 rounded-lg hover:bg-secondary flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                        >
+                          <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="tw">
+                        {(flowMenu(flow).items as any[]).map(
+                          (item: any, i: number) =>
+                            item.type === "divider" ? (
+                              <DropdownMenuSeparator key={`sep-${i}`} />
+                            ) : (
+                              <DropdownMenuItem
+                                key={item.key}
+                                onSelect={item.onClick}
+                                className={
+                                  item.danger
+                                    ? "text-destructive focus:text-destructive"
+                                    : ""
+                                }
+                              >
+                                {item.icon}
+                                {item.label}
+                              </DropdownMenuItem>
+                            ),
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               );
@@ -340,126 +435,138 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* Rename Project Modal */}
-      <Modal
-        title="Rename Project"
-        open={renameOpen}
-        onCancel={() => setRenameOpen(false)}
-        onOk={handleSaveName}
-        okText="Save"
-        okButtonProps={{
-          disabled: !projectName.trim(),
-          style: { background: "#34A881", borderColor: "#34A881" },
-        }}
-      >
-        <Input
-          value={projectName}
-          onChange={(e) => setProjectName(e.target.value)}
-          onPressEnter={handleSaveName}
-          maxLength={255}
-          autoFocus
+      {/* Rename Project Modal — new_design ModalShell */}
+      <ModalShell open={renameOpen} onClose={() => setRenameOpen(false)}>
+        <ModalHeader
+          title="Rename Project"
+          close={() => setRenameOpen(false)}
         />
-      </Modal>
+        <div className="px-5 pb-5">
+          <Field label="New name" required>
+            <FieldInput
+              autoFocus
+              maxLength={255}
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
+            />
+          </Field>
+        </div>
+        <ModalFooter
+          close={() => setRenameOpen(false)}
+          primary={handleSaveName}
+          primaryLabel="Save"
+          disabled={!projectName.trim()}
+        />
+      </ModalShell>
 
-      {/* Add Existing Flow Modal */}
-      <Modal
-        title="Add Existing Flows"
+      {/* Add Existing Flow Modal — new_design ModalShell */}
+      <ModalShell
         open={addModalOpen}
-        onCancel={() => setAddModalOpen(false)}
-        onOk={handleAddFlows}
-        okText={`Add Selected (${selectedFlowIds.length})`}
-        okButtonProps={{
-          disabled: selectedFlowIds.length === 0,
-          style: { background: "#34A881", borderColor: "#34A881" },
-        }}
-        confirmLoading={addLoading}
-        width={520}
-        centered
+        onClose={() => setAddModalOpen(false)}
+        size="lg"
       >
-        <Input
-          prefix={<Search className="w-4 h-4 text-muted-foreground" />}
-          placeholder="Search flows..."
-          value={addSearch}
-          onChange={(e) => setAddSearch(e.target.value)}
-          style={{ marginBottom: 16 }}
+        <ModalHeader
+          title="Add Existing Flows"
+          close={() => setAddModalOpen(false)}
         />
-        {addLoading ? (
-          <div style={{ textAlign: "center", padding: 32 }}>Loading…</div>
-        ) : filteredUnassigned.length === 0 ? (
-          <div style={{ color: "#6B7280" }}>No unassigned flows found</div>
-        ) : (
-          <div style={{ maxHeight: 360, overflowY: "auto" }}>
-            {filteredUnassigned.map((flow) => (
-              <div
-                key={flow.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "8px 4px",
-                  borderBottom: "1px solid #F0F0F0",
-                  cursor: "pointer",
-                }}
-                onClick={() =>
-                  setSelectedFlowIds((prev) =>
-                    prev.includes(flow.id)
-                      ? prev.filter((id) => id !== flow.id)
-                      : [...prev, flow.id],
-                  )
-                }
-              >
-                <Checkbox checked={selectedFlowIds.includes(flow.id)} />
+        <div className="px-5 pb-3">
+          <div className="mb-4">
+            <FieldInput
+              icon={<Search className="w-4 h-4" />}
+              placeholder="Search flows..."
+              value={addSearch}
+              onChange={(e) => setAddSearch(e.target.value)}
+            />
+          </div>
+          {addLoading ? (
+            <div style={{ textAlign: "center", padding: 32 }}>Loading…</div>
+          ) : filteredUnassigned.length === 0 ? (
+            <div style={{ color: "#6B7280" }}>No unassigned flows found</div>
+          ) : (
+            <div style={{ maxHeight: 360, overflowY: "auto" }}>
+              {filteredUnassigned.map((flow) => (
                 <div
+                  key={flow.id}
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 8,
-                    background: "#F8F9FA",
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    overflow: "hidden",
-                    flexShrink: 0,
+                    gap: 12,
+                    padding: "8px 4px",
+                    borderBottom: "1px solid #F0F0F0",
+                    cursor: "pointer",
                   }}
+                  onClick={() =>
+                    setSelectedFlowIds((prev) =>
+                      prev.includes(flow.id)
+                        ? prev.filter((id) => id !== flow.id)
+                        : [...prev, flow.id],
+                    )
+                  }
                 >
-                  {flow.thumbnail ? (
-                    <img
-                      src={flow.thumbnail}
-                      alt=""
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  ) : (
-                    <Workflow
-                      className="w-4 h-4"
-                      style={{ color: "#BFBFBF" }}
-                    />
-                  )}
-                </div>
-                <div style={{ flex: 1, overflow: "hidden" }}>
+                  <Checkbox
+                    checked={selectedFlowIds.includes(flow.id)}
+                    className="pointer-events-none shrink-0"
+                  />
                   <div
                     style={{
-                      fontWeight: 600,
-                      fontSize: 13,
-                      whiteSpace: "nowrap",
+                      width: 40,
+                      height: 40,
+                      borderRadius: 8,
+                      background: "#F8F9FA",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      flexShrink: 0,
                     }}
                   >
-                    {flow.name}
+                    {flow.thumbnail ? (
+                      <img
+                        src={flow.thumbnail}
+                        alt=""
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    ) : (
+                      <Workflow
+                        className="w-4 h-4"
+                        style={{ color: "#BFBFBF" }}
+                      />
+                    )}
                   </div>
-                  <div style={{ fontSize: 11, color: "#8C8C8C" }}>
-                    {new Date(flow.updatedAt).toLocaleDateString()}
+                  <div style={{ flex: 1, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        fontSize: 13,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {flow.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#8C8C8C" }}>
+                      {new Date(flow.updatedAt).toLocaleDateString()}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
+              ))}
+            </div>
+          )}
+        </div>
+        <ModalFooter
+          close={() => setAddModalOpen(false)}
+          primary={handleAddFlows}
+          primaryLabel={`Add Selected (${selectedFlowIds.length})`}
+          loading={addLoading}
+          disabled={selectedFlowIds.length === 0}
+        />
+      </ModalShell>
     </div>
   );
 }

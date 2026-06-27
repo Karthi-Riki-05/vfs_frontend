@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, Button, Tag, message, Empty, Spin } from "antd";
+import { Tag, Empty, Spin } from "antd";
+import { toast } from "sonner";
+import { ModalShell } from "@/components/common/Modal";
 import { CheckCircleFilled, ShareAltOutlined } from "@ant-design/icons";
 import { flowPackApi } from "@/api/notifications.api";
 
@@ -49,7 +51,7 @@ export default function FlowPickerModal({
         }
         setSelected(pre);
       })
-      .catch(() => message.error("Failed to load your flows"))
+      .catch(() => toast.error("Failed to load your flows"))
       .finally(() => setLoading(false));
   }, [open]);
 
@@ -73,7 +75,7 @@ export default function FlowPickerModal({
 
   const submit = async () => {
     if (selected.size === 0) {
-      message.warning("Pick at least one flow to keep");
+      toast.warning("Pick at least one flow to keep");
       return;
     }
     setSubmitting(true);
@@ -83,14 +85,14 @@ export default function FlowPickerModal({
         pickerType === "team",
       );
       const data = res.data?.data || res.data;
-      message.success(
+      toast.success(
         `${data.keptFlows} kept, ${data.trashedFlows} moved to trash`,
       );
       onConfirm();
     } catch (err: any) {
       const msg =
         err?.response?.data?.error?.message || "Failed to save selection";
-      message.error(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -183,38 +185,18 @@ export default function FlowPickerModal({
   };
 
   return (
-    <Modal
-      open={open}
-      width={Math.min(
-        typeof window !== "undefined" ? window.innerWidth - 64 : 900,
-        1080,
-      )}
-      closable={false}
-      maskClosable={false}
-      keyboard={false}
-      footer={null}
-      title={
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#cf1322" }}>
-            {pickerType === "team"
-              ? "Your team subscription has expired"
-              : "Your flow pack has expired"}
-          </div>
-          <div
-            style={{
-              fontSize: 13,
-              color: "#666",
-              marginTop: 4,
-              fontWeight: 400,
-            }}
-          >
-            Select up to {maxKeep} flows to keep. Others will move to trash for
-            30 days — renew anytime within that window to auto-restore.
-          </div>
+    <ModalShell open={open} onClose={() => {}} size="wide" disableClose>
+      <div className="px-5 pt-5 pb-3">
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#cf1322" }}>
+          {pickerType === "team"
+            ? "Your team subscription has expired"
+            : "Your flow pack has expired"}
         </div>
-      }
-      centered
-    >
+        <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>
+          Select up to {maxKeep} flows to keep. Others will move to trash for 30
+          days — renew anytime within that window to auto-restore.
+        </div>
+      </div>
       {loading ? (
         <div style={{ textAlign: "center", padding: 60 }}>
           <Spin size="large" />
@@ -239,9 +221,21 @@ export default function FlowPickerModal({
                 }}
               >
                 <span>Shared flows (recommended)</span>
-                <Button size="small" onClick={selectAllShared}>
+                <button
+                  type="button"
+                  onClick={selectAllShared}
+                  style={{
+                    fontSize: 12,
+                    cursor: "pointer",
+                    border: "1px solid #d9d9d9",
+                    borderRadius: 4,
+                    padding: "0 7px",
+                    height: 24,
+                    background: "#fff",
+                  }}
+                >
                   Select all shared
-                </Button>
+                </button>
               </div>
               <div
                 style={{
@@ -285,7 +279,7 @@ export default function FlowPickerModal({
       <div
         style={{
           marginTop: 20,
-          padding: "16px 0 0",
+          padding: "16px 20px 20px",
           borderTop: "1px solid #f0f0f0",
           display: "flex",
           justifyContent: "space-between",
@@ -297,24 +291,24 @@ export default function FlowPickerModal({
         <div style={{ fontSize: 14, fontWeight: 600 }}>
           {selected.size} / {maxKeep} selected
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Button
-            type="link"
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            type="button"
             onClick={() => (window.location.href = "/dashboard/subscription")}
+            className="appearance-none cursor-pointer outline-none border-0 bg-transparent text-primary text-sm font-medium"
           >
             Renew Plan Instead
-          </Button>
-          <Button
-            type="primary"
-            loading={submitting}
-            disabled={selected.size === 0}
+          </button>
+          <button
+            type="button"
+            disabled={selected.size === 0 || submitting}
             onClick={submit}
-            style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
+            className="appearance-none cursor-pointer outline-none border-0 h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Confirm Selection
-          </Button>
+            {submitting ? "…" : "Confirm Selection"}
+          </button>
         </div>
       </div>
-    </Modal>
+    </ModalShell>
   );
 }

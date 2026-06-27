@@ -6,16 +6,18 @@ import {
   Table,
   Typography,
   Button,
-  Modal,
-  Form,
-  Input,
-  InputNumber,
   Switch,
   Space,
   Empty,
-  message,
-  Tag,
+  Tag
 } from "antd";
+import { toast } from "sonner";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
 import { PlusOutlined, BugOutlined, DeleteOutlined } from "@ant-design/icons";
 import { issuesApi } from "@/api/issues.api";
 import { useIsMobile } from "@/hooks/useMediaQuery";
@@ -31,7 +33,8 @@ export default function IssuesPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [form] = Form.useForm();
+  const [title, setTitle] = useState("");
+  const [flowId, setFlowId] = useState("");
 
   const fetchIssues = useCallback(async () => {
     setLoading(true);
@@ -52,20 +55,28 @@ export default function IssuesPage() {
   }, [fetchIssues]);
 
   const handleCreate = async () => {
+    if (!title.trim()) {
+      toast.error("Please enter a title");
+      return;
+    }
+    if (!flowId.trim()) {
+      toast.error("Please enter the Flow ID this issue belongs to");
+      return;
+    }
     try {
-      const values = await form.validateFields();
       setCreating(true);
       // flowId must be an integer
       await issuesApi.create({
-        title: values.title,
-        flowId: Number(values.flowId),
+        title: title.trim(),
+        flowId: Number(flowId),
       });
-      message.success("Issue created");
-      form.resetFields();
+      toast.success("Issue created");
+      setTitle("");
+      setFlowId("");
       setModalOpen(false);
       fetchIssues();
     } catch {
-      message.error("Failed to create issue");
+      toast.error("Failed to create issue");
     } finally {
       setCreating(false);
     }
@@ -74,20 +85,20 @@ export default function IssuesPage() {
   const handleToggle = async (id: string, currentChecked: boolean) => {
     try {
       await issuesApi.update(id, { isChecked: !currentChecked });
-      message.success("Issue updated");
+      toast.success("Issue updated");
       fetchIssues();
     } catch {
-      message.error("Failed to update");
+      toast.error("Failed to update");
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await issuesApi.delete(id);
-      message.success("Issue deleted");
+      toast.success("Issue deleted");
       fetchIssues();
     } catch {
-      message.error("Failed to delete");
+      toast.error("Failed to delete");
     }
   };
 
@@ -205,40 +216,40 @@ export default function IssuesPage() {
         />
       </Card>
 
-      <Modal
-        title="Create Issue"
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={handleCreate}
-        confirmLoading={creating}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="title"
-            label="Title"
-            rules={[{ required: true, message: "Please enter a title" }]}
-          >
-            <Input placeholder="Issue title" />
-          </Form.Item>
-          <Form.Item
-            name="flowId"
-            label="Flow ID"
-            rules={[
-              {
-                required: true,
-                message: "Please enter the Flow ID this issue belongs to",
-              },
-            ]}
-            extra="Enter the numeric ID of the flow this issue is linked to"
-          >
-            <InputNumber
-              min={1}
-              style={{ width: "100%" }}
-              placeholder="e.g. 1"
+      <ModalShell open={modalOpen} onClose={() => setModalOpen(false)}>
+        <ModalHeader title="Create Issue" close={() => setModalOpen(false)} />
+        <div className="px-5 pb-5 space-y-4">
+          <Field label="Title" required>
+            <FieldInput
+              placeholder="Issue title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
             />
-          </Form.Item>
-        </Form>
-      </Modal>
+          </Field>
+          <div>
+            <Field label="Flow ID" required>
+              <FieldInput
+                type="number"
+                min={1}
+                placeholder="e.g. 1"
+                value={flowId}
+                onChange={(e) => setFlowId(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              />
+            </Field>
+            <div className="text-xs text-muted-foreground mt-1">
+              Enter the numeric ID of the flow this issue is linked to
+            </div>
+          </div>
+        </div>
+        <ModalFooter
+          close={() => setModalOpen(false)}
+          primary={handleCreate}
+          primaryLabel="Create"
+          loading={creating}
+          disabled={!title.trim() || !flowId.trim()}
+        />
+      </ModalShell>
     </div>
   );
 }

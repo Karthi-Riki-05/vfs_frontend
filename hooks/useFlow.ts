@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { flowsApi } from "@/api/flows.api";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
-import { message } from "antd";
+import { toast } from "sonner";
 
 export function useFlow(id: string) {
   const [flow, setFlow] = useState<any>(null);
@@ -18,7 +18,7 @@ export function useFlow(id: string) {
       const res = await flowsApi.get(id);
       setFlow(res.data?.data || res.data);
     } catch {
-      message.error("Failed to load flow");
+      toast.error("Failed to load flow");
     } finally {
       setLoading(false);
     }
@@ -38,9 +38,9 @@ export function useFlow(id: string) {
         setSaving(true);
         const res = await flowsApi.update(id, data);
         setFlow(res.data?.data || res.data);
-        message.success("Saved");
+        toast.success("Saved");
       } catch {
-        message.error("Failed to save");
+        toast.error("Failed to save");
       } finally {
         setSaving(false);
       }

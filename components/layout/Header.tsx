@@ -7,7 +7,18 @@ import { useAppBrand } from "@/hooks/useAppBrand";
 import api from "@/lib/axios";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Tag, Button, Tooltip, Modal, message } from "antd";
+import { Tag, Button } from "antd";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { toast } from "sonner";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
 import {
   MessageOutlined,
   UserOutlined,
@@ -21,7 +32,6 @@ import {
 } from "@ant-design/icons";
 // New-design TopBar uses lucide icons (not Ant) — see new_design/src/routes/index.tsx.
 import { Menu as MenuIcon, MessageCircle } from "lucide-react";
-import type { MenuProps } from "antd";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
 import SidebarTeamSwitcher from "@/components/layout/SidebarTeamSwitcher";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
@@ -135,6 +145,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
   // Chat-locked subscription popup — same styling as Sidebar's Teams popup
   const [chatLockedOpen, setChatLockedOpen] = useState(false);
+  const [teamPickerOpen, setTeamPickerOpen] = useState(false);
 
   // App-scoped entitlement. Pro lifetime purchase grants Pro features INSIDE
   // Pro app, but does NOT count as a Team-app subscription. So in Team app,
@@ -196,69 +207,18 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
   // ─────────── Switch button click handler ───────────
 
-  const showTeamPicker = () => {
-    Modal.confirm({
-      title: "Switch to which team?",
-      icon: null,
-      content: (
-        <div>
-          {availableTeams.map((team) => (
-            <div
-              key={team.teamId}
-              onClick={() => {
-                switchToTeam(team);
-                message.success(
-                  `Switched to ${team.teamName || "team"} context`,
-                );
-                Modal.destroyAll();
-              }}
-              style={{
-                padding: "10px 12px",
-                cursor: "pointer",
-                borderRadius: 6,
-                marginBottom: 6,
-                border: "1px solid #e8e8e8",
-                background: "#fff",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#F8F9FA";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#fff";
-              }}
-            >
-              <div style={{ fontWeight: 600, fontSize: 13 }}>
-                <TeamOutlined style={{ color: "#7C3AED", marginRight: 6 }} />
-                {team.teamName || "Unnamed Team"}
-              </div>
-              <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
-                {team.owner?.name || "Owner"} ·{" "}
-                {team.plan === "team"
-                  ? "Team Plan"
-                  : team.plan === "pro"
-                    ? "Pro Plan"
-                    : "Free Plan"}
-              </div>
-            </div>
-          ))}
-        </div>
-      ),
-      footer: null,
-      maskClosable: true,
-    });
-  };
+  const showTeamPicker = () => setTeamPickerOpen(true);
 
   const handleContextSwitch = () => {
     if (isTeamContext) {
       switchToPersonal();
-      message.success("Switched to your personal account");
+      toast.success("Switched to your personal account");
       return;
     }
     if (availableTeams.length === 1) {
       const only = availableTeams[0];
       switchToTeam(only);
-      message.success(`Switched to ${only.teamName || "team"} context`);
+      toast.success(`Switched to ${only.teamName || "team"} context`);
       return;
     }
     showTeamPicker();
@@ -324,39 +284,40 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         {/* Right side — chat, notifications, plan badge, account */}
         <div className="flex items-center gap-0.5 md:gap-1 ml-auto">
           {/* Chat icon — locked when no chat access */}
-          <Tooltip
-            title={
-              hasChatAccess
-                ? undefined
-                : "Chat requires a Team plan — switch to a team context or upgrade"
-            }
-          >
-            <button
-              onClick={handleChatClick}
-              aria-label="Open chat"
-              className="relative w-10 h-10 rounded-xl bg-transparent border-0 p-0 appearance-none cursor-pointer hover:bg-secondary flex items-center justify-center transition"
-              style={{ opacity: hasChatAccess ? 1 : 0.7 }}
-            >
-              <MessageCircle className="w-5 h-5 text-foreground" />
-              {hasChatAccess && totalUnread > 0 && (
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
-              )}
-              {!hasChatAccess && (
-                <LockOutlined
-                  style={{
-                    position: "absolute",
-                    bottom: 4,
-                    right: 4,
-                    fontSize: 9,
-                    color: "#fff",
-                    background: "#F85729",
-                    borderRadius: "50%",
-                    padding: 2,
-                    lineHeight: 1,
-                  }}
-                />
-              )}
-            </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleChatClick}
+                aria-label="Open chat"
+                className="relative w-10 h-10 rounded-xl bg-transparent border-0 p-0 appearance-none cursor-pointer hover:bg-secondary flex items-center justify-center transition"
+                style={{ opacity: hasChatAccess ? 1 : 0.7 }}
+              >
+                <MessageCircle className="w-5 h-5 text-foreground" />
+                {hasChatAccess && totalUnread > 0 && (
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
+                )}
+                {!hasChatAccess && (
+                  <LockOutlined
+                    style={{
+                      position: "absolute",
+                      bottom: 4,
+                      right: 4,
+                      fontSize: 9,
+                      color: "#fff",
+                      background: "#F85729",
+                      borderRadius: "50%",
+                      padding: 2,
+                      lineHeight: 1,
+                    }}
+                  />
+                )}
+              </button>
+            </TooltipTrigger>
+            {!hasChatAccess && (
+              <TooltipContent className="tw">
+                Chat requires a Team plan — switch to a team context or upgrade
+              </TooltipContent>
+            )}
           </Tooltip>
 
           {/* Notifications — bell + dropdown (own component) */}
@@ -417,61 +378,95 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </div>
       </header>
 
-      <Modal
+      {/* Chat locked — requires Team plan */}
+      <ModalShell
         open={chatLockedOpen}
-        onCancel={() => setChatLockedOpen(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setChatLockedOpen(false)}>
-            Cancel
-          </Button>,
-          hasTeamContext && (
-            <Button
-              key="switch"
-              onClick={() => {
-                setChatLockedOpen(false);
-                handleContextSwitch();
-              }}
-            >
-              Switch to team
-            </Button>
-          ),
-          <Button
-            key="plans"
-            type="primary"
-            onClick={() => {
-              setChatLockedOpen(false);
-              router.push("/dashboard/subscription");
-            }}
-            style={{ backgroundColor: PRIMARY, borderColor: PRIMARY }}
-          >
-            View Plans
-          </Button>,
-        ]}
-        centered
-        width={
-          isMobile
-            ? Math.min(
-                420,
-                typeof window !== "undefined" ? window.innerWidth * 0.92 : 360,
-              )
-            : 420
-        }
-        zIndex={1200}
+        onClose={() => setChatLockedOpen(false)}
       >
-        <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
+        <ModalHeader
+          title="Chat requires a Team plan"
+          close={() => setChatLockedOpen(false)}
+        />
+        <div className="tw px-5 pb-5 text-center">
           <MessageOutlined
-            style={{ fontSize: 40, color: PRIMARY, marginBottom: 16 }}
+            style={{ fontSize: 40, color: PRIMARY, marginBottom: 12 }}
           />
-          <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 600 }}>
-            Chat requires a Team plan
-          </h3>
-          <p style={{ color: "#595959", margin: 0, fontSize: 14 }}>
+          <p className="text-sm text-muted-foreground mt-2">
             {hasTeamContext
               ? "Switch into your team context to use Chat with team members, or upgrade your personal plan."
               : "Subscribe to a Team plan (or have a team owner invite you) to message members, share flows, and collaborate."}
           </p>
         </div>
-      </Modal>
+        <div className="tw px-5 pb-5 flex justify-end gap-2 flex-wrap border-t border-border pt-4">
+          <button
+            type="button"
+            onClick={() => setChatLockedOpen(false)}
+            className="appearance-none cursor-pointer outline-none h-10 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
+          >
+            Cancel
+          </button>
+          {hasTeamContext && (
+            <button
+              type="button"
+              onClick={() => {
+                setChatLockedOpen(false);
+                handleContextSwitch();
+              }}
+              className="appearance-none cursor-pointer outline-none h-10 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
+            >
+              Switch to team
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setChatLockedOpen(false);
+              router.push("/dashboard/subscription");
+            }}
+            className="appearance-none cursor-pointer outline-none border-0 h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90"
+          >
+            View Plans
+          </button>
+        </div>
+      </ModalShell>
+
+      {/* Team picker */}
+      <ModalShell
+        open={teamPickerOpen}
+        onClose={() => setTeamPickerOpen(false)}
+      >
+        <ModalHeader
+          title="Switch to which team?"
+          close={() => setTeamPickerOpen(false)}
+        />
+        <div className="tw px-5 pb-5 space-y-2">
+          {availableTeams.map((team) => (
+            <button
+              key={team.teamId}
+              type="button"
+              onClick={() => {
+                switchToTeam(team);
+                toast.success(`Switched to ${team.teamName || "team"} context`);
+                setTeamPickerOpen(false);
+              }}
+              className="appearance-none border border-border bg-card cursor-pointer w-full text-left rounded-xl px-3 py-2.5 hover:bg-secondary transition"
+            >
+              <div className="font-semibold text-sm flex items-center gap-1.5">
+                <TeamOutlined style={{ color: "#7C3AED" }} />
+                {team.teamName || "Unnamed Team"}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                {team.owner?.name || "Owner"} ·{" "}
+                {team.plan === "team"
+                  ? "Team Plan"
+                  : team.plan === "pro"
+                    ? "Pro Plan"
+                    : "Free Plan"}
+              </div>
+            </button>
+          ))}
+        </div>
+      </ModalShell>
     </>
   );
 };

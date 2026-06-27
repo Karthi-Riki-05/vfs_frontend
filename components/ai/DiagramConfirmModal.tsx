@@ -1,10 +1,8 @@
 "use client";
 
 import React from "react";
-import { Modal, Button, Typography } from "antd";
-import { ThunderboltFilled } from "@ant-design/icons";
-
-const { Text } = Typography;
+import { Zap } from "lucide-react";
+import { ModalShell } from "@/components/common/Modal";
 
 interface DiagramConfirmModalProps {
   visible: boolean;
@@ -28,83 +26,43 @@ export default function DiagramConfirmModal({
   const usingPlanCredits = creditsRemaining - addonCredits > 0;
 
   return (
-    <Modal
-      open={visible}
-      onCancel={onCancel}
-      footer={null}
-      centered
-      width={420}
-      maskClosable={!loading}
-      closable={!loading}
-      title={null}
-    >
-      <div style={{ textAlign: "center", padding: "8px 0" }}>
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 16,
-            background: "#3CB37115",
-            margin: "0 auto 16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <ThunderboltFilled style={{ fontSize: 26, color: "#3CB371" }} />
+    <ModalShell open={visible} onClose={loading ? () => {} : onCancel}>
+      <div className="p-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-primary/10 mx-auto mb-4 flex items-center justify-center">
+          <Zap className="w-6 h-6 text-primary" fill="currentColor" />
         </div>
-        <Typography.Title level={4} style={{ marginBottom: 8 }}>
-          Generate Diagram?
-        </Typography.Title>
-        <Text type="secondary" style={{ fontSize: 14, display: "block" }}>
-          This will use <strong style={{ color: "#1A1A2E" }}>1</strong> of your{" "}
-          <strong style={{ color: "#3CB371" }}>{creditsRemaining}</strong>{" "}
-          remaining credits
-        </Text>
+        <div className="text-lg font-bold mb-2">Generate Diagram?</div>
+        <div className="text-sm text-muted-foreground">
+          This will use <strong className="text-foreground">1</strong> of your{" "}
+          <strong className="text-primary">{creditsRemaining}</strong> remaining
+          credits
+        </div>
 
         {usingPlanCredits && planResetsAt && (
-          <div
-            style={{
-              marginTop: 16,
-              padding: "10px 12px",
-              background: "#FAFAFA",
-              borderRadius: 8,
-              fontSize: 12,
-              color: "#8C8C8C",
-            }}
-          >
+          <div className="mt-4 px-3 py-2.5 bg-secondary rounded-lg text-xs text-muted-foreground">
             Plan credits reset on {new Date(planResetsAt).toLocaleDateString()}
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-          <Button
-            block
-            size="large"
+        <div className="flex gap-3 mt-6">
+          <button
+            type="button"
             onClick={onCancel}
             disabled={loading}
-            style={{ borderRadius: 10, height: 44, fontWeight: 600 }}
+            className="appearance-none cursor-pointer outline-none flex-1 h-11 rounded-xl border border-border bg-card font-semibold text-sm disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Cancel
-          </Button>
-          <Button
-            type="primary"
-            block
-            size="large"
+          </button>
+          <button
+            type="button"
             onClick={onConfirm}
-            loading={loading}
-            style={{
-              borderRadius: 10,
-              height: 44,
-              fontWeight: 600,
-              backgroundColor: "#3CB371",
-              borderColor: "#3CB371",
-            }}
+            disabled={loading}
+            className="appearance-none cursor-pointer outline-none border-0 flex-1 h-11 rounded-xl bg-primary text-white font-semibold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Generate
-          </Button>
+            {loading ? "…" : "Generate"}
+          </button>
         </div>
       </div>
-    </Modal>
+    </ModalShell>
   );
 }

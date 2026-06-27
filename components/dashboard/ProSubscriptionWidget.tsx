@@ -1,5 +1,10 @@
 "use client";
-import { Skeleton, Tooltip } from "antd";
+import { Skeleton } from "antd";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAiBilling } from "@/context/AiBillingContext";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 
@@ -90,25 +95,26 @@ export default function ProSubscriptionWidget() {
         <span style={{ fontSize: 12, color: "#8C8C8C" }}>
           AI Diagram Credits
         </span>
-        <Tooltip
-          title={
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#1A1A2E",
+                cursor: "default",
+              }}
+            >
+              {total} credits
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="tw">
             <div style={{ fontSize: 12, lineHeight: 1.6 }}>
               <div>Plan credits: {planCredits}</div>
               <div>Addon credits: {addonCredits}</div>
               <div>Total: {total}</div>
             </div>
-          }
-        >
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#1A1A2E",
-              cursor: "default",
-            }}
-          >
-            {total} credits
-          </span>
+          </TooltipContent>
         </Tooltip>
       </div>
 

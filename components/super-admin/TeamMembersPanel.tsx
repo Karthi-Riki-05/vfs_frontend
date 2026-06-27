@@ -7,15 +7,20 @@ import {
   Button,
   Card,
   Empty,
-  Input,
-  Modal,
   Progress,
   Space,
   Table,
   Tag,
-  Typography,
-  message,
+  Typography
 } from "antd";
+import { toast } from "sonner";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import type { ColumnsType } from "antd/es/table";
 import {
   PlusOutlined,
@@ -46,7 +51,7 @@ export default function TeamMembersPanel({ userId }: Props) {
       const res = await superAdminApi.getUserTeam(userId);
       setTeam(res.data?.data?.team || null);
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to load team",
       );
     } finally {
@@ -61,7 +66,7 @@ export default function TeamMembersPanel({ userId }: Props) {
 
   const handleAdd = async () => {
     if (!addEmail.trim()) {
-      message.error("Enter an email");
+      toast.error("Enter an email");
       return;
     }
     setAdding(true);
@@ -69,12 +74,12 @@ export default function TeamMembersPanel({ userId }: Props) {
       await superAdminApi.addTeamMember(userId, {
         email: addEmail.trim().toLowerCase(),
       });
-      message.success("Member added");
+      toast.success("Member added");
       setAddOpen(false);
       setAddEmail("");
       load();
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to add member",
       );
     } finally {
@@ -83,18 +88,18 @@ export default function TeamMembersPanel({ userId }: Props) {
   };
 
   const handleRemove = (member: TeamMemberRow) => {
-    Modal.confirm({
+    confirmDialog({
       title: `Remove ${member.user.name || member.user.email}?`,
       content: "They will lose team access immediately.",
-      okText: "Remove",
-      okButtonProps: { danger: true },
-      onOk: async () => {
+      confirmLabel: "Remove",
+      danger: true,
+      onConfirm: async () => {
         try {
           await superAdminApi.removeTeamMember(userId, member.id);
-          message.success("Member removed");
+          toast.success("Member removed");
           load();
         } catch (err: any) {
-          message.error(
+          toast.error(
             err?.response?.data?.error?.message || "Failed to remove member",
           );
         }
@@ -267,27 +272,49 @@ export default function TeamMembersPanel({ userId }: Props) {
         locale={{ emptyText: "No members yet" }}
       />
 
-      <Modal
-        title="Add Team Member"
+      <ModalShell
         open={addOpen}
-        onCancel={() => setAddOpen(false)}
-        onOk={handleAdd}
-        confirmLoading={adding}
-        okText="Add"
-        okButtonProps={{ style: { background: PRIMARY, borderColor: PRIMARY } }}
+        onClose={() => {
+          setAddOpen(false);
+          setAddEmail("");
+        }}
       >
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          Enter the email of an existing user. They must already have an
-          account; create one from the Users page first if needed.
-        </Text>
-        <Input
-          style={{ marginTop: 12 }}
-          placeholder="user@example.com"
-          value={addEmail}
-          onChange={(e) => setAddEmail(e.target.value)}
-          onPressEnter={handleAdd}
+        <ModalHeader
+          title="Add Team Member"
+          close={() => {
+            setAddOpen(false);
+            setAddEmail("");
+          }}
         />
-      </Modal>
+        <div className="tw px-5 py-4">
+          <p className="text-xs text-muted-foreground mb-3">
+            Enter the email of an existing user. They must already have an
+            account; create one from the Users page first if needed.
+          </p>
+          <Field label="Email" required>
+            <FieldInput
+              autoFocus
+              type="email"
+              placeholder="user@example.com"
+              value={addEmail}
+              onChange={(e) => setAddEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !adding) handleAdd();
+              }}
+            />
+          </Field>
+        </div>
+        <ModalFooter
+          close={() => {
+            setAddOpen(false);
+            setAddEmail("");
+          }}
+          primary={handleAdd}
+          primaryLabel="Add"
+          loading={adding}
+          disabled={!addEmail.trim()}
+        />
+      </ModalShell>
     </div>
   );
 }

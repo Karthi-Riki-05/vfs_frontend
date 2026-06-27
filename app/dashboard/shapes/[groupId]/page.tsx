@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Typography, Row, Col, Spin, Empty, Card, message } from "antd";
+import { Typography, Row, Col, Spin, Empty, Card } from "antd";
+import { toast } from "sonner";
 import { shapesApi } from "@/api/shapes.api";
 import { shapeGroupsApi } from "@/api/shape-groups.api";
 import ShapeCard from "@/components/shapes/ShapeCard";
@@ -39,9 +40,9 @@ export default function ShapeGroupDetailPage() {
     try {
       await shapesApi.delete(id);
       setShapes((prev) => prev.filter((s) => s.id !== id));
-      message.success("Shape deleted");
+      toast.success("Shape deleted");
     } catch {
-      message.error("Failed to delete shape");
+      toast.error("Failed to delete shape");
     }
   };
 

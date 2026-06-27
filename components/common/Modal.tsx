@@ -15,13 +15,27 @@ export function ModalShell({
   open = true,
   children,
   onClose,
+  size = "md",
+  disableClose = false,
 }: {
   open?: boolean;
   children: ReactNode;
   onClose: () => void;
+  /** Desktop max-width of the centered card. Default "md" (28rem). */
+  size?: "md" | "lg" | "xl" | "wide";
+  /** When true, ESC and backdrop-click are suppressed (forced-action dialogs). */
+  disableClose?: boolean;
 }) {
+  const maxW =
+    size === "wide"
+      ? "sm:max-w-[1080px]"
+      : size === "xl"
+        ? "sm:max-w-xl"
+        : size === "lg"
+          ? "sm:max-w-lg"
+          : "sm:max-w-md";
   useEffect(() => {
-    if (!open) return;
+    if (!open || disableClose) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -32,7 +46,16 @@ export function ModalShell({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose]);
+  }, [open, onClose, disableClose]);
+
+  useEffect(() => {
+    if (!open || !disableClose) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open, disableClose]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -40,13 +63,13 @@ export function ModalShell({
     <div className="tw fixed inset-0 z-[1000] flex items-end sm:items-center justify-center">
       <div
         className="absolute inset-0 bg-black/50 animate-in fade-in"
-        onClick={onClose}
+        onClick={disableClose ? undefined : onClose}
       />
       <div
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full sm:w-[92%] sm:max-w-md bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl animate-in slide-in-from-bottom max-h-[88vh] overflow-y-auto"
+        className={`relative w-full sm:w-[92%] ${maxW} bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl animate-in slide-in-from-bottom max-h-[88vh] overflow-y-auto`}
       >
         {children}
       </div>
@@ -80,14 +103,19 @@ export function ModalFooter({
   close,
   primary,
   primaryLabel = "Create",
+  cancelLabel = "Cancel",
   loading,
   disabled,
+  danger = false,
 }: {
   close: () => void;
   primary: () => void;
   primaryLabel?: string;
+  cancelLabel?: string;
   loading?: boolean;
   disabled?: boolean;
+  /** Render the primary button as a destructive (coral) action. */
+  danger?: boolean;
 }) {
   return (
     <div className="p-5 pt-4 border-t border-border flex justify-end gap-2">
@@ -96,13 +124,17 @@ export function ModalFooter({
         onClick={close}
         className="appearance-none cursor-pointer outline-none h-10 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
       >
-        Cancel
+        {cancelLabel}
       </button>
       <button
         type="button"
         onClick={primary}
         disabled={loading || disabled}
-        className="appearance-none cursor-pointer outline-none border-0 h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+        className={
+          danger
+            ? "appearance-none cursor-pointer outline-none h-10 px-5 rounded-xl border-2 border-coral bg-transparent text-coral font-bold text-sm hover:bg-coral/10 disabled:opacity-60 disabled:cursor-not-allowed"
+            : "appearance-none cursor-pointer outline-none border-0 h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+        }
       >
         {loading ? "…" : primaryLabel}
       </button>

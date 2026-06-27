@@ -12,10 +12,14 @@ import {
   Table,
   Tabs,
   Tag,
-  Tooltip,
   Typography,
-  message,
 } from "antd";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { toast } from "sonner";
 import type { ColumnsType } from "antd/es/table";
 import { ReloadOutlined, FileTextOutlined } from "@ant-design/icons";
 import Link from "next/link";
@@ -127,7 +131,7 @@ function UserActivityTab() {
       setRows(d?.actions || []);
       setTotal(d?.pagination?.total || 0);
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to load activity",
       );
     } finally {
@@ -188,8 +192,13 @@ function UserActivityTab() {
       width: 180,
       render: (v) =>
         v ? (
-          <Tooltip title={dayjs(v).format("YYYY-MM-DD HH:mm:ss")}>
-            <Text style={{ fontSize: 12 }}>{dayjs(v).fromNow()}</Text>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span style={{ fontSize: 12 }}>{dayjs(v).fromNow()}</span>
+            </TooltipTrigger>
+            <TooltipContent className="tw">
+              {dayjs(v).format("YYYY-MM-DD HH:mm:ss")}
+            </TooltipContent>
           </Tooltip>
         ) : (
           <Text type="secondary">—</Text>
@@ -295,24 +304,25 @@ function UserActivityTab() {
             Refresh
           </Button>
           <Button onClick={exportCsv}>Export CSV</Button>
-          <Tooltip
-            title={
-              autoRefresh
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type={autoRefresh ? "primary" : "default"}
+                onClick={() => setAutoRefresh((v) => !v)}
+                style={
+                  autoRefresh
+                    ? { background: PRIMARY, borderColor: PRIMARY }
+                    : undefined
+                }
+              >
+                {autoRefresh ? "Auto-refresh ON" : "Auto-refresh OFF"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="tw">
+              {autoRefresh
                 ? "Auto-refreshing every 30s. Click to stop."
-                : "Auto-refresh disabled. Click to enable."
-            }
-          >
-            <Button
-              type={autoRefresh ? "primary" : "default"}
-              onClick={() => setAutoRefresh((v) => !v)}
-              style={
-                autoRefresh
-                  ? { background: PRIMARY, borderColor: PRIMARY }
-                  : undefined
-              }
-            >
-              {autoRefresh ? "Auto-refresh ON" : "Auto-refresh OFF"}
-            </Button>
+                : "Auto-refresh disabled. Click to enable."}
+            </TooltipContent>
           </Tooltip>
         </Space>
       </Card>
@@ -374,9 +384,7 @@ function AdminLogsTab() {
       setLogs(d?.logs || []);
       setTotal(d?.pagination?.total || 0);
     } catch (err: any) {
-      message.error(
-        err?.response?.data?.error?.message || "Failed to load logs",
-      );
+      toast.error(err?.response?.data?.error?.message || "Failed to load logs");
     } finally {
       setLoading(false);
     }
@@ -438,8 +446,13 @@ function AdminLogsTab() {
       dataIndex: "createdAt",
       width: 180,
       render: (v: string) => (
-        <Tooltip title={dayjs(v).format("YYYY-MM-DD HH:mm:ss")}>
-          <Text style={{ fontSize: 12 }}>{dayjs(v).fromNow()}</Text>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span style={{ fontSize: 12 }}>{dayjs(v).fromNow()}</span>
+          </TooltipTrigger>
+          <TooltipContent className="tw">
+            {dayjs(v).format("YYYY-MM-DD HH:mm:ss")}
+          </TooltipContent>
         </Tooltip>
       ),
     },
@@ -508,9 +521,23 @@ function AdminLogsTab() {
       title: "Details",
       dataIndex: "details",
       render: (v: any) => (
-        <Tooltip
-          placement="topRight"
-          title={
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              style={{
+                fontSize: 12,
+                cursor: "help",
+                color: "rgba(0,0,0,0.45)",
+                display: "block",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {v?.method} {v?.path}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="right" align="end" className="tw">
             <pre
               style={{
                 margin: 0,
@@ -522,15 +549,7 @@ function AdminLogsTab() {
             >
               {JSON.stringify(v, null, 2)}
             </pre>
-          }
-        >
-          <Text
-            style={{ fontSize: 12, cursor: "help" }}
-            ellipsis
-            type="secondary"
-          >
-            {v?.method} {v?.path}
-          </Text>
+          </TooltipContent>
         </Tooltip>
       ),
     },
@@ -579,24 +598,25 @@ function AdminLogsTab() {
             Refresh
           </Button>
           <Button onClick={exportCsv}>Export CSV</Button>
-          <Tooltip
-            title={
-              autoRefresh
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type={autoRefresh ? "primary" : "default"}
+                onClick={() => setAutoRefresh((v) => !v)}
+                style={
+                  autoRefresh
+                    ? { background: PRIMARY, borderColor: PRIMARY }
+                    : undefined
+                }
+              >
+                {autoRefresh ? "Auto-refresh ON" : "Auto-refresh OFF"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="tw">
+              {autoRefresh
                 ? "Auto-refreshing every 30s. Click to stop."
-                : "Auto-refresh disabled. Click to enable."
-            }
-          >
-            <Button
-              type={autoRefresh ? "primary" : "default"}
-              onClick={() => setAutoRefresh((v) => !v)}
-              style={
-                autoRefresh
-                  ? { background: PRIMARY, borderColor: PRIMARY }
-                  : undefined
-              }
-            >
-              {autoRefresh ? "Auto-refresh ON" : "Auto-refresh OFF"}
-            </Button>
+                : "Auto-refresh disabled. Click to enable."}
+            </TooltipContent>
           </Tooltip>
         </Space>
       </Card>

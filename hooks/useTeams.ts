@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { teamsApi } from "@/api/teams.api";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
-import { message } from "antd";
+import { toast } from "sonner";
 
 export function useTeams() {
   const [teams, setTeams] = useState<any[]>([]);
@@ -40,16 +40,16 @@ export function useTeams() {
   const createTeam = async (data: { name: string; description?: string }) => {
     try {
       await teamsApi.create(data);
-      message.success("Team created");
+      toast.success("Team created");
       fetchTeams();
     } catch (err: any) {
       const errorCode = err?.response?.data?.error?.code;
       const errorMsg =
         err?.response?.data?.error?.message || "Failed to create team";
       if (errorCode === "SUBSCRIPTION_REQUIRED") {
-        message.warning(errorMsg);
+        toast.warning(errorMsg);
       } else {
-        message.error(errorMsg);
+        toast.error(errorMsg);
       }
       throw err; // re-throw so caller can handle
     }
@@ -58,10 +58,10 @@ export function useTeams() {
   const deleteTeam = async (id: string) => {
     try {
       await teamsApi.delete(id);
-      message.success("Team deleted");
+      toast.success("Team deleted");
       fetchTeams();
     } catch {
-      message.error("Failed to delete team");
+      toast.error("Failed to delete team");
     }
   };
 
@@ -71,10 +71,10 @@ export function useTeams() {
   ) => {
     try {
       await teamsApi.update(id, data);
-      message.success("Team updated");
+      toast.success("Team updated");
       fetchTeams();
     } catch {
-      message.error("Failed to update team");
+      toast.error("Failed to update team");
     }
   };
 

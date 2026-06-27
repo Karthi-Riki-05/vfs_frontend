@@ -3,7 +3,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Typography, message } from "antd";
+import { Typography } from "antd";
+import { toast } from "sonner";
 import axios from "@/lib/axios";
 import TemplateBrowser from "@/components/templates/TemplateBrowser";
 
@@ -285,7 +286,7 @@ export default function TemplateSection() {
       window.open(`/dashboard/flows/${newFlow.id}`, "_blank");
     } catch (error) {
       console.error("Failed to create flow from template:", error);
-      message.error("Failed to create flow from template");
+      toast.error("Failed to create flow from template");
     }
   };
 

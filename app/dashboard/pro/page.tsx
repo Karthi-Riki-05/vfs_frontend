@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, message } from "antd";
+import { Button } from "antd";
+import { toast } from "sonner";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { aiApi } from "@/api/ai.api";
 import { useDashboard } from "@/hooks/useDashboard";
@@ -113,7 +114,7 @@ export default function ProDashboardPage() {
             // Silent — webhook may have already credited
           }
         }
-        message.success(
+        toast.success(
           credits
             ? `${credits} AI credits added to your account!`
             : "AI credits added to your account!",
@@ -122,7 +123,7 @@ export default function ProDashboardPage() {
       };
       finish();
     } else if (cancelled === "true") {
-      message.info("Credit purchase cancelled");
+      toast.info("Credit purchase cancelled");
       window.history.replaceState({}, "", "/dashboard/pro");
     }
   }, []);

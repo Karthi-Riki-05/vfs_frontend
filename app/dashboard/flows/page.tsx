@@ -554,7 +554,7 @@ export default function FlowsPage() {
                 Browse All →
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3">
               {TEMPLATE_CATEGORIES.map((cat) => (
                 <button
                   key={cat.id}
@@ -639,7 +639,7 @@ export default function FlowsPage() {
                 ))}
               </div>
             ) : (
-              <div className="mt-3 grid grid-cols-1 gap-3">
+              <div className="mmt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3">
                 {displayFlows.map((flow: any, index: number) => (
                   <div
                     key={flow.id}

@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   Avatar,
   Badge,
   Button,
@@ -11,14 +10,20 @@ import {
   Descriptions,
   Empty,
   List,
-  Modal,
   Row,
   Space,
   Spin,
   Tag,
-  Typography,
-  message,
+  Typography
 } from "antd";
+import { toast } from "sonner";
+import { AlertTriangle } from "lucide-react";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import {
   SafetyCertificateOutlined,
   CheckCircleFilled,
@@ -82,7 +87,7 @@ export default function SuperAdminSettingsPage() {
       const res = await superAdminApi.getSettings();
       setData(res.data?.data || null);
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to load settings",
       );
     } finally {
@@ -135,18 +140,18 @@ export default function SuperAdminSettingsPage() {
 
   const handleAdd = async () => {
     if (!addTarget) {
-      message.error("Please pick a user");
+      toast.error("Please pick a user");
       return;
     }
     setAdding(true);
     try {
       await superAdminApi.addSuperAdmin(addTarget.id);
-      message.success("Super admin role granted");
+      toast.success("Super admin role granted");
       setAddOpen(false);
       setAddTarget(null);
       load();
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to grant role",
       );
     } finally {
@@ -156,22 +161,22 @@ export default function SuperAdminSettingsPage() {
 
   const handleRemove = (admin: SettingsData["superAdmins"][0]) => {
     if (admin.id === currentUserId) {
-      message.warning("You cannot remove your own super admin role");
+      toast.warning("You cannot remove your own super admin role");
       return;
     }
-    Modal.confirm({
+    confirmDialog({
       title: `Remove super admin role from ${admin.name || admin.email}?`,
       content:
         "They will lose access to this panel immediately on their next session refresh.",
-      okText: "Revoke",
-      okButtonProps: { danger: true },
-      onOk: async () => {
+      confirmLabel: "Revoke",
+      danger: true,
+      onConfirm: async () => {
         try {
           await superAdminApi.removeSuperAdmin(admin.id);
-          message.success("Super admin role revoked");
+          toast.success("Super admin role revoked");
           load();
         } catch (err: any) {
-          message.error(
+          toast.error(
             err?.response?.data?.error?.message || "Failed to revoke role",
           );
           throw err;
@@ -487,40 +492,55 @@ export default function SuperAdminSettingsPage() {
         </Col>
       </Row>
 
-      <Modal
-        title="Add Super Admin"
+      <ModalShell
         open={addOpen}
-        onCancel={() => {
+        onClose={() => {
           setAddOpen(false);
           setAddTarget(null);
         }}
-        onOk={handleAdd}
-        confirmLoading={adding}
-        okText="Grant Super Admin"
-        okButtonProps={{ style: { background: PRIMARY, borderColor: PRIMARY } }}
       >
-        <Alert
-          type="warning"
-          showIcon
-          message="Super admins have full access: users, subscriptions, credits, logs, settings. Be careful who you grant this to."
-          style={{ marginBottom: 16 }}
+        <ModalHeader
+          title="Add Super Admin"
+          close={() => {
+            setAddOpen(false);
+            setAddTarget(null);
+          }}
         />
-        <div style={{ marginBottom: 8 }}>
-          <Text>Find the user to promote:</Text>
-        </div>
-        <UserSearchSelect
-          value={addTarget}
-          onChange={setAddTarget}
-          placeholder="Search name or email (min 2 chars)"
-        />
-        {addTarget && (
-          <div style={{ marginTop: 12 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Will promote: <strong>{addTarget.name || addTarget.email}</strong>
-            </Text>
+        <div className="px-5 pb-5 space-y-3">
+          <div className="flex gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800">
+              Super admins have full access: users, subscriptions, credits,
+              logs, settings. Be careful who you grant this to.
+            </p>
           </div>
-        )}
-      </Modal>
+          <div>
+            <div className="text-xs font-semibold mb-1.5">
+              Find the user to promote:
+            </div>
+            <UserSearchSelect
+              value={addTarget}
+              onChange={setAddTarget}
+              placeholder="Search name or email (min 2 chars)"
+            />
+          </div>
+          {addTarget && (
+            <div className="text-xs text-muted-foreground">
+              Will promote: <strong>{addTarget.name || addTarget.email}</strong>
+            </div>
+          )}
+        </div>
+        <ModalFooter
+          close={() => {
+            setAddOpen(false);
+            setAddTarget(null);
+          }}
+          primary={handleAdd}
+          primaryLabel="Grant Super Admin"
+          loading={adding}
+          disabled={!addTarget}
+        />
+      </ModalShell>
     </div>
   );
 }

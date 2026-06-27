@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
-import { Select, Spin, Modal, message } from "antd";
+import { Select, Spin } from "antd";
+import { toast } from "sonner";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import {
   Crown,
   Zap,
@@ -102,12 +109,12 @@ function CreditAddOns({ balance }: { balance?: number }) {
       if (data?.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else {
-        message.error("Could not start checkout");
+        toast.error("Could not start checkout");
         setBuying(null);
       }
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || "Checkout failed";
-      message.error(msg);
+      toast.error(msg);
       setBuying(null);
     }
   };
@@ -303,7 +310,7 @@ function ProSubscriptionContent() {
     } catch (err: any) {
       const msg =
         err?.response?.data?.error?.message || "Failed to load Pro plan";
-      message.error(msg);
+      toast.error(msg);
       setProSubStatus(null);
     } finally {
       setProSubLoading(false);
@@ -333,7 +340,7 @@ function ProSubscriptionContent() {
       const data = res.data?.data || res.data;
       // In-place upgrade (standard → unlimited) — no Stripe redirect needed
       if (data?.upgraded || data?.subscribed) {
-        message.success(data.message || "Flow add-on activated!");
+        toast.success(data.message || "Flow add-on activated!");
         fetchProSubStatus();
         refreshPackStatus();
         setPurchasing(null);
@@ -345,39 +352,39 @@ function ProSubscriptionContent() {
     } catch (err: any) {
       const code = err?.response?.data?.error?.code;
       if (code === "ALREADY_SUBSCRIBED") {
-        message.info("You are already on this plan.");
+        toast.info("You are already on this plan.");
       } else if (code === "DOWNGRADE_NOT_ALLOWED") {
-        message.warning(
+        toast.warning(
           "To downgrade, cancel your current plan first — it stays active until the period ends.",
         );
       } else {
         const msg = err?.response?.data?.error?.message || "Checkout failed";
-        message.error(msg);
+        toast.error(msg);
       }
       setPurchasing(null);
     }
   };
 
   const handleAddonCancel = async () => {
-    Modal.confirm({
+    confirmDialog({
       title: "Cancel Flow Add-on?",
       content:
         "Your flow add-on will remain active until the end of the current billing period, then your limit will revert to 10 flows.",
-      okText: "Cancel Subscription",
-      okType: "danger",
-      cancelText: "Keep Subscription",
-      onOk: async () => {
+      confirmLabel: "Cancel Subscription",
+      cancelLabel: "Keep Subscription",
+      danger: true,
+      onConfirm: async () => {
         setCancelling(true);
         try {
           await proApi.cancelFlowAddon();
-          message.success(
+          toast.success(
             "Subscription will cancel at the end of the billing period",
           );
           fetchProSubStatus();
         } catch (err: any) {
           const msg =
             err?.response?.data?.error?.message || "Cancellation failed";
-          message.error(msg);
+          toast.error(msg);
         } finally {
           setCancelling(false);
         }
@@ -395,10 +402,10 @@ function ProSubscriptionContent() {
       if (data.success && data.data?.url) {
         window.location.href = data.data.url;
       } else {
-        message.error(data.error?.message || "Could not open billing portal");
+        toast.error(data.error?.message || "Could not open billing portal");
       }
     } catch {
-      message.error("Failed to open billing portal");
+      toast.error("Failed to open billing portal");
     } finally {
       setPortalLoading(false);
     }
@@ -734,27 +741,12 @@ function ProSubscriptionContent() {
       <CreditAddOns balance={totalCredits} />
 
       {/* Saved card selector — shown before flow addon checkout */}
-      <Modal
-        open={!!pendingAddon}
-        title="Select Payment Method"
-        okText={
-          purchasing
-            ? "Loading…"
-            : proSelectedCardId === "new"
-              ? "Continue to Checkout"
-              : "Pay Now"
-        }
-        okButtonProps={{ disabled: !!purchasing }}
-        onOk={() => {
-          if (pendingAddon) {
-            const plan = pendingAddon;
-            setPendingAddon(null);
-            _executeAddonPurchase(plan, proSelectedCardId);
-          }
-        }}
-        onCancel={() => setPendingAddon(null)}
-      >
-        <div className="space-y-2 py-2">
+      <ModalShell open={!!pendingAddon} onClose={() => setPendingAddon(null)}>
+        <ModalHeader
+          title="Select Payment Method"
+          close={() => setPendingAddon(null)}
+        />
+        <div className="px-5 pb-2 space-y-2">
           {proSavedCards.map((card) => (
             <label
               key={card.id}
@@ -800,7 +792,21 @@ function ProSubscriptionContent() {
             <span className="text-sm font-medium">Use a different card</span>
           </label>
         </div>
-      </Modal>
+        <ModalFooter
+          close={() => setPendingAddon(null)}
+          primary={() => {
+            if (pendingAddon) {
+              const plan = pendingAddon;
+              setPendingAddon(null);
+              _executeAddonPurchase(plan, proSelectedCardId);
+            }
+          }}
+          primaryLabel={
+            proSelectedCardId === "new" ? "Continue to Checkout" : "Pay Now"
+          }
+          loading={!!purchasing}
+        />
+      </ModalShell>
     </div>
   );
 }
@@ -889,10 +895,10 @@ function SubscriptionPageInner() {
       if (data.success && data.data?.url) {
         window.location.href = data.data.url;
       } else {
-        message.error(data.error?.message || "Could not open billing portal");
+        toast.error(data.error?.message || "Could not open billing portal");
       }
     } catch {
-      message.error("Failed to open billing portal");
+      toast.error("Failed to open billing portal");
     } finally {
       setPortalLoading(false);
     }
@@ -929,34 +935,34 @@ function SubscriptionPageInner() {
   };
 
   const handleCancel = () => {
-    Modal.confirm({
+    confirmDialog({
       title: "Cancel Subscription",
       content:
         "Your subscription will remain active until the end of the current billing period. Are you sure?",
-      okText: "Yes, Cancel",
-      okButtonProps: { danger: true },
-      onOk: () => cancel(),
+      confirmLabel: "Yes, Cancel",
+      danger: true,
+      onConfirm: () => cancel(),
     });
   };
 
   const handleActivateNow = () => {
-    Modal.confirm({
+    confirmDialog({
       title: "Activate Plan Change Now",
       content:
         "This will cancel your current monthly subscription and redirect you to checkout for the yearly plan. Continue?",
-      okText: "Yes, Activate Now",
-      onOk: () => activateNow(),
+      confirmLabel: "Yes, Activate Now",
+      onConfirm: () => activateNow(),
     });
   };
 
   const handleCancelScheduled = () => {
-    Modal.confirm({
+    confirmDialog({
       title: "Cancel Scheduled Change",
       content:
         "This will cancel your scheduled plan change. Your current plan will remain unchanged.",
-      okText: "Yes, Cancel Change",
-      okButtonProps: { danger: true },
-      onOk: () => cancelScheduledChange(),
+      confirmLabel: "Yes, Cancel Change",
+      danger: true,
+      onConfirm: () => cancelScheduledChange(),
     });
   };
 
@@ -1084,7 +1090,7 @@ function SubscriptionPageInner() {
         </div>
 
         {isCurrent && (
-          <div className="px-5 -mt-3 flex justify-center">
+          <div className="px-5 -mt-3 flex justify-center relative z-[1]">
             <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-primary text-white">
               Current Plan
             </span>
@@ -1279,7 +1285,7 @@ function SubscriptionPageInner() {
       </div>
 
       {/* Manage billing */}
-      {status?.hasSubscription &&
+      {/* {status?.hasSubscription &&
         (status.status === "active" || status.status === "past_due") && (
           <div className="flex justify-center pt-2">
             <button
@@ -1291,32 +1297,18 @@ function SubscriptionPageInner() {
               {portalLoading ? "…" : "Manage Billing & Invoices"}
             </button>
           </div>
-        )}
+        )} */}
 
       {/* AI credit add-ons (team owners top up the shared pool) */}
       <CreditAddOns balance={teamTotalCredits} />
 
       {/* Saved card selector modal — shown before new subscription checkout */}
-      <Modal
-        open={!!pendingPlan}
-        title="Select Payment Method"
-        okText={
-          checkoutLoading
-            ? "Loading…"
-            : selectedCardId === "new"
-              ? "Continue to Checkout"
-              : "Pay Now"
-        }
-        okButtonProps={{ disabled: !!checkoutLoading }}
-        onOk={() => {
-          if (pendingPlan) {
-            setPendingPlan(null);
-            _executePurchase(pendingPlan);
-          }
-        }}
-        onCancel={() => setPendingPlan(null)}
-      >
-        <div className="space-y-2 py-2">
+      <ModalShell open={!!pendingPlan} onClose={() => setPendingPlan(null)}>
+        <ModalHeader
+          title="Select Payment Method"
+          close={() => setPendingPlan(null)}
+        />
+        <div className="px-5 pb-2 space-y-2">
           {savedCards.map((card) => (
             <label
               key={card.id}
@@ -1362,7 +1354,20 @@ function SubscriptionPageInner() {
             <span className="text-sm font-medium">Use a different card</span>
           </label>
         </div>
-      </Modal>
+        <ModalFooter
+          close={() => setPendingPlan(null)}
+          primary={() => {
+            if (pendingPlan) {
+              setPendingPlan(null);
+              _executePurchase(pendingPlan);
+            }
+          }}
+          primaryLabel={
+            selectedCardId === "new" ? "Continue to Checkout" : "Pay Now"
+          }
+          loading={!!checkoutLoading}
+        />
+      </ModalShell>
     </div>
   );
 }

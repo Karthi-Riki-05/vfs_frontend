@@ -1133,14 +1133,13 @@ export default function AIAssistant({
             ...(isMobile
               ? { top: 56, bottom: 0, left: 0, right: 0 }
               : {
+                  top: 56,
                   bottom: 0,
-                  left: `calc(${contentLeft}px + (100% - ${contentLeft}px - ${contentRight}px - 460px) / 2)`,
-                  width: 460,
-                  height: "60dvh",
+                  right: contentRight,
+                  width: 400,
                   borderTopLeftRadius: 16,
-                  borderTopRightRadius: 16,
-                  boxShadow: "0 -4px 24px rgba(0,0,0,0.1)",
-                  borderTop: "1px solid var(--border)",
+                  boxShadow: "-4px 0 24px rgba(0,0,0,0.1)",
+                  borderLeft: "1px solid var(--border)",
                 }),
             zIndex: isMobile ? 200 : 100,
           }}
@@ -1165,11 +1164,11 @@ export default function AIAssistant({
           style={{
             top: 56,
             bottom: 0,
-            height: "calc(100dvh - 56px)",
-            left: `calc(${contentLeft}px + (100% - ${contentLeft}px - ${contentRight}px - 480px) / 2)`,
-            width: 480,
+            left: isMobile ? 0 : contentLeft,
+            right: contentRight,
             zIndex: 100,
-            boxShadow: "0 0 24px rgba(0,0,0,0.08)",
+            boxShadow: isMobile ? "none" : "-4px 0 24px rgba(0,0,0,0.08)",
+            borderLeft: isMobile ? "none" : "1px solid var(--border)",
           }}
         >
           {renderHeader()}

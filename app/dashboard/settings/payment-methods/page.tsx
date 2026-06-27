@@ -1,27 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Spin, message, Modal } from "antd";
-import {
-  CreditCard,
-  Star,
-  Trash2,
-  Plus,
-  ArrowLeft,
-  AlertCircle,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
-import { loadStripe } from "@stripe/stripe-js";
-import {
-  Elements,
-  CardNumberElement,
-  CardExpiryElement,
-  CardCvcElement,
-  useStripe,
-  useElements,
-} from "@stripe/react-stripe-js";
+import { Spin } from "antd";
+import { toast } from "sonner";
+import { CreditCard, Star, Trash2, Plus, AlertCircle } from "lucide-react";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { paymentsApi, SavedCard } from "@/api/payments.api";
-import { isNativeAppWebView } from "@/lib/detectWebView";
+import { useTabFocus } from "@/hooks/useTabFocus";
 
 const RESET = "appearance-none cursor-pointer outline-none border-0";
 
@@ -43,125 +28,9 @@ function CardBrandIcon({ brand }: { brand: string }) {
   );
 }
 
-// ─── Add Card Form (inside Elements context) ──────────────────────────────────
-function AddCardForm({
-  onSuccess,
-  onCancel,
-}: {
-  onSuccess: () => void;
-  onCancel: () => void;
-}) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [saving, setSaving] = useState(false);
-  const [cardError, setCardError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-
-    setSaving(true);
-    setCardError(null);
-
-    try {
-      // 1. Get a Setup Intent client secret from our backend
-      const siRes = await fetch("/api/payments/setup-intent", {
-        method: "POST",
-      });
-      const siData = await siRes.json();
-      if (!siData.success)
-        throw new Error(siData.error?.message || "Failed to initialize");
-
-      const clientSecret: string = siData.data.clientSecret;
-
-      // 2. Confirm the setup intent with card number element (no CVC/ZIP)
-      const { error, setupIntent } = await stripe.confirmCardSetup(
-        clientSecret,
-        {
-          payment_method: { card: elements.getElement(CardNumberElement)! },
-        },
-      );
-
-      if (error) {
-        setCardError(error.message ?? "Card verification failed");
-        return;
-      }
-
-      if (setupIntent?.status === "succeeded") {
-        message.success("Card saved successfully");
-        onSuccess();
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Something went wrong";
-      setCardError(msg);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const elementStyle = {
-    style: {
-      base: {
-        fontSize: "14px",
-        color: "#1a1a1a",
-        fontFamily: "Inter, sans-serif",
-        "::placeholder": { color: "#9ca3af" },
-      },
-      invalid: { color: "#ef4444" },
-    },
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-3">
-        <div className="rounded-xl border border-border bg-card px-4 py-3">
-          <p className="text-[10px] text-muted-foreground mb-1.5 font-medium uppercase tracking-wide">
-            Card Number
-          </p>
-          <CardNumberElement options={elementStyle} />
-        </div>
-        <div className="flex gap-3">
-          <div className="flex-1 rounded-xl border border-border bg-card px-4 py-3">
-            <p className="text-[10px] text-muted-foreground mb-1.5 font-medium uppercase tracking-wide">
-              Expiry
-            </p>
-            <CardExpiryElement options={elementStyle} />
-          </div>
-          <div className="flex-1 rounded-xl border border-border bg-card px-4 py-3">
-            <p className="text-[10px] text-muted-foreground mb-1.5 font-medium uppercase tracking-wide">
-              CVC
-            </p>
-            <CardCvcElement options={elementStyle} />
-          </div>
-        </div>
-      </div>
-
-      {cardError && (
-        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {cardError}
-        </div>
-      )}
-
-      <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={saving || !stripe}
-          className={`${RESET} flex-1 h-10 rounded-xl bg-primary text-white font-semibold text-sm disabled:opacity-50`}
-        >
-          {saving ? "Saving…" : "Save Card"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className={`${RESET} h-10 px-4 rounded-xl border border-border bg-card text-foreground text-sm`}
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
+// (AddCardForm + Stripe Elements removed — card entry now happens on Stripe's
+//  hosted Billing Portal, opened in the external browser. App Store 3.1.1-safe:
+//  no in-app card entry. See handleOpenPortal in the page component below.)
 
 // ─── Card row ─────────────────────────────────────────────────────────────────
 function CardRow({
@@ -202,7 +71,7 @@ function CardRow({
             onClick={() => onSetDefault(card.id)}
             disabled={loading}
             title="Set as default"
-            className={`${RESET} flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card hover:bg-secondary disabled:opacity-40`}
+            className={`${RESET} flex h-8 w-8 max-lg:h-11 max-lg:w-11 items-center justify-center rounded-lg border border-border bg-card hover:bg-secondary disabled:opacity-40`}
           >
             <Star className="h-4 w-4 text-muted-foreground" />
           </button>
@@ -211,7 +80,7 @@ function CardRow({
           onClick={() => onRemove(card.id)}
           disabled={loading}
           title="Remove card"
-          className={`${RESET} flex h-8 w-8 items-center justify-center rounded-lg border border-destructive/30 bg-card hover:bg-destructive/10 disabled:opacity-40`}
+          className={`${RESET} flex h-8 w-8 max-lg:h-11 max-lg:w-11 items-center justify-center rounded-lg border border-destructive/30 bg-card hover:bg-destructive/10 disabled:opacity-40`}
         >
           <Trash2 className="h-4 w-4 text-destructive" />
         </button>
@@ -228,59 +97,10 @@ interface CancelRecurringInfo {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function PaymentMethodsPage() {
-  if (typeof window !== "undefined" && isNativeAppWebView()) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "60vh",
-          padding: "32px 24px",
-          textAlign: "center",
-        }}
-      >
-        <div
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 16,
-            background: "#F0FFF4",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 24,
-          }}
-        >
-          <CreditCard size={28} color="#3CB371" />
-        </div>
-        <h2
-          style={{
-            fontSize: 20,
-            fontWeight: 700,
-            color: "#1A1A2E",
-            marginBottom: 12,
-          }}
-        >
-          Manage payment methods on the web
-        </h2>
-        <p style={{ fontSize: 15, color: "#595959", maxWidth: 320 }}>
-          To add or update payment methods, visit{" "}
-          <strong>valueflowsoft.com</strong> in your browser.
-        </p>
-      </div>
-    );
-  }
-
-  const router = useRouter();
   const [cards, setCards] = useState<SavedCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [showAddCard, setShowAddCard] = useState(false);
-  const [stripePromise, setStripePromise] = useState<ReturnType<
-    typeof loadStripe
-  > | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [cancelRecurringInfo, setCancelRecurringInfo] =
     useState<CancelRecurringInfo | null>(null);
@@ -291,41 +111,63 @@ export default function PaymentMethodsPage() {
       const data = res.data?.data || res.data;
       setCards(data?.paymentMethods ?? []);
     } catch {
-      message.error("Failed to load payment methods");
+      toast.error("Failed to load payment methods");
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  // Load Stripe publishable key from backend, then initialise Stripe.js
-  useEffect(() => {
-    fetch("/api/payments/stripe-config")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success && d.data?.publishableKey) {
-          setStripePromise(loadStripe(d.data.publishableKey));
-        }
-      })
-      .catch(() => {
-        /* Stripe Elements will stay hidden */
-      });
   }, []);
 
   useEffect(() => {
     fetchCards();
   }, [fetchCards]);
 
+  // Refresh the card list when the user returns to this page/tab — e.g. after
+  // adding a card on Stripe's hosted Billing Portal (opened in the external
+  // browser on mobile, or same-tab on web).
+  useTabFocus(fetchCards);
+
+  // Add / manage cards on Stripe's hosted Billing Portal. Card details are
+  // entered on Stripe's page, never inside the app (App Store 3.1.1-safe).
+  // In the native shell the WebView nav policy sends billing.stripe.com to the
+  // external browser; on web this navigates the current tab.
+  const handleOpenPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/subscription/customer-portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          returnPath: "/dashboard/settings/payment-methods",
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        window.location.href = data.data.url;
+        // On web the page unloads here. In the native shell the WebView nav to
+        // billing.stripe.com is intercepted and opened in the external browser
+        // (this page stays mounted), so re-enable the button after a moment.
+        setTimeout(() => setPortalLoading(false), 3000);
+      } else {
+        toast.error(data.error?.message || "Could not open card management");
+        setPortalLoading(false);
+      }
+    } catch {
+      toast.error("Failed to open card management");
+      setPortalLoading(false);
+    }
+  };
+
   const handleSetDefault = async (paymentMethodId: string) => {
     setActionLoading(true);
     try {
       await paymentsApi.setDefaultCard(paymentMethodId);
-      message.success("Default card updated");
+      toast.success("Default card updated");
       await fetchCards();
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: { message?: string } } } })
           ?.response?.data?.error?.message ?? "Failed to update default card";
-      message.error(msg);
+      toast.error(msg);
     } finally {
       setActionLoading(false);
     }
@@ -336,7 +178,7 @@ export default function PaymentMethodsPage() {
     setActionLoading(true);
     try {
       await paymentsApi.removeCard(paymentMethodId);
-      message.success("Card removed");
+      toast.success("Card removed");
       await fetchCards();
     } catch (err: unknown) {
       const errData = (
@@ -361,7 +203,7 @@ export default function PaymentMethodsPage() {
           flowAddonExpiry: errData.flowAddonExpiry ?? null,
         });
       } else {
-        message.error(errData?.message ?? "Failed to remove card");
+        toast.error(errData?.message ?? "Failed to remove card");
       }
     } finally {
       setActionLoading(false);
@@ -375,13 +217,13 @@ export default function PaymentMethodsPage() {
     setActionLoading(true);
     try {
       await paymentsApi.removeCard(paymentMethodId, true);
-      message.success("Card removed and auto-renewal cancelled");
+      toast.success("Card removed and auto-renewal cancelled");
       await fetchCards();
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: { message?: string } } } })
           ?.response?.data?.error?.message ?? "Failed to remove card";
-      message.error(msg);
+      toast.error(msg);
     } finally {
       setActionLoading(false);
     }
@@ -404,7 +246,7 @@ export default function PaymentMethodsPage() {
       ) : (
         <div className="space-y-3">
           {/* Saved cards */}
-          {cards.length === 0 && !showAddCard && (
+          {cards.length === 0 && (
             <div className="rounded-2xl border border-border bg-card p-8 text-center">
               <CreditCard className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm font-medium text-foreground">
@@ -426,109 +268,94 @@ export default function PaymentMethodsPage() {
             />
           ))}
 
-          {/* Add Card form */}
-          {showAddCard ? (
-            <div className="rounded-2xl border border-border bg-card p-5">
-              <h2 className="text-sm font-semibold text-foreground mb-4">
-                Add New Card
-              </h2>
-              {stripePromise ? (
-                <Elements stripe={stripePromise}>
-                  <AddCardForm
-                    onSuccess={() => {
-                      setShowAddCard(false);
-                      fetchCards();
-                    }}
-                    onCancel={() => setShowAddCard(false)}
-                  />
-                </Elements>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Stripe is not configured. Please contact support.
-                </p>
-              )}
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowAddCard(true)}
-              className={`${RESET} flex w-full items-center justify-center gap-2 h-11 rounded-2xl border-2 border-dashed border-border bg-card text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary`}
-            >
-              <Plus className="h-4 w-4" />
-              Add Card
-            </button>
-          )}
+          {/* Add / manage card — opens Stripe's hosted Billing Portal (external
+              browser in the app). No card details are entered inside the app. */}
+          <button
+            onClick={handleOpenPortal}
+            disabled={portalLoading}
+            className={`${RESET} flex w-full items-center justify-center gap-2 h-11 rounded-2xl border-2 border-dashed border-border bg-card text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50`}
+          >
+            <Plus className="h-4 w-4" />
+            {portalLoading ? "Opening…" : "Add / manage card on Stripe"}
+          </button>
+
+          <p className="text-xs text-muted-foreground text-center px-2">
+            Cards are added and updated securely on Stripe.
+          </p>
         </div>
       )}
 
       {/* Remove confirmation modal */}
-      <Modal
+      <ConfirmDialog
         open={!!removeTarget}
         title="Remove Card"
-        okText="Remove"
-        okButtonProps={{ danger: true }}
-        onOk={() => removeTarget && handleRemove(removeTarget)}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => removeTarget && handleRemove(removeTarget)}
         onCancel={() => setRemoveTarget(null)}
-      >
-        <p className="text-sm text-foreground">
-          Are you sure you want to remove this card?
-        </p>
-      </Modal>
+        description={
+          <p className="text-sm text-foreground">
+            Are you sure you want to remove this card?
+          </p>
+        }
+      />
 
       {/* Cancel recurring + remove modal */}
-      <Modal
+      <ConfirmDialog
         open={!!cancelRecurringInfo}
         title="Cancel Auto-Renewal & Remove Card"
-        okText="Yes, cancel renewal & remove card"
-        okButtonProps={{ danger: true }}
-        cancelText="Keep card"
-        onOk={handleCancelRecurringAndRemove}
+        confirmLabel="Yes, cancel renewal & remove card"
+        cancelLabel="Keep card"
+        danger
+        onConfirm={handleCancelRecurringAndRemove}
         onCancel={() => setCancelRecurringInfo(null)}
-      >
-        <div className="space-y-3">
-          <div className="flex gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
-            <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-amber-800">
-              This is your default card and you have an active subscription.
-              Removing it will <strong>cancel auto-renewal</strong> — your plan
-              stays active until the billing period ends.
+        description={
+          <div className="space-y-3">
+            <div className="flex gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
+              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">
+                This is your default card and you have an active subscription.
+                Removing it will <strong>cancel auto-renewal</strong> — your
+                plan stays active until the billing period ends.
+              </p>
+            </div>
+
+            {cancelRecurringInfo?.subscriptionExpiry && (
+              <p className="text-sm text-foreground">
+                <span className="font-medium">Team plan</span> active until:{" "}
+                <span className="font-semibold">
+                  {new Date(
+                    cancelRecurringInfo.subscriptionExpiry,
+                  ).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </span>
+              </p>
+            )}
+
+            {cancelRecurringInfo?.flowAddonExpiry && (
+              <p className="text-sm text-foreground">
+                <span className="font-medium">Flow pack</span> active until:{" "}
+                <span className="font-semibold">
+                  {new Date(
+                    cancelRecurringInfo.flowAddonExpiry,
+                  ).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </span>
+              </p>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              You can re-subscribe at any time after removal.
             </p>
           </div>
-
-          {cancelRecurringInfo?.subscriptionExpiry && (
-            <p className="text-sm text-foreground">
-              <span className="font-medium">Team plan</span> active until:{" "}
-              <span className="font-semibold">
-                {new Date(
-                  cancelRecurringInfo.subscriptionExpiry,
-                ).toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </span>
-            </p>
-          )}
-
-          {cancelRecurringInfo?.flowAddonExpiry && (
-            <p className="text-sm text-foreground">
-              <span className="font-medium">Flow pack</span> active until:{" "}
-              <span className="font-semibold">
-                {new Date(
-                  cancelRecurringInfo.flowAddonExpiry,
-                ).toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </span>
-            </p>
-          )}
-
-          <p className="text-xs text-muted-foreground">
-            You can re-subscribe at any time after removal.
-          </p>
-        </div>
-      </Modal>
+        }
+      />
     </div>
   );
 }

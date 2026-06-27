@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, type ReactNode } from "react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -258,7 +258,7 @@ export default function RecentsPage() {
         .slice(0, 20);
       setFlows(sorted);
     } catch {
-      message.error("Failed to load recent flows");
+      toast.error("Failed to load recent flows");
     } finally {
       setLoading(false);
     }
@@ -280,19 +280,19 @@ export default function RecentsPage() {
     try {
       await api.delete(`/flows/${id}`);
       setFlows((prev) => prev.filter((f) => f.id !== id));
-      message.success("Flow deleted");
+      toast.success("Flow deleted");
     } catch {
-      message.error("Failed to delete flow");
+      toast.error("Failed to delete flow");
     }
   };
 
   const handleDuplicate = async (id: string) => {
     try {
       await api.post(`/flows/${id}/duplicate`);
-      message.success("Flow duplicated");
+      toast.success("Flow duplicated");
       fetchRecentFlows();
     } catch {
-      message.error("Failed to duplicate flow");
+      toast.error("Failed to duplicate flow");
     }
   };
 
@@ -305,7 +305,7 @@ export default function RecentsPage() {
         prev.map((f) => (f.id === id ? { ...f, isFavorite: newState } : f)),
       );
     } catch {
-      message.error("Failed to update favorite");
+      toast.error("Failed to update favorite");
     }
   };
 
@@ -315,11 +315,11 @@ export default function RecentsPage() {
       await api.put(`/flows/${renameModal.id}`, {
         name: renameModal.name.trim(),
       });
-      message.success("Flow renamed");
+      toast.success("Flow renamed");
       setRenameModal({ open: false, id: "", name: "" });
       fetchRecentFlows();
     } catch {
-      message.error("Failed to rename flow");
+      toast.error("Failed to rename flow");
     }
   };
 
@@ -419,7 +419,7 @@ export default function RecentsPage() {
                   })}
                 </>
               ) : (
-                <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 mb-3">
                   {grouped[groupName].map((flow: any, index: number) => (
                     <div
                       key={flow.id}

@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Modal, Form, Input, List, Button, Avatar, message, Spin } from "antd";
+import { toast } from "sonner";
 import {
-  MessageOutlined,
-  UserAddOutlined,
-  DeleteOutlined,
-  UserOutlined,
-} from "@ant-design/icons";
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
+import { MemberList, MemberRow } from "@/components/common/MemberList";
 import api from "@/lib/axios";
 
 interface Props {
@@ -23,12 +24,11 @@ export default function EditGroupModal({
   onClose,
   onSuccess,
 }: Props) {
-  const [form] = Form.useForm();
+  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [members, setMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<MemberRow[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [newEmail, setNewEmail] = useState("");
   const [addingMember, setAddingMember] = useState(false);
 
   const loadGroup = async () => {
@@ -37,11 +37,11 @@ export default function EditGroupModal({
     try {
       const res = await api.get(`/chat/groups/${groupId}/info`);
       const info = res.data?.data || res.data;
-      form.setFieldsValue({ name: info?.title });
+      setName(info?.title || "");
       setMembers(Array.isArray(info?.members) ? info.members : []);
       setIsAdmin(!!info?.isAdmin);
     } catch {
-      message.error("Failed to load group details");
+      toast.error("Failed to load group details");
     } finally {
       setLoading(false);
     }
@@ -52,22 +52,20 @@ export default function EditGroupModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, groupId]);
 
-  const handleAddMember = async () => {
-    const email = newEmail.trim();
-    if (!groupId || !email) return;
+  const handleAddMember = async (email: string) => {
+    if (!groupId) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      message.warning("Enter a valid email address");
+      toast.warning("Enter a valid email address");
       return;
     }
     setAddingMember(true);
     try {
       // Backend addMember resolves emails passed in the userId field
       await api.post(`/chat/groups/${groupId}/members`, { userId: email });
-      setNewEmail("");
-      message.success("Member added");
+      toast.success("Member added");
       loadGroup();
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to add member",
       );
     } finally {
@@ -79,10 +77,10 @@ export default function EditGroupModal({
     if (!groupId) return;
     try {
       await api.delete(`/chat/groups/${groupId}/members/${userId}`);
-      message.success("Member removed");
+      toast.success("Member removed");
       loadGroup();
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to remove member",
       );
     }
@@ -90,20 +88,18 @@ export default function EditGroupModal({
 
   const handleSave = async () => {
     if (!groupId) return;
-    let values;
-    try {
-      values = await form.validateFields();
-    } catch {
+    if (!name.trim()) {
+      toast.warning("Group name is required");
       return;
     }
     setSaving(true);
     try {
-      await api.put(`/chat/groups/${groupId}`, { title: values.name });
-      message.success("Group updated");
+      await api.put(`/chat/groups/${groupId}`, { title: name.trim() });
+      toast.success("Group updated");
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to update group",
       );
     } finally {
@@ -112,109 +108,48 @@ export default function EditGroupModal({
   };
 
   return (
-    <Modal
-      open={open}
-      onCancel={onClose}
-      onOk={handleSave}
-      confirmLoading={saving}
-      okText="Save"
-      okButtonProps={{
-        style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
-        disabled: !isAdmin,
-      }}
-      title={
-        <span>
-          <MessageOutlined style={{ color: "#3CB371", marginRight: 8 }} />
-          Edit Chat Group
-        </span>
-      }
-      width={480}
-      centered
-      destroyOnClose
-    >
-      {loading ? (
-        <div style={{ textAlign: "center", padding: 32 }}>
-          <Spin />
-        </div>
-      ) : (
-        <>
-          {!isAdmin && (
-            <div
-              style={{
-                background: "#fffbe6",
-                border: "1px solid #ffe58f",
-                borderRadius: 6,
-                padding: "6px 10px",
-                fontSize: 12,
-                color: "#ad6800",
-                marginBottom: 12,
-              }}
-            >
-              Only the group creator can rename the group or manage members.
-            </div>
-          )}
-          <Form form={form} layout="vertical">
-            <Form.Item
-              name="name"
-              label="Group name"
-              rules={[{ required: true, message: "Group name is required" }]}
-            >
-              <Input maxLength={255} disabled={!isAdmin} />
-            </Form.Item>
-          </Form>
-
-          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>
-            Members
+    <ModalShell open={open} onClose={onClose}>
+      <ModalHeader title="Edit Chat Group" close={onClose} />
+      <div className="px-5 pb-5 space-y-4">
+        {loading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            Loading…
           </div>
-          {isAdmin && (
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <Input
-                placeholder="Add member by email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                onPressEnter={handleAddMember}
-              />
-              <Button
-                icon={<UserAddOutlined />}
-                loading={addingMember}
-                onClick={handleAddMember}
-              >
-                Add
-              </Button>
-            </div>
-          )}
-          <List
-            size="small"
-            dataSource={Array.isArray(members) ? members : []}
-            locale={{ emptyText: "No members yet" }}
-            style={{ maxHeight: 220, overflow: "auto" }}
-            renderItem={(m: any) => (
-              <List.Item
-                actions={
-                  isAdmin && m.role !== "admin"
-                    ? [
-                        <Button
-                          key="remove"
-                          type="text"
-                          danger
-                          size="small"
-                          icon={<DeleteOutlined />}
-                          onClick={() => handleRemoveMember(m.id)}
-                        />,
-                      ]
-                    : []
-                }
-              >
-                <List.Item.Meta
-                  avatar={<Avatar size="small" icon={<UserOutlined />} />}
-                  title={`${m.name || m.email}${m.role === "admin" ? " (admin)" : ""}`}
-                  description={m.name ? m.email : undefined}
-                />
-              </List.Item>
+        ) : (
+          <>
+            {!isAdmin && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                Only the group creator can rename the group or manage members.
+              </div>
             )}
-          />
-        </>
-      )}
-    </Modal>
+            <Field label="Group name" required>
+              <FieldInput
+                maxLength={255}
+                disabled={!isAdmin}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field>
+            <div>
+              <div className="text-sm font-semibold mb-2">Members</div>
+              <MemberList
+                members={members}
+                canManage={isAdmin}
+                adding={addingMember}
+                onAdd={handleAddMember}
+                onRemove={handleRemoveMember}
+              />
+            </div>
+          </>
+        )}
+      </div>
+      <ModalFooter
+        close={onClose}
+        primary={handleSave}
+        primaryLabel="Save"
+        loading={saving}
+        disabled={!isAdmin || !name.trim()}
+      />
+    </ModalShell>
   );
 }

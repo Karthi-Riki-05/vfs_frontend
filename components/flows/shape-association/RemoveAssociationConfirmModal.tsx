@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { Modal, message } from "antd";
-import { DisconnectOutlined } from "@ant-design/icons";
+import { Unlink } from "lucide-react";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { shapesApi } from "@/api/shapes.api";
 import type { ShapeAssociation } from "./types";
 
@@ -30,10 +31,10 @@ export default function RemoveAssociationConfirmModal({
     setLoading(true);
     try {
       await shapesApi.removeAssociation(shapeId);
-      message.success("Association removed");
+      toast.success("Association removed");
       onRemoved(shapeId, cellId || "");
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to remove association",
       );
     } finally {
@@ -44,31 +45,28 @@ export default function RemoveAssociationConfirmModal({
   const label = association?.type === "team" ? "team" : "chat group";
 
   return (
-    <Modal
+    <ConfirmDialog
       open={open}
+      loading={loading}
+      danger
+      icon={<Unlink className="w-5 h-5 text-amber-500" />}
+      title="Remove Association"
+      confirmLabel="Remove"
+      onConfirm={handleConfirm}
       onCancel={onClose}
-      onOk={handleConfirm}
-      confirmLoading={loading}
-      okText="Remove"
-      okButtonProps={{ danger: true }}
-      title={
-        <span>
-          <DisconnectOutlined style={{ color: "#faad14", marginRight: 8 }} />
-          Remove Association
-        </span>
+      description={
+        <>
+          <p>
+            Remove this shape from the {label}{" "}
+            <strong>{association?.name || ""}</strong>?
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            The shape stays in your diagram — only the {label} link is removed.
+            {association?.type === "team" &&
+              " Team members will no longer see it in their shape library."}
+          </p>
+        </>
       }
-      width={420}
-      centered
-    >
-      <p>
-        Remove this shape from the {label}{" "}
-        <strong>{association?.name || ""}</strong>?
-      </p>
-      <p style={{ fontSize: 12, color: "#888" }}>
-        The shape stays in your diagram — only the {label} link is removed.
-        {association?.type === "team" &&
-          " Team members will no longer see it in their shape library."}
-      </p>
-    </Modal>
+    />
   );
 }

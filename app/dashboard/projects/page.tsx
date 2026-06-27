@@ -1,13 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Modal, Dropdown } from "antd";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Folder, Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import {
   ModalShell,
   ModalHeader,
   ModalFooter,
 } from "@/components/common/Modal";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import { Field, FieldInput } from "@/components/common/Field";
 import { useProjects } from "@/hooks/useProjects";
 import { useTabFocus } from "@/hooks/useTabFocus";
@@ -93,15 +100,16 @@ export default function ProjectsPage() {
     setRenameModal({ open: false, id: "", name: "" });
   };
 
-  const handleDelete = (id: string, name: string) => {
-    Modal.confirm({
+  const handleDelete = async (id: string, name: string) => {
+    const ok = await confirmDialog({
       title: `Delete "${name}"?`,
       content:
         "Flows in this project will not be deleted — they will become individual flows.",
-      okText: "Delete",
-      okType: "danger",
-      onOk: () => deleteProject(id),
+      confirmLabel: "Delete",
+      danger: true,
+      onConfirm: () => deleteProject(id),
     });
+    if (!ok) return;
   };
 
   const projectMenu = (project: any) => ({
@@ -128,7 +136,7 @@ export default function ProjectsPage() {
     <div className="tw min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-5 lg:px-8 pt-6 pb-28">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-6">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-6">
           <div className="min-w-0">
             <h1 className="text-[26px] lg:text-[32px] font-extrabold text-foreground leading-tight">
               All Projects
@@ -137,13 +145,17 @@ export default function ProjectsPage() {
               {projects.length} {projects.length === 1 ? "project" : "projects"}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setCreateModalOpen(true)}
-            className="shrink-0 h-10 px-4 rounded-full bg-primary hover:bg-[#1F7D5E] text-white font-semibold text-sm inline-flex items-center gap-2 shadow-[var(--shadow-fab)] border-0 appearance-none cursor-pointer transition-colors"
-          >
-            <Plus className="w-4 h-4" /> New Project
-          </button>
+
+          {/* புராஜெக்ட்ஸ் இருந்தால் மட்டுமே இந்த பட்டன் வெளியே தெரியும் */}
+          {projects.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setCreateModalOpen(true)}
+              className="shrink-0 h-10 px-4 rounded-full bg-primary hover:bg-[#1F7D5E] text-white font-semibold text-sm inline-flex items-center justify-center gap-2 shadow-[var(--shadow-fab)] border-0 appearance-none cursor-pointer transition-colors w-full md:w-auto"
+            >
+              <Plus className="w-4 h-4" /> New Project
+            </button>
+          )}
         </div>
 
         {/* Loading skeletons */}
@@ -210,15 +222,38 @@ export default function ProjectsPage() {
                     {project.flowCount === 1 ? "flow" : "flows"}
                   </span>
                   <div onClick={(e) => e.stopPropagation()}>
-                    <Dropdown menu={projectMenu(project)} trigger={["click"]}>
-                      <button
-                        type="button"
-                        aria-label="Project actions"
-                        className="w-9 h-9 max-lg:w-11 max-lg:h-11 rounded-lg hover:bg-secondary flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
-                      >
-                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                      </button>
-                    </Dropdown>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="Project actions"
+                          className="tw w-9 h-9 max-lg:w-11 max-lg:h-11 rounded-lg hover:bg-secondary flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                        >
+                          <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="tw">
+                        {(projectMenu(project).items as any[]).map(
+                          (item: any, i: number) =>
+                            item.type === "divider" ? (
+                              <DropdownMenuSeparator key={`sep-${i}`} />
+                            ) : (
+                              <DropdownMenuItem
+                                key={item.key}
+                                onSelect={item.onClick}
+                                className={
+                                  item.danger
+                                    ? "text-destructive focus:text-destructive"
+                                    : ""
+                                }
+                              >
+                                {item.icon}
+                                {item.label}
+                              </DropdownMenuItem>
+                            ),
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               );

@@ -11,10 +11,7 @@ import {
   Avatar,
   Space,
   Typography,
-  Dropdown,
-  Modal,
   Form,
-  message,
   DatePicker,
   Checkbox,
   Badge,
@@ -22,8 +19,22 @@ import {
   Grid,
   Pagination,
 } from "antd";
+import { toast } from "sonner";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
-import type { MenuProps } from "antd";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
+import { promptDialog } from "@/components/common/PromptDialog";
 import {
   PlusOutlined,
   DownloadOutlined,
@@ -173,7 +184,7 @@ export default function SuperAdminUsersPage() {
       setUsers(d?.users || []);
       setTotal(d?.pagination?.total || 0);
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to load users",
       );
     } finally {
@@ -256,23 +267,23 @@ export default function SuperAdminUsersPage() {
       if (invites) {
         const { added, skipped } = invites;
         if (skipped && skipped.length > 0) {
-          message.success(
+          toast.success(
             `User created. ${added} member${added === 1 ? "" : "s"} added, ${skipped.length} skipped (not found).`,
           );
         } else {
-          message.success(
+          toast.success(
             `User created. ${added} member${added === 1 ? "" : "s"} added.`,
           );
         }
       } else {
-        message.success("User created");
+        toast.success("User created");
       }
       setAddOpen(false);
       form.resetFields();
       load();
     } catch (err: any) {
       if (err?.errorFields) return; // validation
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to create user",
       );
     } finally {
@@ -491,7 +502,7 @@ export default function SuperAdminUsersPage() {
     (c) => visibleCols[(c.key as string) || ""] !== false,
   );
 
-  const colMenuItems: MenuProps["items"] = ALL_COLUMN_KEYS.map((k) => ({
+  const colMenuItems: any[] = ALL_COLUMN_KEYS.map((k) => ({
     key: k,
     label: (
       <Checkbox
@@ -623,13 +634,21 @@ export default function SuperAdminUsersPage() {
           <Button icon={<ReloadOutlined />} onClick={handleSearch}>
             Refresh
           </Button>
-          <Dropdown
-            menu={{ items: colMenuItems }}
-            trigger={["click"]}
-            placement="bottomRight"
-          >
-            <Button icon={<AppstoreOutlined />}>Columns</Button>
-          </Dropdown>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button icon={<AppstoreOutlined />}>Columns</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="tw">
+              {(colMenuItems as any[]).map((item: any) => (
+                <DropdownMenuItem
+                  key={item.key}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </Space>
       </Card>
 
@@ -700,149 +719,167 @@ export default function SuperAdminUsersPage() {
         </Card>
       )}
 
-      <Modal
-        title="Add User"
+      <ModalShell
         open={addOpen}
-        onCancel={() => setAddOpen(false)}
-        onOk={handleCreate}
-        confirmLoading={creating}
-        okText="Create"
-        okButtonProps={{ style: { background: PRIMARY, borderColor: PRIMARY } }}
-        width={560}
+        onClose={() => {
+          setAddOpen(false);
+          form.resetFields();
+        }}
+        size="lg"
       >
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            plan: "pro",
-            status: "active",
-            appType: "valuechartpro",
-            duration: "monthly",
-            seats: 5,
-            inviteEmails: [],
-            isVerified: true,
+        <ModalHeader
+          title="Add User"
+          close={() => {
+            setAddOpen(false);
+            form.resetFields();
           }}
-          onValuesChange={(changed) => {
-            // Couple App Type ↔ Plan (updated spec)
-            // ValueChart Pro   → always plan='pro' (plan dropdown hidden)
-            // ValueChart Teams → plan='free' or 'team' (dropdown visible)
-            if (changed.appType) {
-              if (changed.appType === "valuechartpro") {
-                form.setFieldsValue({ plan: "pro" });
-              } else if (changed.appType === "valuechartteams") {
-                const currentPlan = form.getFieldValue("plan");
-                if (!["free", "team"].includes(currentPlan)) {
-                  form.setFieldsValue({ plan: "free" });
+        />
+        <div className="tw px-5 pb-2">
+          <Form
+            form={form}
+            layout="vertical"
+            initialValues={{
+              plan: "pro",
+              status: "active",
+              appType: "valuechartpro",
+              duration: "monthly",
+              seats: 5,
+              inviteEmails: [],
+              isVerified: true,
+            }}
+            onValuesChange={(changed) => {
+              // Couple App Type ↔ Plan (updated spec)
+              // ValueChart Pro   → always plan='pro' (plan dropdown hidden)
+              // ValueChart Teams → plan='free' or 'team' (dropdown visible)
+              if (changed.appType) {
+                if (changed.appType === "valuechartpro") {
+                  form.setFieldsValue({ plan: "pro" });
+                } else if (changed.appType === "valuechartteams") {
+                  const currentPlan = form.getFieldValue("plan");
+                  if (!["free", "team"].includes(currentPlan)) {
+                    form.setFieldsValue({ plan: "free" });
+                  }
                 }
-              }
-              // Reset plan-conditional fields on app-type change
-              form.setFieldsValue({
-                duration: "monthly",
-                seats: 5,
-                inviteEmails: [],
-              });
-            }
-            if (changed.plan) {
-              // Guard mismatches — auto-correct app type if admin somehow picks
-              // a plan inconsistent with the current app type.
-              const currentAppType = form.getFieldValue("appType");
-              if (
-                changed.plan === "pro" &&
-                currentAppType !== "valuechartpro"
-              ) {
-                form.setFieldsValue({ appType: "valuechartpro" });
-              } else if (
-                (changed.plan === "free" || changed.plan === "team") &&
-                currentAppType !== "valuechartteams"
-              ) {
-                form.setFieldsValue({ appType: "valuechartteams" });
-              }
-              form.setFieldsValue({
-                duration: "monthly",
-                seats: 5,
-                inviteEmails: [],
-              });
-            }
-            // Re-trim invites when seats shrink.
-            if (changed.seats !== undefined) {
-              const invites = form.getFieldValue("inviteEmails") || [];
-              const maxInvites = Math.max(0, (changed.seats || 5) - 1);
-              if (invites.length > maxInvites) {
+                // Reset plan-conditional fields on app-type change
                 form.setFieldsValue({
-                  inviteEmails: invites.slice(0, maxInvites),
+                  duration: "monthly",
+                  seats: 5,
+                  inviteEmails: [],
                 });
               }
-            }
-          }}
-        >
-          <Form.Item
-            name="name"
-            label="Full Name"
-            rules={[{ required: true, message: "Name is required" }]}
+              if (changed.plan) {
+                // Guard mismatches — auto-correct app type if admin somehow picks
+                // a plan inconsistent with the current app type.
+                const currentAppType = form.getFieldValue("appType");
+                if (
+                  changed.plan === "pro" &&
+                  currentAppType !== "valuechartpro"
+                ) {
+                  form.setFieldsValue({ appType: "valuechartpro" });
+                } else if (
+                  (changed.plan === "free" || changed.plan === "team") &&
+                  currentAppType !== "valuechartteams"
+                ) {
+                  form.setFieldsValue({ appType: "valuechartteams" });
+                }
+                form.setFieldsValue({
+                  duration: "monthly",
+                  seats: 5,
+                  inviteEmails: [],
+                });
+              }
+              // Re-trim invites when seats shrink.
+              if (changed.seats !== undefined) {
+                const invites = form.getFieldValue("inviteEmails") || [];
+                const maxInvites = Math.max(0, (changed.seats || 5) - 1);
+                if (invites.length > maxInvites) {
+                  form.setFieldsValue({
+                    inviteEmails: invites.slice(0, maxInvites),
+                  });
+                }
+              }
+            }}
           >
-            <Input placeholder="Jane Doe" />
-          </Form.Item>
-          <Form.Item
-            name="email"
-            label="Email"
-            rules={[
-              { required: true, message: "Email is required" },
-              { type: "email", message: "Invalid email" },
-            ]}
-          >
-            <Input placeholder="user@example.com" />
-          </Form.Item>
-          <Form.Item
-            name="password"
-            label="Password"
-            rules={[
-              { required: true, message: "Password is required" },
-              { min: 8, message: "Minimum 8 characters" },
-            ]}
-          >
-            <Input.Password placeholder="At least 8 characters" />
-          </Form.Item>
-          <Form.Item
-            name="status"
-            label="Status"
-            tooltip="Inactive users cannot log in until reactivated"
-          >
-            <Radio.Group optionType="button" buttonStyle="solid">
-              <Radio.Button value="active">Active</Radio.Button>
-              <Radio.Button value="inactive">Inactive</Radio.Button>
-            </Radio.Group>
-          </Form.Item>
-          <Form.Item
-            name="isVerified"
-            label="Email Verified"
-            valuePropName="checked"
-            tooltip="If No, the user will be prompted to verify via OTP upon their first login."
-          >
-            <Checkbox>Yes, mark as verified</Checkbox>
-          </Form.Item>
-          <Form.Item
-            name="appType"
-            label="App Type"
-            tooltip="ValueChart Pro = individual (Free/Pro plans). ValueChart Teams = enterprise (Team plan)."
-          >
-            <Radio.Group optionType="button" buttonStyle="solid">
-              <Radio.Button value="valuechartpro">ValueChart Pro</Radio.Button>
-              <Radio.Button value="valuechartteams">
-                ValueChart Teams
-              </Radio.Button>
-            </Radio.Group>
-          </Form.Item>
-          <PlanSelectField form={form} />
-          <PlanExtrasField form={form} />
+            <Form.Item
+              name="name"
+              label="Full Name"
+              rules={[{ required: true, message: "Name is required" }]}
+            >
+              <Input placeholder="Jane Doe" />
+            </Form.Item>
+            <Form.Item
+              name="email"
+              label="Email"
+              rules={[
+                { required: true, message: "Email is required" },
+                { type: "email", message: "Invalid email" },
+              ]}
+            >
+              <Input placeholder="user@example.com" />
+            </Form.Item>
+            <Form.Item
+              name="password"
+              label="Password"
+              rules={[
+                { required: true, message: "Password is required" },
+                { min: 8, message: "Minimum 8 characters" },
+              ]}
+            >
+              <Input.Password placeholder="At least 8 characters" />
+            </Form.Item>
+            <Form.Item
+              name="status"
+              label="Status"
+              tooltip="Inactive users cannot log in until reactivated"
+            >
+              <Radio.Group optionType="button" buttonStyle="solid">
+                <Radio.Button value="active">Active</Radio.Button>
+                <Radio.Button value="inactive">Inactive</Radio.Button>
+              </Radio.Group>
+            </Form.Item>
+            <Form.Item
+              name="isVerified"
+              label="Email Verified"
+              valuePropName="checked"
+              tooltip="If No, the user will be prompted to verify via OTP upon their first login."
+            >
+              <Checkbox>Yes, mark as verified</Checkbox>
+            </Form.Item>
+            <Form.Item
+              name="appType"
+              label="App Type"
+              tooltip="ValueChart Pro = individual (Free/Pro plans). ValueChart Teams = enterprise (Team plan)."
+            >
+              <Radio.Group optionType="button" buttonStyle="solid">
+                <Radio.Button value="valuechartpro">
+                  ValueChart Pro
+                </Radio.Button>
+                <Radio.Button value="valuechartteams">
+                  ValueChart Teams
+                </Radio.Button>
+              </Radio.Group>
+            </Form.Item>
+            <PlanSelectField form={form} />
+            <PlanExtrasField form={form} />
 
-          <Form.Item name="adminNote" label="Admin Note (optional)">
-            <Input.TextArea
-              rows={2}
-              placeholder="Internal note for this user"
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
+            <Form.Item name="adminNote" label="Admin Note (optional)">
+              <Input.TextArea
+                rows={2}
+                placeholder="Internal note for this user"
+              />
+            </Form.Item>
+          </Form>
+        </div>
+        <ModalFooter
+          close={() => {
+            setAddOpen(false);
+            form.resetFields();
+          }}
+          primary={handleCreate}
+          primaryLabel="Create"
+          loading={creating}
+        />
+      </ModalShell>
     </div>
   );
 }
@@ -1284,18 +1321,18 @@ function RowActions({
   onChanged: () => void;
 }) {
   const handleSuspend = () => {
-    Modal.confirm({
+    confirmDialog({
       title: `Suspend ${user.name || user.email}?`,
       content: "The user will not be able to log in until reactivated.",
-      okText: "Suspend",
-      okButtonProps: { danger: true },
-      onOk: async () => {
+      confirmLabel: "Suspend",
+      danger: true,
+      onConfirm: async () => {
         try {
           await superAdminApi.suspendUser(user.id, "Suspended from users list");
-          message.success("User suspended");
+          toast.success("User suspended");
           onChanged();
         } catch (err: any) {
-          message.error(
+          toast.error(
             err?.response?.data?.error?.message || "Failed to suspend user",
           );
         }
@@ -1306,66 +1343,50 @@ function RowActions({
   const handleReactivate = async () => {
     try {
       await superAdminApi.reactivateUser(user.id);
-      message.success("User reactivated");
+      toast.success("User reactivated");
       onChanged();
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to reactivate user",
       );
     }
   };
 
-  const handleResetPassword = () => {
-    let pwd = "";
-    Modal.confirm({
+  const handleResetPassword = async () => {
+    const pwd = await promptDialog({
       title: `Reset password for ${user.name || user.email}`,
-      content: (
-        <div>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Enter a new password (minimum 8 characters). Share it with the user
-            securely.
-          </Text>
-          <Input.Password
-            placeholder="New password"
-            style={{ marginTop: 12 }}
-            onChange={(e) => {
-              pwd = e.target.value;
-            }}
-          />
-        </div>
-      ),
-      okText: "Reset",
-      onOk: async () => {
-        if (!pwd || pwd.length < 8) {
-          message.error("Password must be at least 8 characters");
-          throw new Error("invalid");
-        }
-        try {
-          await superAdminApi.resetUserPassword(user.id, pwd);
-          message.success("Password reset");
-        } catch (err: any) {
-          message.error(
-            err?.response?.data?.error?.message || "Failed to reset password",
-          );
-          throw err;
-        }
-      },
+      description:
+        "Enter a new password (minimum 8 characters). Share it with the user securely.",
+      label: "New password",
+      placeholder: "New password",
+      password: true,
+      confirmLabel: "Reset",
+      minLength: 8,
     });
+    if (pwd == null) return;
+    try {
+      await superAdminApi.resetUserPassword(user.id, pwd);
+      toast.success("Password reset");
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.error?.message || "Failed to reset password",
+      );
+    }
   };
 
   const handleManualVerify = async () => {
     try {
       await superAdminApi.updateUser(user.id, { isVerified: true });
-      message.success("User verified successfully");
+      toast.success("User verified successfully");
       onChanged();
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to verify user",
       );
     }
   };
 
-  const items: MenuProps["items"] = [
+  const items: any[] = [
     {
       key: "view",
       label: <Link href={`/super-admin/users/${user.id}`}>View details</Link>,
@@ -1387,24 +1408,24 @@ function RowActions({
       label: "Hard Delete",
       danger: true,
       onClick: () => {
-        Modal.confirm({
+        confirmDialog({
           title: `PERMANENTLY delete ${user.name || user.email}?`,
           content: (
-            <Text type="danger">
+            <span className="text-coral">
               WARNING: This will permanently remove this user and ALL their
               associated data (flows, teams, subscriptions, AI chat) from the
               database. This action CANNOT be undone.
-            </Text>
+            </span>
           ),
-          okText: "Delete Forever",
-          okButtonProps: { danger: true },
-          onOk: async () => {
+          confirmLabel: "Delete Forever",
+          danger: true,
+          onConfirm: async () => {
             try {
               await superAdminApi.deleteUser(user.id, true);
-              message.success("User permanently deleted");
+              toast.success("User permanently deleted");
               onChanged();
             } catch (err: any) {
-              message.error(
+              toast.error(
                 err?.response?.data?.error?.message ||
                   "Failed to permanently delete user",
               );
@@ -1416,8 +1437,32 @@ function RowActions({
   ];
 
   return (
-    <Dropdown menu={{ items }} trigger={["click"]}>
-      <Button type="text" icon={<MoreOutlined />} />
-    </Dropdown>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="tw appearance-none cursor-pointer outline-none border-0 bg-transparent w-8 h-8 rounded flex items-center justify-center hover:bg-secondary text-muted-foreground"
+        >
+          <MoreOutlined />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="tw">
+        {items.filter(Boolean).map((item: any, i: number) =>
+          item.type === "divider" ? (
+            <DropdownMenuSeparator key={`sep-${i}`} />
+          ) : (
+            <DropdownMenuItem
+              key={item.key}
+              onSelect={item.onClick}
+              className={
+                item.danger ? "text-destructive focus:text-destructive" : ""
+              }
+            >
+              {item.label}
+            </DropdownMenuItem>
+          ),
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

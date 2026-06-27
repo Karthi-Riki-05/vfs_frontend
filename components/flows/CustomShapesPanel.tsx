@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Drawer, Input, Collapse, Spin, Empty, Tag } from "antd";
+import { Input, Collapse, Spin, Empty, Tag } from "antd";
+import {
+  Sheet,
+  SheetContentNoOverlay,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   SearchOutlined,
   AppstoreOutlined,
@@ -342,72 +348,68 @@ export default function CustomShapesPanel({ open, onClose, onInsert }: Props) {
   }));
 
   return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      placement="left"
-      width={320}
-      mask={false}
-      title={
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <AppstoreOutlined style={{ color: "#3CB371" }} />
-          <span>Custom Shapes</span>
-          {totalShapes > 0 && (
-            <span style={{ fontSize: 11, color: "#888", fontWeight: 400 }}>
-              · {totalShapes} total
-            </span>
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContentNoOverlay
+        side="left"
+        className="tw p-0 flex flex-col w-[320px]"
+      >
+        <SheetHeader className="px-4 py-3 border-b border-border shrink-0">
+          <SheetTitle className="flex items-center gap-2 text-sm font-medium">
+            <AppstoreOutlined style={{ color: "#3CB371" }} />
+            <span>Custom Shapes</span>
+            {totalShapes > 0 && (
+              <span style={{ fontSize: 11, color: "#888", fontWeight: 400 }}>
+                · {totalShapes} total
+              </span>
+            )}
+          </SheetTitle>
+        </SheetHeader>
+
+        <div
+          style={{
+            padding: "10px 16px",
+            borderBottom: "1px solid #F0F0F0",
+            flexShrink: 0,
+          }}
+        >
+          <Input
+            size="small"
+            prefix={<SearchOutlined style={{ color: "#BFBFBF" }} />}
+            placeholder="Search shapes or groups…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            allowClear
+          />
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            overflowX: "hidden",
+            padding: "4px 8px 16px",
+          }}
+        >
+          {loading ? (
+            <div style={{ textAlign: "center", padding: 40 }}>
+              <Spin />
+            </div>
+          ) : visible.length === 0 ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={search ? "No shapes found" : "No shape groups yet"}
+              style={{ padding: "40px 16px" }}
+            />
+          ) : (
+            <Collapse
+              ghost
+              activeKey={activeKeys}
+              onChange={(keys) => setActiveKeys(keys as string[])}
+              items={items}
+            />
           )}
         </div>
-      }
-      styles={{
-        body: { padding: 0, display: "flex", flexDirection: "column" },
-        header: { padding: "12px 16px" },
-      }}
-    >
-      <div
-        style={{
-          padding: "10px 16px",
-          borderBottom: "1px solid #F0F0F0",
-          flexShrink: 0,
-        }}
-      >
-        <Input
-          size="small"
-          prefix={<SearchOutlined style={{ color: "#BFBFBF" }} />}
-          placeholder="Search shapes or groups…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          allowClear
-        />
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          overflowX: "hidden",
-          padding: "4px 8px 16px",
-        }}
-      >
-        {loading ? (
-          <div style={{ textAlign: "center", padding: 40 }}>
-            <Spin />
-          </div>
-        ) : visible.length === 0 ? (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={search ? "No shapes found" : "No shape groups yet"}
-            style={{ padding: "40px 16px" }}
-          />
-        ) : (
-          <Collapse
-            ghost
-            activeKey={activeKeys}
-            onChange={(keys) => setActiveKeys(keys as string[])}
-            items={items}
-          />
-        )}
-      </div>
-    </Drawer>
+      </SheetContentNoOverlay>
+    </Sheet>
   );
 }

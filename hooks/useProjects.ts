@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { projectsApi } from "@/api/projects.api";
 import { useAppContext } from "@/context/AppContext";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
-import { message } from "antd";
+import { toast } from "sonner";
 
 export interface Project {
   id: string;
@@ -66,11 +66,11 @@ export function useProjects() {
     try {
       const res = await projectsApi.create({ name, description });
       const project = res.data?.data || res.data;
-      message.success("Project created");
+      toast.success("Project created");
       fetchProjects();
       return project;
     } catch {
-      message.error("Failed to create project");
+      toast.error("Failed to create project");
       return null;
     }
   };
@@ -78,10 +78,10 @@ export function useProjects() {
   const deleteProject = async (id: string) => {
     try {
       await projectsApi.delete(id);
-      message.success("Project deleted");
+      toast.success("Project deleted");
       fetchProjects();
     } catch {
-      message.error("Failed to delete project");
+      toast.error("Failed to delete project");
     }
   };
 
@@ -91,10 +91,10 @@ export function useProjects() {
   ) => {
     try {
       await projectsApi.update(id, data);
-      message.success("Project updated");
+      toast.success("Project updated");
       fetchProjects();
     } catch {
-      message.error("Failed to update project");
+      toast.error("Failed to update project");
     }
   };
 

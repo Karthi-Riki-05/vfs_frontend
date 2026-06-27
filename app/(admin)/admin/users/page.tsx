@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Typography, Tag, Select, Input, Avatar, Space, message } from 'antd';
+import { Card, Table, Typography, Tag, Select, Input, Avatar, Space } from 'antd';
+import { toast } from "sonner";
 import { UserOutlined, SearchOutlined } from '@ant-design/icons';
 import { adminApi } from '@/api/admin.api';
 
@@ -28,10 +29,10 @@ export default function AdminUsersPage() {
   const handleRoleChange = async (id: string, role: string) => {
     try {
       await adminApi.updateUser(id, { role });
-      message.success('Role updated');
+      toast.success('Role updated');
       fetchUsers();
     } catch {
-      message.error('Failed to update role');
+      toast.error('Failed to update role');
     }
   };
 

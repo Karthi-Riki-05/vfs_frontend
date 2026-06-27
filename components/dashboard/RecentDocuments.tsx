@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Row, Col, Typography, Modal, Input } from "antd";
+import { Row, Col, Typography } from "antd";
+import { toast } from "sonner";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import { Field, FieldInput } from "@/components/common/Field";
 import { VCShimmerSkeleton } from "@/components/ui/VCShimmerSkeleton";
 import {
   FileAddOutlined,
@@ -18,7 +25,13 @@ import { useFlows } from "@/hooks/useFlows";
 import { useRouter } from "next/navigation";
 import { createNewFlow } from "@/lib/flow";
 import api from "@/lib/axios";
-import { message, Dropdown, Button } from "antd";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   EditOutlined,
   DeleteOutlined,
@@ -126,11 +139,11 @@ export default function RecentDocuments() {
       await api.put(`/flows/${renameModal.id}`, {
         name: renameModal.name.trim(),
       });
-      message.success("Flow renamed");
+      toast.success("Flow renamed");
       setRenameModal({ open: false, id: "", name: "" });
       fetchFlows();
     } catch {
-      message.error("Failed to rename flow");
+      toast.error("Failed to rename flow");
     }
   };
 
@@ -321,37 +334,73 @@ export default function RecentDocuments() {
                 Edited {timeAgo(flow.updatedAt)}
               </Text>
               <div onClick={(e) => e.stopPropagation()}>
-                <Dropdown
-                  menu={{ items: getMoreItems(flow) }}
-                  trigger={["click"]}
-                >
-                  <Button type="text" icon={<MoreOutlined />} size="small" />
-                </Dropdown>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="tw appearance-none cursor-pointer outline-none border-0 bg-transparent w-7 h-7 rounded flex items-center justify-center hover:bg-secondary text-muted-foreground"
+                    >
+                      <MoreOutlined />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="tw">
+                    {(getMoreItems(flow) as any[]).map(
+                      (item: any, i: number) =>
+                        item.type === "divider" ? (
+                          <DropdownMenuSeparator key={`sep-${i}`} />
+                        ) : (
+                          <DropdownMenuItem
+                            key={item.key}
+                            onSelect={item.onClick}
+                            disabled={item.disabled}
+                            className={
+                              item.danger
+                                ? "text-destructive focus:text-destructive"
+                                : ""
+                            }
+                          >
+                            {item.icon}
+                            {item.label}
+                          </DropdownMenuItem>
+                        ),
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Rename Modal */}
-      <Modal
-        title="Rename Flow"
+      {/* Rename Modal — new_design ModalShell */}
+      <ModalShell
         open={renameModal.open}
-        onCancel={() => setRenameModal({ open: false, id: "", name: "" })}
-        onOk={handleRename}
-        okText="Save"
-        okButtonProps={{ disabled: !renameModal.name.trim() }}
+        onClose={() => setRenameModal({ open: false, id: "", name: "" })}
       >
-        <Input
-          value={renameModal.name}
-          onChange={(e) =>
-            setRenameModal({ ...renameModal, name: e.target.value })
-          }
-          onPressEnter={handleRename}
-          maxLength={255}
-          autoFocus
+        <ModalHeader
+          title="Rename Flow"
+          close={() => setRenameModal({ open: false, id: "", name: "" })}
         />
-      </Modal>
+        <div className="px-5 pb-5">
+          <Field label="New name" required>
+            <FieldInput
+              autoFocus
+              maxLength={255}
+              value={renameModal.name}
+              onChange={(e) =>
+                setRenameModal({ ...renameModal, name: e.target.value })
+              }
+              onKeyDown={(e) => e.key === "Enter" && handleRename()}
+            />
+          </Field>
+        </div>
+        <ModalFooter
+          close={() => setRenameModal({ open: false, id: "", name: "" })}
+          primary={handleRename}
+          primaryLabel="Save"
+          disabled={!renameModal.name.trim()}
+        />
+      </ModalShell>
 
       {/* Assign to Project Modal */}
       <AssignProjectModal

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
@@ -82,7 +82,7 @@ export default function SuperAdminLoginPage() {
     if (result?.error) {
       setLoading(false);
       setError("Invalid credentials or insufficient permissions");
-      message.error("Login failed");
+      toast.error("Login failed");
       return;
     }
 
@@ -103,7 +103,7 @@ export default function SuperAdminLoginPage() {
         return;
       }
 
-      message.success("Signed in as super admin");
+      toast.success("Signed in as super admin");
       router.push("/super-admin/dashboard");
     } catch {
       setLoading(false);

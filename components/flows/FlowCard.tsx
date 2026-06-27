@@ -1,7 +1,14 @@
 "use client";
 
 import React from "react";
-import { Card, Button, Typography, Dropdown, Tag } from "antd";
+import { Card, Button, Typography, Tag } from "antd";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import {
   EditOutlined,
@@ -368,9 +375,38 @@ export default function FlowCard({
             />
           </div>
         ) : (
-          <Dropdown menu={{ items: moreItems }} trigger={["click"]}>
-            <Button type="text" icon={<MoreOutlined />} size="small" />
-          </Dropdown>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => e.stopPropagation()}
+                className="tw appearance-none cursor-pointer outline-none border-0 bg-transparent w-7 h-7 rounded flex items-center justify-center hover:bg-secondary text-muted-foreground"
+              >
+                <MoreOutlined />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="tw">
+              {(moreItems as any[]).map((item: any, i: number) =>
+                item.type === "divider" ? (
+                  <DropdownMenuSeparator key={`sep-${i}`} />
+                ) : (
+                  <DropdownMenuItem
+                    key={item.key}
+                    onSelect={item.onClick}
+                    disabled={item.disabled}
+                    className={
+                      item.danger
+                        ? "text-destructive focus:text-destructive"
+                        : ""
+                    }
+                  >
+                    {item.icon}
+                    {item.label}
+                  </DropdownMenuItem>
+                ),
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </Card>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, Suspense } from "react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { authApi } from "@/api/auth.api";
 import { useSearchParams } from "next/navigation";
 
@@ -97,7 +97,7 @@ function ResetPasswordForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
-      message.error("Invalid or missing reset token");
+      toast.error("Invalid or missing reset token");
       return;
     }
     if (!password || password.length < 8) {
@@ -116,7 +116,7 @@ function ResetPasswordForm() {
     } catch (err: any) {
       const msg =
         err.response?.data?.error?.message || "Failed to reset password";
-      message.error(msg);
+      toast.error(msg);
       setError(msg);
     } finally {
       setLoading(false);

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { Mail, Loader2, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
 import { authApi } from "@/api/auth.api";
 import { getLogoForApp } from "@/lib/getLogo";
@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
     } catch (err: any) {
       const msg =
         err.response?.data?.error?.message || "Failed to send reset email";
-      message.error(msg);
+      toast.error(msg);
       setError(msg);
     } finally {
       setLoading(false);

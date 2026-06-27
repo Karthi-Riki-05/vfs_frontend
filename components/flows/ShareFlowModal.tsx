@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Select, Button, Spin, message } from "antd";
+import { Select, Button, Spin } from "antd";
+import { toast } from "sonner";
 import {
   Share2,
   Mail,
@@ -99,7 +100,7 @@ export default function ShareFlowModal({
         setIsProUser(false);
       }
     } catch {
-      message.error("Failed to load share data");
+      toast.error("Failed to load share data");
     } finally {
       setLoading(false);
     }
@@ -129,11 +130,11 @@ export default function ShareFlowModal({
     setSharingUser(userId);
     try {
       await flowsApi.shareFlow(flow.id, [{ userId, permission: perm }]);
-      message.success("Flow shared");
+      toast.success("Flow shared");
       await loadData();
       onSuccess?.();
     } catch {
-      message.error("Failed to share flow");
+      toast.error("Failed to share flow");
     } finally {
       setSharingUser(null);
     }
@@ -161,7 +162,7 @@ export default function ShareFlowModal({
       const failures = results.filter((r) => r.error);
 
       if (successes.length > 0) {
-        message.success(
+        toast.success(
           `Flow shared with ${successes.length} user${
             successes.length > 1 ? "s" : ""
           }`,
@@ -169,9 +170,9 @@ export default function ShareFlowModal({
       }
       failures.forEach((f) => {
         if (f.error === "USER_NOT_FOUND") {
-          message.error(`User not found: ${f.email}`);
+          toast.error(`User not found: ${f.email}`);
         } else {
-          message.error(f.error || "Failed to share");
+          toast.error(f.error || "Failed to share");
         }
       });
 
@@ -179,7 +180,7 @@ export default function ShareFlowModal({
       await loadData();
       if (successes.length > 0) onSuccess?.();
     } catch {
-      message.error("Failed to share flow");
+      toast.error("Failed to share flow");
     } finally {
       setEmailSharing(false);
     }
@@ -192,10 +193,10 @@ export default function ShareFlowModal({
     if (!flow) return;
     try {
       await flowsApi.updateShare(flow.id, shareId, newPermission);
-      message.success("Permission updated");
+      toast.success("Permission updated");
       await loadData();
     } catch {
-      message.error("Failed to update permission");
+      toast.error("Failed to update permission");
     }
   };
 
@@ -203,11 +204,11 @@ export default function ShareFlowModal({
     if (!flow) return;
     try {
       await flowsApi.removeShare(flow.id, shareId);
-      message.success("Access removed");
+      toast.success("Access removed");
       await loadData();
       onSuccess?.();
     } catch {
-      message.error("Failed to remove access");
+      toast.error("Failed to remove access");
     }
   };
 
@@ -219,9 +220,9 @@ export default function ShareFlowModal({
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(shareLink);
-      message.success("Link copied");
+      toast.success("Link copied");
     } catch {
-      message.error("Failed to copy");
+      toast.error("Failed to copy");
     }
   };
 

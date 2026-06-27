@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Tooltip } from "antd";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ThunderboltFilled } from "@ant-design/icons";
 import { aiApi } from "@/api/ai.api";
 import { useAiBilling } from "@/context/AiBillingContext";
@@ -69,26 +73,31 @@ export default function AiCreditsDisplay({
   );
 
   return (
-    <Tooltip title={tooltipContent} placement="bottom">
-      <div
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: compact ? 4 : 6,
-          padding: compact ? "4px 8px" : "4px 10px",
-          borderRadius: 16,
-          background: `${color}15`,
-          border: `1px solid ${color}40`,
-          fontSize: compact ? 12 : 13,
-          fontWeight: 600,
-          color,
-          cursor: "default",
-          userSelect: "none",
-        }}
-      >
-        <ThunderboltFilled style={{ fontSize: compact ? 11 : 12 }} />
-        <span>{compact ? total : `AI Credits: ${total}`}</span>
-      </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: compact ? 4 : 6,
+            padding: compact ? "4px 8px" : "4px 10px",
+            borderRadius: 16,
+            background: `${color}15`,
+            border: `1px solid ${color}40`,
+            fontSize: compact ? 12 : 13,
+            fontWeight: 600,
+            color,
+            cursor: "default",
+            userSelect: "none",
+          }}
+        >
+          <ThunderboltFilled style={{ fontSize: compact ? 11 : 12 }} />
+          <span>{compact ? total : `AI Credits: ${total}`}</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="tw" side="bottom">
+        {tooltipContent}
+      </TooltipContent>
     </Tooltip>
   );
 }

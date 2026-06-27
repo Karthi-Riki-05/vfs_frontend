@@ -15,9 +15,9 @@ import {
   Statistic,
   Table,
   Tag,
-  Typography,
-  message,
+  Typography
 } from "antd";
+import { toast } from "sonner";
 import type { ColumnsType } from "antd/es/table";
 import {
   RobotOutlined,
@@ -92,7 +92,7 @@ export default function SuperAdminAiUsagePage() {
       });
       setData(res.data?.data || null);
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to load AI usage",
       );
     } finally {

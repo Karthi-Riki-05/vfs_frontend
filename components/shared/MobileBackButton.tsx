@@ -41,6 +41,7 @@ export default function MobileBackButton({
   const OWN_BACK_PATTERNS = [
     /^\/dashboard\/projects\/[^/]+$/, // project detail (has own back button)
     /^\/dashboard\/settings\/billing$/, // billing (has own back button)
+    /^\/dashboard\/settings$/, // settings (has own internal back buttons)
   ];
   if (OWN_BACK_PATTERNS.some((re) => re.test(pathname))) return null;
 

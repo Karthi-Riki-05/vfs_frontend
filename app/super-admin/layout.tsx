@@ -1,16 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import {
-  Layout,
-  Menu,
-  Typography,
-  Avatar,
-  Space,
-  Tag,
-  Button,
-  Drawer,
-} from "antd";
+import { Layout, Menu, Typography, Avatar, Space, Tag, Button } from "antd";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   DashboardOutlined,
   TeamOutlined,
@@ -389,17 +381,12 @@ export default function SuperAdminLayout({
 
       {/* ─────────── Mobile drawer ─────────── */}
       {isMobile && (
-        <Drawer
-          placement="left"
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          width={260}
-          closable={false}
-          bodyStyle={{ padding: 0 }}
-          headerStyle={{ display: "none" }}
-        >
-          {renderSidebarBody(() => setDrawerOpen(false))}
-        </Drawer>
+        <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+          <SheetContent side="left" className="tw p-0 w-[260px]">
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
+            {renderSidebarBody(() => setDrawerOpen(false))}
+          </SheetContent>
+        </Sheet>
       )}
 
       {/* ─────────── Main content ─────────── */}

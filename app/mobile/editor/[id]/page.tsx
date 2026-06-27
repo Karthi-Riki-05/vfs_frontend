@@ -8,7 +8,8 @@ import React, {
   Suspense,
 } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Spin, Input, Button, message, Card, Typography } from "antd";
+import { Spin, Input, Button, Card, Typography } from "antd";
+import { toast } from "sonner";
 import {
   AppstoreOutlined,
   CheckCircleFilled,
@@ -216,7 +217,7 @@ function MobileEditorInner() {
       // 2. SAVE BUTTON in draw.io
       if (msg.event === "save") {
         if (permRef.current === "view") {
-          message.warning("You have view-only access to this flow");
+          toast.warning("You have view-only access to this flow");
           return;
         }
         if (autosaveTimerRef.current) {
@@ -280,14 +281,14 @@ function MobileEditorInner() {
           } else {
             setSaveStatus("idle");
             const errData = await res.json().catch(() => ({}));
-            message.error(
+            toast.error(
               (errData as { error?: { message?: string } })?.error?.message ||
                 "Save failed",
             );
           }
         } catch {
           setSaveStatus("idle");
-          message.error("Save failed!");
+          toast.error("Save failed!");
         }
       }
 
@@ -343,11 +344,7 @@ function MobileEditorInner() {
 
   const generateDiagramFromFile = async (file: File) => {
     setDocUploading(true);
-    message.loading({
-      content: "Reading document and generating diagram...",
-      key: "docUpload",
-      duration: 0,
-    });
+    const toastId = toast.loading("Reading document and generating diagram...");
     try {
       const formData = new FormData();
       formData.append("document", file);
@@ -362,30 +359,23 @@ function MobileEditorInner() {
       } = await res.json();
       if (!res.ok) {
         if (data?.error?.code === "INSUFFICIENT_CREDITS") {
-          message.warning({
-            content:
-              data?.error?.message || "You have used all your diagram credits.",
-            duration: 5,
-            key: "docUpload",
-          });
+          toast.warning(
+            data?.error?.message || "You have used all your diagram credits.",
+            { id: toastId, duration: 5000 },
+          );
         } else {
-          message.error({
-            content: data?.error?.message || "Failed to generate diagram",
-            key: "docUpload",
+          toast.error(data?.error?.message || "Failed to generate diagram", {
+            id: toastId,
           });
         }
         return;
       }
-      message.success({
-        content: "Diagram generated! Review and insert below.",
-        key: "docUpload",
+      toast.success("Diagram generated! Review and insert below.", {
+        id: toastId,
       });
       setDocPreviewXml(data.data?.xml ?? null);
     } catch {
-      message.error({
-        content: "Upload failed. Please try again.",
-        key: "docUpload",
-      });
+      toast.error("Upload failed. Please try again.", { id: toastId });
     } finally {
       setDocUploading(false);
     }
@@ -400,7 +390,7 @@ function MobileEditorInner() {
       "application/msword",
     ];
     if (!allowed.includes(file.type)) {
-      message.error("Only PDF and Word files are supported");
+      toast.error("Only PDF and Word files are supported");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -411,7 +401,7 @@ function MobileEditorInner() {
 
   const handleRegenerate = async () => {
     if (!lastDocFile) {
-      message.warning("No document to regenerate from");
+      toast.warning("No document to regenerate from");
       return;
     }
     setDocPreviewXml(null);
@@ -692,7 +682,7 @@ function MobileEditorInner() {
               JSON.stringify({ action: "mergeAiXml", xml }),
               "*",
             );
-            message.success(`Template "${name}" inserted`);
+            toast.success(`Template "${name}" inserted`);
           }
           setTemplateBrowserOpen(false);
         }}
@@ -810,7 +800,7 @@ function MobileEditorInner() {
                       }),
                       "*",
                     );
-                    message.success("Diagram inserted into canvas!");
+                    toast.success("Diagram inserted into canvas!");
                   }
                   setDocPreviewXml(null);
                 }}

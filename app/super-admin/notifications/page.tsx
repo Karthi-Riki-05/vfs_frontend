@@ -7,13 +7,13 @@ import {
   Input,
   Button,
   Typography,
-  message,
   Alert,
   Tag,
   Space,
-  Modal,
-  Radio,
+  Radio
 } from "antd";
+import { toast } from "sonner";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import {
   SendOutlined,
   BellOutlined,
@@ -83,22 +83,17 @@ export default function SuperAdminNotificationsPage() {
     url?: string;
   }) => {
     if (!deviceCount || deviceCount === 0) {
-      message.warning("No devices have registered for push notifications yet");
+      toast.warning("No devices have registered for push notifications yet");
       return;
     }
 
     if (kind === "maintenance") {
-      const ok = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `Send maintenance alert to ${deviceCount} devices?`,
-          content:
-            "Every user with notifications enabled will receive this push. Make sure the message and timing are correct.",
-          okText: "Yes, send to all",
-          okType: "danger",
-          cancelText: "Cancel",
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const ok = await confirmDialog({
+        title: `Send maintenance alert to ${deviceCount} devices?`,
+        content:
+          "Every user with notifications enabled will receive this push. Make sure the message and timing are correct.",
+        confirmLabel: "Yes, send to all",
+        danger: true,
       });
       if (!ok) return;
     }
@@ -113,13 +108,13 @@ export default function SuperAdminNotificationsPage() {
       const data = res.data?.data;
       setLastResult(data);
       if (data && data.total === 0) {
-        message.warning("No registered devices to send to");
+        toast.warning("No registered devices to send to");
       } else {
-        message.success(`Sent to ${data.sent} of ${data.total} devices`);
+        toast.success(`Sent to ${data.sent} of ${data.total} devices`);
       }
       loadDeviceCount();
     } catch (e: any) {
-      message.error(
+      toast.error(
         e?.response?.data?.error?.message ||
           e?.message ||
           "Failed to send broadcast",

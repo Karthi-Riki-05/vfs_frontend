@@ -7,6 +7,7 @@ import { antdTheme } from "@/lib/theme";
 import { AppContextProvider } from "@/context/AppContext";
 import { AiBillingProvider } from "@/context/AiBillingContext";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -15,7 +16,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <ConfigProvider theme={antdTheme}>
           <AppContextProvider>
             <AiBillingProvider>
-              {children}
+              <TooltipProvider>{children}</TooltipProvider>
               <Toaster position="top-right" richColors />
             </AiBillingProvider>
           </AppContextProvider>

@@ -2,6 +2,7 @@
 
 import React, { Suspense, useState, useEffect } from "react";
 import { Button, Typography, message, Spin, Alert } from "antd";
+import { toast } from "sonner";
 import { CheckCircleFilled, CrownOutlined } from "@ant-design/icons";
 import { usePro } from "@/hooks/usePro";
 import { usePricing } from "@/hooks/usePricing";
@@ -116,7 +117,7 @@ function UpgradeProContent() {
         err?.response?.data?.error?.message ||
         err?.response?.data?.error ||
         "Purchase failed";
-      message.error(msg);
+      toast.error(msg);
     } finally {
       setPurchasing(false);
     }

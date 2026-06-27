@@ -1,10 +1,9 @@
 "use client";
 
 import React from "react";
-import { Modal, Button } from "antd";
-import { TeamOutlined, CheckCircleFilled } from "@ant-design/icons";
-import { Lock } from "lucide-react";
+import { Users, CheckCircle2, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { ModalShell } from "@/components/common/Modal";
 
 interface TeamUpgradeModalProps {
   open: boolean;
@@ -37,80 +36,48 @@ const TeamUpgradeModal: React.FC<TeamUpgradeModalProps> = ({
     : "The Team plan unlocks collaboration features for you and your team.";
 
   return (
-    <Modal
-      open={open}
-      onCancel={onClose}
-      footer={[
-        <Button key="later" onClick={onClose}>
-          Maybe Later
-        </Button>,
-        <Button
-          key="plans"
-          type="primary"
-          onClick={() => {
-            onClose();
-            router.push("/dashboard/subscription");
-          }}
-          style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
-        >
-          View Plans
-        </Button>,
-      ]}
-      centered
-      width={460}
-      zIndex={1200}
-    >
-      <div style={{ textAlign: "center", padding: "16px 0 0" }}>
-        {isExport ? (
-          <Lock
-            className="text-[#F59E0B]"
-            style={{
-              width: 40,
-              height: 40,
-              marginBottom: 16,
-              display: "block",
-              marginLeft: "auto",
-              marginRight: "auto",
-            }}
-          />
-        ) : (
-          <TeamOutlined
-            style={{ fontSize: 40, color: "#3CB371", marginBottom: 16 }}
-          />
-        )}
-        <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 600 }}>
-          {title}
-        </h3>
-        <p style={{ color: "#595959", margin: "0 0 16px", fontSize: 14 }}>
-          {description}
-        </p>
-      </div>
-      <div
-        style={{
-          background: "#F8F9FA",
-          borderRadius: 8,
-          padding: "14px 20px",
-          marginBottom: 8,
-        }}
-      >
-        {FEATURES.map((f) => (
-          <div
-            key={f}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "5px 0",
-              fontSize: 14,
-              color: "#1A1A2E",
-            }}
+    <ModalShell open={open} onClose={onClose}>
+      <div className="p-6">
+        <div className="text-center">
+          {isExport ? (
+            <Lock className="w-10 h-10 text-amber-500 mx-auto mb-4" />
+          ) : (
+            <Users className="w-10 h-10 text-primary mx-auto mb-4" />
+          )}
+          <h3 className="text-lg font-semibold mb-2">{title}</h3>
+          <p className="text-sm text-muted-foreground mb-4">{description}</p>
+        </div>
+
+        <div className="bg-secondary rounded-lg px-5 py-3.5 mb-2">
+          {FEATURES.map((f) => (
+            <div key={f} className="flex items-center gap-2.5 py-1 text-sm">
+              <CheckCircle2 className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span>{f}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="appearance-none cursor-pointer outline-none h-11 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
           >
-            <CheckCircleFilled style={{ color: "#3CB371", fontSize: 14 }} />
-            <span>{f}</span>
-          </div>
-        ))}
+            Maybe Later
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              router.push("/dashboard/subscription");
+            }}
+            className="appearance-none cursor-pointer outline-none border-0 h-11 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90"
+          >
+            View Plans
+          </button>
+        </div>
       </div>
-    </Modal>
+    </ModalShell>
   );
 };
 

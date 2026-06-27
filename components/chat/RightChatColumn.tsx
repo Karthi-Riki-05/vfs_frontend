@@ -7,7 +7,9 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { Badge, Spin, Button, message, Popconfirm, Image } from "antd";
+import { Badge, Spin, Button, message } from "antd";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
+import { toast } from "sonner";
 import {
   ModalShell,
   ModalHeader,
@@ -766,7 +768,7 @@ export default function RightChatColumn({
           m._tempId === tempId ? { ...m, _status: "failed" } : m,
         ),
       );
-      message.error("Failed to send message");
+      toast.error("Failed to send message");
     } finally {
       setSendingMessage(false);
     }
@@ -800,7 +802,7 @@ export default function RightChatColumn({
         ),
       );
     } catch {
-      message.error("Failed to edit message");
+      toast.error("Failed to edit message");
     } finally {
       cancelEdit();
     }
@@ -821,7 +823,7 @@ export default function RightChatColumn({
         ),
       );
     } catch {
-      message.error("Failed to delete message");
+      toast.error("Failed to delete message");
     }
   };
 
@@ -831,7 +833,7 @@ export default function RightChatColumn({
     try {
       await api.post(`/chat/messages/${messageId}/reactions`, { emoji });
     } catch {
-      message.error("Failed to react");
+      toast.error("Failed to react");
     }
   };
 
@@ -842,7 +844,7 @@ export default function RightChatColumn({
     e.target.value = "";
 
     if (file.size > 25 * 1024 * 1024) {
-      message.error("File exceeds 25MB limit");
+      toast.error("File exceeds 25MB limit");
       return;
     }
 
@@ -867,7 +869,7 @@ export default function RightChatColumn({
       }
       // No fetchSidebar() — socket "message:new" updates sidebar inline.
     } catch {
-      message.error(`Failed to upload ${file.name}`);
+      toast.error(`Failed to upload ${file.name}`);
     } finally {
       setUploading(false);
     }
@@ -900,7 +902,7 @@ export default function RightChatColumn({
         fetchSidebar();
       }
     } catch {
-      message.error("Failed to create team chat");
+      toast.error("Failed to create team chat");
     } finally {
       setCreating(false);
     }
@@ -926,7 +928,7 @@ export default function RightChatColumn({
         fetchSidebar();
       }
     } catch {
-      message.error("Failed to start conversation");
+      toast.error("Failed to start conversation");
     } finally {
       setCreating(false);
     }
@@ -936,11 +938,11 @@ export default function RightChatColumn({
   const handleDeleteGroup = async (groupId: string) => {
     try {
       await api.delete(`/chat/groups/${groupId}`);
-      message.success("Group deleted");
+      toast.success("Group deleted");
       if (selectedGroupId === groupId) backToList();
       fetchSidebar();
     } catch {
-      message.error("Failed to delete group");
+      toast.error("Failed to delete group");
     }
   };
 
@@ -948,11 +950,11 @@ export default function RightChatColumn({
   const handleLeaveGroup = async (groupId: string) => {
     try {
       await api.post(`/chat/groups/${groupId}/leave`);
-      message.success("Left group");
+      toast.success("Left group");
       if (selectedGroupId === groupId) backToList();
       fetchSidebar();
     } catch {
-      message.error("Failed to leave group");
+      toast.error("Failed to leave group");
     }
   };
 
@@ -960,7 +962,7 @@ export default function RightChatColumn({
   const handleCreateGroup = async () => {
     const name = createGroupName.trim();
     if (!name) {
-      message.error("Please enter a group name");
+      toast.error("Please enter a group name");
       return;
     }
     try {
@@ -972,7 +974,7 @@ export default function RightChatColumn({
         isDirect: false,
       });
       const newGroup = res.data?.data;
-      message.success("Group created");
+      toast.success("Group created");
       setCreateGroupName("");
       setCreateSelectedMemberIds(new Set());
       setModalOpen(false);
@@ -984,9 +986,9 @@ export default function RightChatColumn({
       // Surface real errors instead of swallowing them silently
       const apiMsg = err?.response?.data?.error?.message;
       if (apiMsg) {
-        message.error(apiMsg);
+        toast.error(apiMsg);
       } else {
-        message.error("Failed to create group");
+        toast.error("Failed to create group");
       }
     } finally {
       setCreating(false);
@@ -1058,7 +1060,7 @@ export default function RightChatColumn({
       setAddMembersGroups(groups);
     } catch (err: any) {
       const apiMsg = err?.response?.data?.error?.message;
-      message.error(apiMsg || "Failed to load available members");
+      toast.error(apiMsg || "Failed to load available members");
       setAddMembersOpen(false);
     } finally {
       setAddMembersLoading(false);
@@ -1069,7 +1071,7 @@ export default function RightChatColumn({
     if (!selectedGroupId) return;
     const userIds = Array.from(addMembersSelected);
     if (userIds.length === 0) {
-      message.warning("Select at least one member");
+      toast.warning("Select at least one member");
       return;
     }
     setAddingMembers(true);
@@ -1079,7 +1081,7 @@ export default function RightChatColumn({
         { userIds },
       );
       const data = res.data?.data;
-      message.success(
+      toast.success(
         data?.addedCount
           ? `Added ${data.addedCount} member${data.addedCount === 1 ? "" : "s"}`
           : "Members added",
@@ -1090,7 +1092,7 @@ export default function RightChatColumn({
       fetchMessages(selectedGroupId);
     } catch (err: any) {
       const apiMsg = err?.response?.data?.error?.message;
-      message.error(apiMsg || "Failed to add members");
+      toast.error(apiMsg || "Failed to add members");
     } finally {
       setAddingMembers(false);
     }
@@ -1168,11 +1170,21 @@ export default function RightChatColumn({
         : attachPath;
       return (
         <div>
-          <Image
+          <img
             src={imgSrc}
             alt={msgText || "Image"}
-            style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8 }}
-            fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='60'%3E%3Crect fill='%23f0f0f0' width='100' height='60'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='10'%3EImage%3C/text%3E%3C/svg%3E"
+            style={{
+              maxWidth: 200,
+              maxHeight: 200,
+              borderRadius: 8,
+              cursor: "pointer",
+              display: "block",
+            }}
+            onClick={() => window.open(imgSrc, "_blank")}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src =
+                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='60'%3E%3Crect fill='%23f0f0f0' width='100' height='60'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='10'%3EImage%3C/text%3E%3C/svg%3E";
+            }}
           />
         </div>
       );
@@ -1194,11 +1206,21 @@ export default function RightChatColumn({
             if (isImage) {
               return (
                 <div key={file.id} style={{ marginTop: 4 }}>
-                  <Image
+                  <img
                     src={fileUrl}
                     alt={file.fileName || "Image"}
-                    style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8 }}
-                    fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='60'%3E%3Crect fill='%23f0f0f0' width='100' height='60'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='10'%3EImage%3C/text%3E%3C/svg%3E"
+                    style={{
+                      maxWidth: 200,
+                      maxHeight: 200,
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      display: "block",
+                    }}
+                    onClick={() => window.open(fileUrl, "_blank")}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src =
+                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='60'%3E%3Crect fill='%23f0f0f0' width='100' height='60'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='10'%3EImage%3C/text%3E%3C/svg%3E";
+                    }}
                   />
                 </div>
               );
@@ -1392,37 +1414,37 @@ export default function RightChatColumn({
           className="hidden group-hover:flex items-center gap-1 shrink-0"
         >
           {opts.onLeave && (
-            <Popconfirm
-              title="Leave this group?"
-              onConfirm={opts.onLeave}
-              okText="Leave"
-              cancelText="Cancel"
+            <button
+              title="Leave group"
+              className="w-8 h-8 rounded-lg border-0 cursor-pointer flex items-center justify-center appearance-none"
+              style={{ background: "#eff6ff", color: "#006AA8" }}
+              onClick={() =>
+                confirmDialog({
+                  title: "Leave this group?",
+                  confirmLabel: "Leave",
+                  onConfirm: opts.onLeave,
+                })
+              }
             >
-              <button
-                title="Leave group"
-                className="w-8 h-8 rounded-lg border-0 cursor-pointer flex items-center justify-center appearance-none"
-                style={{ background: "#eff6ff", color: "#006AA8" }}
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </Popconfirm>
+              <LogOut className="w-4 h-4" />
+            </button>
           )}
           {opts.onDelete && (
-            <Popconfirm
-              title="Delete this group?"
-              onConfirm={opts.onDelete}
-              okText="Delete"
-              cancelText="Cancel"
-              okButtonProps={{ danger: true }}
+            <button
+              title="Delete group"
+              className="w-8 h-8 rounded-lg border-0 cursor-pointer flex items-center justify-center appearance-none"
+              style={{ background: "#fef2f2", color: "#F85729" }}
+              onClick={() =>
+                confirmDialog({
+                  title: "Delete this group?",
+                  confirmLabel: "Delete",
+                  danger: true,
+                  onConfirm: opts.onDelete,
+                })
+              }
             >
-              <button
-                title="Delete group"
-                className="w-8 h-8 rounded-lg border-0 cursor-pointer flex items-center justify-center appearance-none"
-                style={{ background: "#fef2f2", color: "#F85729" }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </Popconfirm>
+              <Trash2 className="w-4 h-4" />
+            </button>
           )}
         </div>
       )}
@@ -1681,22 +1703,23 @@ export default function RightChatColumn({
             >
               <Pencil className="w-3 h-3" /> Edit
             </button>
-            <Popconfirm
-              title="Delete this message?"
-              okText="Delete"
-              okButtonProps={{ danger: true }}
-              onConfirm={() => {
-                handleDeleteMessage(msg);
-                setActiveMsgId(null);
-              }}
+            <button
+              title="Delete"
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-red-500 bg-secondary rounded-full px-2 py-0.5 border-0 cursor-pointer"
+              onClick={() =>
+                confirmDialog({
+                  title: "Delete this message?",
+                  confirmLabel: "Delete",
+                  danger: true,
+                  onConfirm: () => {
+                    handleDeleteMessage(msg);
+                    setActiveMsgId(null);
+                  },
+                })
+              }
             >
-              <button
-                title="Delete"
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-red-500 bg-secondary rounded-full px-2 py-0.5 border-0 cursor-pointer"
-              >
-                <Trash2 className="w-3 h-3" /> Delete
-              </button>
-            </Popconfirm>
+              <Trash2 className="w-3 h-3" /> Delete
+            </button>
           </>
         )}
       </div>

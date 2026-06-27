@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { signIn, signOut } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -106,7 +106,7 @@ export default function LoginForm() {
     if (Object.keys(errs).length) {
       setError("");
       // Surface the first error as a toast too — belt-and-suspenders for WebView
-      message.error(errs.email || errs.password);
+      toast.error(errs.email || errs.password);
       return;
     }
     setError("");
@@ -138,7 +138,7 @@ export default function LoginForm() {
       } else {
         friendly = "Login failed. Please try again.";
       }
-      message.error(friendly);
+      toast.error(friendly);
       setError(friendly);
     } else {
       // Block super admins from using the user login page — they must log
@@ -155,16 +155,35 @@ export default function LoginForm() {
           }
           await signOut({ redirect: false });
           setError("Super admin accounts must log in at /super-admin/login.");
-          message.error("Redirecting to the admin portal…");
+          toast.error("Redirecting to the admin portal…");
           setTimeout(() => router.push("/super-admin/login"), 1500);
           return;
         }
-        message.success("Logged in successfully!");
-        window.location.href = getPostLoginDashboardUrl();
+        toast.success("Logged in successfully!");
+        redirectToDashboard();
       } catch {
-        window.location.href = getPostLoginDashboardUrl();
+        redirectToDashboard();
       }
     }
+  };
+
+  // #2 login-context-persistence: align the per-tab app context with the
+  // landing dashboard BEFORE navigating. logout() clears vc_app_context, so on
+  // a fresh login it is empty and DashboardLayout's reconcile would no-op —
+  // leaving currentApp at the stale DB value (e.g. 'pro' from a prior switch),
+  // which keeps the Pro logo/context after being redirected to /dashboard/team.
+  // Writing the context here lets the reconcile correct the app to match.
+  const redirectToDashboard = () => {
+    const dest = getPostLoginDashboardUrl();
+    try {
+      sessionStorage.setItem(
+        "vc_app_context",
+        dest.startsWith("/dashboard/pro") ? "pro" : "team",
+      );
+    } catch {
+      // sessionStorage may be blocked in restricted WebViews
+    }
+    window.location.href = dest;
   };
 
   const handleCopy = () => {

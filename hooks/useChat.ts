@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { chatApi } from "@/api/chat.api";
 import { useAppContext } from "@/context/AppContext";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
-import { message } from "antd";
+import { toast } from "sonner";
 
 export function useChat(groupId?: string) {
   const { activeTeamId } = useAppContext();
@@ -68,7 +68,7 @@ export function useChat(groupId?: string) {
       await chatApi.sendMessage(groupId, content);
       fetchMessages();
     } catch {
-      message.error("Failed to send message");
+      toast.error("Failed to send message");
     } finally {
       setSendingMessage(false);
     }
@@ -81,10 +81,10 @@ export function useChat(groupId?: string) {
         title: data.name,
         memberIds: data.memberIds,
       });
-      message.success("Group created");
+      toast.success("Group created");
       fetchGroups();
     } catch {
-      message.error("Failed to create group");
+      toast.error("Failed to create group");
     }
   };
 

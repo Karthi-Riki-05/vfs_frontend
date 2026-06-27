@@ -2,11 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Modal,
-  Form,
-  Input,
   InputNumber,
-  message,
   Alert,
   Checkbox,
   Typography,
@@ -15,10 +11,15 @@ import {
   Radio,
   Select,
   Avatar,
-  Spin,
+  Spin
 } from "antd";
+import { toast } from "sonner";
 import {
-  CrownOutlined,
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
+import {
   TeamOutlined,
   ThunderboltFilled,
   CalendarOutlined,
@@ -210,7 +211,7 @@ export default function GrantSubscriptionModal({
   const handleSubmit = async () => {
     const effectiveTargetId = presetUser?.id || targetId;
     if (!effectiveTargetId) {
-      message.error("Please select a user");
+      toast.error("Please select a user");
       return;
     }
     setSaving(true);
@@ -226,7 +227,7 @@ export default function GrantSubscriptionModal({
         ...(plan.plan === "team" ? { seats } : {}),
         ...(flowLimit !== null && flowLimit !== undefined ? { flowLimit } : {}),
       });
-      message.success(
+      toast.success(
         extend
           ? "Subscription extended"
           : `${plan.name} granted — expires ${expiryPreview.toLocaleDateString()}`,
@@ -235,7 +236,7 @@ export default function GrantSubscriptionModal({
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      message.error(
+      toast.error(
         err?.response?.data?.error?.message || "Failed to grant subscription",
       );
     } finally {
@@ -249,413 +250,433 @@ export default function GrantSubscriptionModal({
     null;
 
   return (
-    <Modal
-      title={
-        <Space>
-          <CrownOutlined style={{ color: PRIMARY }} />
-          <span>Grant Subscription</span>
-        </Space>
-      }
+    <ModalShell
       open={open}
-      onCancel={() => {
+      onClose={() => {
         onClose();
         reset();
       }}
-      onOk={handleSubmit}
-      confirmLoading={saving}
-      okText={extend ? "Extend Subscription" : "Grant Subscription"}
-      okButtonProps={{
-        style: { background: PRIMARY, borderColor: PRIMARY, fontWeight: 500 },
-      }}
-      width={680}
-      destroyOnClose
+      size="xl"
     >
-      <Alert
-        type="info"
-        showIcon
-        message={
-          extend
-            ? "Extending: time is added on top of the current expiry date"
-            : "Admin-granted subscription (price = $0). Stripe is NOT charged."
-        }
-        style={{ marginBottom: 16 }}
+      <ModalHeader
+        title="Grant Subscription"
+        close={() => {
+          onClose();
+          reset();
+        }}
       />
+      <div className="tw overflow-y-auto max-h-[75vh]">
+        <Alert
+          type="info"
+          showIcon
+          message={
+            extend
+              ? "Extending: time is added on top of the current expiry date"
+              : "Admin-granted subscription (price = $0). Stripe is NOT charged."
+          }
+          style={{ marginBottom: 16 }}
+        />
 
-      {/* Step 1 — App type */}
-      <Text strong style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
-        <AppstoreOutlined style={{ color: PRIMARY, marginRight: 6 }} />
-        1. Select App Type
-      </Text>
-      <Radio.Group
-        value={appType}
-        onChange={(e) => setAppType(e.target.value)}
-        optionType="button"
-        buttonStyle="solid"
-        style={{ marginBottom: 18 }}
-      >
-        <Radio.Button value="valuechartpro">
-          ValueChart Pro (Individual)
-        </Radio.Button>
-        <Radio.Button value="valuechartteams">
-          ValueChart Teams (Enterprise)
-        </Radio.Button>
-      </Radio.Group>
+        {/* Step 1 — App type */}
+        <Text
+          strong
+          style={{ fontSize: 13, display: "block", marginBottom: 8 }}
+        >
+          <AppstoreOutlined style={{ color: PRIMARY, marginRight: 6 }} />
+          1. Select App Type
+        </Text>
+        <Radio.Group
+          value={appType}
+          onChange={(e) => setAppType(e.target.value)}
+          optionType="button"
+          buttonStyle="solid"
+          style={{ marginBottom: 18 }}
+        >
+          <Radio.Button value="valuechartpro">
+            ValueChart Pro (Individual)
+          </Radio.Button>
+          <Radio.Button value="valuechartteams">
+            ValueChart Teams (Enterprise)
+          </Radio.Button>
+        </Radio.Group>
 
-      {/* Step 2 — User */}
-      {!presetUser && (
-        <div style={{ marginBottom: 18 }}>
-          <Text
-            strong
-            style={{ fontSize: 13, display: "block", marginBottom: 6 }}
-          >
-            2. Select User{" "}
-            <Text type="secondary" style={{ fontWeight: 400, fontSize: 11 }}>
-              (free-tier users only)
+        {/* Step 2 — User */}
+        {!presetUser && (
+          <div style={{ marginBottom: 18 }}>
+            <Text
+              strong
+              style={{ fontSize: 13, display: "block", marginBottom: 6 }}
+            >
+              2. Select User{" "}
+              <Text type="secondary" style={{ fontWeight: 400, fontSize: 11 }}>
+                (free-tier users only)
+              </Text>
             </Text>
-          </Text>
-          <Select
-            value={targetId || undefined}
-            onChange={(v) => setTargetId(v)}
-            placeholder={
-              loadingUsers ? "Loading users…" : "Choose a free-tier user"
-            }
-            showSearch
-            filterOption={false}
-            onSearch={(v) => setUserSearch(v)}
-            notFoundContent={
-              loadingUsers ? (
-                <Spin size="small" />
-              ) : (
-                <Text type="secondary">No eligible users</Text>
-              )
-            }
-            style={{ width: "100%" }}
-            options={(Array.isArray(eligibleUsers) ? eligibleUsers : []).map(
-              (u) => ({
-                value: u.id,
-                label: (
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <Avatar size="small" src={u.image || undefined}>
-                      {u.name?.[0] || u.email?.[0]}
-                    </Avatar>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>
-                        {u.name || "Unnamed"}
+            <Select
+              value={targetId || undefined}
+              onChange={(v) => setTargetId(v)}
+              placeholder={
+                loadingUsers ? "Loading users…" : "Choose a free-tier user"
+              }
+              showSearch
+              filterOption={false}
+              onSearch={(v) => setUserSearch(v)}
+              notFoundContent={
+                loadingUsers ? (
+                  <Spin size="small" />
+                ) : (
+                  <Text type="secondary">No eligible users</Text>
+                )
+              }
+              style={{ width: "100%" }}
+              options={(Array.isArray(eligibleUsers) ? eligibleUsers : []).map(
+                (u) => ({
+                  value: u.id,
+                  label: (
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <Avatar size="small" src={u.image || undefined}>
+                        {u.name?.[0] || u.email?.[0]}
+                      </Avatar>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>
+                          {u.name || "Unnamed"}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#8C8C8C" }}>
+                          {u.email}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 11, color: "#8C8C8C" }}>
-                        {u.email}
-                      </div>
+                      <Tag>{u.currentVersion}</Tag>
                     </div>
-                    <Tag>{u.currentVersion}</Tag>
-                  </div>
-                ),
-              }),
+                  ),
+                }),
+              )}
+            />
+            {selectedUser && (
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 11,
+                  color: "#8C8C8C",
+                }}
+              >
+                Selected: {selectedUser.name || selectedUser.email}
+              </div>
             )}
-          />
-          {selectedUser && (
+          </div>
+        )}
+        {presetUser && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "10px 12px",
+              background: PRIMARY_BG,
+              borderRadius: 8,
+              border: `1px solid ${PRIMARY}33`,
+              marginBottom: 18,
+            }}
+          >
+            <TeamOutlined style={{ color: PRIMARY }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>
+                {presetUser.name || "Unnamed"}
+              </div>
+              <div style={{ fontSize: 11, color: "#8C8C8C" }}>
+                {presetUser.email}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3 — Plan cards (filtered by app type) */}
+        <Text
+          strong
+          style={{ fontSize: 13, display: "block", marginBottom: 8 }}
+        >
+          {presetUser ? "2" : "3"}. Choose Plan
+        </Text>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: 10,
+            marginBottom: 18,
+          }}
+        >
+          {visiblePlans.map((p) => {
+            const active = p.key === selectedPlan;
+            return (
+              <div
+                key={p.key}
+                onClick={() => {
+                  setSelectedPlan(p.key);
+                  setMonths(p.duration === "yearly" ? 12 : 1);
+                  setCredits(null);
+                }}
+                style={{
+                  cursor: "pointer",
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: active ? `2px solid ${PRIMARY}` : "1px solid #EAECF0",
+                  background: active ? PRIMARY_BG : "#fff",
+                  position: "relative",
+                  transition: "all 0.15s",
+                }}
+              >
+                {p.badge && (
+                  <Tag
+                    color={p.badge === "Popular" ? PRIMARY : "orange"}
+                    style={{
+                      position: "absolute",
+                      top: -10,
+                      right: 10,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: "0 8px",
+                      borderRadius: 10,
+                      border: "none",
+                    }}
+                  >
+                    {p.badge}
+                  </Tag>
+                )}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 4,
+                  }}
+                >
+                  <Text strong style={{ fontSize: 14 }}>
+                    {p.name}
+                  </Text>
+                  <Text strong style={{ fontSize: 13, color: PRIMARY }}>
+                    {p.price}
+                  </Text>
+                </div>
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: 16,
+                    fontSize: 11,
+                    color: "#595959",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {p.features.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Seats (team plans only) */}
+        {plan.plan === "team" && (
+          <div style={{ marginBottom: 18 }}>
+            <Text
+              strong
+              style={{ fontSize: 13, display: "block", marginBottom: 6 }}
+            >
+              Team Seats
+            </Text>
+            <InputNumber
+              min={2}
+              max={100}
+              value={seats}
+              onChange={(v) => setSeats(Math.max(2, v || 2))}
+              style={{ width: 160 }}
+              addonAfter="seats"
+            />
+            <Text type="secondary" style={{ fontSize: 11, marginLeft: 10 }}>
+              Owner + {seats - 1} member slot{seats - 1 === 1 ? "" : "s"}
+            </Text>
+          </div>
+        )}
+
+        {/* Duration */}
+        <Text
+          strong
+          style={{ fontSize: 13, display: "block", marginBottom: 8 }}
+        >
+          {presetUser ? "3" : "4"}. Duration
+        </Text>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            marginBottom: 10,
+          }}
+        >
+          {DURATION_PRESETS.map((d) => (
             <div
+              key={d.months}
+              onClick={() => setMonths(d.months)}
               style={{
-                marginTop: 8,
-                fontSize: 11,
-                color: "#8C8C8C",
+                cursor: "pointer",
+                padding: "6px 14px",
+                borderRadius: 8,
+                border:
+                  months === d.months
+                    ? `1.5px solid ${PRIMARY}`
+                    : "1px solid #EAECF0",
+                background: months === d.months ? PRIMARY_BG : "#fff",
+                color: months === d.months ? PRIMARY : "#595959",
+                fontSize: 12,
+                fontWeight: months === d.months ? 600 : 400,
+                transition: "all 0.15s",
               }}
             >
-              Selected: {selectedUser.name || selectedUser.email}
+              {d.label}
             </div>
-          )}
+          ))}
+          <InputNumber
+            min={1}
+            max={120}
+            value={months}
+            onChange={(v) => v && setMonths(v)}
+            size="small"
+            style={{ width: 100 }}
+            addonAfter="mo"
+          />
         </div>
-      )}
-      {presetUser && (
+        <div
+          style={{
+            background: "#FAFAFA",
+            border: "1px solid #F0F0F0",
+            borderRadius: 8,
+            padding: "8px 12px",
+            fontSize: 12,
+            color: "#595959",
+            marginBottom: 18,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <CalendarOutlined style={{ color: PRIMARY }} />
+          <span>
+            {extend ? "Extended expiry" : "Expires on"}:{" "}
+            <strong style={{ color: "#1A1A2E" }}>
+              {expiryPreview.toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })}
+            </strong>
+          </span>
+        </div>
+
+        {/* AI Credits */}
+        <Text
+          strong
+          style={{ fontSize: 13, display: "block", marginBottom: 8 }}
+        >
+          {presetUser ? "4" : "5"}. AI Credits
+        </Text>
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 10,
-            padding: "10px 12px",
-            background: PRIMARY_BG,
-            borderRadius: 8,
-            border: `1px solid ${PRIMARY}33`,
+            gap: 12,
             marginBottom: 18,
           }}
         >
-          <TeamOutlined style={{ color: PRIMARY }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>
-              {presetUser.name || "Unnamed"}
-            </div>
-            <div style={{ fontSize: 11, color: "#8C8C8C" }}>
-              {presetUser.email}
-            </div>
-          </div>
+          <ThunderboltFilled style={{ color: PRIMARY, fontSize: 18 }} />
+          <InputNumber
+            min={0}
+            max={100000}
+            value={resolvedCredits}
+            onChange={(v) =>
+              setCredits(v === plan.credits ? null : (v as number))
+            }
+            style={{ width: 160 }}
+          />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            credits (plan default: {plan.credits})
+          </Text>
         </div>
-      )}
 
-      {/* Step 3 — Plan cards (filtered by app type) */}
-      <Text strong style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
-        {presetUser ? "2" : "3"}. Choose Plan
-      </Text>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: 10,
-          marginBottom: 18,
-        }}
-      >
-        {visiblePlans.map((p) => {
-          const active = p.key === selectedPlan;
-          return (
-            <div
-              key={p.key}
-              onClick={() => {
-                setSelectedPlan(p.key);
-                setMonths(p.duration === "yearly" ? 12 : 1);
-                setCredits(null);
-              }}
-              style={{
-                cursor: "pointer",
-                padding: "12px 14px",
-                borderRadius: 10,
-                border: active ? `2px solid ${PRIMARY}` : "1px solid #EAECF0",
-                background: active ? PRIMARY_BG : "#fff",
-                position: "relative",
-                transition: "all 0.15s",
-              }}
-            >
-              {p.badge && (
-                <Tag
-                  color={p.badge === "Popular" ? PRIMARY : "orange"}
-                  style={{
-                    position: "absolute",
-                    top: -10,
-                    right: 10,
-                    fontSize: 10,
-                    fontWeight: 600,
-                    padding: "0 8px",
-                    borderRadius: 10,
-                    border: "none",
-                  }}
-                >
-                  {p.badge}
-                </Tag>
-              )}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 4,
-                }}
-              >
-                <Text strong style={{ fontSize: 14 }}>
-                  {p.name}
-                </Text>
-                <Text strong style={{ fontSize: 13, color: PRIMARY }}>
-                  {p.price}
-                </Text>
-              </div>
-              <ul
-                style={{
-                  margin: 0,
-                  paddingLeft: 16,
-                  fontSize: 11,
-                  color: "#595959",
-                  lineHeight: 1.6,
-                }}
-              >
-                {p.features.map((f) => (
-                  <li key={f}>{f}</li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
-      </div>
+        {/* Flow Limit (optional override) */}
+        <Text
+          strong
+          style={{ fontSize: 13, display: "block", marginBottom: 8 }}
+        >
+          Flow Limit (optional)
+        </Text>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 18,
+          }}
+        >
+          <InputNumber
+            min={0}
+            max={100000}
+            value={flowLimit ?? undefined}
+            onChange={(v) =>
+              setFlowLimit(v === null || v === undefined ? null : (v as number))
+            }
+            placeholder={
+              plan.plan === "team"
+                ? "Default: unlimited"
+                : "Default: 10 (Pro plan)"
+            }
+            style={{ width: 200 }}
+          />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Leave empty for plan default. Enter 0 for unlimited.
+          </Text>
+        </div>
 
-      {/* Seats (team plans only) */}
-      {plan.plan === "team" && (
-        <div style={{ marginBottom: 18 }}>
+        {/* Extend checkbox */}
+        {hasExistingSubscription && (
+          <Checkbox
+            checked={extend}
+            onChange={(e) => setExtend(e.target.checked)}
+            style={{ marginBottom: 14 }}
+          >
+            <Text style={{ fontSize: 13 }}>
+              Extend existing subscription (add time on top of current expiry)
+            </Text>
+          </Checkbox>
+        )}
+
+        {/* Reason */}
+        <div style={{ marginBottom: 4 }}>
           <Text
             strong
             style={{ fontSize: 13, display: "block", marginBottom: 6 }}
           >
-            Team Seats
+            {presetUser ? "5" : "6"}. Reason / note (optional)
           </Text>
-          <InputNumber
-            min={2}
-            max={100}
-            value={seats}
-            onChange={(v) => setSeats(Math.max(2, v || 2))}
-            style={{ width: 160 }}
-            addonAfter="seats"
+          <textarea
+            rows={2}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. support compensation, beta tester, comped account"
+            maxLength={500}
+            className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none resize-none font-sans"
           />
-          <Text type="secondary" style={{ fontSize: 11, marginLeft: 10 }}>
-            Owner + {seats - 1} member slot{seats - 1 === 1 ? "" : "s"}
-          </Text>
         </div>
-      )}
-
-      {/* Duration */}
-      <Text strong style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
-        {presetUser ? "3" : "4"}. Duration
-      </Text>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          marginBottom: 10,
+      </div>
+      <ModalFooter
+        close={() => {
+          onClose();
+          reset();
         }}
-      >
-        {DURATION_PRESETS.map((d) => (
-          <div
-            key={d.months}
-            onClick={() => setMonths(d.months)}
-            style={{
-              cursor: "pointer",
-              padding: "6px 14px",
-              borderRadius: 8,
-              border:
-                months === d.months
-                  ? `1.5px solid ${PRIMARY}`
-                  : "1px solid #EAECF0",
-              background: months === d.months ? PRIMARY_BG : "#fff",
-              color: months === d.months ? PRIMARY : "#595959",
-              fontSize: 12,
-              fontWeight: months === d.months ? 600 : 400,
-              transition: "all 0.15s",
-            }}
-          >
-            {d.label}
-          </div>
-        ))}
-        <InputNumber
-          min={1}
-          max={120}
-          value={months}
-          onChange={(v) => v && setMonths(v)}
-          size="small"
-          style={{ width: 100 }}
-          addonAfter="mo"
-        />
-      </div>
-      <div
-        style={{
-          background: "#FAFAFA",
-          border: "1px solid #F0F0F0",
-          borderRadius: 8,
-          padding: "8px 12px",
-          fontSize: 12,
-          color: "#595959",
-          marginBottom: 18,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <CalendarOutlined style={{ color: PRIMARY }} />
-        <span>
-          {extend ? "Extended expiry" : "Expires on"}:{" "}
-          <strong style={{ color: "#1A1A2E" }}>
-            {expiryPreview.toLocaleDateString(undefined, {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-            })}
-          </strong>
-        </span>
-      </div>
-
-      {/* AI Credits */}
-      <Text strong style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
-        {presetUser ? "4" : "5"}. AI Credits
-      </Text>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 18,
-        }}
-      >
-        <ThunderboltFilled style={{ color: PRIMARY, fontSize: 18 }} />
-        <InputNumber
-          min={0}
-          max={100000}
-          value={resolvedCredits}
-          onChange={(v) =>
-            setCredits(v === plan.credits ? null : (v as number))
-          }
-          style={{ width: 160 }}
-        />
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          credits (plan default: {plan.credits})
-        </Text>
-      </div>
-
-      {/* Flow Limit (optional override) */}
-      <Text strong style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
-        Flow Limit (optional)
-      </Text>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 18,
-        }}
-      >
-        <InputNumber
-          min={0}
-          max={100000}
-          value={flowLimit ?? undefined}
-          onChange={(v) =>
-            setFlowLimit(v === null || v === undefined ? null : (v as number))
-          }
-          placeholder={
-            plan.plan === "team"
-              ? "Default: unlimited"
-              : "Default: 10 (Pro plan)"
-          }
-          style={{ width: 200 }}
-        />
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          Leave empty for plan default. Enter 0 for unlimited.
-        </Text>
-      </div>
-
-      {/* Extend checkbox */}
-      {hasExistingSubscription && (
-        <Checkbox
-          checked={extend}
-          onChange={(e) => setExtend(e.target.checked)}
-          style={{ marginBottom: 14 }}
-        >
-          <Text style={{ fontSize: 13 }}>
-            Extend existing subscription (add time on top of current expiry)
-          </Text>
-        </Checkbox>
-      )}
-
-      {/* Reason */}
-      <div style={{ marginBottom: 4 }}>
-        <Text
-          strong
-          style={{ fontSize: 13, display: "block", marginBottom: 6 }}
-        >
-          {presetUser ? "5" : "6"}. Reason / note (optional)
-        </Text>
-        <Input.TextArea
-          rows={2}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="e.g. support compensation, beta tester, comped account"
-          maxLength={500}
-          showCount
-        />
-      </div>
-    </Modal>
+        primary={handleSubmit}
+        primaryLabel={extend ? "Extend Subscription" : "Grant Subscription"}
+        loading={saving}
+      />
+    </ModalShell>
   );
 }

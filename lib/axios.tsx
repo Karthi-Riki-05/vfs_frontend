@@ -1,6 +1,6 @@
 import axios from "axios";
 import { signOut } from "next-auth/react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { getAiBillingTeamId } from "@/lib/aiBilling";
 import { appTypeFromUserAgent } from "@/lib/detectWebView";
 
@@ -117,7 +117,7 @@ api.interceptors.response.use(
 
     // Rate limit handling
     if (error.response?.status === 429) {
-      message.warning("Too many requests. Please slow down.");
+      toast.warning("Too many requests. Please slow down.");
     }
 
     // Auth failure → auto-logout (only on 401, NOT 403 — 403 is permission denied, not expired session)

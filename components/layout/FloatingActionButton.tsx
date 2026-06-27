@@ -1,14 +1,18 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Tooltip, Dropdown } from "antd";
-import type { MenuProps } from "antd";
 import {
-  PlusOutlined,
-  ProfileOutlined,
-  AppstoreOutlined,
-  FolderOutlined,
-} from "@ant-design/icons";
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, FileText, Folder, Shapes } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { createNewFlow } from "@/lib/flow";
 import { useIsMobile } from "@/hooks/useMediaQuery";
@@ -78,88 +82,79 @@ export default function FloatingActionButton({
   const bottom = isMobile ? 84 : 92;
   const right = isMobile ? 20 : 24;
 
-  const menuItems: MenuProps["items"] = [
-    {
-      key: "create-flow",
-      label: "New Flow",
-      icon: <ProfileOutlined style={{ color: "#34A881", fontSize: 16 }} />,
-      style: { minHeight: 44, alignItems: "center", display: "flex" },
-      onClick: async () => {
-        setOpen(false);
-        await createNewFlow();
-      },
-    },
-    {
-      key: "create-project",
-      label: "New Project",
-      icon: <FolderOutlined style={{ color: "#FF9A30", fontSize: 16 }} />,
-      style: { minHeight: 44, alignItems: "center", display: "flex" },
-      onClick: () => {
-        setOpen(false);
-        router.push("/dashboard/projects?create=1");
-      },
-    },
-    {
-      key: "create-shape",
-      label: "New Shape",
-      icon: <AppstoreOutlined style={{ color: "#6366f1", fontSize: 16 }} />,
-      style: { minHeight: 44, alignItems: "center", display: "flex" },
-      onClick: () => {
-        setOpen(false);
-        router.push("/dashboard/shapes?action=new");
-      },
-    },
-  ];
-
-  const button = (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label="Create new"
-      aria-haspopup="true"
-      aria-expanded={open}
-      onKeyDown={handleKeyDown}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        width: buttonSize,
-        height: buttonSize,
-        borderRadius: "50%",
-        background: hovered ? "#1F7D5E" : "#34A881",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        // new_design --shadow-fab token (DESIGN.md §5)
-        boxShadow: "0 10px 24px -6px rgba(31,125,94,0.45)",
-        transition: "background 0.2s ease, transform 0.2s ease",
-        transform: hovered ? "scale(1.08)" : "scale(1)",
-        outline: "none",
-        userSelect: "none",
-      }}
-    >
-      <PlusOutlined
-        style={{
-          fontSize: iconSize,
-          color: "#fff",
-          transition: "transform 0.25s ease",
-          transform: open ? "rotate(45deg)" : "rotate(0deg)",
-          display: "block",
-        }}
-      />
-    </div>
-  );
-
   const dropdown = (
-    <Dropdown
-      menu={{ items: menuItems }}
-      placement="topRight"
-      trigger={["click"]}
-      open={open}
-      onOpenChange={setOpen}
-    >
-      {button}
-    </Dropdown>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Create new"
+          aria-haspopup="true"
+          aria-expanded={open}
+          onKeyDown={handleKeyDown}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{
+            width: buttonSize,
+            height: buttonSize,
+            borderRadius: "50%",
+            background: hovered ? "#2a9960" : "#3CB371",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            boxShadow: "0 10px 24px -6px rgba(60,179,113,0.45)",
+            transition: "background 0.2s ease, transform 0.2s ease",
+            transform: hovered ? "scale(1.08)" : "scale(1)",
+            outline: "none",
+            userSelect: "none",
+          }}
+        >
+          <Plus
+            style={{
+              width: iconSize,
+              height: iconSize,
+              color: "#fff",
+              transition: "transform 0.25s ease",
+              transform: open ? "rotate(45deg)" : "rotate(0deg)",
+              display: "block",
+            }}
+          />
+        </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="end" className="tw mb-2">
+        <DropdownMenuItem
+          onSelect={async () => {
+            setOpen(false);
+            await createNewFlow();
+          }}
+          className="min-h-[44px]"
+        >
+          <FileText className="w-4 h-4 text-primary" />
+          New Flow
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            setOpen(false);
+            router.push("/dashboard/projects?create=1");
+          }}
+          className="min-h-[44px]"
+        >
+          <Folder className="w-4 h-4 text-[#FF9A30]" />
+          New Project
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            setOpen(false);
+            router.push("/dashboard/shapes?action=new");
+          }}
+          className="min-h-[44px]"
+        >
+          <Shapes className="w-4 h-4 text-[#6366f1]" />
+          New Shape
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
   return (
@@ -180,12 +175,11 @@ export default function FloatingActionButton({
       {isMobile ? (
         dropdown
       ) : (
-        <Tooltip
-          title="Create new flow, project or shape"
-          placement="left"
-          mouseEnterDelay={0.5}
-        >
-          {dropdown}
+        <Tooltip>
+          <TooltipTrigger asChild>{dropdown}</TooltipTrigger>
+          <TooltipContent side="left" className="tw">
+            Create new flow, project or shape
+          </TooltipContent>
         </Tooltip>
       )}
     </div>

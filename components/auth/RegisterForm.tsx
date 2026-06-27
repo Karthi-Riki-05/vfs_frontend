@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { User, Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -123,7 +123,7 @@ export default function RegisterForm() {
     setLoading(true);
     try {
       await axios.post("/auth/register", { name, email, password });
-      message.success("We've sent a 6-digit code to your email.");
+      toast.success("We've sent a 6-digit code to your email.");
       router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
       const code = err.response?.data?.error?.code as string | undefined;
@@ -135,7 +135,7 @@ export default function RegisterForm() {
       ) {
         setExistsCode(code);
       } else {
-        message.error(msg);
+        toast.error(msg);
         setError(msg);
       }
     } finally {

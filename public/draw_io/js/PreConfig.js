@@ -24,7 +24,11 @@ window.DRAWIO_CONFIG = {
   disableAi: true,
   enabledLibraries: true,
   disablePlugins: true,
-  defaultFonts: ["Inter", "Roboto"],
+  defaultFonts: ["Plus Jakarta Sans", "Inter", "Roboto"],
+  defaultVertexStyle:
+    "fontFamily=Plus Jakarta Sans;fontColor=#1f2937;fontSize=14;",
+  defaultEdgeStyle:
+    "fontFamily=Plus Jakarta Sans;fontColor=#1f2937;fontSize=12;",
   plugins: [],
   settings: {
     v: "2026",

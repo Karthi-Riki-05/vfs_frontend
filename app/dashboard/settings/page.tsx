@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, type ReactNode } from "react";
-import { Upload, message, Modal, Spin, Input } from "antd";
+import { Upload, message, Spin } from "antd";
+import { toast } from "sonner";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
 import { signOut } from "next-auth/react";
 import { accountApi } from "@/api/account.api";
 import {
@@ -128,7 +135,7 @@ export default function SettingsPage() {
     setDeleteLoading(true);
     try {
       await accountApi.deleteAccount(deletePassword);
-      message.success("Account deleted");
+      toast.success("Account deleted");
       signOut({ callbackUrl: "/login" });
     } catch (err: any) {
       const code = err?.response?.data?.error?.code;
@@ -177,15 +184,15 @@ export default function SettingsPage() {
 
   const saveProfile = async () => {
     if (!name.trim()) {
-      message.error("Please enter your name");
+      toast.error("Please enter your name");
       return;
     }
     setProfileLoading(true);
     try {
       await api.put("/users/me", { name, contactNo });
-      message.success("Profile updated successfully");
+      toast.success("Profile updated successfully");
     } catch {
-      message.error("Failed to update profile");
+      toast.error("Failed to update profile");
     } finally {
       setProfileLoading(false);
     }
@@ -193,15 +200,15 @@ export default function SettingsPage() {
 
   const changePassword = async () => {
     if (!pCurrent || !pNew || !pConfirm) {
-      message.error("Please fill in all password fields");
+      toast.error("Please fill in all password fields");
       return;
     }
     if (pNew.length < 8) {
-      message.error("Password must be at least 8 characters");
+      toast.error("Password must be at least 8 characters");
       return;
     }
     if (pNew !== pConfirm) {
-      message.error("Passwords do not match");
+      toast.error("Passwords do not match");
       return;
     }
     setPasswordLoading(true);
@@ -210,13 +217,13 @@ export default function SettingsPage() {
         currentPassword: pCurrent,
         newPassword: pNew,
       });
-      message.success("Password changed successfully");
+      toast.success("Password changed successfully");
       setPCurrent("");
       setPNew("");
       setPConfirm("");
       setView("hub");
     } catch (err: any) {
-      message.error(
+      toast.error(
         err.response?.data?.error?.message || "Failed to change password",
       );
     } finally {
@@ -249,28 +256,26 @@ export default function SettingsPage() {
           window.dispatchEvent(
             new CustomEvent("userAvatarChanged", { detail: { url: photo } }),
           );
-          message.success("Avatar updated");
+          toast.success("Avatar updated");
         })
-        .catch(() => message.error("Avatar upload failed"));
+        .catch(() => toast.error("Avatar upload failed"));
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      message.error("Failed to read image");
+      toast.error("Failed to read image");
     };
     img.src = objectUrl;
     return false;
   };
 
   const confirmDeleteAi = () =>
-    Modal.confirm({
+    confirmDialog({
       title: "Delete AI Data",
       content:
         "Delete all your AI conversation history? This cannot be undone.",
-      okText: "Delete",
-      okButtonProps: { danger: true },
-      cancelText: "Cancel",
-      centered: true,
-      onOk: () => deleteAiData(),
+      confirmLabel: "Delete",
+      danger: true,
+      onConfirm: () => deleteAiData(),
     });
 
   const initial = (name || user?.name || "U").charAt(0).toUpperCase();
@@ -420,6 +425,21 @@ export default function SettingsPage() {
       </button>
 
       <SectionLabel>Danger Zone</SectionLabel>
+
+      {/* Delete AI Data — sits directly above Delete Account in the Danger Zone */}
+      <div className="rounded-2xl bg-card border border-border p-5 mb-3">
+        <div className="font-bold text-sm">AI Data &amp; Privacy</div>
+        <div className="text-xs text-muted-foreground mt-1">
+          Manage data collected by Value Charts AI
+        </div>
+        <button
+          onClick={confirmDeleteAi}
+          className={`${RESET} bg-transparent mt-3 w-full h-11 rounded-xl border-2 border-coral text-coral font-bold text-sm inline-flex items-center justify-center gap-2`}
+        >
+          <Trash2 className="w-4 h-4" /> Delete my AI data
+        </button>
+      </div>
+
       <div className="rounded-2xl bg-card border border-[#FFA39E] overflow-hidden mb-6">
         <button
           onClick={() => {
@@ -437,57 +457,61 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      <Modal
+      <ModalShell
         open={deleteModalOpen}
-        title={
-          <span style={{ color: "#FF4D4F" }}>
-            ⚠️ Permanently Delete Account
-          </span>
-        }
-        okText="Permanently Delete Account"
-        okButtonProps={{ danger: true, loading: deleteLoading }}
-        cancelText="Cancel"
-        onCancel={() => {
+        onClose={() => {
+          if (deleteLoading) return;
           setDeleteModalOpen(false);
           setDeletePassword("");
           setDeleteError(null);
         }}
-        onOk={async () => {
-          await handleDeleteAccount();
-        }}
-        centered
-        maskClosable={!deleteLoading}
       >
-        <p style={{ marginBottom: 16, color: "#595959", fontSize: 14 }}>
-          All your data will be <strong>permanently deleted</strong>. This
-          cannot be undone.
-        </p>
-        <p style={{ marginBottom: 12, fontSize: 13, color: "#595959" }}>
-          Enter your password to confirm:
-        </p>
-        <Input.Password
-          value={deletePassword}
-          onChange={(e) => {
-            setDeletePassword(e.target.value);
+        <ModalHeader
+          title="⚠️ Permanently Delete Account"
+          close={() => {
+            if (deleteLoading) return;
+            setDeleteModalOpen(false);
+            setDeletePassword("");
             setDeleteError(null);
           }}
-          placeholder="Your current password"
-          disabled={deleteLoading}
-          onPressEnter={handleDeleteAccount}
         />
-        {deleteError && (
-          <div
-            style={{
-              marginTop: 10,
-              color: "#FF4D4F",
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}
-          >
-            {deleteError}
-          </div>
-        )}
-      </Modal>
+        <div className="px-5 pb-5 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            All your data will be <strong>permanently deleted</strong>. This
+            cannot be undone.
+          </p>
+          <Field label="Enter your password to confirm">
+            <FieldInput
+              eye
+              value={deletePassword}
+              onChange={(e) => {
+                setDeletePassword(e.target.value);
+                setDeleteError(null);
+              }}
+              placeholder="Your current password"
+              disabled={deleteLoading}
+              onKeyDown={(e) => e.key === "Enter" && handleDeleteAccount()}
+            />
+          </Field>
+          {deleteError && (
+            <div className="text-sm text-coral leading-relaxed">
+              {deleteError}
+            </div>
+          )}
+        </div>
+        <ModalFooter
+          close={() => {
+            if (deleteLoading) return;
+            setDeleteModalOpen(false);
+            setDeletePassword("");
+            setDeleteError(null);
+          }}
+          primary={handleDeleteAccount}
+          primaryLabel="Permanently Delete Account"
+          loading={deleteLoading}
+          danger
+        />
+      </ModalShell>
     </div>
   );
 
@@ -559,19 +583,6 @@ export default function SettingsPage() {
           className={`appearance-none border-0 cursor-pointer mt-2 w-full h-11 rounded-xl bg-primary text-white font-bold text-sm disabled:opacity-70`}
         >
           {profileLoading ? "Saving…" : "Save Changes"}
-        </button>
-      </div>
-
-      <div className="rounded-2xl bg-card border border-border p-5">
-        <div className="font-bold text-sm">AI Data &amp; Privacy</div>
-        <div className="text-xs text-muted-foreground mt-1">
-          Manage data collected by Value Charts AI
-        </div>
-        <button
-          onClick={confirmDeleteAi}
-          className={`${RESET} bg-transparent mt-3 w-full h-11 rounded-xl border-2 border-coral text-coral font-bold text-sm inline-flex items-center justify-center gap-2`}
-        >
-          <Trash2 className="w-4 h-4" /> Delete my AI data
         </button>
       </div>
     </div>

@@ -1,14 +1,8 @@
 "use client";
 
 import React from "react";
-import { Modal, Button, Typography, Space } from "antd";
-import {
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  SafetyOutlined,
-} from "@ant-design/icons";
-
-const { Text, Paragraph } = Typography;
+import { ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
+import { ModalShell } from "@/components/common/Modal";
 
 interface AIConsentModalProps {
   open: boolean;
@@ -16,112 +10,81 @@ interface AIConsentModalProps {
   onDecline: () => void;
 }
 
+const ALLOW = [
+  "Your chat messages are sent to our AI service",
+  "Conversation history is stored to improve responses",
+  "You can delete your AI data at any time",
+];
+
+const DENY = [
+  "Your data is never sold or shared with third parties",
+  "We do not use your data to train AI models",
+];
+
 export default function AIConsentModal({
   open,
   onAccept,
   onDecline,
 }: AIConsentModalProps) {
   return (
-    <Modal
-      open={open}
-      onCancel={onDecline}
-      footer={null}
-      centered
-      width="min(92vw, 440px)"
-      closable={false}
-      styles={{
-        body: { padding: "24px", maxHeight: "70dvh", overflowY: "auto" },
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 12,
-            background: "#E8F5E9",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <SafetyOutlined style={{ fontSize: 20, color: "#3CB371" }} />
+    <ModalShell open={open} onClose={onDecline}>
+      <div className="p-6 max-h-[70dvh] overflow-y-auto">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <ShieldCheck className="w-5 h-5 text-primary" />
+          </div>
+          <div className="text-lg font-semibold">Value Charts AI</div>
         </div>
-        <Text style={{ fontSize: 18, fontWeight: 600, color: "#1A1A2E" }}>
-          Value Charts AI
-        </Text>
+
+        <p className="text-sm text-muted-foreground mb-4">
+          To use the AI assistant, we need to process your messages to generate
+          flow suggestions. This includes:
+        </p>
+
+        <ul className="flex flex-col gap-1.5 mb-4 list-none p-0">
+          {ALLOW.map((t) => (
+            <li
+              key={t}
+              className="text-[13px] text-muted-foreground flex items-start gap-2"
+            >
+              <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              {t}
+            </li>
+          ))}
+          {DENY.map((t) => (
+            <li
+              key={t}
+              className="text-[13px] text-muted-foreground flex items-start gap-2"
+            >
+              <XCircle className="w-4 h-4 text-coral shrink-0 mt-0.5" />
+              {t}
+            </li>
+          ))}
+        </ul>
+
+        <p className="text-xs text-muted-foreground mb-5">
+          By clicking Accept, you consent to AI data processing as described
+          above in accordance with GDPR. You can withdraw consent and delete
+          your data at any time from Settings.
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onDecline}
+            className="appearance-none cursor-pointer outline-none flex-1 h-11 rounded-xl border border-border bg-card font-semibold text-sm"
+          >
+            Decline
+          </button>
+          <button
+            type="button"
+            onClick={onAccept}
+            className="appearance-none cursor-pointer outline-none border-0 flex-1 h-11 rounded-xl bg-primary text-white font-semibold text-sm hover:opacity-90"
+          >
+            Accept &amp; Continue
+          </button>
+        </div>
       </div>
-
-      <Paragraph style={{ color: "#595959", fontSize: 14, marginBottom: 16 }}>
-        To use the AI assistant, we need to process your messages to generate
-        flow suggestions. This includes:
-      </Paragraph>
-
-      <Space
-        direction="vertical"
-        size={6}
-        style={{ marginBottom: 16, width: "100%" }}
-      >
-        <Text style={{ fontSize: 13, color: "#595959" }}>
-          <CheckCircleOutlined style={{ color: "#3CB371", marginRight: 8 }} />
-          Your chat messages are sent to our AI service
-        </Text>
-        <Text style={{ fontSize: 13, color: "#595959" }}>
-          <CheckCircleOutlined style={{ color: "#3CB371", marginRight: 8 }} />
-          Conversation history is stored to improve responses
-        </Text>
-        <Text style={{ fontSize: 13, color: "#595959" }}>
-          <CheckCircleOutlined style={{ color: "#3CB371", marginRight: 8 }} />
-          You can delete your AI data at any time
-        </Text>
-        <Text style={{ fontSize: 13, color: "#595959" }}>
-          <CloseCircleOutlined style={{ color: "#ff4d4f", marginRight: 8 }} />
-          Your data is never sold or shared with third parties
-        </Text>
-        <Text style={{ fontSize: 13, color: "#595959" }}>
-          <CloseCircleOutlined style={{ color: "#ff4d4f", marginRight: 8 }} />
-          We do not use your data to train AI models
-        </Text>
-      </Space>
-
-      <Paragraph style={{ color: "#8c8c8c", fontSize: 12, marginBottom: 20 }}>
-        By clicking Accept, you consent to AI data processing as described above
-        in accordance with GDPR. You can withdraw consent and delete your data
-        at any time from Settings.
-      </Paragraph>
-
-      <div style={{ display: "flex", gap: 12 }}>
-        <Button
-          onClick={onDecline}
-          block
-          size="large"
-          style={{ borderRadius: 12, height: 44 }}
-        >
-          Decline
-        </Button>
-        <Button
-          type="primary"
-          onClick={onAccept}
-          block
-          size="large"
-          style={{
-            borderRadius: 12,
-            height: 44,
-            backgroundColor: "#3CB371",
-            borderColor: "#3CB371",
-            fontWeight: 600,
-          }}
-        >
-          Accept & Continue
-        </Button>
-      </div>
-    </Modal>
+    </ModalShell>
   );
 }

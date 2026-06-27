@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { aiApi } from "@/api/ai.api";
 import { useSession } from "next-auth/react";
 import { useAiBilling } from "@/context/AiBillingContext";
@@ -66,7 +66,7 @@ export function useAi() {
       await aiApi.setConsent(true);
       setHasConsent(true);
     } catch {
-      message.error("Failed to save consent");
+      toast.error("Failed to save consent");
     }
   }, []);
 
@@ -75,7 +75,7 @@ export function useAi() {
       await aiApi.setConsent(false);
       setHasConsent(false);
     } catch {
-      message.error("Failed to save consent");
+      toast.error("Failed to save consent");
     }
   }, []);
 
@@ -179,9 +179,9 @@ export function useAi() {
       setConversationId(null);
       setResponse(null);
       userContextRef.current = null;
-      message.success("All AI data deleted");
+      toast.success("All AI data deleted");
     } catch {
-      message.error("Failed to delete AI data");
+      toast.error("Failed to delete AI data");
     }
   }, []);
 

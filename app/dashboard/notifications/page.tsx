@@ -181,8 +181,8 @@ export default function NotificationsPage() {
     <div className="tw min-h-screen bg-background">
       <div className="mx-auto max-w-2xl px-5 pt-3 pb-24">
         {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div>
+        <div className="flex items-start justify-between gap-2 mb-3 flex-wrap">
+          <div className="min-w-0">
             <h1 className="text-xl font-extrabold tracking-tight text-foreground">
               Notifications
             </h1>
@@ -190,10 +190,10 @@ export default function NotificationsPage() {
               Updates, plans and announcements
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
             {unread > 0 && (
               <button
-                className={`${RESET} text-xs font-bold text-primary-deep`}
+                className={`${RESET} text-xs font-bold text-primary-deep whitespace-nowrap`}
                 onClick={handleMarkAll}
               >
                 Mark all read
@@ -202,7 +202,7 @@ export default function NotificationsPage() {
             {items.length > 0 && (
               <button
                 onClick={handleDeleteAll}
-                className="h-9 px-3 rounded-xl border-2 border-[var(--coral)] text-[var(--coral)] font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--coral)]/10"
+                className="h-9 px-3 rounded-xl border-2 border-[var(--coral)] text-[var(--coral)] font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--coral)]/10 whitespace-nowrap"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete all
@@ -242,10 +242,18 @@ export default function NotificationsPage() {
                 return (
                   <div
                     key={n.id}
-                    className={`flex items-start gap-3 p-3 rounded-2xl border border-border mb-2 transition-colors ${
-                      n.isRead ? "bg-card" : "bg-accent/40"
+                    className={`relative flex items-start gap-3 p-3 rounded-2xl border mb-2 transition-colors bg-card overflow-hidden ${
+                      n.isRead ? "border-border" : "border-border shadow-sm"
                     }`}
                   >
+                    {/* Unread left-accent bar — replaces the full green wash */}
+                    {!n.isRead && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
+                        style={{ background: s.c }}
+                      />
+                    )}
                     <button
                       onClick={() => handleClick(n)}
                       className={`${RESET} flex items-start gap-3 flex-1 min-w-0 text-left`}
@@ -257,21 +265,24 @@ export default function NotificationsPage() {
                         <s.I className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span
                             className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
                             style={{ background: s.bg, color: s.c }}
                           >
                             {s.kind}
                           </span>
-                          <div className="font-bold text-sm text-foreground truncate">
-                            {n.title}
-                          </div>
                           {!n.isRead && (
-                            <span className="w-2 h-2 rounded-full bg-primary shrink-0 ml-auto" />
+                            <span
+                              aria-label="Unread"
+                              className="w-2 h-2 rounded-full bg-primary shrink-0"
+                            />
                           )}
                         </div>
-                        <div className="text-[12px] text-muted-foreground mt-0.5 leading-snug">
+                        <div className="font-bold text-sm text-foreground truncate mt-0.5">
+                          {n.title}
+                        </div>
+                        <div className="text-[12px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
                           {n.message}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-1">

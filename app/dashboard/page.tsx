@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, message } from "antd";
+import { Button } from "antd";
+import { toast } from "sonner";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 import SubscriptionWidget from "@/components/dashboard/SubscriptionWidget";
 import { DashGreeting } from "@/components/dashboard/DashGreeting";
@@ -50,10 +51,10 @@ export default function DashboardPage() {
       if (data.success && data.data?.url) {
         window.location.href = data.data.url;
       } else {
-        message.error(data.error?.message || "Could not open billing portal");
+        toast.error(data.error?.message || "Could not open billing portal");
       }
     } catch {
-      message.error("Failed to open billing portal");
+      toast.error("Failed to open billing portal");
     } finally {
       setPortalLoading(false);
     }
@@ -80,7 +81,7 @@ export default function DashboardPage() {
             // Silent — webhook may have already credited
           }
         }
-        message.success(
+        toast.success(
           credits
             ? `${credits} AI credits added to your account!`
             : "AI credits added to your account!",
@@ -89,7 +90,7 @@ export default function DashboardPage() {
       };
       finish();
     } else if (cancelled === "true") {
-      message.info("Credit purchase cancelled");
+      toast.info("Credit purchase cancelled");
       window.history.replaceState({}, "", "/dashboard");
     }
   }, []);

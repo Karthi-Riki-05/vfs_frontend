@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Modal, Button, Typography, message, Tag } from "antd";
-import { CrownOutlined, ThunderboltFilled } from "@ant-design/icons";
+import { Zap, Crown } from "lucide-react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { ModalShell } from "@/components/common/Modal";
 import { aiApi } from "@/api/ai.api";
 import { usePricing } from "@/hooks/usePricing";
-
-const { Text, Title } = Typography;
 
 type PackType = "starter" | "standard" | "proppack";
 
@@ -47,6 +46,7 @@ export default function CreditsExhaustedModal({
   const router = useRouter();
   const { pricing } = usePricing();
   const [purchasing, setPurchasing] = useState<PackType | null>(null);
+
   const handleAddonPurchase = async (packType: PackType) => {
     setPurchasing(packType);
     try {
@@ -55,12 +55,12 @@ export default function CreditsExhaustedModal({
       if (data?.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else {
-        message.error("Could not start checkout");
+        toast.error("Could not start checkout");
         setPurchasing(null);
       }
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || "Checkout failed";
-      message.error(msg);
+      toast.error(msg);
       setPurchasing(null);
     }
   };
@@ -75,182 +75,95 @@ export default function CreditsExhaustedModal({
     : null;
 
   return (
-    <Modal
-      open={visible}
-      onCancel={onClose}
-      footer={null}
-      centered
-      width={520}
-      title={null}
-    >
-      <div style={{ padding: "8px 0" }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 16,
-              background: "#FA8C1615",
-              margin: "0 auto 16px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <ThunderboltFilled style={{ fontSize: 26, color: "#FA8C16" }} />
+    <ModalShell open={visible} onClose={onClose} size="lg">
+      <div className="p-6">
+        <div className="text-center mb-6">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 mx-auto mb-4 flex items-center justify-center">
+            <Zap className="w-6 h-6 text-amber-500" fill="currentColor" />
           </div>
-          <Title level={4} style={{ marginBottom: 8 }}>
+          <div className="text-lg font-bold mb-2">
             No diagram credits remaining
-          </Title>
+          </div>
           {resetDate && (
-            <Text type="secondary" style={{ fontSize: 14 }}>
+            <div className="text-sm text-muted-foreground">
               Your plan resets on <strong>{resetDate}</strong>
-            </Text>
+            </div>
           )}
         </div>
 
         {isPro ? (
           <>
-            <Text
-              strong
-              style={{
-                display: "block",
-                marginBottom: 12,
-                fontSize: 14,
-                color: "#1A1A2E",
-              }}
-            >
-              Get more credits now
-            </Text>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="font-bold text-sm mb-3">Get more credits now</div>
+            <div className="flex flex-col gap-2.5">
               {PACKS.map((pack) => (
                 <div
                   key={pack.packType}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "14px 16px",
-                    border: pack.popular
-                      ? "2px solid #3CB371"
-                      : "1px solid #E8E8E8",
-                    borderRadius: 12,
-                    background: pack.popular ? "#F0FFF4" : "#fff",
-                    position: "relative",
-                  }}
+                  className={`relative flex items-center justify-between px-4 py-3.5 rounded-xl ${
+                    pack.popular
+                      ? "border-2 border-primary bg-primary/5"
+                      : "border border-border bg-card"
+                  }`}
                 >
                   {pack.popular && (
-                    <Tag
-                      color="#3CB371"
-                      style={{
-                        position: "absolute",
-                        top: -10,
-                        right: 12,
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: "1px 8px",
-                        borderRadius: 10,
-                        border: "none",
-                      }}
-                    >
+                    <span className="absolute -top-2.5 right-3 text-[10px] font-bold px-2 py-px rounded-[10px] bg-primary text-white">
                       MOST POPULAR
-                    </Tag>
+                    </span>
                   )}
                   <div>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 15,
-                        color: "#1A1A2E",
-                      }}
-                    >
+                    <div className="font-bold text-[15px]">
                       {pack.credits} credits
                     </div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
+                    <div className="text-xs text-muted-foreground">
                       {pricing?.prices[pack.priceKey]?.display ?? "…"}
-                    </Text>
+                    </div>
                   </div>
-                  <Button
-                    type="primary"
-                    loading={purchasing === pack.packType}
+                  <button
+                    type="button"
                     disabled={!!purchasing}
                     onClick={() => handleAddonPurchase(pack.packType)}
-                    style={{
-                      backgroundColor: "#3CB371",
-                      borderColor: "#3CB371",
-                      borderRadius: 8,
-                      fontWeight: 600,
-                    }}
+                    className="appearance-none cursor-pointer outline-none border-0 h-9 px-4 rounded-lg bg-primary text-white font-semibold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Buy Now
-                  </Button>
+                    {purchasing === pack.packType ? "…" : "Buy Now"}
+                  </button>
                 </div>
               ))}
             </div>
-            <Text
-              type="secondary"
-              style={{
-                display: "block",
-                textAlign: "center",
-                marginTop: 12,
-                fontSize: 12,
-              }}
-            >
+            <div className="text-center text-xs text-muted-foreground mt-3">
               Credits never expire
-            </Text>
+            </div>
             {pricing && pricing.currency !== "USD" && (
-              <Text
-                type="secondary"
-                style={{
-                  display: "block",
-                  textAlign: "center",
-                  marginTop: 4,
-                  fontSize: 10,
-                }}
-              >
+              <div className="text-center text-[10px] text-muted-foreground mt-1">
                 Prices shown in {pricing.currency}. Charged in local currency at
                 checkout.
-              </Text>
+              </div>
             )}
           </>
         ) : (
-          <div style={{ textAlign: "center", padding: "12px 0" }}>
-            <Text
-              style={{
-                display: "block",
-                marginBottom: 16,
-                fontSize: 14,
-                color: "#595959",
-              }}
-            >
+          <div className="text-center py-3">
+            <div className="text-sm text-muted-foreground mb-4">
               Upgrade to Pro for 100 AI credits every month, plus all Pro
               features.
-            </Text>
-            <Button
-              type="primary"
-              size="large"
-              block
-              icon={<CrownOutlined />}
+            </div>
+            <button
+              type="button"
               onClick={handleUpgradeClick}
-              style={{
-                backgroundColor: "#3CB371",
-                borderColor: "#3CB371",
-                borderRadius: 10,
-                height: 48,
-                fontWeight: 700,
-              }}
+              className="appearance-none cursor-pointer outline-none border-0 w-full h-12 rounded-xl bg-primary text-white font-bold text-sm inline-flex items-center justify-center gap-2 hover:opacity-90"
             >
-              Upgrade to Pro
-            </Button>
+              <Crown className="w-4 h-4" /> Upgrade to Pro
+            </button>
           </div>
         )}
 
-        <div style={{ textAlign: "center", marginTop: 20 }}>
-          <Button type="text" onClick={onClose}>
+        <div className="text-center mt-5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="appearance-none cursor-pointer outline-none bg-transparent border-0 text-sm text-muted-foreground"
+          >
             Close
-          </Button>
+          </button>
         </div>
       </div>
-    </Modal>
+    </ModalShell>
   );
 }

@@ -1,17 +1,19 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { Typography, Tag } from "antd";
+import { toast } from "sonner";
+import { ModalShell, ModalHeader } from "@/components/common/Modal";
 import {
-  Card,
-  Button,
-  Tooltip,
-  Typography,
-  Tag,
-  Modal,
-  Dropdown,
-  message,
-} from "antd";
-import type { MenuProps } from "antd";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   DeleteOutlined,
   CopyOutlined,
@@ -21,9 +23,10 @@ import {
   Html5Outlined,
   AppstoreOutlined,
   FolderOutlined,
+  MoreOutlined,
 } from "@ant-design/icons";
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 interface ShapeCardProps {
   shape: any;
@@ -32,6 +35,11 @@ interface ShapeCardProps {
   moveGroups?: { id: string; name: string }[];
   /** Move the shape to a target group. Enables the "Move" card action. */
   onMove?: (shapeId: string, targetGroupId: string) => void;
+  /**
+   * Copy the shape to another group or duplicate it.
+   * Wire up from the parent page when the backend action is ready.
+   */
+  onCopy?: (shapeId: string) => void;
 }
 
 // Visual style per type — color + icon used in badges and fallback states.
@@ -90,6 +98,7 @@ export default function ShapeCard({
   onDelete,
   moveGroups,
   onMove,
+  onCopy,
 }: ShapeCardProps) {
   const type = getTypeKey(shape);
   const content = getRawContent(shape);
@@ -98,9 +107,8 @@ export default function ShapeCard({
   const [showRaw, setShowRaw] = useState(false);
   const groupName = shape.category || shape.group?.name || "Uncategorized";
 
-  // ─── Preview body ───
+  // ─── Preview body (thumbnail area) ───
   const previewBody = useMemo(() => {
-    // Image: rendered as <img>. data: URLs and absolute URLs both work.
     if (type === "image") {
       if (!content) return null;
       return (
@@ -112,11 +120,6 @@ export default function ShapeCard({
       );
     }
 
-    // Stencil / HTML / generic: try to render as inline markup.
-    // SVG → render directly. HTML → render directly. mxGraph stencil XML
-    // can't be rendered natively in the browser → show a small monospace
-    // preview with the icon, so the card still LOOKS like something rather
-    // than empty.
     if (!content) return null;
 
     if (isLikelySvg(content) || isLikelyHtml(content)) {
@@ -129,10 +132,8 @@ export default function ShapeCard({
             alignItems: "center",
             justifyContent: "center",
             overflow: "hidden",
-            // Tame overly-large pasted SVGs/HTML so they fit the card cover
             transform: "scale(0.95)",
           }}
-          // Trusted content authored by the workspace owner.
           dangerouslySetInnerHTML={{ __html: content }}
         />
       );
@@ -201,289 +202,310 @@ export default function ShapeCard({
   }, [type, content, shape.name]);
 
   // ─── Handlers ───
-  const handleCopy = async () => {
+  const handleCopySource = async () => {
     try {
       await navigator.clipboard.writeText(content || "");
-      message.success("Source copied to clipboard");
+      toast.success("Source copied to clipboard");
     } catch {
-      message.error("Could not copy");
+      toast.error("Could not copy");
     }
   };
 
   const handleUseInDiagram = async () => {
     try {
       await navigator.clipboard.writeText(content || "");
-      message.success("Source copied — paste it into your open diagram");
+      toast.success("Source copied — paste it into your open diagram");
     } catch {
-      message.info("Open a flow and add this shape from the editor library");
+      toast.info("Open a flow and add this shape from the editor library");
     }
   };
 
   return (
     <>
-      <Card
-        hoverable
+      {/* ── Card shell — matches FlowCard rounded-[12px] + border + shadow ── */}
+      <div
         style={{
           borderRadius: 12,
           overflow: "hidden",
           border: "1px solid #F0F0F0",
+          background: "#fff",
           transition: "transform .15s ease, box-shadow .15s ease",
+          cursor: "pointer",
         }}
-        styles={{ body: { padding: 12 } }}
-        cover={
-          <div
-            onClick={() => setPreviewOpen(true)}
-            style={{
-              height: 140,
-              background: meta.bg,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 16,
-              borderBottom: "1px solid #F0F0F0",
-              position: "relative",
-              cursor: "pointer",
-            }}
-          >
-            {previewBody || (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 6,
-                  color: meta.color,
-                }}
-              >
-                <div style={{ fontSize: 28 }}>{meta.icon}</div>
-                <Text style={{ fontSize: 11, color: meta.color }}>
-                  No content
-                </Text>
-              </div>
-            )}
-            <Tag
-              color={meta.color}
+        className="hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
+      >
+        {/* ── Thumbnail area — same proportions as FlowCard cover (160px) ── */}
+        <div
+          onClick={() => setPreviewOpen(true)}
+          style={{
+            height: 160,
+            background: meta.bg,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            borderBottom: "1px solid #F0F0F0",
+            position: "relative",
+            cursor: "pointer",
+          }}
+        >
+          {previewBody || (
+            <div
               style={{
-                position: "absolute",
-                top: 8,
-                left: 8,
-                fontSize: 10,
-                fontWeight: 600,
-                margin: 0,
-                borderRadius: 4,
-                padding: "0 6px",
-                lineHeight: "18px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 6,
+                color: meta.color,
               }}
             >
-              {meta.label}
-            </Tag>
-          </div>
-        }
-        actions={[
-          <Tooltip title="Preview" key="preview">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => setPreviewOpen(true)}
-            />
-          </Tooltip>,
-          <Tooltip title="Copy source" key="copy">
-            <Button
-              type="text"
-              icon={<CopyOutlined />}
-              onClick={handleCopy}
-              disabled={!content}
-            />
-          </Tooltip>,
-          ...(onMove
-            ? [
-                <Dropdown
-                  key="move"
-                  trigger={["click"]}
-                  menu={{
-                    items: (moveGroups && moveGroups.length
-                      ? moveGroups.map((g) => ({
-                          key: g.id,
-                          label: g.name,
-                          icon: <FolderOutlined />,
-                          onClick: () => onMove(shape.id, g.id),
-                        }))
-                      : [
-                          {
-                            key: "none",
-                            label: "No other groups",
-                            disabled: true,
-                          },
-                        ]) as MenuProps["items"],
-                  }}
-                >
-                  <Tooltip title="Move to group">
-                    <Button type="text" icon={<FolderOutlined />} />
-                  </Tooltip>
-                </Dropdown>,
-              ]
-            : []),
-          <Tooltip title="Delete" key="delete">
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => onDelete(shape.id)}
-            />
-          </Tooltip>,
-        ]}
-      >
-        <Card.Meta
-          title={
-            <Text strong ellipsis style={{ fontSize: 13 }}>
-              {shape.name || "Untitled Shape"}
-            </Text>
-          }
-          description={
-            <Text
-              type="secondary"
-              style={{ fontSize: 11, display: "block" }}
-              ellipsis
-            >
-              {shape.category || shape.group?.name || "Uncategorized"}
-            </Text>
-          }
-        />
-      </Card>
+              <div style={{ fontSize: 48 }}>{meta.icon}</div>
+              <Text style={{ fontSize: 11, color: meta.color }}>
+                No content
+              </Text>
+            </div>
+          )}
+          {/* Type badge — top-left, same placement as FlowCard shared tag */}
+          <Tag
+            color={meta.color}
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              fontSize: 10,
+              fontWeight: 600,
+              margin: 0,
+              borderRadius: 4,
+              padding: "0 6px",
+              lineHeight: "18px",
+            }}
+          >
+            {meta.label}
+          </Tag>
+        </div>
 
-      {/* Preview modal — bigger render + raw source */}
-      <Modal
-        title={
-          <span>
-            {meta.icon}
-            <span style={{ marginLeft: 8 }}>
-              {shape.name || "Shape preview"}
-            </span>{" "}
-            <Tag color={meta.color} style={{ marginLeft: 8, borderRadius: 4 }}>
-              {meta.label}
-            </Tag>
-          </span>
-        }
+        {/* ── Card body — matches FlowCard body padding + layout ── */}
+        <div style={{ padding: "12px 16px" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+            }}
+          >
+            {/* Title + subtitle */}
+            <div style={{ flex: 1, overflow: "hidden", marginRight: 4 }}>
+              <Text
+                strong
+                style={{ fontSize: 14, color: "#1A1A2E", display: "block" }}
+                ellipsis
+              >
+                {shape.name || "Untitled Shape"}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: "#8C8C8C",
+                  display: "block",
+                  marginTop: 2,
+                }}
+                ellipsis
+              >
+                <FolderOutlined style={{ marginRight: 4, fontSize: 10 }} />
+                {groupName}
+              </Text>
+            </div>
+
+            {/* Actions menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(e) => e.stopPropagation()}
+                  className="tw appearance-none cursor-pointer outline-none border-0 bg-transparent w-7 h-7 rounded flex items-center justify-center hover:bg-secondary text-muted-foreground"
+                >
+                  <MoreOutlined />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="tw">
+                <DropdownMenuItem onSelect={() => setPreviewOpen(true)}>
+                  <EyeOutlined />
+                  Preview
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={handleCopySource}
+                  disabled={!content}
+                >
+                  <CopyOutlined />
+                  Copy source
+                </DropdownMenuItem>
+                {onCopy && (
+                  <DropdownMenuItem onSelect={() => onCopy(shape.id)}>
+                    <CopyOutlined />
+                    Copy shape
+                  </DropdownMenuItem>
+                )}
+                {onMove && moveGroups && moveGroups.length > 0 && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <FolderOutlined />
+                      Move to group
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="tw">
+                      {moveGroups.map((g) => (
+                        <DropdownMenuItem
+                          key={g.id}
+                          onSelect={() => onMove(shape.id, g.id)}
+                        >
+                          {g.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => onDelete(shape.id)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <DeleteOutlined />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Preview modal ── */}
+      <ModalShell
         open={previewOpen}
-        onCancel={() => {
+        onClose={() => {
           setPreviewOpen(false);
           setShowRaw(false);
         }}
-        footer={[
-          <Button
-            key="copy"
-            icon={<CopyOutlined />}
-            onClick={handleCopy}
-            disabled={!content}
-          >
-            Copy source
-          </Button>,
-          <Button
-            key="use"
-            type="primary"
-            disabled={!content}
-            onClick={handleUseInDiagram}
-            style={{ background: "#34A881", borderColor: "#34A881" }}
-          >
-            Use in diagram
-          </Button>,
-        ]}
-        width={640}
+        size="xl"
       >
-        {modalPreview}
-
-        {/* Metadata grid */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-            marginTop: 16,
+        <ModalHeader
+          title={shape.name || "Shape preview"}
+          close={() => {
+            setPreviewOpen(false);
+            setShowRaw(false);
           }}
-        >
-          <div
-            style={{
-              background: "#F8F9FA",
-              borderRadius: 8,
-              padding: "8px 12px",
-            }}
-          >
-            <div style={{ fontSize: 10, color: "#8C8C8C", fontWeight: 700 }}>
-              TYPE
-            </div>
-            <div style={{ fontSize: 13, color: "#1F2937", fontWeight: 600 }}>
-              {meta.label}
-            </div>
-          </div>
-          <div
-            style={{
-              background: "#F8F9FA",
-              borderRadius: 8,
-              padding: "8px 12px",
-            }}
-          >
-            <div style={{ fontSize: 10, color: "#8C8C8C", fontWeight: 700 }}>
-              GROUP
-            </div>
-            <div style={{ fontSize: 13, color: "#1F2937", fontWeight: 600 }}>
-              {groupName}
-            </div>
-          </div>
-        </div>
+        />
+        <div className="tw px-5 pb-2">
+          {modalPreview}
 
-        {/* Source — never dump raw base64; show note + collapsible toggle */}
-        <div style={{ marginTop: 16 }}>
-          {content ? (
-            <>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                }}
-              >
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {type === "image"
-                    ? "Image source available"
-                    : "Shape source available"}
-                </Text>
-                <Button
-                  type="link"
-                  size="small"
-                  onClick={() => setShowRaw((v) => !v)}
-                  style={{ padding: 0 }}
-                >
-                  {showRaw ? "Hide raw ▲" : "Show raw ▼"}
-                </Button>
+          {/* Metadata grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+              marginTop: 16,
+            }}
+          >
+            <div
+              style={{
+                background: "#F8F9FA",
+                borderRadius: 8,
+                padding: "8px 12px",
+              }}
+            >
+              <div style={{ fontSize: 10, color: "#8C8C8C", fontWeight: 700 }}>
+                TYPE
               </div>
-              {showRaw && (
-                <Paragraph
+              <div style={{ fontSize: 13, color: "#1F2937", fontWeight: 600 }}>
+                {meta.label}
+              </div>
+            </div>
+            <div
+              style={{
+                background: "#F8F9FA",
+                borderRadius: 8,
+                padding: "8px 12px",
+              }}
+            >
+              <div style={{ fontSize: 10, color: "#8C8C8C", fontWeight: 700 }}>
+                GROUP
+              </div>
+              <div style={{ fontSize: 13, color: "#1F2937", fontWeight: 600 }}>
+                {groupName}
+              </div>
+            </div>
+          </div>
+
+          {/* Source — collapsible */}
+          <div style={{ marginTop: 16 }}>
+            {content ? (
+              <>
+                <div
                   style={{
-                    marginTop: 8,
-                    marginBottom: 0,
-                    background: "#F8F9FA",
-                    padding: 12,
-                    borderRadius: 8,
-                    fontSize: 11,
-                    fontFamily: "monospace",
-                    maxHeight: 200,
-                    overflow: "auto",
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-all",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
                   }}
                 >
-                  {content}
-                </Paragraph>
-              )}
-            </>
-          ) : (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              (no source)
-            </Text>
-          )}
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {type === "image"
+                      ? "Image source available"
+                      : "Shape source available"}
+                  </Text>
+                  <button
+                    type="button"
+                    onClick={() => setShowRaw((v) => !v)}
+                    className="appearance-none cursor-pointer outline-none border-0 bg-transparent text-primary text-xs font-medium p-0"
+                  >
+                    {showRaw ? "Hide raw ▲" : "Show raw ▼"}
+                  </button>
+                </div>
+                {showRaw && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      background: "#F8F9FA",
+                      padding: 12,
+                      borderRadius: 8,
+                      fontSize: 11,
+                      fontFamily: "monospace",
+                      maxHeight: 200,
+                      overflow: "auto",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {content}
+                  </div>
+                )}
+              </>
+            ) : (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                (no source)
+              </Text>
+            )}
+          </div>
         </div>
-      </Modal>
+        {/* Modal footer — two action buttons */}
+        <div className="p-5 pt-4 border-t border-border flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={!content}
+            onClick={handleCopySource}
+            className="appearance-none cursor-pointer outline-none h-10 px-5 rounded-xl border border-border bg-card font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Copy source
+          </button>
+          <button
+            type="button"
+            disabled={!content}
+            onClick={handleUseInDiagram}
+            className="appearance-none cursor-pointer outline-none border-0 h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            Use in diagram
+          </button>
+        </div>
+      </ModalShell>
     </>
   );
 }

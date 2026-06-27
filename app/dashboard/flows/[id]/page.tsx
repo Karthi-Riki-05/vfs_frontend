@@ -4,7 +4,7 @@ import React from "react";
 import EditorView from "@/components/flows/EditorView";
 import EditorFABs from "@/components/editor/EditorFABs";
 import { useParams, useSearchParams } from "next/navigation";
-import { message } from "antd";
+import { toast } from "sonner";
 
 export default function FlowEditorPage() {
   const params = useParams();
@@ -13,7 +13,7 @@ export default function FlowEditorPage() {
   const isViewMode = searchParams?.get("view") === "true";
 
   if (!id || id === "undefined" || id === "null") {
-    message.error("Invalid flow ID");
+    toast.error("Invalid flow ID");
     return (
       <div
         style={{

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "@/lib/axios";
 import { ArrowLeft } from "lucide-react";
@@ -104,11 +104,11 @@ export default function VerifyOtpForm() {
     setLoading(true);
     try {
       await axios.post("/auth/verify-otp", { email, otp });
-      message.success("Email verified! You can log in now.");
+      toast.success("Email verified! You can log in now.");
       router.push("/login?verified=1");
     } catch (err: any) {
       const msg = err.response?.data?.error?.message || "Verification failed";
-      message.error(msg);
+      toast.error(msg);
       setError(msg);
     } finally {
       setLoading(false);
@@ -129,13 +129,13 @@ export default function VerifyOtpForm() {
     setResending(true);
     try {
       await axios.post("/auth/resend-verification", { email });
-      message.success(
+      toast.success(
         "If your account exists and is unverified, a code was sent.",
       );
       setInfo(`A new code was sent to ${email}.`);
       setCooldown(45);
     } catch {
-      message.error("Could not send a new code. Try again later.");
+      toast.error("Could not send a new code. Try again later.");
     } finally {
       setResending(false);
     }
