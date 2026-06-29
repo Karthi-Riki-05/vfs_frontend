@@ -197,9 +197,9 @@ export default function LoginForm() {
     signIn(provider, { callbackUrl: getPostLoginDashboardUrl() });
 
   const Shell = isDesktop ? DesktopAuthShell : AuthShell;
-  const desktopTitle = isDesktop ? "Holla, Welcome Back" : "Welcome back";
+  const desktopTitle = isDesktop ? "Hey, Welcome Back" : "Welcome back";
   const desktopSubtitle = isDesktop
-    ? "Hey, welcome back to your special place"
+    ? "Sign in to your account to continue"
     : "Sign in to your account to continue";
 
   // Shared status banners — identical on mobile and desktop.

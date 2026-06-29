@@ -1,344 +1,215 @@
 "use client";
 
-import React from "react";
-import { Input, Row, Col, Typography } from "antd";
+import React, { useState } from "react";
 import {
-  RocketOutlined,
-  PartitionOutlined,
-  AppstoreOutlined,
-  TeamOutlined,
-  CreditCardOutlined,
-  ApiOutlined,
-  ArrowRightOutlined,
-  SearchOutlined,
-  MailOutlined,
-  GlobalOutlined,
-} from "@ant-design/icons";
-import SectionHeader from "@/components/common/SectionHeader";
-import { useAuth } from "@/hooks/useAuth";
-import { useIsMobile } from "@/hooks/useMediaQuery";
-
-const { Text } = Typography;
-const { Search } = Input;
+  Rocket,
+  GitBranch,
+  LayoutGrid,
+  Users,
+  CreditCard,
+  Plug,
+  ChevronRight,
+  Search,
+  Mail,
+  Globe,
+} from "lucide-react";
 
 const helpCards = [
   {
-    icon: <RocketOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
+    icon: Rocket,
     title: "Getting Started",
     description:
       "Learn the basics of creating your first value chart and navigating the dashboard.",
     href: "mailto:support@valuecharts.com?subject=Help%3A%20Getting%20Started",
   },
   {
-    icon: <PartitionOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
+    icon: GitBranch,
     title: "Flow Editor",
     description:
       "Master the flow editor with tips on connections, layouts, and keyboard shortcuts.",
     href: "/dashboard/flows",
   },
   {
-    icon: <AppstoreOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
+    icon: LayoutGrid,
     title: "Shapes Library",
     description:
       "Explore built-in shapes, upload custom shapes, and manage your shape collections.",
     href: "/dashboard/shapes",
   },
   {
-    icon: <TeamOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
+    icon: Users,
     title: "Team Collaboration",
     description:
       "Invite team members, manage roles, and collaborate on shared flows in real-time.",
     href: "/dashboard/teams",
   },
   {
-    icon: <CreditCardOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
+    icon: CreditCard,
     title: "Billing & Plans",
     description:
       "Understand pricing tiers, manage your subscription, and view billing history.",
     href: "/dashboard/subscription",
   },
-  {
-    icon: <ApiOutlined style={{ fontSize: 28, color: "#3CB371" }} />,
-    title: "API & Integrations",
-    description:
-      "Connect with external tools, use our REST API, and set up webhooks.",
-    href: "mailto:support@valuecharts.com?subject=Help%3A%20API%20%26%20Integrations",
-  },
+  // {
+  //   icon: Plug,
+  //   title: "API & Integrations",
+  //   description:
+  //     "Connect with external tools, use our REST API, and set up webhooks.",
+  //   href: "mailto:support@valuecharts.com?subject=Help%3A%20API%20%26%20Integrations",
+  // },
 ];
 
 export default function SupportPage() {
-  const { user } = useAuth();
-  const isMobile = useIsMobile();
+  const [query, setQuery] = useState("");
+
+  const filtered = query.trim()
+    ? helpCards.filter(
+        (c) =>
+          c.title.toLowerCase().includes(query.toLowerCase()) ||
+          c.description.toLowerCase().includes(query.toLowerCase()),
+      )
+    : helpCards;
 
   return (
-    <div
-      style={{
-        maxWidth: 1200,
-        margin: "0 auto",
-        padding: isMobile ? "0 16px" : "0 24px",
-      }}
-    >
-      <SectionHeader title="GET SUPPORT" />
-
-      {/* AI Help Banner */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #3CB371 0%, #2E8B57 100%)",
-          borderRadius: 16,
-          padding: isMobile ? "32px 20px" : "40px 32px",
-          marginBottom: 32,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        {/* Decorative circles */}
-        <div
-          style={{
-            position: "absolute",
-            top: -40,
-            right: -40,
-            width: 160,
-            height: 160,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.08)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: -20,
-            right: 80,
-            width: 80,
-            height: 80,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.06)",
-          }}
-        />
-
-        <h2
-          style={{
-            color: "#fff",
-            fontSize: 28,
-            fontWeight: 700,
-            fontFamily: "Inter, sans-serif",
-            margin: "0 0 8px 0",
-          }}
-        >
-          How can we help?
-        </h2>
-        <Text
-          style={{
-            color: "rgba(255,255,255,0.85)",
-            fontSize: 15,
-            display: "block",
-            marginBottom: 20,
-          }}
-        >
-          Search our knowledge base or browse topics below
-        </Text>
-
-        <div style={{ maxWidth: 520, position: "relative", zIndex: 1 }}>
-          <Search
-            placeholder="Search for help articles..."
-            size="large"
-            prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-            style={{ width: "100%" }}
-            styles={{
-              input: {
-                borderRadius: "8px 0 0 8px",
-                height: 48,
-                border: "none",
-                fontSize: 15,
-                fontFamily: "Inter, sans-serif",
-              },
-            }}
-            enterButton={
-              <span
-                style={{
-                  fontWeight: 600,
-                  fontSize: 14,
-                }}
-              >
-                Search
-              </span>
-            }
-            onSearch={(_value) => {}}
-          />
+    <div className="tw min-h-screen" style={{ background: "#f5f7f6" }}>
+      <div className="px-5 pt-5 pb-28 lg:pb-10 max-w-[1200px] mx-auto space-y-6">
+        {/* Page heading */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
+            Support
+          </p>
+          <h1 className="text-[28px] lg:text-[32px] font-extrabold tracking-tight text-foreground leading-tight">
+            How can we help?
+          </h1>
         </div>
-      </div>
 
-      {/* Help Cards Grid */}
-      <Row gutter={[20, 20]} style={{ marginBottom: 40 }}>
-        {helpCards.map((card, idx) => (
-          <Col xs={24} sm={12} md={8} key={idx}>
+        {/* Hero banner — bg layer uses overflow-hidden for circles; outer has no clip so search button is never cut */}
+        <div
+          className="relative rounded-3xl shadow-card text-white"
+          style={{ minHeight: 0 }}
+        >
+          {/* gradient + decorative circles — clipped to rounded corners */}
+          <div className="absolute inset-0 rounded-3xl overflow-hidden bg-gradient-to-br from-[#1F7D5E] via-primary to-[#2A9272]">
+            <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/10" />
+            <div className="absolute bottom-[-20px] right-20 w-20 h-20 rounded-full bg-white/6" />
+          </div>
+          {/* content — outside overflow-hidden so nothing clips */}
+          <div className="relative z-10 px-6 pt-6 pb-6 lg:px-10 lg:pt-8 lg:pb-8">
+            <p className="text-white/80 text-sm mb-4">
+              Search our knowledge base or browse topics below
+            </p>
+            <div
+              className="flex items-center gap-2 px-4"
+              style={{ backgroundColor: "#ffffff", borderRadius: 12 }}
+            >
+              <Search size={16} style={{ color: "#9ca3af", flexShrink: 0 }} />
+              <input
+                type="text"
+                placeholder="Search for help articles..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  border: "none",
+                  outline: "none",
+                  fontSize: 15,
+                  background: "transparent",
+                  color: "#1f2937",
+                  minWidth: 0,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Help cards grid */}
+        <div>
+          {filtered.length === 0 ? (
+            <div className="rounded-3xl bg-card border border-border shadow-card p-10 text-center text-muted-foreground text-sm">
+              No articles found for &quot;{query}&quot;
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filtered.map((card, idx) => {
+                const Icon = card.icon;
+                return (
+                  <a
+                    key={idx}
+                    href={card.href}
+                    style={{ backgroundColor: "#ffffff" }}
+                    className="group flex flex-col rounded-3xl border border-border shadow-card p-6 no-underline text-inherit transition-all hover:shadow-lg hover:-translate-y-0.5"
+                  >
+                    <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 shrink-0">
+                      <Icon size={20} className="text-primary" />
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[15px] font-bold text-foreground">
+                        {card.title}
+                      </span>
+                      <ChevronRight
+                        size={16}
+                        className="text-muted-foreground group-hover:text-primary transition-colors"
+                      />
+                    </div>
+                    <p className="text-[13px] text-muted-foreground leading-relaxed flex-1 m-0">
+                      {card.description}
+                    </p>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Contact Us */}
+        <div className="rounded-3xl bg-card border border-border shadow-card p-6 lg:p-8">
+          <div className="mb-5">
+            <div className="text-[15px] font-bold text-foreground">
+              Contact Us
+            </div>
+            <div className="text-[13px] text-muted-foreground mt-0.5">
+              Can&apos;t find what you&apos;re looking for? Reach out directly.
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <a
-              href={card.href}
-              style={{
-                background: "#fff",
-                borderRadius: 12,
-                border: "1px solid #F0F0F0",
-                padding: "24px",
-                transition: "box-shadow 0.2s, transform 0.2s",
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-                textDecoration: "none",
-                color: "inherit",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.boxShadow =
-                  "0 8px 24px rgba(0,0,0,0.08)";
-                (e.currentTarget as HTMLAnchorElement).style.transform =
-                  "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.boxShadow = "none";
-                (e.currentTarget as HTMLAnchorElement).style.transform = "none";
-              }}
+              href="mailto:support@valuecharts.com"
+              style={{ backgroundColor: "#e7f6f0" }}
+              className="flex items-center gap-3 p-4 rounded-2xl no-underline group"
             >
-              <div style={{ marginBottom: 16 }}>{card.icon}</div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 8,
-                }}
-              >
-                <Text
-                  style={{ fontSize: 16, fontWeight: 600, color: "#1A1A2E" }}
-                >
-                  {card.title}
-                </Text>
-                <ArrowRightOutlined
-                  style={{ color: "#bfbfbf", fontSize: 14 }}
-                />
-              </div>
-              <Text
-                type="secondary"
-                style={{ fontSize: 13, lineHeight: "1.6", flex: 1 }}
-              >
-                {card.description}
-              </Text>
-            </a>
-          </Col>
-        ))}
-      </Row>
-
-      {/* Contact Us Section */}
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 12,
-          border: "1px solid #F0F0F0",
-          padding: isMobile ? "16px" : "32px",
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 18,
-            fontWeight: 700,
-            color: "#1A1A2E",
-            display: "block",
-            marginBottom: 4,
-          }}
-        >
-          Contact Us
-        </Text>
-        <Text
-          type="secondary"
-          style={{ fontSize: 14, display: "block", marginBottom: 24 }}
-        >
-          Can&apos;t find what you&apos;re looking for? Reach out directly.
-        </Text>
-
-        <Row gutter={[24, 16]}>
-          <Col xs={24} sm={12}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "16px",
-                borderRadius: 10,
-                background: "#F9F9F9",
-              }}
-            >
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  backgroundColor: "rgba(60,179,113,0.1)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <MailOutlined style={{ fontSize: 18, color: "#3CB371" }} />
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <Mail size={18} className="text-primary" />
               </div>
               <div>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: "#1A1A2E",
-                    display: "block",
-                  }}
-                >
+                <div className="text-sm font-semibold text-foreground">
                   Email Support
-                </Text>
-                <a
-                  href="mailto:support@valuecharts.com"
-                  style={{ fontSize: 13, color: "#3CB371" }}
-                >
+                </div>
+                <div className="text-[13px] text-primary group-hover:underline">
                   support@valuecharts.com
-                </a>
+                </div>
               </div>
-            </div>
-          </Col>
-          <Col xs={24} sm={12}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "16px",
-                borderRadius: 10,
-                background: "#F9F9F9",
-              }}
-            >
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  backgroundColor: "rgba(60,179,113,0.1)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <GlobalOutlined style={{ fontSize: 18, color: "#3CB371" }} />
+            </a>
+            {/* <div className="flex items-center gap-3 p-4 rounded-2xl bg-secondary">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <Globe size={18} className="text-primary" />
               </div>
-              <div>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: "#1A1A2E",
-                    display: "block",
-                  }}
-                >
-                  Community
-                </Text>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Join our community forum
-                </Text>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-semibold text-foreground">
+                    Community
+                  </div>
+                  <span className="text-[10px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                    Soon
+                  </span>
+                </div>
+                <div className="text-[13px] text-muted-foreground">
+                  Community forum coming soon
+                </div>
               </div>
-            </div>
-          </Col>
-        </Row>
+            </div> */}
+          </div>
+        </div>
       </div>
     </div>
   );
