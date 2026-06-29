@@ -84,9 +84,19 @@ export default function DashboardLayout({
     if (proLoading || forcedSwitchDone.current) return;
     let mode: string | null = null;
     try {
-      // sessionStorage is per-tab — reads this tab's app context, not a
-      // value potentially overwritten by another tab (Fix 3).
-      mode = sessionStorage.getItem("vc_app_context");
+      // URL path is the ground truth on first dashboard load — covers social
+      // login where vc_app_context is never written during the OAuth redirect.
+      if (pathname?.startsWith("/dashboard/pro")) {
+        mode = "pro";
+        sessionStorage.setItem("vc_app_context", "pro");
+      } else if (pathname?.startsWith("/dashboard/team")) {
+        mode = "team";
+        sessionStorage.setItem("vc_app_context", "team");
+      } else {
+        // sessionStorage is per-tab — reads this tab's app context, not a
+        // value potentially overwritten by another tab (Fix 3).
+        mode = sessionStorage.getItem("vc_app_context");
+      }
     } catch {}
     // console.log("[DashboardLayout] forced-switch effect:", { proLoading, forcedMode: mode, currentApp, hasPro, done: forcedSwitchDone.current });
     if (!mode || (mode !== "team" && mode !== "pro")) return;

@@ -5,6 +5,7 @@ import { Button, Skeleton } from "antd";
 import { ExclamationCircleOutlined, HeartFilled } from "@ant-design/icons";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useAuth } from "@/hooks/useAuth";
+import { usePackStatus } from "@/hooks/usePackStatus";
 import { useRouter } from "next/navigation";
 import {
   Workflow,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import StatCard from "@/components/dashboard/StatCard";
 import MiniFlow from "@/components/dashboard/MiniFlow";
+import { FlowUsageBar } from "@/components/dashboard/FlowUsageBar";
 import { aiApi } from "@/api/ai.api";
 import { subscriptionsApi } from "@/api/subscriptions.api";
 import { useAppContext } from "@/context/AppContext";
@@ -83,6 +85,22 @@ function getTimeAgo(dateStr: string): string {
 
 export default function TeamDashboardPage() {
   const { user } = useAuth();
+  const {
+    status: packStatus,
+    effectiveLimit,
+    effectiveUnlimited,
+  } = usePackStatus();
+  // Shape pack data into the same ProFlows interface FlowUsageBar expects
+  const proFlows =
+    packStatus && effectiveLimit > 0
+      ? {
+          used: packStatus.flowCount,
+          max: effectiveLimit,
+          baseLimit: effectiveLimit,
+          extraPurchased: 0,
+        }
+      : null;
+  const isUnlimited = effectiveUnlimited;
   const router = useRouter();
   const { activeTeamId } = useAppContext();
 
@@ -193,6 +211,17 @@ export default function TeamDashboardPage() {
           >
             Update Card
           </Button>
+        </div>
+      )}
+
+      {/* Flow usage bar */}
+      {proFlows && (
+        <div className="px-5 pt-3 lg:px-8 lg:pt-6">
+          <FlowUsageBar
+            proFlows={proFlows}
+            isUnlimited={isUnlimited}
+            onBuyMore={() => router.push("/dashboard/subscription")}
+          />
         </div>
       )}
 
@@ -510,14 +539,19 @@ export default function TeamDashboardPage() {
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1F7D5E] via-primary to-[#2A9272] p-6 text-white shadow-card">
             <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/10" />
             <div className="flex items-center gap-2">
-              <Crown className="w-4 h-4 text-[#FFD27A]" />
+              {isTeamPlan ? (
+                <Crown className="w-4 h-4 text-[#FFD27A]" />
+              ) : (
+                <Gift className="w-4 h-4 text-[#FFD27A]" />
+              )}
               <span className="text-[11px] font-bold tracking-wider uppercase">
-                Team Plan
+                {!subLoaded ? "—" : isTeamPlan ? "Team Plan" : "Free Plan"}
               </span>
             </div>
             <div className="mt-2 text-2xl font-extrabold">
-              {loading ? "—" : (stats?.teamMembers ?? 0)}{" "}
-              <span className="text-sm font-medium text-white/80">members</span>
+              {isTeamPlan
+                ? `${loading ? "—" : (stats?.teamMembers ?? 0)} members`
+                : "No active subscription"}
             </div>
             {aiCredits != null && (
               <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-xs font-semibold">
@@ -526,14 +560,17 @@ export default function TeamDashboardPage() {
               </div>
             )}
             <div className="mt-3 text-xs text-white/85">
-              Manage your team plan, billing, and member access.
+              {isTeamPlan
+                ? "Manage your team plan, billing, and member access."
+                : "Upgrade to a Team plan to collaborate"}
             </div>
             <button
               onClick={() => router.push("/dashboard/subscription")}
               className="bg-transparent border-0 p-0 appearance-none cursor-pointer mt-6 h-10 px-4 rounded-xl font-bold text-sm inline-flex items-center gap-2 text-[#1F7D5E]"
               style={{ background: "white" }}
             >
-              Manage Subscription <ChevronRight className="w-4 h-4" />
+              {isTeamPlan ? "Manage Subscription" : "View Plans"}{" "}
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>

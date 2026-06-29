@@ -96,16 +96,18 @@ export const authOptions: NextAuthOptions = {
             },
           );
           if (response.data?.success && response.data?.data) {
-            // Store backend user ID and role on the user object for the jwt callback
-            (user as any).backendId = response.data.data.id;
-            (user as any).role = response.data.data.role;
-            (user as any).hasPro = response.data.data.hasPro;
-            (user as any).currentVersion = response.data.data.currentVersion;
-            (user as any).hasTeamAccess = response.data.data.hasTeamAccess;
+            const data = response.data.data;
+            // Block super_admin accounts from using the OAuth login path
+            if (data.role === "super_admin") return false;
+            (user as any).backendId = data.id;
+            (user as any).role = data.role;
+            (user as any).hasPro = data.hasPro;
+            (user as any).currentVersion = data.currentVersion;
+            (user as any).hasTeamAccess = data.hasTeamAccess;
           }
         } catch (error) {
           console.error("OAuth sync error:", error);
-          return false;
+          return "/login?error=OAuthBackendDown";
         }
       }
       return true;
@@ -119,10 +121,9 @@ export const authOptions: NextAuthOptions = {
         token.hasPro = (user as any).hasPro;
         token.currentVersion = (user as any).currentVersion;
         token.hasTeamAccess = (user as any).hasTeamAccess ?? false;
-        // "Remember me": 30-day session when checked, else 24-hour default.
-        // The session/jwt cookie ceiling is 30 days; this token.exp is the
-        // real cutoff that distinguishes the two cases.
-        const rememberMe = (user as any).remember === true;
+        // Credentials: honor remember-me checkbox. OAuth: always 30-day session.
+        const rememberMe =
+          (user as any).remember === true || !!(user as any).backendId;
         token.exp =
           Math.floor(Date.now() / 1000) +
           (rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);

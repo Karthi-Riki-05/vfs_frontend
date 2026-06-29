@@ -8,6 +8,7 @@ import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { getLogoForApp } from "@/lib/getLogo";
 import { useAppBrand } from "@/hooks/useAppBrand";
 import { getPostLoginDashboardUrl } from "@/lib/postLoginRedirect";
+import { getClientAppType } from "@/lib/detectWebView";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
 import AuthShell from "./AuthShell";
 import DesktopAuthShell from "./DesktopAuthShell";
@@ -193,8 +194,15 @@ export default function LoginForm() {
     });
   };
 
-  const socialLogin = (provider: "google" | "linkedin" | "facebook") =>
-    signIn(provider, { callbackUrl: getPostLoginDashboardUrl() });
+  const socialLogin = (provider: "google" | "linkedin" | "facebook") => {
+    // Use UA detection only — ignore ?callbackUrl= URL param so a stale
+    // /dashboard/pro param from a previous session never overrides the
+    // correct landing page for web users.
+    const appType = getClientAppType();
+    const callbackUrl =
+      appType === "pro" ? "/dashboard/pro" : "/dashboard/team";
+    return signIn(provider, { callbackUrl });
+  };
 
   const Shell = isDesktop ? DesktopAuthShell : AuthShell;
   const desktopTitle = isDesktop ? "Hey, Welcome Back" : "Welcome back";
