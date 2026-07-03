@@ -121,16 +121,27 @@ export const authOptions: NextAuthOptions = {
         token.hasPro = (user as any).hasPro;
         token.currentVersion = (user as any).currentVersion;
         token.hasTeamAccess = (user as any).hasTeamAccess ?? false;
+        token.lastRefresh = Date.now();
         // Credentials: honor remember-me checkbox. OAuth: always 30-day session.
         const rememberMe =
           (user as any).remember === true || !!(user as any).backendId;
         token.exp =
           Math.floor(Date.now() / 1000) +
           (rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
+        return token;
       }
 
-      // Re-fetch user data from DB when session is explicitly updated
-      if (trigger === "update" && token.id) {
+      // Entitlements (hasPro/currentVersion/hasTeamAccess) are otherwise
+      // frozen at sign-in for the life of the session — up to 30 days with
+      // "remember me". See bug-033. Re-fetch on an explicit session.update()
+      // call, or automatically at most once per REFRESH_INTERVAL so a plan
+      // change / subscription expiry is picked up without forcing a re-login.
+      const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+      const dueForRefresh =
+        !token.lastRefresh ||
+        Date.now() - (token.lastRefresh as number) > REFRESH_INTERVAL_MS;
+
+      if ((trigger === "update" || dueForRefresh) && token.id) {
         try {
           const backendUrl =
             process.env.BACKEND_URL || "http://vc-backend:5000";
@@ -146,7 +157,9 @@ export const authOptions: NextAuthOptions = {
           if (res.data?.success && res.data?.data) {
             token.hasPro = res.data.data.hasPro;
             token.currentVersion = res.data.data.currentVersion;
+            token.hasTeamAccess = res.data.data.hasTeamAccess ?? false;
           }
+          token.lastRefresh = Date.now();
         } catch (err) {
           console.error("Failed to refresh user data on session update:", err);
         }

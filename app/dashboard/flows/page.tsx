@@ -37,6 +37,8 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  Lock,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SectionHeader from "@/components/common/SectionHeader";
@@ -44,7 +46,7 @@ import EmptyState from "@/components/common/EmptyState";
 import ShareFlowModal from "@/components/flows/ShareFlowModal";
 import AssignProjectModal from "@/components/flows/AssignProjectModal";
 import FlowMenuModal from "@/components/flows/FlowMenuModal";
-import { useFlows } from "@/hooks/useFlows";
+import { useFlows, useLockState } from "@/hooks/useFlows";
 import { useTabFocus } from "@/hooks/useTabFocus";
 import { createNewFlow } from "@/lib/flow";
 import api from "@/lib/axios";
@@ -53,6 +55,7 @@ import { TEMPLATE_CATEGORIES } from "@/lib/templateCategories";
 import TemplateBrowser from "@/components/templates/TemplateBrowser";
 import FlowPackBanner from "@/components/flows/FlowPackBanner";
 import { usePackStatus } from "@/hooks/usePackStatus";
+import { FlowUsageBar } from "@/components/dashboard/FlowUsageBar";
 import { useProjects } from "@/hooks/useProjects";
 import MiniFlow from "@/components/dashboard/MiniFlow";
 import { BRAND_GREEN } from "@/lib/theme";
@@ -291,36 +294,6 @@ function LocalViewToggle({
   );
 }
 
-function FlowLimitBar({
-  flowCount,
-  flowLimit,
-  isUnlimited,
-}: {
-  flowCount: number;
-  flowLimit: number;
-  isUnlimited: boolean;
-}) {
-  if (isUnlimited || !flowLimit || flowLimit <= 0) return null;
-  const pct = Math.min((flowCount / flowLimit) * 100, 100);
-  const color = pct > 90 ? "#F5222D" : pct >= 70 ? "#FA8C16" : "#34A881";
-  return (
-    <div className="mb-4">
-      <div className="flex justify-between text-[13px] text-muted-foreground mb-1.5">
-        <span>Flows used</span>
-        <span className="font-semibold" style={{ color }}>
-          {flowCount} / {flowLimit}
-        </span>
-      </div>
-      <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-        <div
-          style={{ width: `${pct}%`, background: color }}
-          className="h-full transition-all duration-300 rounded-full"
-        />
-      </div>
-    </div>
-  );
-}
-
 /* ─────────────────────────────────────────────────────── */
 
 export default function FlowsPage() {
@@ -358,7 +331,21 @@ export default function FlowsPage() {
     effectiveLimit: packLimit,
     effectiveUnlimited: packUnlimited,
   } = usePackStatus();
-  const { activeTeamId } = useAppContext();
+  const { activeTeamId, effectivePlan, hydrated } = useAppContext();
+  const resolvedAppType: "pro" | "team" =
+    effectivePlan === "pro" ? "pro" : "team";
+  const { lockState, lockLoading, markModalShown } = useLockState();
+  const isLocked = lockState.overLimitLocked;
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+
+  // Show one-time modal when locked and not yet shown this cycle
+  useEffect(() => {
+    if (!lockLoading && isLocked && !lockState.overLimitModalShown) {
+      setLockModalOpen(true);
+      markModalShown(resolvedAppType);
+    }
+  }, [lockLoading, isLocked, lockState.overLimitModalShown]);
+
   const [masterFlows, setMasterFlows] = useState<any[]>([]);
   const [masterLoading, setMasterLoading] = useState(false);
   useEffect(() => {
@@ -428,10 +415,22 @@ export default function FlowsPage() {
   };
 
   const handleEdit = (id: string) => {
+    const flow = [...flows, ...sharedFlows].find((f) => f.id === id);
+    const flowLocked = isLocked || !!flow?.markedForDowngrade;
+    if (lockLoading || flowLocked) {
+      if (flowLocked) setLockModalOpen(true);
+      return;
+    }
     window.open(`/dashboard/flows/${id}`, "_blank");
   };
 
+  const hasDowngradedFlows = flows.some((f: any) => f.markedForDowngrade);
+
   const handleNewFlow = () => {
+    if (isLocked || hasDowngradedFlows) {
+      setLockModalOpen(true);
+      return;
+    }
     createNewFlow();
   };
 
@@ -449,7 +448,20 @@ export default function FlowsPage() {
     }
   };
 
+  const openTemplateBrowser = (category: string = "All") => {
+    if (isLocked || hasDowngradedFlows) {
+      setLockModalOpen(true);
+      return;
+    }
+    setTemplateBrowserCategory(category);
+    setTemplateBrowserOpen(true);
+  };
+
   const handleTemplateInsert = async (xml: string, name: string) => {
+    if (isLocked || hasDowngradedFlows) {
+      setLockModalOpen(true);
+      return;
+    }
     setTemplateBrowserOpen(false);
     try {
       const response = await api.post("/flows", {
@@ -492,6 +504,8 @@ export default function FlowsPage() {
     </button>
   );
 
+  if (!hydrated) return null;
+
   return (
     <div className="tw">
       {/* ══════════ MOBILE (<1024px) ══════════ */}
@@ -505,10 +519,10 @@ export default function FlowsPage() {
         />
 
         {packStatus && (
-          <FlowLimitBar
-            flowCount={packStatus.flowCount}
-            flowLimit={packLimit}
+          <FlowUsageBar
+            proFlows={{ used: packStatus.flowCount, max: packLimit }}
             isUnlimited={packUnlimited}
+            onBuyMore={() => router.push("/dashboard/subscription")}
           />
         )}
 
@@ -545,10 +559,7 @@ export default function FlowsPage() {
                 START FROM A TEMPLATE
               </span>
               <button
-                onClick={() => {
-                  setTemplateBrowserCategory("All");
-                  setTemplateBrowserOpen(true);
-                }}
+                onClick={() => openTemplateBrowser("All")}
                 className="text-xs font-semibold text-primary bg-transparent border-0 p-0 appearance-none cursor-pointer"
               >
                 Browse All →
@@ -558,10 +569,7 @@ export default function FlowsPage() {
               {TEMPLATE_CATEGORIES.map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => {
-                    setTemplateBrowserCategory(cat.category);
-                    setTemplateBrowserOpen(true);
-                  }}
+                  onClick={() => openTemplateBrowser(cat.category)}
                   className="rounded-2xl bg-card border border-border overflow-hidden text-left shadow-[var(--shadow-card)] active:scale-[0.98] transition bg-transparent p-0 appearance-none cursor-pointer"
                 >
                   <div
@@ -596,7 +604,7 @@ export default function FlowsPage() {
                     className="flex items-center gap-3 p-3 rounded-2xl bg-card border border-border shadow-[var(--shadow-card)]"
                   >
                     <div
-                      className="w-14 h-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center"
+                      className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center cursor-pointer"
                       style={{
                         background:
                           MOBILE_THUMB_GRADIENTS[
@@ -604,6 +612,7 @@ export default function FlowsPage() {
                               MOBILE_THUMB_GRADIENTS.length
                           ],
                       }}
+                      onClick={() => handleEdit(flow.id)}
                     >
                       {flow.thumbnail ? (
                         <img
@@ -613,6 +622,11 @@ export default function FlowsPage() {
                         />
                       ) : (
                         <MiniFlow color={BRAND_GREEN} />
+                      )}
+                      {(isLocked || !!flow?.markedForDowngrade) && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl">
+                          <Lock className="w-4 h-4 text-white" />
+                        </div>
                       )}
                     </div>
                     <div
@@ -666,6 +680,16 @@ export default function FlowsPage() {
                           />
                         ) : (
                           <MiniFlow color={BRAND_GREEN} />
+                        )}
+                        {(isLocked || !!flow?.markedForDowngrade) && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
+                            <div className="flex flex-col items-center gap-1">
+                              <Lock className="w-6 h-6 text-white drop-shadow" />
+                              <span className="text-white text-[10px] font-semibold drop-shadow">
+                                Locked
+                              </span>
+                            </div>
+                          </div>
                         )}
                       </div>
                       <div className="p-3 pr-9">
@@ -744,10 +768,10 @@ export default function FlowsPage() {
       {/* ══════════ DESKTOP (≥1024px) ══════════ */}
       <div className="hidden lg:block md:max-w-6xl md:mx-auto md:px-8 pt-6 pb-10">
         {packStatus && (
-          <FlowLimitBar
-            flowCount={packStatus.flowCount}
-            flowLimit={packLimit}
+          <FlowUsageBar
+            proFlows={{ used: packStatus.flowCount, max: packLimit }}
             isUnlimited={packUnlimited}
+            onBuyMore={() => router.push("/dashboard/subscription")}
           />
         )}
         <FlowPackBanner />
@@ -834,10 +858,7 @@ export default function FlowsPage() {
               Start from a template
             </span>
             <button
-              onClick={() => {
-                setTemplateBrowserCategory("All");
-                setTemplateBrowserOpen(true);
-              }}
+              onClick={() => openTemplateBrowser("All")}
               className="flex items-center gap-1 text-xs font-semibold text-primary bg-transparent border-0 p-0 cursor-pointer"
             >
               Browse All
@@ -862,10 +883,7 @@ export default function FlowsPage() {
             {TEMPLATE_CATEGORIES.map((cat) => (
               <button
                 key={cat.id}
-                onClick={() => {
-                  setTemplateBrowserCategory(cat.category);
-                  setTemplateBrowserOpen(true);
-                }}
+                onClick={() => openTemplateBrowser(cat.category)}
                 className="group flex flex-col items-center gap-3 p-4 rounded-2xl bg-card border border-border cursor-pointer text-left transition-all hover:border-primary/60 hover:shadow-md hover:-translate-y-0.5 appearance-none"
               >
                 <div
@@ -919,7 +937,7 @@ export default function FlowsPage() {
                       className="w-full text-left appearance-none border-0 p-0 bg-transparent cursor-pointer"
                     >
                       <div
-                        className="h-28 flex items-center justify-center overflow-hidden"
+                        className="h-28 relative flex items-center justify-center overflow-hidden"
                         style={{ background: `${BRAND_GREEN}14` }}
                       >
                         {flow.thumbnail ? (
@@ -930,6 +948,14 @@ export default function FlowsPage() {
                           />
                         ) : (
                           <MiniFlow color={BRAND_GREEN} />
+                        )}
+                        {(isLocked || !!flow?.markedForDowngrade) && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40 backdrop-blur-[1px]">
+                            <Lock className="w-6 h-6 text-white drop-shadow" />
+                            <span className="text-white text-[10px] font-semibold drop-shadow">
+                              Locked
+                            </span>
+                          </div>
                         )}
                       </div>
                       <div className="p-3 pr-10">
@@ -966,8 +992,9 @@ export default function FlowsPage() {
                     className="flex items-center gap-3 p-3 rounded-2xl bg-card border border-border shadow-[var(--shadow-card)]"
                   >
                     <div
-                      className="w-14 h-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center"
+                      className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center cursor-pointer"
                       style={{ background: `${BRAND_GREEN}1a` }}
+                      onClick={() => handleEdit(flow.id)}
                     >
                       {flow.thumbnail ? (
                         <img
@@ -977,6 +1004,11 @@ export default function FlowsPage() {
                         />
                       ) : (
                         <MiniFlow color={BRAND_GREEN} />
+                      )}
+                      {(isLocked || !!flow?.markedForDowngrade) && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl">
+                          <Lock className="w-4 h-4 text-white" />
+                        </div>
                       )}
                     </div>
                     <div
@@ -1111,7 +1143,7 @@ export default function FlowsPage() {
                       className="w-full text-left appearance-none border-0 p-0 bg-transparent cursor-pointer"
                     >
                       <div
-                        className="h-28 flex items-center justify-center overflow-hidden"
+                        className="h-28 relative flex items-center justify-center overflow-hidden"
                         style={{ background: `${BRAND_GREEN}14` }}
                       >
                         {flow.thumbnail ? (
@@ -1122,6 +1154,14 @@ export default function FlowsPage() {
                           />
                         ) : (
                           <MiniFlow color={BRAND_GREEN} />
+                        )}
+                        {(isLocked || !!flow?.markedForDowngrade) && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40 backdrop-blur-[1px]">
+                            <Lock className="w-6 h-6 text-white drop-shadow" />
+                            <span className="text-white text-[10px] font-semibold drop-shadow">
+                              Locked
+                            </span>
+                          </div>
                         )}
                       </div>
                       <div className="p-3 pr-10">
@@ -1265,6 +1305,7 @@ export default function FlowsPage() {
       <FlowMenuModal
         open={flowMenu.open}
         flow={flowMenu.flow}
+        locked={isLocked || !!flowMenu.flow?.markedForDowngrade}
         onClose={() => setFlowMenu({ open: false, flow: null })}
         onEdit={() => handleEdit(flowMenu.flow.id)}
         onToggleFavorite={() => favoriteFlow(flowMenu.flow.id)}
@@ -1403,6 +1444,77 @@ export default function FlowsPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* ── Over-limit lock modal ── */}
+      {lockModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-card rounded-3xl shadow-2xl border border-border overflow-hidden">
+            {/* Close button */}
+            <div className="flex justify-end px-4 pt-4">
+              <button
+                onClick={() => setLockModalOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-secondary border-0 cursor-pointer text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Header */}
+            <div className="flex flex-col items-center gap-3 px-6 pt-2 pb-5 text-center">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-red-50 border border-red-100">
+                <Lock className="w-7 h-7 text-red-500" />
+              </div>
+              <h2 className="text-lg font-bold text-foreground">
+                {isLocked ? "Your flows are locked" : "This flow is locked"}
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {isLocked ? (
+                  <>
+                    You have{" "}
+                    <span className="font-semibold text-foreground">
+                      {lockState.flowUsed ?? "—"}
+                    </span>{" "}
+                    flows but your plan allows{" "}
+                    <span className="font-semibold text-foreground">
+                      {lockState.totCount ?? "—"}
+                    </span>
+                    . All flows are locked until you resolve this.
+                  </>
+                ) : (
+                  <>
+                    This flow is over your plan&apos;s limit. Upgrade your plan
+                    to unlock it.
+                  </>
+                )}
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2 px-6 pb-7">
+              <button
+                onClick={() => {
+                  setLockModalOpen(false);
+                  router.push("/dashboard/subscription");
+                }}
+                className="w-full h-12 rounded-2xl font-bold text-sm text-white border-0 cursor-pointer"
+                style={{ background: "#34A881" }}
+              >
+                Upgrade Plan
+              </button>
+              {isLocked && (
+                <button
+                  onClick={() => {
+                    setLockModalOpen(false);
+                    router.push("/dashboard/limitflows");
+                  }}
+                  className="w-full h-12 rounded-2xl font-semibold text-sm border border-border bg-secondary text-foreground cursor-pointer"
+                >
+                  Limit to {lockState.totCount ?? "—"} flows
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

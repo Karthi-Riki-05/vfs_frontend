@@ -3,6 +3,7 @@
 import React from "react";
 import EditorView from "@/components/flows/EditorView";
 import EditorFABs from "@/components/editor/EditorFABs";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useParams, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -33,9 +34,11 @@ export default function FlowEditorPage() {
   }
 
   return (
-    <div style={{ height: "100dvh", width: "100vw" }}>
-      <EditorView flowId={id} isViewMode={isViewMode} />
-      {!isViewMode && <EditorFABs />}
-    </div>
+    <TooltipProvider>
+      <div style={{ height: "100dvh", width: "100vw" }}>
+        <EditorView flowId={id} isViewMode={isViewMode} />
+        {!isViewMode && <EditorFABs />}
+      </div>
+    </TooltipProvider>
   );
 }

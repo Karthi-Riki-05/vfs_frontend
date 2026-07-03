@@ -17,6 +17,8 @@ import {
   ChevronRight,
   List as ListIcon,
   LayoutGrid,
+  Lock,
+  X,
 } from "lucide-react";
 import { flowsApi } from "@/api/flows.api";
 import { timeAgo } from "@/lib/flowUtils";
@@ -24,6 +26,7 @@ import { useTabFocus } from "@/hooks/useTabFocus";
 import { useAppContext } from "@/context/AppContext";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
 import MiniFlow from "@/components/dashboard/MiniFlow";
+import { useLockState } from "@/hooks/useFlows";
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
 const FLOW_COLORS = [
@@ -120,6 +123,9 @@ export default function FavouritesPage() {
   const [flows, setFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"list" | "grid">("grid");
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const { lockState } = useLockState();
+  const isLocked = lockState.overLimitLocked;
 
   // activeTeamId in deps → re-scopes + refetches the favourites bucket on
   // switch. The X-Team-Context header is attached by the axios interceptor,
@@ -149,8 +155,13 @@ export default function FavouritesPage() {
   // so another bucket's starred flows never flash before the in-place refetch.
   useEffect(() => onWorkspaceFlush(() => setFlows([])), []);
 
-  const handleEdit = (id: string) => {
-    window.open(`/dashboard/flows/${id}`, "_blank");
+  const handleEdit = (flow: any) => {
+    const flowLocked = isLocked || !!flow?.markedForDowngrade;
+    if (flowLocked) {
+      setLockModalOpen(true);
+      return;
+    }
+    window.open(`/dashboard/flows/${flow.id}`, "_blank");
   };
 
   // All items here are favourites — toggling removes them from the list.
@@ -165,20 +176,27 @@ export default function FavouritesPage() {
     }
   };
 
-  const getMenuItems = (flow: any) => [
-    {
-      key: "edit",
-      label: "Edit",
-      icon: <EditOutlined />,
-      onClick: () => handleEdit(flow.id),
-    },
-    {
-      key: "unfavorite",
-      label: "Remove from Favourites",
-      icon: <HeartFilled style={{ color: "#F85729" }} />,
-      onClick: () => toggleFavourite(flow.id),
-    },
-  ];
+  const getMenuItems = (flow: any) => {
+    const flowLocked = isLocked || !!flow?.markedForDowngrade;
+    return [
+      ...(!flowLocked
+        ? [
+            {
+              key: "edit",
+              label: "Edit",
+              icon: <EditOutlined />,
+              onClick: () => handleEdit(flow),
+            },
+          ]
+        : []),
+      {
+        key: "unfavorite",
+        label: "Remove from Favourites",
+        icon: <HeartFilled style={{ color: "#F85729" }} />,
+        onClick: () => toggleFavourite(flow.id),
+      },
+    ];
+  };
 
   // ─── Loading skeleton ──────────────────────────────────────────────────────
   if (loading) {
@@ -213,7 +231,15 @@ export default function FavouritesPage() {
             </p>
           </div>
           {flows.length > 0 && (
-            <ViewToggleLocal view={view} onChange={setView} />
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={() => router.push("/dashboard/flows")}
+                className="h-9 px-4 rounded-xl bg-primary text-white text-xs font-semibold border-0 appearance-none cursor-pointer inline-flex items-center gap-1"
+              >
+                See all flows <ChevronRight className="w-3 h-3" />
+              </button>
+              <ViewToggleLocal view={view} onChange={setView} />
+            </div>
           )}
         </div>
 
@@ -242,6 +268,7 @@ export default function FavouritesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {flows.map((flow: any, index: number) => {
               const color = FLOW_COLORS[index % FLOW_COLORS.length];
+              const flowLocked = isLocked || !!flow?.markedForDowngrade;
               return (
                 <div
                   key={flow.id}
@@ -253,7 +280,7 @@ export default function FavouritesPage() {
                     style={{ background: `${color}14` }}
                   >
                     <button
-                      onClick={() => handleEdit(flow.id)}
+                      onClick={() => handleEdit(flow)}
                       className="w-full h-full block bg-transparent border-0 p-0 appearance-none cursor-pointer"
                       aria-label={`Open ${flow.name}`}
                     >
@@ -267,6 +294,16 @@ export default function FavouritesPage() {
                         <MiniFlow color={color} />
                       )}
                     </button>
+                    {flowLocked && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] pointer-events-none">
+                        <div className="flex flex-col items-center gap-1">
+                          <Lock className="w-5 h-5 text-white drop-shadow" />
+                          <span className="text-white text-[10px] font-semibold drop-shadow">
+                            Locked
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -281,7 +318,7 @@ export default function FavouritesPage() {
                   {/* Info row */}
                   <div className="flex items-center gap-2 px-3 py-2.5 min-w-0">
                     <button
-                      onClick={() => handleEdit(flow.id)}
+                      onClick={() => handleEdit(flow)}
                       className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 appearance-none cursor-pointer overflow-hidden"
                     >
                       <div className="font-semibold text-[13px] truncate leading-tight">
@@ -331,20 +368,26 @@ export default function FavouritesPage() {
           <div>
             {flows.map((flow: any, index: number) => {
               const color = FLOW_COLORS[index % FLOW_COLORS.length];
+              const flowLocked = isLocked || !!flow?.markedForDowngrade;
               return (
                 <div
                   key={flow.id}
                   className="w-full flex items-center gap-3 p-3 rounded-2xl bg-card border border-border mb-2"
                 >
                   <button
-                    onClick={() => handleEdit(flow.id)}
+                    onClick={() => handleEdit(flow)}
                     className="flex items-center gap-3 flex-1 min-w-0 text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
                   >
                     <div
-                      className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                      className="relative w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
                       style={{ background: `${color}1a` }}
                     >
                       <Workflow className="w-5 h-5" style={{ color }} />
+                      {flowLocked && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl">
+                          <Lock className="w-4 h-4 text-white" />
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm truncate">
@@ -391,6 +434,73 @@ export default function FavouritesPage() {
           </div>
         )}
       </div>
+
+      {/* ── Lock modal ── */}
+      {lockModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="tw w-full max-w-sm bg-card rounded-3xl shadow-2xl border border-border overflow-hidden">
+            <div className="flex justify-end px-4 pt-4">
+              <button
+                onClick={() => setLockModalOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-secondary border-0 cursor-pointer text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex flex-col items-center gap-3 px-6 pt-2 pb-5 text-center">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-red-50 border border-red-100">
+                <Lock className="w-7 h-7 text-red-500" />
+              </div>
+              <h2 className="text-lg font-bold text-foreground">
+                {isLocked ? "Your flows are locked" : "This flow is locked"}
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {isLocked ? (
+                  <>
+                    You have{" "}
+                    <span className="font-semibold text-foreground">
+                      {lockState.flowUsed ?? "—"}
+                    </span>{" "}
+                    flows but your plan allows{" "}
+                    <span className="font-semibold text-foreground">
+                      {lockState.totCount ?? "—"}
+                    </span>
+                    . All flows are locked until you resolve this.
+                  </>
+                ) : (
+                  <>
+                    This flow is over your plan&apos;s limit. Upgrade your plan
+                    to unlock it.
+                  </>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 px-6 pb-7">
+              <button
+                onClick={() => {
+                  setLockModalOpen(false);
+                  router.push("/dashboard/subscription");
+                }}
+                className="w-full h-12 rounded-2xl font-bold text-sm text-white border-0 cursor-pointer"
+                style={{ background: "#34A881" }}
+              >
+                Upgrade Plan
+              </button>
+              {isLocked && (
+                <button
+                  onClick={() => {
+                    setLockModalOpen(false);
+                    router.push("/dashboard/limitflows");
+                  }}
+                  className="w-full h-12 rounded-2xl font-bold text-sm border border-border bg-secondary text-foreground cursor-pointer"
+                >
+                  Choose flows to keep
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

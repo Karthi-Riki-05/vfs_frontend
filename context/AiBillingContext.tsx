@@ -76,25 +76,30 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
     (session?.user as any)?.id || (session?.user as any)?.email || null;
 
   const [options, setOptions] = useState<BillingOption[]>([PERSONAL_FALLBACK]);
-  // Lazy initializer runs once synchronously on mount — gives the correct
-  // teamId from frame 1, before any async API call. In the Pro app we prefer
-  // vc_pro_team_id over the generic billing key (which page.tsx clears on
-  // ?app=pro entry so the old team-app teamId doesn't pollute first requests).
-  const [activeBillingTeamId, setActive] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
+  // Must start as null on both server and client to avoid a hydration mismatch
+  // (server returns null; a lazy init that reads localStorage would return a
+  // real value on the client and React would throw). The axios interceptor
+  // reads getAiBillingTeamId() directly from localStorage at request time, so
+  // the correct X-Team-Context header is attached regardless of this state.
+  const [activeBillingTeamId, setActive] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Hydrate from localStorage after mount — safe for SSR because it only runs
+  // on the client, matching the pattern used in usePro.ts and AppContext.tsx.
+  useEffect(() => {
     try {
       const appMode =
         sessionStorage.getItem("vc_app_context") ||
         sessionStorage.getItem("vc_forced_app_mode");
-      if (appMode === "pro") {
-        return localStorage.getItem("vc_pro_team_id") || null;
-      }
-      return getAiBillingTeamId();
+      setActive(
+        appMode === "pro"
+          ? localStorage.getItem("vc_pro_team_id") || null
+          : getAiBillingTeamId(),
+      );
     } catch {
-      return null;
+      // localStorage / sessionStorage blocked — keep null
     }
-  });
-  const [loading, setLoading] = useState(true);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!userKey) {

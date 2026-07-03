@@ -19,6 +19,7 @@ export const proApi = {
     paymentMethodId?: string,
   ) => api.post("/pro/flow-addon/checkout", { plan, paymentMethodId }),
   cancelFlowAddon: () => api.post("/pro/flow-addon/cancel"),
+  reactivateFlowAddon: () => api.post("/pro/flow-addon/reactivate"),
   getFlowAddonStatus: () => api.get("/pro/flow-addon/status"),
   // Safety net: activates the add-on if the Stripe webhook was lost
   verifyFlowAddon: (sessionId: string) =>

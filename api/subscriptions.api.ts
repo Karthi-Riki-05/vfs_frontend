@@ -10,6 +10,8 @@ export const subscriptionsApi = {
 
   cancel: () => api.post("/subscription/cancel"),
 
+  reactivate: () => api.post("/subscription/reactivate"),
+
   // --- New Stripe checkout flow ---
   createCheckout: (data: {
     plan: "monthly" | "yearly";

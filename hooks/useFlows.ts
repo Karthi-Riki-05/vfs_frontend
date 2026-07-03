@@ -7,6 +7,66 @@ import { useAppContext } from "@/context/AppContext";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
 import { toast } from "sonner";
 
+export interface LockState {
+  overLimitLocked: boolean;
+  overLimitModalShown: boolean;
+  totCount: number | null;
+  flowUsed: number | null;
+  appType: "pro" | "team" | null;
+}
+
+export function useLockState() {
+  const [lockState, setLockState] = useState<LockState>({
+    overLimitLocked: false,
+    overLimitModalShown: false,
+    totCount: null,
+    flowUsed: null,
+    appType: null,
+  });
+  const [lockLoading, setLockLoading] = useState(true);
+
+  const fetchLockState = useCallback(async () => {
+    try {
+      const res = await flowsApi.getLockState();
+      const d = res.data?.data || res.data;
+      setLockState({
+        overLimitLocked: !!d?.overLimitLocked,
+        overLimitModalShown: !!d?.overLimitModalShown,
+        totCount: d?.totCount ?? null,
+        flowUsed: d?.flowUsed ?? null,
+        appType: d?.appType ?? null,
+      });
+    } catch {
+      // non-fatal — default to unlocked
+    } finally {
+      setLockLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLockState();
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchLockState();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", fetchLockState);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", fetchLockState);
+    };
+  }, [fetchLockState]);
+
+  const markModalShown = useCallback(async (appType: "pro" | "team") => {
+    try {
+      await flowsApi.markModalShown(appType);
+      setLockState((prev) => ({ ...prev, overLimitModalShown: true }));
+    } catch {}
+  }, []);
+
+  return { lockState, lockLoading, fetchLockState, markModalShown };
+}
+
 export function useFlows() {
   const { activeTeamId, hydrated } = useAppContext();
   const [flows, setFlows] = useState<any[]>([]);

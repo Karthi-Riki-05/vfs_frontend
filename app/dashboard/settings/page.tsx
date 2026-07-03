@@ -27,6 +27,8 @@ import {
   Eye,
   EyeOff,
   CreditCard,
+  Workflow,
+  Smartphone,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,10 +36,120 @@ import { useAi } from "@/hooks/useAi";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useRouter } from "next/navigation";
 import { logout } from "@/lib/logout";
+import {
+  notificationsApi,
+  type NotificationPreferenceItem,
+} from "@/api/notifications.api";
 
 const RESET = "appearance-none cursor-pointer outline-none";
 
-type View = "hub" | "edit" | "password";
+type View = "hub" | "edit" | "password" | "notifPrefs";
+
+/* Categories mirror backend/src/services/notification.service.js#KNOWN_TYPES,
+   grouped for the preferences UI. `locked` mirrors
+   notificationPreference.service.js#NON_DISABLEABLE_CATEGORIES — locked rows
+   are transactional/security and can never be turned off. */
+const PREF_GROUPS: {
+  label: string;
+  icon: ReactNode;
+  items: { category: string; label: string; locked?: boolean }[];
+}[] = [
+  {
+    label: "Teams",
+    icon: <Users className="w-4 h-4" />,
+    items: [
+      { category: "team_invite", label: "Team invites", locked: true },
+      { category: "team_invite_declined", label: "Invite declined" },
+      { category: "team_member_joined", label: "Member joined" },
+      { category: "team_member_removed", label: "Member removed" },
+    ],
+  },
+  {
+    label: "Flows & Flow Packs",
+    icon: <Workflow className="w-4 h-4" />,
+    items: [
+      { category: "flow_updated", label: "Flow updated by a collaborator" },
+      { category: "flow_pack_7day", label: "Flow pack expiring in 7 days" },
+      { category: "flow_pack_3day", label: "Flow pack expiring in 3 days" },
+      { category: "flow_pack_1day", label: "Flow pack expiring in 1 day" },
+      { category: "flow_pack_grace", label: "Flow pack in grace period" },
+      { category: "flow_pack_expired", label: "Flow pack expired" },
+      { category: "flow_picker_required", label: "Flow picker required" },
+      { category: "flow_addon_expired", label: "Flow add-on expired" },
+      {
+        category: "flow_addon_grace_expired",
+        label: "Flow add-on grace ended",
+      },
+      {
+        category: "flow_addon_payment_failed",
+        label: "Flow add-on payment failed",
+        locked: true,
+      },
+    ],
+  },
+  {
+    label: "Billing",
+    icon: <CreditCard className="w-4 h-4" />,
+    items: [
+      {
+        category: "subscription_activated",
+        label: "Subscription activated",
+        locked: true,
+      },
+      {
+        category: "subscription_cancelled",
+        label: "Subscription cancelled",
+        locked: true,
+      },
+      {
+        category: "subscription_expired",
+        label: "Subscription expired",
+        locked: true,
+      },
+    ],
+  },
+  {
+    label: "Security",
+    icon: <ShieldCheck className="w-4 h-4" />,
+    items: [
+      { category: "SECURITY_ALERT", label: "Security alerts", locked: true },
+    ],
+  },
+];
+
+type PrefState = Record<
+  string,
+  { inApp: boolean; push: boolean; email: boolean }
+>;
+
+function MiniSwitch({
+  on,
+  disabled,
+  onChange,
+}: {
+  on: boolean;
+  disabled?: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      disabled={disabled}
+      onClick={onChange}
+      className={`${RESET} relative w-9 h-5 rounded-full border-0 transition-colors ${
+        on ? "bg-primary" : "bg-secondary"
+      } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+          on ? "translate-x-4" : "translate-x-0"
+        }`}
+      />
+    </button>
+  );
+}
 
 /* ---------- local prototype atoms ---------- */
 function SectionLabel({ children }: { children: ReactNode }) {
@@ -129,6 +241,58 @@ export default function SettingsPage() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [prefs, setPrefs] = useState<PrefState>({});
+  const [prefsLoading, setPrefsLoading] = useState(false);
+  const [prefsSaving, setPrefsSaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (view !== "notifPrefs") return;
+    setPrefsLoading(true);
+    notificationsApi
+      .getPreferences()
+      .then((res) => {
+        const rows: NotificationPreferenceItem[] =
+          res.data?.data || res.data || [];
+        const byCategory: PrefState = {};
+        rows.forEach((r) => {
+          byCategory[r.category] = {
+            inApp: r.inApp !== false,
+            push: r.push !== false,
+            email: r.email !== false,
+          };
+        });
+        setPrefs(byCategory);
+      })
+      .catch(() => toast.error("Failed to load notification preferences"))
+      .finally(() => setPrefsLoading(false));
+  }, [view]);
+
+  const prefFor = (category: string) =>
+    prefs[category] || { inApp: true, push: true, email: true };
+
+  const togglePref = async (
+    category: string,
+    channel: "inApp" | "push" | "email",
+    locked?: boolean,
+  ) => {
+    if (locked) return;
+    const current = prefFor(category);
+    const next = { ...current, [channel]: !current[channel] };
+    setPrefs((p) => ({ ...p, [category]: next }));
+    setPrefsSaving(category);
+    try {
+      await notificationsApi.updatePreference({
+        category,
+        [channel]: next[channel],
+      });
+    } catch {
+      setPrefs((p) => ({ ...p, [category]: current }));
+      toast.error("Failed to update preference");
+    } finally {
+      setPrefsSaving(null);
+    }
+  };
 
   const handleDeleteAccount = async () => {
     setDeleteError(null);
@@ -380,7 +544,7 @@ export default function SettingsPage() {
       </div>
 
       <SectionLabel>Preferences</SectionLabel>
-      <div className="rounded-2xl bg-card border border-border overflow-hidden">
+      <div className="rounded-2xl bg-card border border-border divide-y divide-border overflow-hidden">
         <button
           onClick={() => router.push("/dashboard/notifications")}
           className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4`}
@@ -388,6 +552,16 @@ export default function SettingsPage() {
           <Bell className="w-4 h-4 text-foreground" />
           <span className="flex-1 text-left text-sm font-semibold">
             Notifications
+          </span>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </button>
+        <button
+          onClick={() => setView("notifPrefs")}
+          className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4`}
+        >
+          <Smartphone className="w-4 h-4 text-foreground" />
+          <span className="flex-1 text-left text-sm font-semibold">
+            Notification Settings
           </span>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </button>
@@ -658,9 +832,122 @@ export default function SettingsPage() {
     </div>
   );
 
+  /* ══════════ NOTIFICATION PREFERENCES ══════════ */
+  const NotifPrefs = (
+    <div className="px-5 pt-3 space-y-4 max-w-6xl mx-auto pb-6">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setView("hub")}
+          className={`${RESET} w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center`}
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          Notification Settings
+        </div>
+      </div>
+
+      {prefsLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Spin size="large" />
+        </div>
+      ) : (
+        <>
+          <div className="rounded-2xl bg-card border border-border p-4 flex items-center gap-3">
+            <div className="flex-1 grid grid-cols-3 gap-2 text-center ml-auto max-w-[220px]">
+              <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                <Bell className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wide">
+                  In-app
+                </span>
+              </div>
+              <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                <Smartphone className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wide">
+                  Push
+                </span>
+              </div>
+              <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                <Mail className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wide">
+                  Email
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {PREF_GROUPS.map((group) => (
+            <div key={group.label}>
+              <SectionLabel>{group.label}</SectionLabel>
+              <div className="rounded-2xl bg-card border border-border divide-y divide-border overflow-hidden">
+                {group.items.map((item) => {
+                  const p = prefFor(item.category);
+                  const saving = prefsSaving === item.category;
+                  return (
+                    <div
+                      key={item.category}
+                      className="flex items-center gap-3 p-4"
+                    >
+                      <span className="text-muted-foreground shrink-0">
+                        {group.icon}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold truncate">
+                          {item.label}
+                        </div>
+                        {item.locked && (
+                          <div className="text-[10px] font-bold uppercase tracking-wide text-primary-deep mt-0.5">
+                            Required — cannot be disabled
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        className={`grid grid-cols-3 gap-2 place-items-center max-w-[220px] w-full shrink-0 ${
+                          saving ? "opacity-60" : ""
+                        }`}
+                      >
+                        <MiniSwitch
+                          on={p.inApp}
+                          disabled={item.locked || saving}
+                          onChange={() =>
+                            togglePref(item.category, "inApp", item.locked)
+                          }
+                        />
+                        <MiniSwitch
+                          on={p.push}
+                          disabled={item.locked || saving}
+                          onChange={() =>
+                            togglePref(item.category, "push", item.locked)
+                          }
+                        />
+                        <MiniSwitch
+                          on={p.email}
+                          disabled={item.locked || saving}
+                          onChange={() =>
+                            togglePref(item.category, "email", item.locked)
+                          }
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="tw">
-      {view === "hub" ? Hub : view === "edit" ? Edit : Password}
+      {view === "hub"
+        ? Hub
+        : view === "edit"
+          ? Edit
+          : view === "password"
+            ? Password
+            : NotifPrefs}
     </div>
   );
 }

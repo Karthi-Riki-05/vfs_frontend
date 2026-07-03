@@ -32,7 +32,7 @@ export function FlowUsageBar({
           <div className="flex items-center gap-1.5">
             <Zap className="w-3.5 h-3.5 text-primary-deep" />
             <span className="text-[11px] font-bold uppercase tracking-wide text-primary-deep">
-              Flow Usage
+              Flow Usage ggg
             </span>
           </div>
           <span className="text-xs text-muted-foreground font-medium">

@@ -21,6 +21,7 @@ interface FlowMenuModalProps {
   onShare: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  locked?: boolean;
 }
 
 /**
@@ -39,8 +40,9 @@ export default function FlowMenuModal({
   onShare,
   onDuplicate,
   onDelete,
+  locked = false,
 }: FlowMenuModalProps) {
-  const items: {
+  const allItems: {
     I: React.ComponentType<{ className?: string }>;
     n: string;
     action: () => void;
@@ -60,6 +62,8 @@ export default function FlowMenuModal({
     { I: Copy, n: "Duplicate", action: onDuplicate },
     { I: Trash2, n: "Delete", action: onDelete, danger: true },
   ];
+
+  const items = locked ? allItems.filter((it) => it.n === "Delete") : allItems;
 
   return (
     <ModalShell open={open} onClose={onClose}>

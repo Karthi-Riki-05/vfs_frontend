@@ -149,6 +149,10 @@ export function useSubscription() {
         toast.success(
           "Plan change scheduled for end of current billing period",
         );
+      } else if (data?.type === "reactivated") {
+        toast.success(
+          data?.message || "Subscription reactivated — it will renew as normal",
+        );
       } else if (data?.type === "updated") {
         toast.success(
           data?.message || "Team member count updated successfully",
@@ -184,13 +188,22 @@ export function useSubscription() {
   const cancel = async () => {
     try {
       await subscriptionsApi.cancel();
-      toast.success(
-        "Subscription will be cancelled at end of billing period",
-      );
+      toast.success("Subscription will be cancelled at end of billing period");
       fetchCurrent();
       fetchStatus();
     } catch {
       toast.error("Failed to cancel subscription");
+    }
+  };
+
+  const reactivate = async () => {
+    try {
+      await subscriptionsApi.reactivate();
+      toast.success("Subscription reactivated — it will renew as normal");
+      fetchCurrent();
+      fetchStatus();
+    } catch {
+      toast.error("Failed to reactivate subscription");
     }
   };
 
@@ -231,6 +244,7 @@ export function useSubscription() {
     createCheckout,
     changePlan,
     cancel,
+    reactivate,
     activateNow,
     cancelScheduledChange,
     fetchCurrent,

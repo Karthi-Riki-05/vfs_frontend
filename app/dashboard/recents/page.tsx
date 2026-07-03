@@ -11,8 +11,11 @@ import {
   ChevronRight,
   List as ListIcon,
   LayoutGrid,
+  Lock,
+  X,
 } from "lucide-react";
 import api from "@/lib/axios";
+import { useLockState } from "@/hooks/useFlows";
 import MiniFlow from "@/components/dashboard/MiniFlow";
 import { useAppContext } from "@/context/AppContext";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
@@ -169,12 +172,14 @@ function ListItem({
   color,
   onClick,
   onMenu,
+  locked,
 }: {
   title: string;
   subtitle: string;
   color: string;
   onClick?: () => void;
   onMenu?: () => void;
+  locked?: boolean;
 }) {
   return (
     <div className="w-full flex items-center gap-3 p-3 rounded-2xl bg-card border border-border mb-2 text-left">
@@ -183,10 +188,15 @@ function ListItem({
         className="flex items-center gap-3 flex-1 min-w-0 text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
       >
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+          className="relative w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
           style={{ background: `${color}1a` }}
         >
           <Workflow className="w-5 h-5" style={{ color }} />
+          {locked && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl">
+              <Lock className="w-4 h-4 text-white" />
+            </div>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{title}</div>
@@ -218,6 +228,9 @@ export default function RecentsPage() {
   const [flows, setFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"list" | "grid">("list");
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const { lockState } = useLockState();
+  const isLocked = lockState.overLimitLocked;
   const [query, setQuery] = useState("");
 
   const [flowMenu, setFlowMenu] = useState<{ open: boolean; flow: any | null }>(
@@ -255,7 +268,7 @@ export default function RecentsPage() {
           (a: any, b: any) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
         )
-        .slice(0, 20);
+        .slice(0, 15);
       setFlows(sorted);
     } catch {
       toast.error("Failed to load recent flows");
@@ -272,8 +285,13 @@ export default function RecentsPage() {
 
   useEffect(() => onWorkspaceFlush(() => setFlows([])), []);
 
-  const handleEdit = (id: string) => {
-    window.open(`/dashboard/flows/${id}`, "_blank");
+  const handleEdit = (flow: any) => {
+    const flowLocked = isLocked || !!flow?.markedForDowngrade;
+    if (flowLocked) {
+      setLockModalOpen(true);
+      return;
+    }
+    window.open(`/dashboard/flows/${flow.id}`, "_blank");
   };
 
   const handleDelete = async (id: string) => {
@@ -387,12 +405,22 @@ export default function RecentsPage() {
           onChange={setQuery}
         />
 
-        {/* View toggle header */}
+        {/* View toggle header + See all */}
         <div className="flex items-center justify-between mb-3">
           <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
             {DATE_GROUP_ORDER.find((g) => grouped[g].length > 0) || "Recent"}
           </div>
-          <ViewToggleLocal view={view} onChange={setView} />
+          <div className="flex items-center gap-3">
+            {!q && filteredFlows.length > 0 && (
+              <button
+                onClick={() => router.push("/dashboard/flows")}
+                className="h-9 px-4 rounded-xl bg-primary text-white text-xs font-semibold border-0 appearance-none cursor-pointer inline-flex items-center gap-1 shrink-0"
+              >
+                See all flows <ChevronRight className="w-3 h-3" />
+              </button>
+            )}
+            <ViewToggleLocal view={view} onChange={setView} />
+          </div>
         </div>
 
         {/* Groups */}
@@ -406,70 +434,85 @@ export default function RecentsPage() {
                   {grouped[groupName].map((flow: any) => {
                     const color =
                       FLOW_COLORS[flows.indexOf(flow) % FLOW_COLORS.length];
+                    const flowLocked = isLocked || !!flow?.markedForDowngrade;
                     return (
                       <ListItem
                         key={flow.id}
                         title={flow.name}
                         subtitle={`Edited ${timeAgo(flow.updatedAt)}`}
                         color={color}
-                        onClick={() => handleEdit(flow.id)}
+                        onClick={() => handleEdit(flow)}
                         onMenu={() => setFlowMenu({ open: true, flow })}
+                        locked={flowLocked}
                       />
                     );
                   })}
                 </>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 mb-3">
-                  {grouped[groupName].map((flow: any, index: number) => (
-                    <div
-                      key={flow.id}
-                      className="relative rounded-2xl bg-card border border-border overflow-hidden shadow-[var(--shadow-card)] hover:-translate-y-0.5 transition"
-                    >
-                      <button
-                        onClick={() => handleEdit(flow.id)}
-                        className="w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                  {grouped[groupName].map((flow: any, index: number) => {
+                    const flowLocked = isLocked || !!flow?.markedForDowngrade;
+                    return (
+                      <div
+                        key={flow.id}
+                        className="relative rounded-2xl bg-card border border-border overflow-hidden shadow-[var(--shadow-card)] hover:-translate-y-0.5 transition"
                       >
-                        <div
-                          className="h-36 w-full relative overflow-hidden flex items-center justify-center"
-                          style={{
-                            background:
-                              MOBILE_THUMB_GRADIENTS[
-                                index % MOBILE_THUMB_GRADIENTS.length
-                              ],
-                          }}
+                        <button
+                          onClick={() => handleEdit(flow)}
+                          className="w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
                         >
-                          {flow.thumbnail ? (
-                            <img
-                              src={flow.thumbnail}
-                              alt=""
-                              className="absolute inset-0 w-full h-full object-cover"
-                            />
-                          ) : (
-                            <MiniFlow color={BRAND_GREEN} />
-                          )}
-                        </div>
-                        <div className="p-3 pr-9 max-lg:pr-13">
-                          <div className="font-semibold text-[13px] truncate text-foreground">
-                            {flow.name}
+                          <div
+                            className="h-36 w-full relative overflow-hidden flex items-center justify-center"
+                            style={{
+                              background:
+                                MOBILE_THUMB_GRADIENTS[
+                                  index % MOBILE_THUMB_GRADIENTS.length
+                                ],
+                            }}
+                          >
+                            {flow.thumbnail ? (
+                              <img
+                                src={flow.thumbnail}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            ) : (
+                              <MiniFlow color={BRAND_GREEN} />
+                            )}
+                            {flowLocked && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
+                                <div className="flex flex-col items-center gap-1">
+                                  <Lock className="w-6 h-6 text-white drop-shadow" />
+                                  <span className="text-white text-[10px] font-semibold drop-shadow">
+                                    Locked
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            Edited {timeAgo(flow.updatedAt)}
+                          <div className="p-3 pr-9 max-lg:pr-13">
+                            <div className="font-semibold text-[13px] truncate text-foreground">
+                              {flow.name}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              Edited {timeAgo(flow.updatedAt)}
+                            </div>
                           </div>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="More options"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFlowMenu({ open: true, flow });
-                        }}
-                        className="absolute bottom-2 right-2 w-7 h-7 max-lg:w-11 max-lg:h-11 rounded-lg flex items-center justify-center bg-secondary border-0 p-0 appearance-none cursor-pointer"
-                      >
-                        <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
-                      </button>
-                    </div>
-                  ))}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="More options"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFlowMenu({ open: true, flow });
+                          }}
+                          className="absolute bottom-2 right-2 w-7 h-7 max-lg:w-11 max-lg:h-11 rounded-lg flex items-center justify-center bg-secondary border-0 p-0 appearance-none cursor-pointer"
+                        >
+                          <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -490,12 +533,80 @@ export default function RecentsPage() {
         )}
       </div>
 
+      {/* ── Lock modal ── */}
+      {lockModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="tw w-full max-w-sm bg-card rounded-3xl shadow-2xl border border-border overflow-hidden">
+            <div className="flex justify-end px-4 pt-4">
+              <button
+                onClick={() => setLockModalOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-secondary border-0 cursor-pointer text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex flex-col items-center gap-3 px-6 pt-2 pb-5 text-center">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-red-50 border border-red-100">
+                <Lock className="w-7 h-7 text-red-500" />
+              </div>
+              <h2 className="text-lg font-bold text-foreground">
+                {isLocked ? "Your flows are locked" : "This flow is locked"}
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {isLocked ? (
+                  <>
+                    You have{" "}
+                    <span className="font-semibold text-foreground">
+                      {lockState.flowUsed ?? "—"}
+                    </span>{" "}
+                    flows but your plan allows{" "}
+                    <span className="font-semibold text-foreground">
+                      {lockState.totCount ?? "—"}
+                    </span>
+                    . All flows are locked until you resolve this.
+                  </>
+                ) : (
+                  <>
+                    This flow is over your plan&apos;s limit. Upgrade your plan
+                    to unlock it.
+                  </>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 px-6 pb-7">
+              <button
+                onClick={() => {
+                  setLockModalOpen(false);
+                  router.push("/dashboard/subscription");
+                }}
+                className="w-full h-12 rounded-2xl font-bold text-sm text-white border-0 cursor-pointer"
+                style={{ background: "#34A881" }}
+              >
+                Upgrade Plan
+              </button>
+              {isLocked && (
+                <button
+                  onClick={() => {
+                    setLockModalOpen(false);
+                    router.push("/dashboard/limitflows");
+                  }}
+                  className="w-full h-12 rounded-2xl font-bold text-sm border border-border bg-secondary text-foreground cursor-pointer"
+                >
+                  Choose flows to keep
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Modals ── */}
       <FlowMenuModal
         open={flowMenu.open}
         flow={flowMenu.flow}
         onClose={() => setFlowMenu({ open: false, flow: null })}
-        onEdit={() => handleEdit(flowMenu.flow.id)}
+        locked={isLocked || !!flowMenu.flow?.markedForDowngrade}
+        onEdit={() => handleEdit(flowMenu.flow)}
         onToggleFavorite={() => handleFavorite(flowMenu.flow.id)}
         onRename={() =>
           setRenameModal({

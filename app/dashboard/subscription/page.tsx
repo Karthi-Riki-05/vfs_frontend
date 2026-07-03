@@ -318,12 +318,63 @@ function ProSubscriptionContent() {
   };
 
   const handleAddonSubscribe = async (plan: "standard" | "unlimited") => {
-    // If user has saved cards, show card selector first.
-    if (proSavedCards.length > 0) {
-      setPendingAddon(plan);
-      return;
-    }
-    await _executeAddonPurchase(plan, undefined);
+    // Confirm with the real amount BEFORE anything is billed (bug-050) —
+    // the upgrade path applies a proration with no Stripe page, and the
+    // no-saved-card path previously had no confirmation at all.
+    const price = plan === "unlimited" ? "$20.00" : "$10.00";
+    const isUpgrade =
+      flowAddonPlan === "standard_100" &&
+      (flowAddonStatus === "active" || flowAddonStatus === "cancelling") &&
+      plan === "unlimited";
+    const wasCancellingNote =
+      flowAddonStatus === "cancelling"
+        ? " Your pending cancellation will be removed."
+        : "";
+    const content = isUpgrade
+      ? `You'll be upgraded to Unlimited Flows immediately. The prorated difference for the rest of the current period will be billed to your card${
+          periodEndStr ? `, your renewal date stays ${periodEndStr},` : ""
+        } and from then on you'll pay ${price}/month.${wasCancellingNote} Continue?`
+      : `You'll be charged ${price}/month starting today.${wasCancellingNote} Continue?`;
+
+    confirmDialog({
+      title: isUpgrade ? "Confirm Upgrade" : "Confirm Subscription",
+      content,
+      confirmLabel: "Confirm",
+      onConfirm: () => {
+        // Upgrades bill the existing subscription's card — the card
+        // selector is only for brand-new subscriptions.
+        if (!isUpgrade && proSavedCards.length > 0) {
+          setPendingAddon(plan);
+          return;
+        }
+        _executeAddonPurchase(plan, undefined);
+      },
+    });
+  };
+
+  const handleAddonReactivate = () => {
+    confirmDialog({
+      title: "Reactivate Flow Add-on",
+      content: `Your add-on will resume renewing as normal${
+        periodEndStr ? ` on ${periodEndStr}` : ""
+      }. Nothing is charged today.`,
+      confirmLabel: "Reactivate",
+      onConfirm: async () => {
+        setCancelling(true);
+        try {
+          await proApi.reactivateFlowAddon();
+          toast.success("Flow add-on reactivated — it will renew as normal");
+          fetchProSubStatus();
+          refreshPackStatus();
+        } catch (err: any) {
+          const msg =
+            err?.response?.data?.error?.message || "Reactivation failed";
+          toast.error(msg);
+        } finally {
+          setCancelling(false);
+        }
+      },
+    });
   };
 
   const _executeAddonPurchase = async (
@@ -446,9 +497,14 @@ function ProSubscriptionContent() {
   const flowAddonPeriodEnd = flowAddon?.currentPeriodEnd;
   const hasActivePack =
     flowAddonStatus === "active" || flowAddonStatus === "cancelling";
-  const isUnlimitedPack = isUnlimited || flowAddonPlan === "unlimited";
+  const isUnlimitedPack =
+    isUnlimited ||
+    (flowAddonPlan === "unlimited" && flowAddonStatus === "active");
+  // "cancelling" is still upgradeable — the backend routes it through
+  // upgradeFlowAddon, which also clears the pending cancel (bugs 048/049).
   const isStandardActive =
-    flowAddonPlan === "standard_100" && flowAddonStatus === "active";
+    flowAddonPlan === "standard_100" &&
+    (flowAddonStatus === "active" || flowAddonStatus === "cancelling");
   const isPastDue = flowAddonStatus === "past_due";
   const usagePercent =
     isUnlimited || flows.total <= 0
@@ -471,10 +527,12 @@ function ProSubscriptionContent() {
     : null;
   const daysLeft = activePack?.daysUntilExpiry ?? null;
   const periodEndStr = flowAddonPeriodEnd
-    ? new Date(flowAddonPeriodEnd).toLocaleDateString(undefined, {
+    ? new Date(flowAddonPeriodEnd).toLocaleString(undefined, {
         month: "short",
         day: "numeric",
         year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       })
     : null;
 
@@ -658,6 +716,15 @@ function ProSubscriptionContent() {
                 {cancelling ? "…" : "Cancel Subscription"}
               </button>
             )}
+            {flowAddonStatus === "cancelling" && (
+              <button
+                onClick={handleAddonReactivate}
+                disabled={cancelling}
+                className={`${RESET} h-10 px-4 rounded-xl bg-transparent border-2 border-primary text-primary font-bold text-sm font-sans disabled:opacity-60`}
+              >
+                {cancelling ? "…" : "Reactivate"}
+              </button>
+            )}
             <button
               onClick={handlePortal}
               disabled={portalLoading}
@@ -831,6 +898,7 @@ function SubscriptionPageInner() {
     createCheckout,
     changePlan,
     cancel,
+    reactivate,
     activateNow,
     cancelScheduledChange,
     fetchCurrent,
@@ -905,12 +973,52 @@ function SubscriptionPageInner() {
   };
 
   // If user has saved cards and is starting a new subscription, show card
-  // selector first. For plan changes (already subscribed), go straight through
-  // since Stripe handles the card internally.
+  // selector first. For plan changes (already subscribed), confirm first —
+  // the off-session fallback charges the saved card immediately, so the
+  // user must see what happens (prorated charge, unchanged renewal date)
+  // BEFORE any money moves (bug-043).
   const handlePurchase = async (plan: "monthly" | "yearly") => {
-    const isNewSub = !(status?.hasSubscription && status.status === "active");
+    // "cancelling" counts as an existing sub — it must go through the
+    // plan-change flow (which reactivates), NOT new-subscription checkout
+    // (which would create a duplicate Stripe subscription). See bug-046.
+    const isNewSub = !(
+      status?.hasSubscription &&
+      (status.status === "active" || status.status === "cancelling")
+    );
     if (isNewSub && savedCards.length > 0) {
       setPendingPlan(plan);
+      return;
+    }
+    if (!isNewSub) {
+      const newSeats = plan === "monthly" ? monthlyMembers : yearlyMembers;
+      const currentSeats = status?.teamMemberLimit ?? 0;
+      const perSeat =
+        plan === "yearly"
+          ? (pricing?.prices?.team_yearly?.usdCents ?? 2000) / 100
+          : (pricing?.prices?.team_monthly?.usdCents ?? 200) / 100;
+      const newTotal = (newSeats * perSeat).toFixed(2);
+      const per = plan === "yearly" ? "year" : "month";
+      const renewsAt = status?.currentPeriodEnd
+        ? new Date(status.currentPeriodEnd).toLocaleDateString()
+        : "your current renewal date";
+
+      let content: string;
+      if (status?.plan === "monthly" && plan === "yearly") {
+        content = `Your plan will switch to Yearly (${newSeats} members, $${newTotal}/${per}) at the end of the current billing period (${renewsAt}). Nothing is charged today.`;
+      } else if (newSeats > currentSeats) {
+        content = `Your saved card will be charged a prorated amount now for the ${newSeats - currentSeats} additional member(s) until ${renewsAt}. Your renewal date stays ${renewsAt}, and from then on you'll pay $${newTotal}/${per}. Continue?`;
+      } else if (newSeats < currentSeats) {
+        content = `No charge today — a prorated credit will be applied to your next invoice. Your renewal date stays ${renewsAt}, and from then on you'll pay $${newTotal}/${per}. Continue?`;
+      } else {
+        content = `Update your plan to ${newSeats} members at $${newTotal}/${per}? Your renewal date stays ${renewsAt}.`;
+      }
+
+      confirmDialog({
+        title: "Confirm Plan Change",
+        content,
+        confirmLabel: "Confirm",
+        onConfirm: () => _executePurchase(plan),
+      });
       return;
     }
     await _executePurchase(plan);
@@ -920,7 +1028,10 @@ function SubscriptionPageInner() {
     const teamMembers = plan === "monthly" ? monthlyMembers : yearlyMembers;
     setCheckoutLoading(plan);
     try {
-      if (status?.hasSubscription && status.status === "active") {
+      if (
+        status?.hasSubscription &&
+        (status.status === "active" || status.status === "cancelling")
+      ) {
         await changePlan(plan, teamMembers);
       } else {
         // Pass the saved card ID so the backend charges it directly (no redirect).
@@ -942,6 +1053,18 @@ function SubscriptionPageInner() {
       confirmLabel: "Yes, Cancel",
       danger: true,
       onConfirm: () => cancel(),
+    });
+  };
+
+  const handleReactivate = () => {
+    const renewsAt = status?.currentPeriodEnd
+      ? new Date(status.currentPeriodEnd).toLocaleDateString()
+      : null;
+    confirmDialog({
+      title: "Reactivate Plan",
+      content: `Your plan will resume renewing as normal${renewsAt ? ` on ${renewsAt}` : ""}. Nothing is charged today.`,
+      confirmLabel: "Reactivate",
+      onConfirm: () => reactivate(),
     });
   };
 
@@ -987,10 +1110,18 @@ function SubscriptionPageInner() {
     return <ProSubscriptionContent />;
   }
 
-  const isActivePlan = (plan: "monthly" | "yearly") =>
+  // A "cancelling" subscription is still live (usable until period end) and
+  // still upgradeable via changePlan — treating it as "no subscription" sent
+  // cancelling users into the NEW-subscription flow (card selector +
+  // createCheckout), which would create a second Stripe subscription on top
+  // of the still-running one (bug-046).
+  const hasLiveSub = !!(
     status?.hasSubscription &&
-    status.status === "active" &&
-    status.plan === plan;
+    (status.status === "active" || status.status === "cancelling")
+  );
+
+  const isActivePlan = (plan: "monthly" | "yearly") =>
+    hasLiveSub && status?.plan === plan;
 
   const isMemberCountChange = (plan: "monthly" | "yearly") => {
     if (!isActivePlan(plan)) return false;
@@ -1000,17 +1131,13 @@ function SubscriptionPageInner() {
   };
 
   const isDowngradeBlocked = (plan: "monthly" | "yearly") =>
-    status?.hasSubscription &&
-    status.status === "active" &&
-    status.plan === "yearly" &&
-    plan === "monthly";
+    hasLiveSub && status?.plan === "yearly" && plan === "monthly";
 
   const isScheduledFor = (plan: "monthly" | "yearly") =>
     !!status?.scheduledChange && status.scheduledChange.plan === plan;
 
   const getButtonLabel = (plan: "monthly" | "yearly") => {
-    if (!status?.hasSubscription || status.status !== "active")
-      return "Purchase Now";
+    if (!hasLiveSub) return "Purchase Now";
     if (isDowngradeBlocked(plan)) return "Not Available";
     if (isScheduledFor(plan)) return "Scheduled";
     if (isActivePlan(plan)) {
@@ -1222,27 +1349,38 @@ function SubscriptionPageInner() {
         </div>
       )}
 
-      {/* Active subscription hero (prototype gradient) */}
-      {status?.hasSubscription && status.status === "active" && (
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-deep to-primary p-5 text-white">
-          <div className="text-xs font-bold tracking-wider uppercase text-white/80">
-            Your current plan
-          </div>
-          <div className="text-2xl md:text-3xl font-extrabold mt-1">
-            {status.plan === "yearly" ? "Yearly" : "Monthly"} Plan —{" "}
-            {status.teamMemberLimit} Members
-          </div>
-          {status.currentPeriodEnd && (
-            <div className="text-xs text-white/80 mt-1">
-              {status.cancelAtPeriodEnd ? "Cancels" : "Renews"} on{" "}
-              {new Date(status.currentPeriodEnd).toLocaleDateString()}
+      {/* Active subscription hero (prototype gradient). Also rendered for
+          "cancelling" — the plan is still live until period end, and this is
+          where the Reactivate action lives (bug-045). */}
+      {status?.hasSubscription &&
+        (status.status === "active" || status.status === "cancelling") && (
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-deep to-primary p-5 text-white">
+            <div className="text-xs font-bold tracking-wider uppercase text-white/80">
+              Your current plan
             </div>
-          )}
-          <span className="absolute right-4 top-4 text-[11px] font-bold px-3 py-1 rounded-full bg-white text-primary-deep">
-            {status.cancelAtPeriodEnd ? "Cancelling" : "Active"}
-          </span>
-        </div>
-      )}
+            <div className="text-2xl md:text-3xl font-extrabold mt-1">
+              {status.plan === "yearly" ? "Yearly" : "Monthly"} Plan —{" "}
+              {status.teamMemberLimit} Members
+            </div>
+            {status.currentPeriodEnd && (
+              <div className="text-xs text-white/80 mt-1">
+                {status.cancelAtPeriodEnd ? "Cancels" : "Renews"} on{" "}
+                {new Date(status.currentPeriodEnd).toLocaleDateString()}
+              </div>
+            )}
+            {status.cancelAtPeriodEnd && (
+              <button
+                onClick={handleReactivate}
+                className={`${RESET} mt-3 h-9 px-4 rounded-lg bg-white text-primary-deep text-[13px] font-bold font-sans`}
+              >
+                Reactivate Plan
+              </button>
+            )}
+            <span className="absolute right-4 top-4 text-[11px] font-bold px-3 py-1 rounded-full bg-white text-primary-deep">
+              {status.cancelAtPeriodEnd ? "Cancelling" : "Active"}
+            </span>
+          </div>
+        )}
 
       {/* Scheduled change banner */}
       {status?.scheduledChange && (

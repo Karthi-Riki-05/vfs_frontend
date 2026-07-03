@@ -12,12 +12,25 @@ interface ProFlows {
   extraPurchased: number;
 }
 
+interface FlowPackPurchase {
+  id: string;
+  flowCount: number;
+  amountCents: number;
+  packType: string;
+  isUnlimited: boolean;
+  status: string;
+  expiresAt: string | null;
+  gracePeriodEndsAt: string | null;
+  createdAt: string;
+}
+
 interface ProStatus {
   currentApp: "free" | "pro";
   hasPro: boolean;
   isUnlimited: boolean;
   proPurchasedAt: string | null;
   proFlows: ProFlows;
+  flowPackPurchases?: FlowPackPurchase[];
 }
 
 export function usePro() {

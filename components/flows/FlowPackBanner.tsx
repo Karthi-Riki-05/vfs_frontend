@@ -2,57 +2,111 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "antd";
+import { AlertTriangle, Zap, Clock, TrendingUp } from "lucide-react";
 import { usePackStatus } from "@/hooks/usePackStatus";
 import FlowPickerModal from "./FlowPickerModal";
 
-// Banner above the flows list that mirrors the pack lifecycle:
-//   • >7 days remaining          → no banner (clean UI)
-//   • ≤7 days remaining          → yellow renew nudge
-//   • expired, in 3-day grace    → orange urgent renew + picker option
-//   • picker phase active        → red sticky "select 10 flows" CTA
-//   • no pack, on free 10-limit  → blue upsell when at the limit
+// ── Shared atoms ──────────────────────────────────────────────────────────────
+
+function BannerCard({
+  children,
+  bg,
+  borderColor,
+  sticky,
+}: {
+  children: React.ReactNode;
+  bg: string;
+  borderColor: string;
+  sticky?: boolean;
+}) {
+  return (
+    <div
+      className={`tw rounded-2xl p-4 mb-5 flex items-start justify-between gap-3 flex-wrap shadow-[var(--shadow-card)] ${sticky ? "sticky top-0 z-10" : ""}`}
+      style={{ background: bg, border: `1px solid ${borderColor}` }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function IconChip({
+  icon: Icon,
+  color,
+}: {
+  icon: React.ElementType;
+  color: string;
+}) {
+  return (
+    <div
+      className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+      style={{ background: `${color}18` }}
+    >
+      <Icon className="w-4 h-4" style={{ color }} />
+    </div>
+  );
+}
+
+function Btn({
+  children,
+  onClick,
+  variant = "solid",
+  color,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  variant?: "solid" | "outline";
+  color: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="h-9 px-4 rounded-xl text-sm font-semibold shrink-0 appearance-none cursor-pointer border-0"
+      style={
+        variant === "solid"
+          ? { background: color, color: "#fff" }
+          : {
+              background: "transparent",
+              border: `1.5px solid ${color}`,
+              color,
+            }
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+// ── Banner ────────────────────────────────────────────────────────────────────
+
 export default function FlowPackBanner() {
   const router = useRouter();
   const { status, refresh, isTeamApp, effectiveLimit, effectiveUnlimited } =
     usePackStatus();
   const [pickerOpen, setPickerOpen] = useState(false);
+
   if (!status) return null;
 
-  // Picker phase = required action — sticky red banner.
+  // ── Picker phase (Pro) ──────────────────────────────────────────────────────
   if (status.isInPickerPhase) {
     return (
       <>
-        <div
-          style={{
-            background: "#FFF1F0",
-            border: "1px solid #FFA39E",
-            borderRadius: 8,
-            padding: "14px 18px",
-            marginBottom: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            flexWrap: "wrap",
-            position: "sticky",
-            top: 0,
-            zIndex: 5,
-          }}
-        >
-          <div>
-            <div style={{ fontWeight: 700, color: "#cf1322" }}>
-              Action required: select 10 flows to keep
-            </div>
-            <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-              Your flow pack expired and you have {status.flowCount} flows. Pick
-              10 — the rest will move to trash for 30 days.
+        <BannerCard bg="#FFF1F0" borderColor="#FFA39E" sticky>
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <IconChip icon={Zap} color="#F85729" />
+            <div>
+              <div className="text-sm font-bold text-[#CF1322]">
+                Action required: select 10 flows to keep
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Your flow pack expired and you have {status.flowCount} flows.
+                Pick 10 — the rest will move to trash for 30 days.
+              </div>
             </div>
           </div>
-          <Button type="primary" danger onClick={() => setPickerOpen(true)}>
+          <Btn color="#F85729" onClick={() => setPickerOpen(true)}>
             Open Flow Selector
-          </Button>
-        </div>
+          </Btn>
+        </BannerCard>
         <FlowPickerModal
           open={pickerOpen}
           maxKeep={10}
@@ -60,7 +114,6 @@ export default function FlowPackBanner() {
           onConfirm={() => {
             setPickerOpen(false);
             refresh();
-            // Reload page to refresh flows list with the new selection.
             router.refresh();
           }}
         />
@@ -68,40 +121,27 @@ export default function FlowPackBanner() {
     );
   }
 
-  // Team-subscription picker phase = required action — sticky red banner.
+  // ── Picker phase (Team) ─────────────────────────────────────────────────────
   if (status.isInTeamPickerPhase) {
     return (
       <>
-        <div
-          style={{
-            background: "#FFF1F0",
-            border: "1px solid #FFA39E",
-            borderRadius: 8,
-            padding: "14px 18px",
-            marginBottom: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            flexWrap: "wrap",
-            position: "sticky",
-            top: 0,
-            zIndex: 5,
-          }}
-        >
-          <div>
-            <div style={{ fontWeight: 700, color: "#cf1322" }}>
-              Your team subscription has expired. Select 50 flows to keep.
-            </div>
-            <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-              You have {status.flowCount} team flows. Pick 50 — the rest will
-              move to trash for 30 days.
+        <BannerCard bg="#FFF1F0" borderColor="#FFA39E" sticky>
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <IconChip icon={Zap} color="#F85729" />
+            <div>
+              <div className="text-sm font-bold text-[#CF1322]">
+                Team subscription expired — select 50 flows to keep
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                You have {status.flowCount} team flows. Pick 50 — the rest will
+                move to trash for 30 days.
+              </div>
             </div>
           </div>
-          <Button type="primary" danger onClick={() => setPickerOpen(true)}>
+          <Btn color="#F85729" onClick={() => setPickerOpen(true)}>
             Open Flow Selector
-          </Button>
-        </div>
+          </Btn>
+        </BannerCard>
         <FlowPickerModal
           open={pickerOpen}
           maxKeep={50}
@@ -116,7 +156,7 @@ export default function FlowPackBanner() {
     );
   }
 
-  // Grace period.
+  // ── Grace period ────────────────────────────────────────────────────────────
   if (status.status === "grace" && status.gracePeriodEndsAt) {
     const days = Math.max(
       0,
@@ -126,41 +166,30 @@ export default function FlowPackBanner() {
       ),
     );
     return (
-      <div
-        style={{
-          background: "#FFF7E6",
-          border: "1px solid #FFD591",
-          borderRadius: 8,
-          padding: "14px 18px",
-          marginBottom: 16,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <div style={{ fontWeight: 700, color: "#D46B08" }}>
-            🔴 Flow pack expired — {days} day{days === 1 ? "" : "s"} left to
-            renew
-          </div>
-          <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-            Renew now to avoid the flow picker step.
+      <BannerCard bg="#FFF7E6" borderColor="#FFD591">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <IconChip icon={AlertTriangle} color="#FF9A30" />
+          <div>
+            <div className="text-sm font-bold text-[#D46B08]">
+              Flow pack expired — {days} day{days === 1 ? "" : "s"} left to
+              renew
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Renew now to avoid the flow picker step.
+            </div>
           </div>
         </div>
-        <Button
-          type="primary"
+        <Btn
+          color="#D46B08"
           onClick={() => router.push("/dashboard/subscription")}
-          style={{ background: "#D46B08", borderColor: "#D46B08" }}
         >
           Renew Now
-        </Button>
-      </div>
+        </Btn>
+      </BannerCard>
     );
   }
 
-  // Active pack, ≤7 days remaining.
+  // ── Expiring soon (≤7 days) ─────────────────────────────────────────────────
   if (
     status.status === "active" &&
     status.daysUntilExpiry !== null &&
@@ -169,40 +198,31 @@ export default function FlowPackBanner() {
   ) {
     const label = status.isUnlimited ? "Unlimited Flows" : "50 Flows";
     return (
-      <div
-        style={{
-          background: "#FFFBE6",
-          border: "1px solid #FFE58F",
-          borderRadius: 8,
-          padding: "14px 18px",
-          marginBottom: 16,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <div style={{ fontWeight: 700, color: "#AD6800" }}>
-            ⚠️ Your {label} pack expires in {status.daysUntilExpiry} day
-            {status.daysUntilExpiry === 1 ? "" : "s"}
-          </div>
-          <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-            Renew to keep all flows beyond the 10-flow free limit.
+      <BannerCard bg="#FFFBE6" borderColor="#FFE58F">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <IconChip icon={Clock} color="#FAAD14" />
+          <div>
+            <div className="text-sm font-bold text-[#AD6800]">
+              Your {label} pack expires in {status.daysUntilExpiry} day
+              {status.daysUntilExpiry === 1 ? "" : "s"}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Renew to keep all flows beyond the {effectiveLimit}-flow free
+              limit.
+            </div>
           </div>
         </div>
-        <Button
-          type="primary"
+        <Btn
+          color="#FAAD14"
           onClick={() => router.push("/dashboard/subscription")}
-          style={{ background: "#FAAD14", borderColor: "#FAAD14" }}
         >
           Renew Now
-        </Button>
-      </div>
+        </Btn>
+      </BannerCard>
     );
   }
 
+  // ── At limit, no pack ───────────────────────────────────────────────────────
   if (
     !status.activePackId &&
     !effectiveUnlimited &&
@@ -210,46 +230,40 @@ export default function FlowPackBanner() {
     status.flowCount >= effectiveLimit
   ) {
     return (
-      <div
-        style={{
-          background: "#E6F7FF",
-          border: "1px solid #91D5FF",
-          borderRadius: 8,
-          padding: "14px 18px",
-          marginBottom: 16,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ fontWeight: 600, color: "#0050B3" }}>
-          You've reached your {effectiveLimit}-flow limit.
+      <BannerCard bg="#E6F4FF" borderColor="#91CAFF">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <IconChip icon={TrendingUp} color="#006AA8" />
+          <div className="text-sm font-semibold text-[#0050B3] mt-1">
+            You've reached your {effectiveLimit}-flow limit.
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex gap-2 flex-wrap">
           {isTeamApp ? (
-            <Button
-              type="primary"
+            <Btn
+              color="#006AA8"
               onClick={() => router.push("/dashboard/subscription")}
             >
               Upgrade to Team — unlimited flows
-            </Button>
+            </Btn>
           ) : (
             <>
-              <Button
-                type="primary"
+              <Btn
+                color="#006AA8"
                 onClick={() => router.push("/dashboard/subscription")}
               >
-                Subscribe 50 Flows — $5/mo
-              </Button>
-              <Button onClick={() => router.push("/dashboard/subscription")}>
-                Subscribe Unlimited — $10/mo
-              </Button>
+                Subscribe Standard — 100 Flows
+              </Btn>
+              <Btn
+                color="#006AA8"
+                variant="outline"
+                onClick={() => router.push("/dashboard/subscription")}
+              >
+                Subscribe Unlimited flows
+              </Btn>
             </>
           )}
         </div>
-      </div>
+      </BannerCard>
     );
   }
 

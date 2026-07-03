@@ -434,8 +434,13 @@ export default function EditorView({
     const hasPro = (sess?.user as any)?.hasPro ?? false;
     const userVersion = (sess?.user as any)?.currentVersion ?? "free";
     const effectivePerm = perm ?? permRef.current;
+    const isTeamApp =
+      typeof window !== "undefined" && getClientAppType() === "team";
+    // In the team app, only users with an active team subscription can share.
+    // In the pro app, either pro or team subscription is sufficient.
     const canShare =
-      effectivePerm === "owner" && (hasPro || userVersion === "team");
+      effectivePerm === "owner" &&
+      (isTeamApp ? userVersion === "team" : hasPro || userVersion === "team");
     iframeRef.current?.contentWindow?.postMessage(
       JSON.stringify({ event: "userContext", canShare }),
       "*",
@@ -480,6 +485,16 @@ export default function EditorView({
         if (msg.action === "openShare") {
           if (permRef.current === "view" || isViewMode) {
             toast.warning("You cannot share a flow you don't own");
+            return;
+          }
+          // Defensive gate: free users in the team app cannot share.
+          const sess = sessionRef.current;
+          const tier = (sess?.user as any)?.currentVersion ?? "free";
+          const isPaid =
+            (sess?.user as any)?.hasPro || tier === "pro" || tier === "team";
+          const isTeamApp = getClientAppType() === "team";
+          if (isTeamApp && (!isPaid || tier !== "team")) {
+            toast.warning("Upgrade to a Team plan to share flows");
             return;
           }
           setFlowShareModalOpen(true);
@@ -682,7 +697,22 @@ export default function EditorView({
 
         // 1. INITIAL LOAD
         if (msg.event === "init") {
-          const data = await getFlowById(flowId);
+          let data: any;
+          try {
+            data = await getFlowById(flowId);
+          } catch (err: any) {
+            const code = err?.response?.data?.error?.code;
+            if (code === "FLOW_LOCKED") {
+              toast.error(
+                "This flow is locked. Go to your flows page to upgrade or limit your flows.",
+                { duration: 6000 },
+              );
+              setTimeout(() => window.close(), 3000);
+            } else {
+              toast.error("Failed to load flow. Please try again.");
+            }
+            return;
+          }
           setFlowName(data.name || "Untitled Diagram");
           const perm = data.permission || "owner";
           setPermission(perm);

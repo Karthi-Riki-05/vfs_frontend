@@ -3,7 +3,7 @@
 // the npm module bypasses interceptors and caused team-context flow
 // creations to fall back to personal.
 import api from "@/lib/axios";
-import { Modal } from "antd";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import { toast } from "sonner";
 
 export async function getFlowById(flowId: string) {
@@ -13,26 +13,13 @@ export async function getFlowById(flowId: string) {
 }
 
 function showFlowLimitModal(errorMsg: string) {
-  Modal.confirm({
-    title: "You've reached your flow limit",
+  confirmDialog({
+    title: "Flow limit reached",
     content: errorMsg,
-    okText: "Buy 50 Flows — $5",
-    cancelText: "Cancel",
-    centered: true,
-    width: 440,
-    okButtonProps: {
-      style: { backgroundColor: "#3CB371", borderColor: "#3CB371" },
-    },
-    onOk: async () => {
-      try {
-        const res = await api.post("/pro/buy-flows", { package: "50" });
-        const data = res.data?.data || res.data;
-        if (data?.url) {
-          window.location.href = data.url;
-        }
-      } catch {
-        toast.error("Failed to start purchase");
-      }
+    confirmLabel: "Upgrade Plan",
+    cancelLabel: "Cancel",
+    onConfirm: () => {
+      window.location.href = "/dashboard/subscription";
     },
   });
 }

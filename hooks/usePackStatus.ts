@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { flowPackApi } from "@/api/notifications.api";
+import { flowsApi } from "@/api/flows.api";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
 import { appTypeFromUserAgent } from "@/lib/detectWebView";
 
@@ -67,7 +68,11 @@ export function usePackStatus() {
 
   useEffect(() => {
     setIsTeamApp(readIsTeamApp());
-    refresh();
+    // Check and apply expiry in real-time on mount, then load fresh pack status.
+    flowsApi
+      .checkExpiry()
+      .catch(() => {})
+      .finally(() => refresh());
   }, [refresh]);
 
   // Re-scope on workspace switch: drop the previous workspace's pack/limit

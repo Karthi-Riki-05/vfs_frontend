@@ -13,6 +13,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import { paymentsApi } from "@/api/payments.api";
 import { usePro } from "@/hooks/usePro";
 import { useRouter } from "next/navigation";
@@ -51,6 +52,10 @@ function getTransactionBadge(status?: string) {
       return (
         <span className={`${base} bg-[#E6F4FF] text-[#1677FF]`}>Pending</span>
       );
+    case "credit":
+      return (
+        <span className={`${base} bg-[#E6F4FF] text-[#1677FF]`}>Credit</span>
+      );
     default:
       return (
         <span className={`${base} bg-primary-tint text-primary-deep`}>
@@ -62,7 +67,8 @@ function getTransactionBadge(status?: string) {
 
 export default function BillingPage() {
   const router = useRouter();
-  const { subscription, status, loading, cancel } = useSubscription();
+  const { subscription, status, loading, cancel, reactivate } =
+    useSubscription();
   const { currentApp, loading: proLoading, status: proStatus } = usePro();
   // UA is the authoritative shell signal — works on mobile even when the root
   // page (which sets vc_app_param) was never visited (deep-link to /login).
@@ -78,6 +84,7 @@ export default function BillingPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [txOpen, setTxOpen] = useState(true);
   const [subOpen, setSubOpen] = useState(true);
+  const [packOpen, setPackOpen] = useState(true);
   // Re-fetch whenever the user toggles between Pro and Team apps so each
   // billing surface stays scoped to its own purchases. Wait until usePro
   // has resolved — otherwise we'd default to "enterprise" while currentApp
@@ -98,17 +105,13 @@ export default function BillingPage() {
       .finally(() => setTxLoading(false));
   }, [proLoading, isProApp]);
 
-  // Subscription history is Team-app only (Pro lifetime is a one-time
-  // purchase, not a subscription). Skip the call inside the Pro app.
+  // Subscription history exists for both apps — AI-addon purchases write a
+  // SubscriptionHistory row tagged with the real appContext (including
+  // "pro"), not just Team plan activations. Fetch it in both contexts.
   useEffect(() => {
     if (proLoading) return;
-    if (isProApp) {
-      setHistory([]);
-      setHistoryLoading(false);
-      return;
-    }
     setHistoryLoading(true);
-    // Use axios (not fetch) so the interceptor adds X-App-Context: team.
+    // Use axios (not fetch) so the interceptor adds X-App-Context: pro|team.
     // The backend's getHistory() falls back to user.currentVersion when no
     // header is present — which can be "pro" — and returns the wrong history.
     api
@@ -131,15 +134,24 @@ export default function BillingPage() {
     );
 
   // ── Derived values ──
+  // A Subscription row is never deleted on cancel/expiry — only its status
+  // changes — so "row exists" alone can't mean "plan is usable". Only
+  // active/cancelling (still usable until period end) count; expired/
+  // cancelled/pending must fall back to Free Plan, same as no row at all.
+  const isTeamSubUsable =
+    !!subscription && ["active", "cancelling"].includes(subscription.status);
   const planName = isProApp
     ? proStatus?.hasPro
       ? "ValueChart Pro"
       : "Free Plan"
-    : subscription?.plan?.name || "Free Plan";
+    : isTeamSubUsable
+      ? subscription?.plan?.name || "Free Plan"
+      : "Free Plan";
 
-  const planPriceNum = !isProApp
-    ? Number(subscription?.price ?? subscription?.plan?.price ?? 0)
-    : null;
+  const planPriceNum =
+    !isProApp && isTeamSubUsable
+      ? Number(subscription?.price ?? subscription?.plan?.price ?? 0)
+      : null;
   const planPrice =
     planPriceNum && planPriceNum > 0 ? `$${planPriceNum.toFixed(2)}` : null;
 
@@ -158,11 +170,30 @@ export default function BillingPage() {
       : "inactive"
     : subscription?.status || (isActive ? "active" : "inactive");
 
-  const renewsAt =
-    !isProApp && (subscription?.expiresAt || subscription?.currentPeriodEnd)
+  const renewsAt = isProApp
+    ? (proStatus as any)?.flowAddonCurrentPeriodEnd
+      ? new Date((proStatus as any).flowAddonCurrentPeriodEnd).toLocaleString(
+          undefined,
+          {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          },
+        )
+      : null
+    : isTeamSubUsable &&
+        (subscription?.expiresAt || subscription?.currentPeriodEnd)
       ? new Date(
           subscription.expiresAt || subscription.currentPeriodEnd,
-        ).toLocaleDateString()
+        ).toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
       : null;
 
   const startedAt = !isProApp
@@ -198,14 +229,22 @@ export default function BillingPage() {
     else if (type === "pro_upgrade")
       description = `Pro Plan${plan ? ` — ${plan}` : ""}`;
     else if (type === "pro_extra_flows") description = "Pro — Extra Flows";
+    else if (type === "flow_addon") description = "Pro — Flow Add-on";
     else if (type === "team_subscription" || type === "enterprise")
       description = `Team Plan${plan ? ` — ${plan}` : ""}`;
+    // Seat reductions charge nothing — Stripe applies a prorated credit at
+    // the next invoice. Label them as such instead of "Team Plan $0.00".
+    if (r.status === "credit") {
+      description = "Seat Reduction — prorated credit on next invoice";
+    }
     const raw = r.amountCharged ?? r.amount_charged ?? r.amount ?? null;
     const currency = (r.currency || "usd").toUpperCase();
     const amount =
-      raw === null || raw === undefined || Number.isNaN(Number(raw))
+      r.status === "credit"
         ? `${currency} —`
-        : `${currency} $${(Number(raw) / 100).toFixed(2)}`;
+        : raw === null || raw === undefined || Number.isNaN(Number(raw))
+          ? `${currency} —`
+          : `${currency} $${(Number(raw) / 100).toFixed(2)}`;
     return {
       id: r.id || r.createdAt,
       date,
@@ -243,6 +282,39 @@ export default function BillingPage() {
     };
   });
 
+  // Map one-time flow-pack purchases (pro_flow_purchases) to display objects.
+  // Lifecycle: active | grace | expired | renewed.
+  const packLabelMap: Record<string, string> = {
+    fifty_flows: "50 Flows Pack",
+    standard_100: "100 Flows Pack",
+  };
+  const mappedFlowPacks = (proStatus?.flowPackPurchases ?? []).map((p) => {
+    const label = p.isUnlimited
+      ? "Unlimited Flows Pack"
+      : packLabelMap[p.packType] || `${p.flowCount} Flows Pack`;
+    const date = p.createdAt
+      ? new Date(p.createdAt).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : "—";
+    const expiryLabel =
+      p.status === "expired"
+        ? "expired"
+        : p.expiresAt
+          ? `expires ${new Date(p.expiresAt).toLocaleDateString()}`
+          : null;
+    return {
+      id: p.id,
+      label,
+      date,
+      status: p.status,
+      expiryLabel,
+      amount: `$${(p.amountCents / 100).toFixed(2)}`,
+    };
+  });
+
   // Open the Stripe Customer Portal — download invoices, update payment
   // method, view billing history (handled entirely by Stripe).
   const openCustomerPortal = async () => {
@@ -263,7 +335,7 @@ export default function BillingPage() {
 
   const changePlanLabel = isProApp
     ? "Manage Plan"
-    : subscription
+    : isTeamSubUsable
       ? "Change Plan"
       : "Upgrade";
 
@@ -317,14 +389,39 @@ export default function BillingPage() {
           >
             {changePlanLabel}
           </button>
-          {!isProApp && subscription && (
-            <button
-              onClick={cancel}
-              className={`${RESET} w-full sm:flex-1 h-11 rounded-xl border-2 border-[var(--coral)] bg-card text-[var(--coral)] font-bold text-sm`}
-            >
-              Cancel Subscription
-            </button>
-          )}
+          {!isProApp &&
+            isTeamSubUsable &&
+            (subscription?.status === "cancelling" ? (
+              <button
+                onClick={() =>
+                  confirmDialog({
+                    title: "Reactivate Plan",
+                    content: `Your plan will resume renewing as normal${renewsAt ? ` on ${renewsAt}` : ""}. Nothing is charged today.`,
+                    confirmLabel: "Reactivate",
+                    onConfirm: () => reactivate(),
+                  })
+                }
+                className={`${RESET} w-full sm:flex-1 h-11 rounded-xl border-2 border-primary bg-card text-primary font-bold text-sm`}
+              >
+                Reactivate Plan
+              </button>
+            ) : (
+              <button
+                onClick={() =>
+                  confirmDialog({
+                    title: "Cancel Subscription",
+                    content:
+                      "Your subscription will remain active until the end of the current billing period. Are you sure?",
+                    confirmLabel: "Yes, Cancel",
+                    danger: true,
+                    onConfirm: () => cancel(),
+                  })
+                }
+                className={`${RESET} w-full sm:flex-1 h-11 rounded-xl border-2 border-[var(--coral)] bg-card text-[var(--coral)] font-bold text-sm`}
+              >
+                Cancel Subscription
+              </button>
+            ))}
         </div>
 
         {/* {(subscription || proStatus?.hasPro) && (
@@ -461,67 +558,111 @@ export default function BillingPage() {
         )}
       </div>
 
-      {/* ── Subscription history (Team app only) ── */}
-      {!isProApp && (
+      {/* ── Subscription history (both apps — AI-addon buys write appContext-tagged rows too) ── */}
+      <div className="rounded-2xl bg-card border border-border p-5">
+        <div className="font-bold text-sm mb-3">Subscription History</div>
+        <button
+          onClick={() => setSubOpen((o) => !o)}
+          className={`${RESET} w-full flex items-center justify-between px-3 h-11 rounded-xl bg-secondary`}
+        >
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-semibold">Subscription History</span>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-card border border-border text-muted-foreground">
+              {mappedHistory.length}
+            </span>
+          </div>
+          <ChevronDown
+            className={`w-4 h-4 text-muted-foreground transition-transform ${subOpen ? "" : "-rotate-90"}`}
+          />
+        </button>
+        {subOpen &&
+          (historyLoading ? (
+            <div className="py-6 text-center">
+              <Spin size="small" />
+            </div>
+          ) : mappedHistory.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No records yet
+            </div>
+          ) : (
+            <>
+              <div className="mt-2 divide-y divide-border">
+                {mappedHistory.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold text-sm truncate">
+                        {s.planName}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        {s.startDate} – {s.endDate}
+                      </div>
+                    </div>
+                    {s.reason && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground shrink-0 ml-3">
+                        {s.reason}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="text-[11px] text-muted-foreground text-center mt-3 leading-relaxed">
+                Only the last 30 transactions are shown.
+                <br />
+                Contact support for older records.
+              </div>
+            </>
+          ))}
+      </div>
+
+      {/* ── Flow Pack History (Pro app only — one-time pack lifecycle) ── */}
+      {isProApp && mappedFlowPacks.length > 0 && (
         <div className="rounded-2xl bg-card border border-border p-5">
-          <div className="font-bold text-sm mb-3">Subscription History</div>
+          <div className="font-bold text-sm mb-3">Flow Pack History</div>
           <button
-            onClick={() => setSubOpen((o) => !o)}
+            onClick={() => setPackOpen((o) => !o)}
             className={`${RESET} w-full flex items-center justify-between px-3 h-11 rounded-xl bg-secondary`}
           >
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-semibold">
-                Subscription History
-              </span>
+              <span className="text-sm font-semibold">Flow Packs</span>
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-card border border-border text-muted-foreground">
-                {mappedHistory.length}
+                {mappedFlowPacks.length}
               </span>
             </div>
             <ChevronDown
-              className={`w-4 h-4 text-muted-foreground transition-transform ${subOpen ? "" : "-rotate-90"}`}
+              className={`w-4 h-4 text-muted-foreground transition-transform ${packOpen ? "" : "-rotate-90"}`}
             />
           </button>
-          {subOpen &&
-            (historyLoading ? (
-              <div className="py-6 text-center">
-                <Spin size="small" />
-              </div>
-            ) : mappedHistory.length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                No records yet
-              </div>
-            ) : (
-              <>
-                <div className="mt-2 divide-y divide-border">
-                  {mappedHistory.map((s) => (
-                    <div
-                      key={s.id}
-                      className="flex items-center justify-between py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="font-semibold text-sm truncate">
-                          {s.planName}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                          {s.startDate} – {s.endDate}
-                        </div>
-                      </div>
-                      {s.reason && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground shrink-0 ml-3">
-                          {s.reason}
-                        </span>
-                      )}
+          {packOpen && (
+            <div className="mt-2 divide-y divide-border">
+              {mappedFlowPacks.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between py-3"
+                >
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm truncate">
+                      {p.label}
                     </div>
-                  ))}
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {p.date}
+                      {p.expiryLabel ? ` · ${p.expiryLabel}` : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-3">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground capitalize">
+                      {p.status}
+                    </span>
+                    <span className="font-bold text-sm">{p.amount}</span>
+                  </div>
                 </div>
-                <div className="text-[11px] text-muted-foreground text-center mt-3 leading-relaxed">
-                  Only the last 30 transactions are shown.
-                  <br />
-                  Contact support for older records.
-                </div>
-              </>
-            ))}
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

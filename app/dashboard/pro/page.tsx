@@ -68,7 +68,7 @@ function getTimeAgo(dateStr: string): string {
 
 export default function ProDashboardPage() {
   const { user } = useAuth();
-  const { proFlows, status } = usePro();
+  const { proFlows, status, loading: proLoading } = usePro();
   const { activeOption } = useAiBilling();
   const planCredits = activeOption.aiCredits?.planCredits || 0;
   const addonCredits = activeOption.aiCredits?.addonCredits || 0;
@@ -156,11 +156,16 @@ export default function ProDashboardPage() {
       }))
     : [];
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const [today, setToday] = useState("");
+  useEffect(() => {
+    setToday(
+      new Date().toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      }),
+    );
+  }, []);
   const firstName = user?.name?.split(" ")[0] || "there";
 
   return (
@@ -189,7 +194,7 @@ export default function ProDashboardPage() {
 
       {/* Flow usage + Buy More Flows — shows for base/standard/unlimited/grace
           states via usePro (restored on the Pro dashboard). */}
-      {proFlows && (
+      {!proLoading && proFlows && (
         <div className="px-5 pt-3 lg:px-8 lg:pt-6">
           <FlowUsageBar
             proFlows={proFlows}

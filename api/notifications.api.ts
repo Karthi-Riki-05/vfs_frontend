@@ -11,6 +11,21 @@ export interface NotificationItem {
   createdAt: string;
 }
 
+export interface NotificationPreferenceItem {
+  category: string;
+  inApp: boolean;
+  push: boolean;
+  email: boolean;
+  locked: boolean;
+}
+
+export interface QuietHours {
+  enabled: boolean;
+  startHour: number;
+  endHour: number;
+  timezone: string;
+}
+
 export const notificationsApi = {
   list: (unreadOnly = false, limit = 20) =>
     api.get("/notifications", { params: { unreadOnly, limit } }),
@@ -21,6 +36,16 @@ export const notificationsApi = {
     api.post("/notifications/broadcast", payload),
   deleteOne: (id: string) => api.delete(`/notifications/${id}`),
   deleteAll: () => api.delete("/notifications/delete-all"),
+  getPreferences: () => api.get("/notifications/preferences"),
+  updatePreference: (payload: {
+    category: string;
+    inApp?: boolean;
+    push?: boolean;
+    email?: boolean;
+  }) => api.put("/notifications/preferences", payload),
+  getQuietHours: () => api.get("/notifications/quiet-hours"),
+  updateQuietHours: (payload: Partial<QuietHours>) =>
+    api.put("/notifications/quiet-hours", payload),
 };
 
 export const flowPackApi = {

@@ -2,8 +2,8 @@
   "cookies": [
     {
       "name": "next-auth.csrf-token",
-      "value": "c033cdbe4b09a81905f1bec640eb95101571912275e515c0103386ba0b751913%7C6a36410bc0f13634e6132f83d45a7bd738f878052ae078a6628e6147b477cca7",
-      "domain": "192.168.0.101",
+      "value": "c01bbb110d30f4c5d29c7d313ba751089aaf0621e1cc994ecabbb4c0f1052ccb%7C2e3a47bf4b5c3f537a8430d2d7e9d6d8a78a5243cea836f6bc739853b511aa61",
+      "domain": "localhost",
       "path": "/",
       "expires": -1,
       "httpOnly": true,
@@ -13,7 +13,7 @@
     {
       "name": "next-auth.callback-url",
       "value": "http%3A%2F%2F192.168.0.101%3A3002",
-      "domain": "192.168.0.101",
+      "domain": "localhost",
       "path": "/",
       "expires": -1,
       "httpOnly": true,
@@ -22,10 +22,10 @@
     },
     {
       "name": "next-auth.session-token",
-      "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..t3csL85fJNSA3rwx.ZGKy8pjWmWHbnkYPx9CNpQhA08CrHzWGdboq7ANYmiWzwnkOUfaIr-GhLrusEMshA-cI1a6R8SgQBTSOB_ouWs8OqQTd3Rp0Tr7nC8EiJhydgw28MWru_TJJlwEthVdofSxPmfXvnxVS5O5LExazK5cuCKHNKHF1iMpPcXn6k4lKN43eW4rbGbE2JhsmdMPdgTsUO-nkGx9cBVBPwVJxRwYJXJZidRjVRVJoPz1Dy5afuEfb7mtYBGL13VJ_CsjPvXzv1q-MiPOlwO4m4QZQ8Bx5q9NPEerERu0sMHf-E7Y76oxkXy7nggc29RI8joJ9KsUTAsvkN4GYc2XQM9SvrHCmNSwwS43qcOuiwuPvMj6c_pzJ.q8gNKi8rhNvtGhMFnB1A7A",
-      "domain": "192.168.0.101",
+      "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yIDXDXZHi59RGSil.v3wBAkZ7FucA2_VCv5s4bmtGdBo4_mIOq4u134xJtdzaJys-GPz8GbpFURrRIbvLzIYCPZkW9TyE2DwEJGPXkzmhFBc84aJ5YG12abNea_b0pK5hFfqNHEpIzWonZDFmVVO_-GHMmA3BzKl9OE3a2ofjM-HXK-dG7sIisoKK9FWLrkVRsWlmf6S_0wmVYBf-WgaVhorOqTKX60_RCxXsWYlvYumXx6_W8HWlNIZACE3s73Re356YPGvgpaYyNjvGaQX_9XRw9xSFUAqHhJtBbtjIQqndH0H6g2onDODs5olk53qISkU22xiIDABUrGi-vjvBlPty0eAPln9unMWUwylgpcZ9f1_sHL9W4Za-XyuZZY8G.LXWv5zT6QInEOAyrhwSeZw",
+      "domain": "localhost",
       "path": "/",
-      "expires": 1785084255,
+      "expires": 1785305204,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"

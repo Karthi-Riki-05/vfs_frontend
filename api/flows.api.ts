@@ -62,4 +62,13 @@ export const flowsApi = {
     api.delete(`/flows/${flowId}/shares/${shareId}`),
 
   getAvailableShareMembers: () => api.get("/flows/share/members"),
+
+  // Over-limit lock lifecycle
+  getLockState: () => api.get("/flows/lock-state"),
+  markModalShown: (appType: "pro" | "team") =>
+    api.post("/flows/mark-modal-shown", { appType }),
+  getFlowsForPicker: () => api.get("/flows/limit-flows-picker"),
+  resolveOverLimit: (appType: "pro" | "team", selectedFlowIds: string[]) =>
+    api.post("/flows/resolve-lock", { appType, selectedFlowIds }),
+  checkExpiry: () => api.post("/flows/check-expiry"),
 };
