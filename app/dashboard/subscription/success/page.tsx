@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button, Spin, Typography, Card } from "antd";
 import {
   CheckCircleFilled,
@@ -10,6 +11,7 @@ import {
   CrownOutlined,
 } from "@ant-design/icons";
 import { subscriptionsApi } from "@/api/subscriptions.api";
+import { useAppContext } from "@/context/AppContext";
 
 const { Text, Title } = Typography;
 
@@ -27,6 +29,8 @@ function SubscriptionSuccessContent() {
   const sessionId = searchParams?.get("session_id") ?? null;
   const [status, setStatus] = useState<SubStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const { update: updateSession } = useSession();
+  const { refresh: refreshAppContext } = useAppContext();
 
   // Scrub the expired Stripe checkout URL from browser history so the
   // back button (browser or PWA) lands on this page instead of Stripe's
@@ -49,6 +53,18 @@ function SubscriptionSuccessContent() {
           const res = await subscriptionsApi.getStatus();
           setStatus(res.data?.data || res.data);
         }
+
+        // The DB is now correct, but two client-side caches are not:
+        // AppContext.personalPlan was fetched once on mount and may have
+        // raced this verifySession() call, and the NextAuth JWT
+        // (hasTeamAccess/currentVersion, read directly by Sidebar.tsx) only
+        // refreshes on a timer. Force both BEFORE the user can click
+        // "Go to Dashboard" — otherwise the dashboard shows stale free-user
+        // state despite the subscription being active.
+        await Promise.all([
+          updateSession().catch(() => {}),
+          refreshAppContext().catch(() => {}),
+        ]);
       } catch {
         // will show generic success
       } finally {

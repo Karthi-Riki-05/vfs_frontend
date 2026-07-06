@@ -389,7 +389,12 @@ export default function BillingPage() {
           >
             {changePlanLabel}
           </button>
-          {!isProApp &&
+          {/* Native shells: subscriptions are managed where they were
+              purchased (app-store settings or the web) — no Stripe
+              cancel/reactivate actions in-app. clientAppType !== "web"
+              covers both shells. */}
+          {clientAppType === "web" &&
+            !isProApp &&
             isTeamSubUsable &&
             (subscription?.status === "cancelling" ? (
               <button

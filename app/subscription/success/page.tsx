@@ -15,7 +15,9 @@ import { useSession } from "next-auth/react";
 import { getClientAppType } from "@/lib/detectWebView";
 import { aiApi } from "@/api/ai.api";
 import { proApi } from "@/api/pro.api";
+import { subscriptionsApi } from "@/api/subscriptions.api";
 import { getLogoForApp } from "@/lib/getLogo";
+import { useAppContext } from "@/context/AppContext";
 
 // ── Content map per purchase type ────────────────────────────────────────────
 
@@ -106,12 +108,15 @@ function SuccessPageInner() {
   const router = useRouter();
   const { currentApp, forcedMode, loading } = usePro();
   const { update: updateSession } = useSession();
+  const { refresh: refreshAppContext } = useAppContext();
   const [countdown, setCountdown] = useState(10);
   const [verified, setVerified] = useState(false);
   const [proVerifying, setProVerifying] = useState(false);
   const [proVerified, setProVerified] = useState(false);
+  const [teamVerifying, setTeamVerifying] = useState(false);
   const [mounted, setMounted] = useState(false);
   const proPollingRef = useRef(false);
+  const teamVerifyRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -166,6 +171,33 @@ function SuccessPageInner() {
     proApi.verifyFlowAddon(sessionId).catch(() => {});
   }, [mounted, type, sessionId, verified]);
 
+  // For Team subscription: this page (unlike /dashboard/subscription/success)
+  // never called verifySession() at all — it silently trusted the
+  // checkout.session.completed webhook to have already saved the
+  // subscription. Locally (and any environment where the webhook is
+  // delayed/lost) the DB is never updated, so the user is charged but the
+  // dashboard still shows Free. verifySession() is idempotent and handles
+  // both "webhook already fired" and "webhook missed" in one call. Also
+  // force-refresh the NextAuth session + AppContext BEFORE the button/
+  // auto-redirect can fire — otherwise even a successful DB write is masked
+  // by stale client-side caches (same race as the pro branch below).
+  useEffect(() => {
+    if (!mounted || type !== "team" || !sessionId || teamVerifyRef.current)
+      return;
+    teamVerifyRef.current = true;
+    setTeamVerifying(true);
+    subscriptionsApi
+      .verifySession({ sessionId })
+      .catch(() => {})
+      .finally(async () => {
+        await Promise.all([
+          updateSession().catch(() => {}),
+          refreshAppContext().catch(() => {}),
+        ]);
+        setTeamVerifying(false);
+      });
+  }, [mounted, type, sessionId, updateSession, refreshAppContext]);
+
   // For Pro purchase ($5): poll verify endpoint then refresh NextAuth session.
   // Without updateSession() the JWT still has hasPro=false → dashboard bounces
   // the user back to /upgrade-pro.
@@ -205,6 +237,7 @@ function SuccessPageInner() {
   useEffect(() => {
     if (!mounted || loading) return;
     if (type === "pro" && proVerifying) return;
+    if (type === "team" && teamVerifying) return;
     const tick = setInterval(() => {
       setCountdown((n) => {
         if (n <= 1) {
@@ -216,7 +249,15 @@ function SuccessPageInner() {
       });
     }, 1000);
     return () => clearInterval(tick);
-  }, [mounted, loading, type, proVerifying, dashboardUrl, router]);
+  }, [
+    mounted,
+    loading,
+    type,
+    proVerifying,
+    teamVerifying,
+    dashboardUrl,
+    router,
+  ]);
 
   // Don't render until client-side — prevents SSR/client hydration mismatch
   if (!mounted) return null;
@@ -314,24 +355,48 @@ function SuccessPageInner() {
             </div>
           )}
 
+          {/* Team: show verifying spinner while confirming the subscription
+              and refreshing session/AppContext — prevents the dashboard from
+              showing stale Free-user state right after landing here. */}
+          {type === "team" && teamVerifying && (
+            <div className="flex flex-col items-center gap-2 mb-5 py-3 rounded-2xl bg-[#FFFBEB] border border-[#FDE68A]">
+              <div className="w-5 h-5 border-2 border-[#D97706] border-t-transparent rounded-full animate-spin" />
+              <span className="text-[12px] text-[#92400E] font-medium">
+                Activating your Team plan…
+              </span>
+            </div>
+          )}
+
           {/* CTA */}
           <button
             onClick={() => router.push(dashboardUrl)}
-            disabled={loading || (type === "pro" && proVerifying)}
+            disabled={
+              loading ||
+              (type === "pro" && proVerifying) ||
+              (type === "team" && teamVerifying)
+            }
             className="w-full h-12 rounded-2xl bg-[#3CB371] hover:bg-[#2A7A52] text-white font-bold text-[15px] flex items-center justify-center gap-2 transition-colors appearance-none border-0 cursor-pointer disabled:opacity-60"
           >
-            {type === "pro" && proVerifying ? "Activating…" : "Go to Dashboard"}
-            {!(type === "pro" && proVerifying) && (
-              <ArrowRight className="w-4 h-4" />
-            )}
+            {type === "pro" && proVerifying
+              ? "Activating…"
+              : type === "team" && teamVerifying
+                ? "Activating…"
+                : "Go to Dashboard"}
+            {!(
+              (type === "pro" && proVerifying) ||
+              (type === "team" && teamVerifying)
+            ) && <ArrowRight className="w-4 h-4" />}
           </button>
 
           {/* Auto-redirect notice */}
-          {!loading && !(type === "pro" && proVerifying) && countdown > 0 && (
-            <div className="text-center text-[11px] text-[#94A3B8] mt-3">
-              Redirecting automatically in {countdown}s
-            </div>
-          )}
+          {!loading &&
+            !(type === "pro" && proVerifying) &&
+            !(type === "team" && teamVerifying) &&
+            countdown > 0 && (
+              <div className="text-center text-[11px] text-[#94A3B8] mt-3">
+                Redirecting automatically in {countdown}s
+              </div>
+            )}
         </div>
       </div>
 

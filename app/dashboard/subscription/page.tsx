@@ -25,8 +25,22 @@ import { proApi } from "@/api/pro.api";
 import { aiApi } from "@/api/ai.api";
 import { paymentsApi, SavedCard } from "@/api/payments.api";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useAiBilling } from "@/context/AiBillingContext";
 import { getClientAppType } from "@/lib/detectWebView";
+import {
+  IAP_PRODUCTS,
+  IAP_TEAM_TIERS,
+  teamProductId,
+  isNativeShell,
+  useIapAvailable,
+  iapLogin,
+  iapPurchase,
+  iapPrices,
+  iapRestore,
+  waitThenRefresh,
+  IapPrice,
+} from "@/lib/iapBridge";
 
 // Ported from new_design Subscription/ValueChartPlans/ProPlans/CreditAddOns
 // (prototype L1537–1728). Tailwind `.tw` shell, unified for desktop + mobile.
@@ -94,14 +108,89 @@ interface ProSubStatus {
   flowAddon?: FlowAddon;
 }
 
+/* ---------- Shared: native-shell (IAP) helpers ---------- */
+
+// Store-policy copy shown in the native shells instead of purchase controls.
+// Deliberately NO link/button to web payment — that would be steering
+// (Apple 3.1.1 / Play Payments). See IAP_CONTRACT.md.
+function ManagedOnWebNote({ text }: { text: string }) {
+  return (
+    <div className="rounded-2xl bg-secondary/40 border border-border px-4 py-3 text-[13px] text-muted-foreground">
+      {text}
+    </div>
+  );
+}
+
+// Mandatory "Restore purchases" affordance (App Review requires it; also
+// useful on Android after a reinstall). Rendered only when IAP is available.
+function RestorePurchasesButton({ onRestored }: { onRestored: () => void }) {
+  const [restoring, setRestoring] = useState(false);
+  const handleRestore = async () => {
+    setRestoring(true);
+    const res = await iapRestore();
+    if (res.status === "success") {
+      toast.success("Purchases restored — refreshing your plan…");
+      await waitThenRefresh(onRestored);
+    } else if (res.status === "error") {
+      toast.error(res.message || "Restore failed");
+    }
+    setRestoring(false);
+  };
+  return (
+    <div className="flex justify-center pt-1">
+      <button
+        onClick={handleRestore}
+        disabled={restoring}
+        className={`${RESET} h-9 px-4 rounded-xl bg-transparent text-[13px] font-semibold font-sans text-muted-foreground underline underline-offset-2 disabled:opacity-60`}
+      >
+        {restoring ? "Restoring…" : "Restore purchases"}
+      </button>
+    </div>
+  );
+}
+
 /* ---------- Shared: AI Credit Add-ons (prototype CreditAddOns L1705) ---------- */
 
-function CreditAddOns({ balance }: { balance?: number }) {
+function CreditAddOns({
+  balance,
+  onPurchased,
+}: {
+  balance?: number;
+  onPurchased?: () => void;
+}) {
   const [buying, setBuying] = useState<string | null>(null);
   const { pricing } = usePricing();
+  const { data: session } = useSession();
+  const native = isNativeShell();
+  const iapReady = useIapAvailable();
+  const [storePrices, setStorePrices] = useState<Record<string, IapPrice>>({});
   const hasCredits = typeof balance === "number" && balance > 0;
 
+  // Native shell: show what the STORE will charge, not the Stripe price.
+  useEffect(() => {
+    if (!native || !iapReady) return;
+    iapPrices(Object.values(IAP_PRODUCTS.aiCredits)).then(setStorePrices);
+  }, [native, iapReady]);
+
   const handleBuy = async (packType: "starter" | "standard" | "proppack") => {
+    // Native shell → store purchase sheet. The RevenueCat webhook credits
+    // the pool; waitThenRefresh polls until the balance flips.
+    if (native) {
+      if (!iapReady) return;
+      setBuying(packType);
+      const userId = (session?.user as any)?.id as string | undefined;
+      if (userId) await iapLogin(userId);
+      const res = await iapPurchase(IAP_PRODUCTS.aiCredits[packType]);
+      if (res.status === "success") {
+        toast.success("Purchase successful — adding your credits…");
+        if (onPurchased) await waitThenRefresh(onPurchased);
+      } else if (res.status === "error") {
+        toast.error(res.message || "Purchase failed");
+      }
+      setBuying(null);
+      return;
+    }
+
     setBuying(packType);
     try {
       const res = await aiApi.createAddonCheckout(packType);
@@ -144,9 +233,16 @@ function CreditAddOns({ balance }: { balance?: number }) {
         )}
       </div>
 
+      {native && !iapReady ? (
+        <div className="mt-4">
+          <ManagedOnWebNote text="Credit top-ups are not available in this version of the app." />
+        </div>
+      ) : (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
         {ADDON_PACK_META.map((pack) => {
           const priceInfo = pricing?.prices[pack.priceKey];
+          const storePrice =
+            storePrices[IAP_PRODUCTS.aiCredits[pack.packType]]?.priceString;
           const popular = "popular" in pack && pack.popular;
           return (
             <div
@@ -167,7 +263,7 @@ function CreditAddOns({ balance }: { balance?: number }) {
               </div>
               <div className="text-[11px] text-muted-foreground">credits</div>
               <div className="mt-2 text-xl font-extrabold text-primary">
-                {priceInfo?.display ?? "…"}
+                {native ? (storePrice ?? "…") : (priceInfo?.display ?? "…")}
               </div>
               <button
                 onClick={() => handleBuy(pack.packType)}
@@ -180,8 +276,9 @@ function CreditAddOns({ balance }: { balance?: number }) {
           );
         })}
       </div>
+      )}
 
-      {pricing && pricing.currency !== "USD" && (
+      {!native && pricing && pricing.currency !== "USD" && (
         <div className="text-[11px] text-muted-foreground mt-3 text-center">
           Prices shown approximately in {pricing.currency}. You will be charged
           in USD at checkout — your bank converts automatically.
@@ -197,6 +294,13 @@ function ProSubscriptionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { pricing } = usePricing();
+  const { data: session } = useSession();
+  // Native shell: purchases must go through the store (IAP_CONTRACT.md).
+  const native = isNativeShell();
+  const iapReady = useIapAvailable();
+  const [iapStorePrices, setIapStorePrices] = useState<
+    Record<string, IapPrice>
+  >({});
   const { status: packStatus, refresh: refreshPackStatus } = usePackStatus();
   const { activeOption, refresh: refreshAiBilling } = useAiBilling();
   const planCredits = activeOption.aiCredits?.planCredits || 0;
@@ -302,6 +406,15 @@ function ProSubscriptionContent() {
     fetchProSubStatus();
   }, []);
 
+  // Native shell: show what the STORE will charge for the flow add-ons.
+  useEffect(() => {
+    if (!native || !iapReady) return;
+    iapPrices([
+      IAP_PRODUCTS.addonFlowsStandard,
+      IAP_PRODUCTS.addonFlowsUnlimited,
+    ]).then(setIapStorePrices);
+  }, [native, iapReady]);
+
   const fetchProSubStatus = async () => {
     try {
       const res = await proApi.getSubscriptionStatus();
@@ -318,6 +431,33 @@ function ProSubscriptionContent() {
   };
 
   const handleAddonSubscribe = async (plan: "standard" | "unlimited") => {
+    // Native shell → store purchase (new subscriptions only; upgrades of an
+    // existing addon are hidden in the shell — the store manages changes).
+    // No confirmDialog here: the store's own payment sheet IS the
+    // confirmation, with the store-localized price (bug-050 satisfied).
+    if (native) {
+      if (!iapReady) return;
+      setPurchasing(plan);
+      const userId = (session?.user as any)?.id as string | undefined;
+      if (userId) await iapLogin(userId);
+      const res = await iapPurchase(
+        plan === "unlimited"
+          ? IAP_PRODUCTS.addonFlowsUnlimited
+          : IAP_PRODUCTS.addonFlowsStandard,
+      );
+      if (res.status === "success") {
+        toast.success("Purchase successful — activating your add-on…");
+        await waitThenRefresh(() => {
+          fetchProSubStatus();
+          refreshPackStatus();
+        });
+      } else if (res.status === "error") {
+        toast.error(res.message || "Purchase failed");
+      }
+      setPurchasing(null);
+      return;
+    }
+
     // Confirm with the real amount BEFORE anything is billed (bug-050) —
     // the upgrade path applies a proration with no Stripe page, and the
     // no-saved-card path previously had no confirmation at all.
@@ -560,16 +700,20 @@ function ProSubscriptionContent() {
               Payment failed — update your card
             </div>
             <div className="text-xs text-[#EF4444]">
-              Your flow pack will be paused soon.
+              {native
+                ? "Your flow pack will be paused soon. Update your payment method in your app store's subscription settings, or on the web."
+                : "Your flow pack will be paused soon."}
             </div>
           </div>
-          <button
-            onClick={handlePortal}
-            disabled={portalLoading}
-            className={`${RESET} h-9 px-3 rounded-xl bg-destructive text-white text-xs font-bold font-sans shrink-0`}
-          >
-            {portalLoading ? "…" : "Fix Now"}
-          </button>
+          {!native && (
+            <button
+              onClick={handlePortal}
+              disabled={portalLoading}
+              className={`${RESET} h-9 px-3 rounded-xl bg-destructive text-white text-xs font-bold font-sans shrink-0`}
+            >
+              {portalLoading ? "…" : "Fix Now"}
+            </button>
+          )}
         </div>
       )}
 
@@ -695,6 +839,15 @@ function ProSubscriptionContent() {
               )}
             </div>
           </div>
+          {native ? (
+            // Store policy: no billing management inside the shell. A
+            // store-bought add-on is cancelled/changed in Google Play /
+            // App Store subscription settings; a web-bought one on the web.
+            <span className="text-xs text-muted-foreground">
+              Manage this subscription where you purchased it — your app
+              store's subscription settings, or your account on the web.
+            </span>
+          ) : (
           <div className="flex items-center gap-2 flex-wrap">
             {isStandardActive && (
               <button
@@ -733,11 +886,17 @@ function ProSubscriptionContent() {
               <CreditCard className="w-4 h-4" /> Manage Billing
             </button>
           </div>
+          )}
         </div>
       )}
 
-      {/* Add More Flows (only when no active pack) */}
-      {!hasActivePack && !isPastDue && (
+      {/* Add More Flows (only when no active pack). In a native shell
+          without IAP there is no compliant way to sell — show neutral copy
+          instead (no web-payment link: that would be steering). */}
+      {!hasActivePack && !isPastDue && native && !iapReady && (
+        <ManagedOnWebNote text="Flow add-ons are not available in this version of the app." />
+      )}
+      {!hasActivePack && !isPastDue && (!native || iapReady) && (
         <div className="rounded-2xl bg-card border border-border p-5">
           <div className="font-bold text-base text-foreground mb-3">
             Add More Flows
@@ -749,7 +908,10 @@ function ProSubscriptionContent() {
                 Standard — 100 Flows
               </div>
               <div className="mt-2 text-3xl font-extrabold text-primary">
-                $10.00
+                {native
+                  ? (iapStorePrices[IAP_PRODUCTS.addonFlowsStandard]
+                      ?.priceString ?? "…")
+                  : "$10.00"}
                 <span className="text-sm font-semibold text-muted-foreground">
                   {" "}
                   / month
@@ -781,7 +943,10 @@ function ProSubscriptionContent() {
                 Unlimited Flows
               </div>
               <div className="mt-2 text-3xl font-extrabold text-primary">
-                $20.00
+                {native
+                  ? (iapStorePrices[IAP_PRODUCTS.addonFlowsUnlimited]
+                      ?.priceString ?? "…")
+                  : "$20.00"}
                 <span className="text-sm font-semibold text-muted-foreground">
                   {" "}
                   / month
@@ -805,7 +970,17 @@ function ProSubscriptionContent() {
         </div>
       )}
 
-      <CreditAddOns balance={totalCredits} />
+      <CreditAddOns balance={totalCredits} onPurchased={refreshAiBilling} />
+
+      {native && iapReady && (
+        <RestorePurchasesButton
+          onRestored={() => {
+            fetchProSubStatus();
+            refreshPackStatus();
+            refreshAiBilling();
+          }}
+        />
+      )}
 
       {/* Saved card selector — shown before flow addon checkout */}
       <ModalShell open={!!pendingAddon} onClose={() => setPendingAddon(null)}>
@@ -884,7 +1059,14 @@ function SubscriptionPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currentApp, loading: proLoading } = usePro();
-  const { activeOption } = useAiBilling();
+  const { activeOption, refresh: refreshAiBilling } = useAiBilling();
+  const { data: session } = useSession();
+  // Native shell: purchases must go through the store (IAP_CONTRACT.md).
+  const native = isNativeShell();
+  const iapReady = useIapAvailable();
+  const [teamStorePrices, setTeamStorePrices] = useState<
+    Record<string, IapPrice>
+  >({});
   const teamPlanCredits = activeOption.aiCredits?.planCredits || 0;
   const teamAddonCredits = activeOption.aiCredits?.addonCredits || 0;
   const teamTotalCredits = teamPlanCredits + teamAddonCredits;
@@ -940,6 +1122,18 @@ function SubscriptionPageInner() {
     }
   }, [searchParams, router, fetchCurrent, fetchStatus]);
 
+  // Native shell: fetch localized store prices for every in-app team tier
+  // so the plan cards show what the STORE will charge.
+  useEffect(() => {
+    if (!native || !iapReady) return;
+    const ids: string[] = [];
+    IAP_TEAM_TIERS.forEach((seats) => {
+      ids.push(teamProductId(seats, "monthly"));
+      ids.push(teamProductId(seats, "yearly"));
+    });
+    iapPrices(ids).then(setTeamStorePrices);
+  }, [native, iapReady]);
+
   // Re-fetch subscription status when the user returns from an external
   // browser (e.g. after completing Stripe payment in Chrome on mobile).
   // The Flutter shell dispatches this event only when the WebView URL
@@ -978,6 +1172,30 @@ function SubscriptionPageInner() {
   // user must see what happens (prorated charge, unchanged renewal date)
   // BEFORE any money moves (bug-043).
   const handlePurchase = async (plan: "monthly" | "yearly") => {
+    // Native shell → store purchase, NEW subscriptions only (an existing
+    // subscription is managed where it was bought — those controls are
+    // hidden in the shell, so this branch can't fire for them). The store's
+    // own payment sheet is the price confirmation.
+    if (native) {
+      if (!iapReady) return;
+      const seats = plan === "monthly" ? monthlyMembers : yearlyMembers;
+      setCheckoutLoading(plan);
+      const userId = (session?.user as any)?.id as string | undefined;
+      if (userId) await iapLogin(userId);
+      const res = await iapPurchase(teamProductId(seats, plan));
+      if (res.status === "success") {
+        toast.success("Purchase successful — activating your plan…");
+        await waitThenRefresh(() => {
+          fetchCurrent();
+          fetchStatus();
+        });
+      } else if (res.status === "error") {
+        toast.error(res.message || "Purchase failed");
+      }
+      setCheckoutLoading(null);
+      return;
+    }
+
     // "cancelling" counts as an existing sub — it must go through the
     // plan-change flow (which reactivates), NOT new-subscription checkout
     // (which would create a duplicate Stripe subscription). See bug-046.
@@ -1171,8 +1389,14 @@ function SubscriptionPageInner() {
         : pricing?.prices.team_yearly;
     const perUserAmount = priceInfo?.amount ?? 0;
     const currentPrice = members * perUserAmount;
-    const priceLabel =
-      plan === "monthly"
+    // Native shell: the store's localized price for the fixed-tier product
+    // is the truth — per-seat Stripe math doesn't apply to store products.
+    const storePriceString = native
+      ? teamStorePrices[teamProductId(members, plan)]?.priceString
+      : undefined;
+    const priceLabel = native
+      ? `${storePriceString ?? "…"}/${plan === "monthly" ? "month" : "year"}`
+      : plan === "monthly"
         ? `${fmtMoney(currentPrice)}/month`
         : `${fmtMoney(currentPrice)}/year`;
     const isCurrent = isActivePlan(plan);
@@ -1234,7 +1458,9 @@ function SubscriptionPageInner() {
             onChange={setMembers}
             style={{ width: "100%" }}
             size="large"
-            options={TEAM_OPTIONS.map((n) => ({
+            // In-app team plans cap at 25 members (fixed store products);
+            // larger teams subscribe on the web.
+            options={(native ? IAP_TEAM_TIERS : TEAM_OPTIONS).map((n) => ({
               label: `${n} Members`,
               value: n,
             }))}
@@ -1243,11 +1469,13 @@ function SubscriptionPageInner() {
           <div className="mt-4 text-3xl font-extrabold text-foreground">
             {priceLabel}
           </div>
-          <div className="text-[11px] text-muted-foreground mt-1">
-            {plan === "monthly"
-              ? `${members} seats × ${fmtMoney(perUserAmount)}/user/month`
-              : `${members} seats × ${fmtMoney(perUserAmount)}/user/year`}
-          </div>
+          {!native && (
+            <div className="text-[11px] text-muted-foreground mt-1">
+              {plan === "monthly"
+                ? `${members} seats × ${fmtMoney(perUserAmount)}/user/month`
+                : `${members} seats × ${fmtMoney(perUserAmount)}/user/year`}
+            </div>
+          )}
           <div className="text-[11px] text-muted-foreground">
             {plan === "monthly"
               ? `${members * 60} AI credits/month included`
@@ -1285,7 +1513,8 @@ function SubscriptionPageInner() {
           >
             {checkoutLoading === plan ? "Loading…" : buttonLabel}
           </button>
-          {isCurrent &&
+          {!native &&
+            isCurrent &&
             status?.status === "active" &&
             !status?.cancelAtPeriodEnd && (
               <button
@@ -1326,18 +1555,20 @@ function SubscriptionPageInner() {
               Payment Failed
             </div>
             <div className="text-[13px] text-muted-foreground mt-1 mb-3">
-              Your last payment failed. Please update your payment method to
-              keep your subscription active. If not resolved, your account will
-              be downgraded to the free plan.
+              {native
+                ? "Your last payment failed. Update your payment method in your app store's subscription settings (or on the web if you subscribed there) to keep your subscription active."
+                : "Your last payment failed. Please update your payment method to keep your subscription active. If not resolved, your account will be downgraded to the free plan."}
             </div>
             <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={openCustomerPortal}
-                disabled={portalLoading}
-                className={`${RESET} h-9 px-3 rounded-lg bg-destructive text-white text-[13px] font-bold font-sans disabled:opacity-60`}
-              >
-                {portalLoading ? "…" : "Update Payment Method"}
-              </button>
+              {!native && (
+                <button
+                  onClick={openCustomerPortal}
+                  disabled={portalLoading}
+                  className={`${RESET} h-9 px-3 rounded-lg bg-destructive text-white text-[13px] font-bold font-sans disabled:opacity-60`}
+                >
+                  {portalLoading ? "…" : "Update Payment Method"}
+                </button>
+              )}
               <button
                 onClick={() => window.location.reload()}
                 className={`${RESET} h-9 px-3 rounded-lg bg-card border border-border text-foreground text-[13px] font-semibold font-sans`}
@@ -1368,13 +1599,19 @@ function SubscriptionPageInner() {
                 {new Date(status.currentPeriodEnd).toLocaleDateString()}
               </div>
             )}
-            {status.cancelAtPeriodEnd && (
+            {status.cancelAtPeriodEnd && !native && (
               <button
                 onClick={handleReactivate}
                 className={`${RESET} mt-3 h-9 px-4 rounded-lg bg-white text-primary-deep text-[13px] font-bold font-sans`}
               >
                 Reactivate Plan
               </button>
+            )}
+            {native && (
+              <div className="text-xs text-white/80 mt-3">
+                Manage this plan where you purchased it — your app store's
+                subscription settings, or your account on the web.
+              </div>
             )}
             <span className="absolute right-4 top-4 text-[11px] font-bold px-3 py-1 rounded-full bg-white text-primary-deep">
               {status.cancelAtPeriodEnd ? "Cancelling" : "Active"}
@@ -1399,28 +1636,39 @@ function SubscriptionPageInner() {
               </div>
             )}
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={handleActivateNow}
-              className={`${RESET} h-10 px-4 rounded-full bg-primary text-white font-semibold text-sm font-sans hover:bg-primary-deep transition`}
-            >
-              Activate Now
-            </button>
-            <button
-              onClick={handleCancelScheduled}
-              className={`${RESET} h-10 px-4 rounded-full bg-transparent border border-[var(--coral)] text-[var(--coral)] font-semibold text-sm font-sans`}
-            >
-              Cancel Change
-            </button>
-          </div>
+          {!native && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={handleActivateNow}
+                className={`${RESET} h-10 px-4 rounded-full bg-primary text-white font-semibold text-sm font-sans hover:bg-primary-deep transition`}
+              >
+                Activate Now
+              </button>
+              <button
+                onClick={handleCancelScheduled}
+                className={`${RESET} h-10 px-4 rounded-full bg-transparent border border-[var(--coral)] text-[var(--coral)] font-semibold text-sm font-sans`}
+              >
+                Cancel Change
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Plan cards */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {renderPlanCard("monthly")}
-        {renderPlanCard("yearly")}
-      </div>
+      {/* Plan cards. Native shell rules (IAP_CONTRACT.md):
+          - IAP unavailable → no purchase UI at all (store policy);
+          - live subscription → managed where it was bought, no change UI;
+          - otherwise → new-subscription purchase through the store. */}
+      {native && !iapReady ? (
+        <ManagedOnWebNote text="Team plans are not available for purchase in this version of the app." />
+      ) : native && hasLiveSub ? (
+        <ManagedOnWebNote text="Your team plan is active. Seat changes, plan changes and cancellation are managed where you purchased it — your app store's subscription settings, or your account on the web." />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {renderPlanCard("monthly")}
+          {renderPlanCard("yearly")}
+        </div>
+      )}
 
       {/* Manage billing */}
       {/* {status?.hasSubscription &&
@@ -1438,7 +1686,17 @@ function SubscriptionPageInner() {
         )} */}
 
       {/* AI credit add-ons (team owners top up the shared pool) */}
-      <CreditAddOns balance={teamTotalCredits} />
+      <CreditAddOns balance={teamTotalCredits} onPurchased={refreshAiBilling} />
+
+      {native && iapReady && (
+        <RestorePurchasesButton
+          onRestored={() => {
+            fetchCurrent();
+            fetchStatus();
+            refreshAiBilling();
+          }}
+        />
+      )}
 
       {/* Saved card selector modal — shown before new subscription checkout */}
       <ModalShell open={!!pendingPlan} onClose={() => setPendingPlan(null)}>
