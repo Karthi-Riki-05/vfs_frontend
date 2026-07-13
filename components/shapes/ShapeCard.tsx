@@ -4,6 +4,8 @@ import React, { useMemo, useState } from "react";
 import { Typography, Tag } from "antd";
 import { toast } from "sonner";
 import { ModalShell, ModalHeader } from "@/components/common/Modal";
+import { copyToClipboard } from "@/lib/clipboard";
+import { shapesApi } from "@/api/shapes.api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +26,7 @@ import {
   AppstoreOutlined,
   FolderOutlined,
   MoreOutlined,
+  LinkOutlined,
 } from "@ant-design/icons";
 
 const { Text } = Typography;
@@ -203,20 +206,39 @@ export default function ShapeCard({
 
   // ─── Handlers ───
   const handleCopySource = async () => {
-    try {
-      await navigator.clipboard.writeText(content || "");
+    const ok = await copyToClipboard(content || "");
+    if (ok) {
       toast.success("Source copied to clipboard");
-    } catch {
+    } else {
       toast.error("Could not copy");
     }
   };
 
   const handleUseInDiagram = async () => {
-    try {
-      await navigator.clipboard.writeText(content || "");
+    const ok = await copyToClipboard(content || "");
+    if (ok) {
       toast.success("Source copied — paste it into your open diagram");
-    } catch {
+    } else {
       toast.info("Open a flow and add this shape from the editor library");
+    }
+  };
+
+  // Real public link, mirroring flows' ShareFlowModal (bug-061): sets
+  // isPublic=true (owner-only, enforced by the PUT /shapes/:id route) so the
+  // unauthenticated /shapes/view/:id page can resolve it — always view-only.
+  const handleCopyPublicLink = async () => {
+    try {
+      await shapesApi.update(shape.id, { isPublic: true });
+    } catch {
+      toast.error("Failed to enable the public link");
+      return;
+    }
+    const url = `${window.location.origin}/shapes/view/${shape.id}`;
+    const ok = await copyToClipboard(url);
+    if (ok) {
+      toast.success("Public link copied — anyone with it can view (read-only)");
+    } else {
+      toast.error("Failed to copy");
     }
   };
 
@@ -345,6 +367,10 @@ export default function ShapeCard({
                     Copy shape
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onSelect={handleCopyPublicLink}>
+                  <LinkOutlined />
+                  Copy public link
+                </DropdownMenuItem>
                 {onMove && moveGroups && moveGroups.length > 0 && (
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>

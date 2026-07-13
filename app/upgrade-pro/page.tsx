@@ -7,6 +7,17 @@ import { CheckCircleFilled, CrownOutlined } from "@ant-design/icons";
 import { usePro } from "@/hooks/usePro";
 import { usePricing } from "@/hooks/usePricing";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import {
+  IAP_PRODUCTS,
+  isNativeShell,
+  useIapAvailable,
+  iapLogin,
+  iapPurchase,
+  iapPrices,
+  waitThenRefresh,
+} from "@/lib/iapBridge";
+import { colors, spacing, borderRadius, shadows } from "@/lib/theme";
 
 const { Text, Title } = Typography;
 
@@ -25,8 +36,20 @@ const STRIPE_PENDING_KEY = "vc_stripe_pending_pro";
 const PRO_REDIRECT_KEY = "vc_pro_purchase_redirect";
 
 function UpgradeProContent() {
-  const { hasPro, proPurchasedAt, purchasePro, loading: proLoading } = usePro();
+  const {
+    hasPro,
+    proPurchasedAt,
+    purchasePro,
+    loading: proLoading,
+    refresh: refreshPro,
+  } = usePro();
   const { pricing, loading: pricingLoading } = usePricing();
+  const { data: session } = useSession();
+  // Native shell (mainly the Team app — Pro-app users are redirected away
+  // below): purchases must go through the store, never Stripe (IAP_CONTRACT.md).
+  const native = isNativeShell();
+  const iapReady = useIapAvailable();
+  const [storePrice, setStorePrice] = useState<string | null>(null);
   const [purchasing, setPurchasing] = useState(false);
   const [returnedFromStripe, setReturnedFromStripe] = useState(false);
   const [forcedMode, setForcedMode] = useState<string | null>(null);
@@ -101,7 +124,33 @@ function UpgradeProContent() {
 
   const proMonthly = pricing?.prices.pro_monthly;
 
+  // Native shell: show the store's localized price for the lifetime unlock.
+  useEffect(() => {
+    if (!native || !iapReady) return;
+    iapPrices([IAP_PRODUCTS.proLifetime]).then((map) => {
+      setStorePrice(map[IAP_PRODUCTS.proLifetime]?.priceString ?? null);
+    });
+  }, [native, iapReady]);
+
   const handlePurchase = async () => {
+    // Native shell → store purchase sheet; the RevenueCat webhook grants
+    // Pro, so poll usePro until hasPro flips.
+    if (native) {
+      if (!iapReady) return;
+      setPurchasing(true);
+      const userId = (session?.user as any)?.id as string | undefined;
+      if (userId) await iapLogin(userId);
+      const res = await iapPurchase(IAP_PRODUCTS.proLifetime);
+      if (res.status === "success") {
+        toast.success("Purchase successful — activating your Pro access…");
+        await waitThenRefresh(refreshPro);
+      } else if (res.status === "error") {
+        toast.error(res.message || "Purchase failed");
+      }
+      setPurchasing(false);
+      return;
+    }
+
     setPurchasing(true);
     try {
       sessionStorage.setItem(STRIPE_PENDING_KEY, "1");
@@ -143,18 +192,21 @@ function UpgradeProContent() {
   if (hasProLifetime && !wasCancelled && !returnedFromStripe) {
     return (
       <div style={{ maxWidth: 500, margin: "80px auto", textAlign: "center" }}>
-        <CrownOutlined style={{ fontSize: 48, color: "#F59E0B" }} />
-        <Title level={3} style={{ marginTop: 16 }}>
+        <CrownOutlined style={{ fontSize: 48, color: colors.orange }} />
+        <Title level={3} style={{ marginTop: spacing.md }}>
           You already have Pro!
         </Title>
         <Text type="secondary">
           You can switch to the Pro app from the sidebar.
         </Text>
-        <div style={{ marginTop: 24 }}>
+        <div style={{ marginTop: spacing.lg }}>
           <Button
             type="primary"
             onClick={() => router.push(backUrl)}
-            style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
+            style={{
+              backgroundColor: colors.primary,
+              borderColor: colors.primary,
+            }}
           >
             Go to Dashboard
           </Button>
@@ -195,9 +247,9 @@ function UpgradeProContent() {
       )}
 
       <CrownOutlined
-        style={{ fontSize: 48, color: "#F59E0B", marginBottom: 16 }}
+        style={{ fontSize: 48, color: colors.orange, marginBottom: spacing.md }}
       />
-      <Title level={2} style={{ marginBottom: 4 }}>
+      <Title level={2} style={{ marginBottom: 4, color: colors.text }}>
         ValueChart Pro
       </Title>
       <Text type="secondary" style={{ fontSize: 16 }}>
@@ -206,23 +258,32 @@ function UpgradeProContent() {
 
       <div
         style={{
-          background: "#FAFAFA",
-          borderRadius: 16,
-          border: "1px solid #E8E8E8",
+          background: colors.cardBg,
+          borderRadius: borderRadius.xl,
+          border: `1px solid ${colors.border}`,
+          boxShadow: shadows.card,
           padding: "32px 28px",
-          marginTop: 32,
+          marginTop: spacing.xl,
           textAlign: "left",
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
+        <div style={{ textAlign: "center", marginBottom: spacing.lg }}>
           {pricingLoading || !proMonthly ? (
             <Spin />
           ) : (
             <>
-              <span style={{ fontSize: 48, fontWeight: 800, color: "#1A1A2E" }}>
-                {proMonthly.display}
+              <span
+                style={{ fontSize: 48, fontWeight: 800, color: colors.text }}
+              >
+                {native ? (storePrice ?? "…") : proMonthly.display}
               </span>
-              <span style={{ fontSize: 18, color: "#8C8C8C", marginLeft: 6 }}>
+              <span
+                style={{
+                  fontSize: 18,
+                  color: colors.textSecondary,
+                  marginLeft: 6,
+                }}
+              >
                 one-time
               </span>
               <div>
@@ -230,11 +291,11 @@ function UpgradeProContent() {
                   Pay once. Lifetime access. No recurring charges.
                 </Text>
               </div>
-              {pricing && pricing.currency !== "USD" && (
+              {!native && pricing && pricing.currency !== "USD" && (
                 <p
                   style={{
                     fontSize: 11,
-                    color: "#8C8C8C",
+                    color: colors.textSecondary,
                     marginTop: 10,
                     marginBottom: 0,
                   }}
@@ -248,7 +309,7 @@ function UpgradeProContent() {
           )}
         </div>
 
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: spacing.lg }}>
           {FEATURES.map((feature, idx) => (
             <div
               key={idx}
@@ -259,36 +320,57 @@ function UpgradeProContent() {
                 padding: "8px 0",
               }}
             >
-              <CheckCircleFilled style={{ color: "#3CB371", fontSize: 16 }} />
-              <Text style={{ fontSize: 14, color: "#595959" }}>{feature}</Text>
+              <CheckCircleFilled
+                style={{ color: colors.primary, fontSize: 16 }}
+              />
+              <Text style={{ fontSize: 14, color: colors.text }}>
+                {feature}
+              </Text>
             </div>
           ))}
         </div>
 
         <Text
           type="secondary"
-          style={{ fontSize: 13, display: "block", marginBottom: 20 }}
+          style={{
+            fontSize: 13,
+            display: "block",
+            marginBottom: spacing.md + 4,
+          }}
         >
           Need more than 10 flows? Purchase additional flows anytime.
         </Text>
 
-        <Button
-          type="primary"
-          block
-          size="large"
-          loading={purchasing}
-          onClick={handlePurchase}
-          style={{
-            height: 50,
-            borderRadius: 10,
-            fontWeight: 700,
-            fontSize: 16,
-            backgroundColor: "#3CB371",
-            borderColor: "#3CB371",
-          }}
-        >
-          Purchase Pro{proMonthly ? ` — ${proMonthly.display} lifetime` : ""}
-        </Button>
+        {native && !iapReady ? (
+          // Store policy: no purchase path and no web-payment link in a
+          // shell without IAP (that would be steering — IAP_CONTRACT.md).
+          <Text
+            type="secondary"
+            style={{ fontSize: 13, display: "block", textAlign: "center" }}
+          >
+            Pro is not available for purchase in this version of the app.
+          </Text>
+        ) : (
+          <Button
+            type="primary"
+            block
+            size="large"
+            loading={purchasing}
+            onClick={handlePurchase}
+            style={{
+              height: 50,
+              borderRadius: borderRadius.md,
+              fontWeight: 700,
+              fontSize: 16,
+              backgroundColor: colors.primary,
+              borderColor: colors.primary,
+            }}
+          >
+            {native
+              ? `Purchase Pro${storePrice ? ` — ${storePrice} lifetime` : ""}`
+              : `Purchase Pro${proMonthly ? ` — ${proMonthly.display} lifetime` : ""}`}
+          </Button>
+        )}
       </div>
     </div>
   );

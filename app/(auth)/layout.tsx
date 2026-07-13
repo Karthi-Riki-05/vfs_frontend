@@ -25,13 +25,14 @@ export default function AuthLayout({
   // Login now renders the full responsive new_design hero on EVERY viewport,
   // so it always goes full-bleed (no centered card, no layout logo). Register
   // & forgot-password keep the legacy <=600px-only hero behavior.
-  // Login, Register & Forgot-password each render the full responsive
-  // new_design hero (AuthShell) on EVERY viewport, so they all go full-bleed:
-  // no centered card, no layout logo. Reset/Verify keep the centered card.
+  // Login, Register, Forgot-password & Verify-OTP each render the full
+  // responsive new_design hero (AuthShell / DesktopAuthShell) on EVERY
+  // viewport, so they all go full-bleed: no centered card, no layout logo.
   const isSelfHero =
     pathname === "/login" ||
     pathname === "/register" ||
-    pathname === "/forgot-password";
+    pathname === "/forgot-password" ||
+    pathname === "/verify-otp";
   const isHeroPage = isSelfHero;
 
   return (

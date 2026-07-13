@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Layout } from "antd";
 import { usePathname } from "next/navigation";
 import Header from "./Header";
@@ -71,6 +71,35 @@ export default function DashboardLayout({
       window.removeEventListener("vc-flows-ready", onFlowsReady);
     };
   }, []);
+
+  // Bug: dashboard stat cards showed the WRONG app's flow count on the first
+  // load of a route (e.g. 29 Team-app flows appearing on /dashboard/pro),
+  // only correcting itself after a manual refresh.
+  //
+  // Root cause: this component's OWN pathname→sessionStorage sync below runs
+  // in a plain `useEffect`, and so does every child's data-fetching hook
+  // (e.g. useDashboard's initial stats fetch). React fires child effects
+  // before parent effects, so on first navigation into /dashboard/pro the
+  // child's fetch could go out — carrying the STALE X-App-Context header —
+  // before this layout ever corrected sessionStorage. A manual refresh
+  // "fixed" it only because sessionStorage already held the right value from
+  // the previous (too-late) write.
+  //
+  // Fix: write the pathname-derived context synchronously in a
+  // `useLayoutEffect`. React flushes ALL layout effects tree-wide before ANY
+  // passive `useEffect` fires, so this always beats every descendant's fetch
+  // — regardless of how deep the fetching component sits in the tree.
+  useLayoutEffect(() => {
+    try {
+      if (pathname?.startsWith("/dashboard/pro")) {
+        sessionStorage.setItem("vc_app_context", "pro");
+      } else if (pathname?.startsWith("/dashboard/team")) {
+        sessionStorage.setItem("vc_app_context", "team");
+      }
+    } catch {
+      // sessionStorage may be blocked in restricted WebViews.
+    }
+  }, [pathname]);
 
   // Auto-switch to the forced app once usePro has resolved.
   // Reads sessionStorage directly (not forcedMode state) to avoid the race

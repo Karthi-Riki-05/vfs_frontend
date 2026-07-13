@@ -11,7 +11,7 @@ import { getLogoForApp } from "@/lib/getLogo";
 import { useAppBrand } from "@/hooks/useAppBrand";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
 
-const GREEN = "#3CB371";
+const GREEN = "#34A881";
 const OTP_LEN = 6;
 
 const labelStyle: React.CSSProperties = {

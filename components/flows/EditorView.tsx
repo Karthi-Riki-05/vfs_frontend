@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { getFlowById } from "@/lib/flow";
+import { getFlowById, getPublicFlowById } from "@/lib/flow";
 import {
   Sheet,
   SheetContent,
@@ -278,9 +278,15 @@ const injectEditorCustomisations = (iframe: HTMLIFrameElement | null) => {
 export default function EditorView({
   flowId,
   isViewMode = false,
+  publicView = false,
 }: {
   flowId: string;
   isViewMode?: boolean;
+  // True on the unauthenticated /viewer/:id page — fetches via the public,
+  // no-login endpoint instead of the authenticated one, and the backend
+  // always returns permission:'view' for it, so every existing
+  // permRef.current==="view" / isReadOnly gate already locks out editing.
+  publicView?: boolean;
 }) {
   const { data: session } = useSession();
   const sessionRef = useRef(session);
@@ -699,7 +705,9 @@ export default function EditorView({
         if (msg.event === "init") {
           let data: any;
           try {
-            data = await getFlowById(flowId);
+            data = publicView
+              ? await getPublicFlowById(flowId)
+              : await getFlowById(flowId);
           } catch (err: any) {
             const code = err?.response?.data?.error?.code;
             if (code === "FLOW_LOCKED") {
@@ -708,6 +716,10 @@ export default function EditorView({
                 { duration: 6000 },
               );
               setTimeout(() => window.close(), 3000);
+            } else if (publicView) {
+              toast.error(
+                "This link is no longer public, or the flow doesn't exist.",
+              );
             } else {
               toast.error("Failed to load flow. Please try again.");
             }
@@ -942,7 +954,7 @@ export default function EditorView({
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [flowId, flowName, isViewMode]);
+  }, [flowId, flowName, isViewMode, publicView]);
 
   // Check URL param for brand-new flows
   useEffect(() => {

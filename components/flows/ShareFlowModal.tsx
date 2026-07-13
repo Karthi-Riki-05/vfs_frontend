@@ -20,6 +20,7 @@ import {
 } from "@/components/common/Modal";
 import { Field, FieldInput } from "@/components/common/Field";
 import { flowsApi } from "@/api/flows.api";
+import { copyToClipboard } from "@/lib/clipboard";
 
 interface ShareFlowModalProps {
   open: boolean;
@@ -212,16 +213,36 @@ export default function ShareFlowModal({
     }
   };
 
+  // bug-059: this used to point at /flows/view/:id, which has no matching
+  // route (app/flows/view/[id] doesn't exist) — every share link 404'd. The
+  // real public flow viewer lives at app/viewer/[id]/page.tsx.
   const shareLink =
     typeof window !== "undefined"
-      ? `${window.location.origin}/flows/view/${flow?.id}`
+      ? `${window.location.origin}/viewer/${flow?.id}`
       : "";
 
+  const [publishingLink, setPublishingLink] = useState(false);
+
+  // bug-061: superseded bug-060's "must add a named recipient first" gate —
+  // this is now a REAL public link. Clicking Copy sets flow.isPublic=true
+  // (flowsApi.publish, owner-only) so the unauthenticated /viewer/:id route
+  // (getPublicFlow, no login required) actually resolves it — always
+  // view-only, regardless of what permission named shares below have.
   const handleCopyLink = async () => {
+    if (!flow) return;
+    setPublishingLink(true);
     try {
-      await navigator.clipboard.writeText(shareLink);
-      toast.success("Link copied");
+      await flowsApi.publish(flow.id, true);
     } catch {
+      toast.error("Failed to enable the public link");
+      setPublishingLink(false);
+      return;
+    }
+    setPublishingLink(false);
+    const ok = await copyToClipboard(shareLink);
+    if (ok) {
+      toast.success("Public link copied — anyone with it can view (read-only)");
+    } else {
       toast.error("Failed to copy");
     }
   };
@@ -238,7 +259,11 @@ export default function ShareFlowModal({
       </div>
 
       <div className="px-5 pb-2 space-y-4">
-        {/* Anyone with the link row — always visible */}
+        {/* bug-061: real public link. Clicking Copy sets isPublic=true on
+            this flow and copies a URL that anyone can open without logging
+            in — always view-only (enforced server-side by getPublicFlow,
+            which never returns anything but permission:'view'). This is
+            independent of the named-recipient shares listed below. */}
         <div className="rounded-xl border border-border p-3 flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-primary-tint text-primary-deep flex items-center justify-center shrink-0">
             <Share2 className="w-4 h-4" />
@@ -246,13 +271,14 @@ export default function ShareFlowModal({
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold">Anyone with the link</div>
             <div className="text-[11px] text-muted-foreground truncate">
-              {shareLink}
+              Can view only — not edit or save · {shareLink}
             </div>
           </div>
           <button
             type="button"
             onClick={handleCopyLink}
-            className="appearance-none cursor-pointer outline-none border-0 bg-transparent text-xs font-bold text-primary-deep shrink-0"
+            disabled={publishingLink}
+            className="appearance-none outline-none border-0 bg-transparent text-xs font-bold shrink-0 disabled:cursor-not-allowed disabled:opacity-60 text-primary-deep cursor-pointer"
           >
             Copy
           </button>

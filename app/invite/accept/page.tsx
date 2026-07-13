@@ -102,7 +102,7 @@ function AcceptInvitationContent() {
   const isLoggedIn = sessionStatus === "authenticated" && !!session?.user;
   const isLoadingSession = sessionStatus === "loading";
 
-  const brandColor = invitation?.appContext === "pro" ? "#D97706" : "#3CB371";
+  const brandColor = invitation?.appContext === "pro" ? "#D97706" : "#34A881";
   const appName =
     invitation?.appContext === "pro" ? "ValueChart Pro" : "ValueChart";
 
@@ -143,7 +143,7 @@ function AcceptInvitationContent() {
               onClick={() => {
                 window.location.href = "/login";
               }}
-              style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
+              style={{ backgroundColor: "#34A881", borderColor: "#34A881" }}
             >
               Go to Sign In
             </Button>
@@ -172,7 +172,7 @@ function AcceptInvitationContent() {
             <Button
               type="primary"
               onClick={() => (window.location.href = "/dashboard/teams")}
-              style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
+              style={{ backgroundColor: "#34A881", borderColor: "#34A881" }}
             >
               Go to Teams
             </Button>
@@ -206,7 +206,7 @@ function AcceptInvitationContent() {
               onClick={() => {
                 window.location.href = "/login";
               }}
-              style={{ backgroundColor: "#3CB371", borderColor: "#3CB371" }}
+              style={{ backgroundColor: "#34A881", borderColor: "#34A881" }}
             >
               Go to Sign In
             </Button>

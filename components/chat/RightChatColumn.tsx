@@ -219,6 +219,32 @@ interface RightChatColumnProps {
 const groupName = (g: ChatGroup) =>
   g.displayName || g.title || g.name || "Unnamed Group";
 
+// Bug-059: plain chat text was never auto-linkified — any pasted URL just
+// sat there as inert text. Split on URLs and wrap each match in a real
+// anchor (target=_blank) while leaving the surrounding text untouched.
+const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+function linkifyText(text: string): React.ReactNode[] {
+  // One capturing group means String.split() interleaves the matched URLs
+  // at odd indices — no need to re-run the (stateful, global-flag) regex.
+  const parts = text.split(URL_REGEX);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        style={{ color: "inherit", textDecoration: "underline" }}
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
+
 // Build file URL for display
 function buildFileUrl(file: ChatFile): string {
   if (file.id) {
@@ -1195,7 +1221,7 @@ export default function RightChatColumn({
       return (
         <div>
           {msgType === "text" && msgText && (
-            <div style={{ marginBottom: 4 }}>{msgText}</div>
+            <div style={{ marginBottom: 4 }}>{linkifyText(msgText)}</div>
           )}
           {files.map((file) => {
             const isImage =
@@ -1273,8 +1299,8 @@ export default function RightChatColumn({
       );
     }
 
-    // Plain text
-    return <div>{msgText}</div>;
+    // Plain text — linkify any URLs so they're clickable / open in a new tab.
+    return <div>{linkifyText(msgText)}</div>;
   };
 
   // ===============================================================

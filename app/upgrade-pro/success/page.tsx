@@ -6,6 +6,7 @@ import { CrownOutlined } from "@ant-design/icons";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { proApi } from "@/api/pro.api";
+import { colors, borderRadius } from "@/lib/theme";
 
 const PRO_REDIRECT_KEY = "vc_pro_purchase_redirect";
 
@@ -34,6 +35,10 @@ function UpgradeProSuccessContent() {
   const redirectAfterPurchase = () => {
     try {
       sessionStorage.removeItem(PRO_REDIRECT_KEY);
+      // Bug-056: without this, the fresh /dashboard/pro load keeps sending
+      // the stale X-App-Context header, so the Pro dashboard's stats resolve
+      // to the user's Team-app data instead of their (new, empty) Pro data.
+      sessionStorage.setItem("vc_app_context", "pro");
     } catch {}
     window.location.href = getPostPurchaseRedirect();
   };
@@ -108,7 +113,9 @@ function UpgradeProSuccessContent() {
     return (
       <div style={{ maxWidth: 500, margin: "80px auto", textAlign: "center" }}>
         <Result
-          icon={<CrownOutlined style={{ color: "#F59E0B", fontSize: 64 }} />}
+          icon={
+            <CrownOutlined style={{ color: colors.orange, fontSize: 64 }} />
+          }
           title="Payment received!"
           subTitle="Activation is taking a moment. Please refresh or try again shortly."
           extra={
@@ -117,9 +124,9 @@ function UpgradeProSuccessContent() {
               size="large"
               onClick={() => window.location.reload()}
               style={{
-                backgroundColor: "#3CB371",
-                borderColor: "#3CB371",
-                borderRadius: 10,
+                backgroundColor: colors.primary,
+                borderColor: colors.primary,
+                borderRadius: borderRadius.md,
                 fontWeight: 600,
               }}
             >
@@ -148,9 +155,9 @@ function UpgradeProSuccessContent() {
               size="large"
               onClick={redirectAfterPurchase}
               style={{
-                backgroundColor: "#3CB371",
-                borderColor: "#3CB371",
-                borderRadius: 10,
+                backgroundColor: colors.primary,
+                borderColor: colors.primary,
+                borderRadius: borderRadius.md,
                 fontWeight: 600,
               }}
             >

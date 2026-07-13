@@ -12,6 +12,21 @@ export async function getFlowById(flowId: string) {
   return res.data?.data || res.data;
 }
 
+// Unauthenticated public viewer fetch — deliberately bypasses the `api`
+// axios instance (its interceptors assume a logged-in session) and hits the
+// unauthenticated proxy directly. Only flows with isPublic=true resolve;
+// throws (404) otherwise, same shape as getFlowById's error path.
+export async function getPublicFlowById(flowId: string) {
+  const res = await fetch(`/api/public/flows/${flowId}`);
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    const err: any = new Error(json?.error?.message || "Flow not found");
+    err.response = { status: res.status, data: json };
+    throw err;
+  }
+  return json.data;
+}
+
 function showFlowLimitModal(errorMsg: string) {
   confirmDialog({
     title: "Flow limit reached",
