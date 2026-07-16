@@ -61,11 +61,16 @@ export const LEGACY_IOS_TEAM_PLANS: LegacyTeamPlan[] = [
   { productId: "com.valuecharts.app.year_10", seats: 10, period: "yearly" },
 ];
 
+// Confirmed 2026-07-16 from the live native Android app's own Kotlin source
+// (skuTeamMth5/Mth10/Yr5/Yr10 constants) — mirrors the iOS 4-tier pattern
+// (mon_5/mon_10/year_5/year_10) with Android's mth_/yr_ naming. Earlier
+// mth_10/15/20/25 guess (read off a Play Console screenshot) was wrong — Play
+// Console can list legacy/unused products the shipped app never references.
 export const LEGACY_ANDROID_TEAM_PLANS: LegacyTeamPlan[] = [
+  { productId: "com.valuecharts.app.mth_5", seats: 5, period: "monthly" },
   { productId: "com.valuecharts.app.mth_10", seats: 10, period: "monthly" },
-  { productId: "com.valuecharts.app.mth_15", seats: 15, period: "monthly" },
-  { productId: "com.valuecharts.app.mth_20", seats: 20, period: "monthly" },
-  { productId: "com.valuecharts.app.mth_25", seats: 25, period: "monthly" },
+  { productId: "com.valuecharts.app.yr_5", seats: 5, period: "yearly" },
+  { productId: "com.valuecharts.app.yr_10", seats: 10, period: "yearly" },
 ];
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -151,6 +156,25 @@ export function getLegacyTeamPlans(): LegacyTeamPlan[] {
   return getNativePlatform() === "ios"
     ? LEGACY_IOS_TEAM_PLANS
     : LEGACY_ANDROID_TEAM_PLANS;
+}
+
+/** Legacy team plans for the current platform, filtered to one billing
+ * period. Mirrors subscription_plans.dart's plansForPeriod(). Drives the
+ * native "Team Members" dropdown options. */
+export function legacyTeamPlansForPeriod(
+  period: "monthly" | "yearly",
+): LegacyTeamPlan[] {
+  return getLegacyTeamPlans().filter((p) => p.period === period);
+}
+
+/** Resolves the real legacy store plan matching a seats+period combo, or
+ * undefined if no such product exists for this platform (e.g. Android has
+ * no yearly team products today — caller must disable purchase, not crash). */
+export function findLegacyTeamPlan(
+  seats: number,
+  period: "monthly" | "yearly",
+): LegacyTeamPlan | undefined {
+  return legacyTeamPlansForPeriod(period).find((p) => p.seats === seats);
 }
 
 // ── Bridge plumbing ─────────────────────────────────────────────────────────
