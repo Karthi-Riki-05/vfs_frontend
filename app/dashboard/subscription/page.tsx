@@ -30,9 +30,9 @@ import { useAiBilling } from "@/context/AiBillingContext";
 import { getClientAppType } from "@/lib/detectWebView";
 import {
   IAP_PRODUCTS,
-  IAP_TEAM_TIERS,
-  teamProductId,
   getLegacyTeamPlans,
+  legacyTeamPlansForPeriod,
+  findLegacyTeamPlan,
   isNativeShell,
   useIapAvailable,
   iapLogin,
@@ -1133,6 +1133,32 @@ function SubscriptionPageInner() {
     iapPrices(ids).then(setTeamStorePrices);
   }, [native, iapReady]);
 
+  // Native shell: the shared TEAM_OPTIONS/IAP_TEAM_TIERS defaults don't match
+  // real legacy store products (e.g. Android's monthly floor is 10 seats, and
+  // it has zero yearly products today) — snap each picker to the first real
+  // option for this platform once it's known, so the dropdown never opens on
+  // an invalid/unpurchasable seat count.
+  useEffect(() => {
+    if (!native || !iapReady) return;
+    const monthlyPlans = legacyTeamPlansForPeriod("monthly");
+    const yearlyPlans = legacyTeamPlansForPeriod("yearly");
+    if (
+      monthlyPlans.length &&
+      !monthlyPlans.some((p) => p.seats === monthlyMembers)
+    ) {
+      setMonthlyMembers(monthlyPlans[0].seats);
+    }
+    if (
+      yearlyPlans.length &&
+      !yearlyPlans.some((p) => p.seats === yearlyMembers)
+    ) {
+      setYearlyMembers(yearlyPlans[0].seats);
+    }
+    // yearlyPlans.length === 0 (Android today): leave yearlyMembers as-is —
+    // there's no valid option to snap to; the Select renders empty/disabled
+    // and the purchase button disables itself (see renderPlanCard).
+  }, [native, iapReady]);
+
   // Re-fetch subscription status when the user returns from an external
   // browser (e.g. after completing Stripe payment in Chrome on mobile).
   // The Flutter shell dispatches this event only when the WebView URL
@@ -1195,29 +1221,9 @@ function SubscriptionPageInner() {
   };
 
   const handlePurchase = async (plan: "monthly" | "yearly") => {
-    // Native shell → store purchase, NEW subscriptions only (an existing
-    // subscription is managed where it was bought — those controls are
-    // hidden in the shell, so this branch can't fire for them). The store's
-    // own payment sheet is the price confirmation.
-    if (native) {
-      if (!iapReady) return;
-      const seats = plan === "monthly" ? monthlyMembers : yearlyMembers;
-      setCheckoutLoading(plan);
-      const userId = (session?.user as any)?.id as string | undefined;
-      if (userId) await iapLogin(userId);
-      const res = await iapPurchase(teamProductId(seats, plan));
-      if (res.status === "success") {
-        toast.success("Purchase successful — activating your plan…");
-        await waitThenRefresh(() => {
-          fetchCurrent();
-          fetchStatus();
-        });
-      } else if (res.status === "error") {
-        toast.error(res.message || "Purchase failed");
-      }
-      setCheckoutLoading(null);
-      return;
-    }
+    // Native purchases are routed through handleLegacyPurchase directly by
+    // renderPlanCard's button (real legacy productId, resolved via
+    // findLegacyTeamPlan) — this function only handles the web/Stripe flow.
 
     // "cancelling" counts as an existing sub — it must go through the
     // plan-change flow (which reactivates), NOT new-subscription checkout
@@ -1414,8 +1420,11 @@ function SubscriptionPageInner() {
     const currentPrice = members * perUserAmount;
     // Native shell: the store's localized price for the fixed-tier product
     // is the truth — per-seat Stripe math doesn't apply to store products.
-    const storePriceString = native
-      ? teamStorePrices[teamProductId(members, plan)]?.priceString
+    // legacyPlan resolves the real store productId for the selected seats —
+    // teamStorePrices is keyed by that real id (see the price-fetch effect).
+    const legacyPlan = native ? findLegacyTeamPlan(members, plan) : undefined;
+    const storePriceString = legacyPlan
+      ? teamStorePrices[legacyPlan.productId]?.priceString
       : undefined;
     const priceLabel = native
       ? `${storePriceString ?? "…"}/${plan === "monthly" ? "month" : "year"}`
@@ -1425,11 +1434,15 @@ function SubscriptionPageInner() {
     const isCurrent = isActivePlan(plan);
     const isYearly = plan === "yearly";
     const buttonLabel = getButtonLabel(plan);
+    // Native: only seat counts with a real store product for this platform +
+    // period are selectable (see legacyTeamPlansForPeriod in iapBridge.ts).
+    const nativeSeatOptions = native ? legacyTeamPlansForPeriod(plan) : [];
     const buttonDisabled =
       (isCurrent && !isMemberCountChange(plan)) ||
       !!isDowngradeBlocked(plan) ||
       isScheduledFor(plan) ||
-      checkoutLoading !== null;
+      checkoutLoading !== null ||
+      (native && !legacyPlan);
 
     return (
       <div
@@ -1481,9 +1494,13 @@ function SubscriptionPageInner() {
             onChange={setMembers}
             style={{ width: "100%" }}
             size="large"
-            // In-app team plans cap at 25 members (fixed store products);
-            // larger teams subscribe on the web.
-            options={(native ? IAP_TEAM_TIERS : TEAM_OPTIONS).map((n) => ({
+            disabled={native && nativeSeatOptions.length === 0}
+            // Native: only real store products for this platform + period
+            // (see nativeSeatOptions above). Web keeps the full TEAM_OPTIONS
+            // range, purchased via Stripe.
+            options={(
+              native ? nativeSeatOptions.map((p) => p.seats) : TEAM_OPTIONS
+            ).map((n) => ({
               label: `${n} Members`,
               value: n,
             }))}
@@ -1526,7 +1543,13 @@ function SubscriptionPageInner() {
           </ul>
 
           <button
-            onClick={() => handlePurchase(plan)}
+            onClick={() => {
+              if (native) {
+                if (legacyPlan) handleLegacyPurchase(legacyPlan.productId);
+                return;
+              }
+              handlePurchase(plan);
+            }}
             disabled={buttonDisabled}
             className={`${RESET} mt-5 h-11 rounded-xl font-bold text-sm font-sans transition disabled:cursor-not-allowed ${
               isCurrent && !isMemberCountChange(plan)
@@ -1534,7 +1557,13 @@ function SubscriptionPageInner() {
                 : "bg-primary text-white hover:bg-primary-deep disabled:opacity-60"
             }`}
           >
-            {checkoutLoading === plan ? "Loading…" : buttonLabel}
+            {(
+              native
+                ? checkoutLoading === legacyPlan?.productId
+                : checkoutLoading === plan
+            )
+              ? "Loading…"
+              : buttonLabel}
           </button>
           {!native &&
             isCurrent &&
@@ -1681,45 +1710,18 @@ function SubscriptionPageInner() {
       {/* Plan cards. Native shell rules (IAP_CONTRACT.md):
           - IAP unavailable → no purchase UI at all (store policy);
           - live subscription → managed where it was bought, no change UI;
-          - otherwise → new-subscription purchase through the store.
-            PHASE 1 TESTING: native shells show only the 4 legacy team
-            products already live in each store (platform-aware — see
-            getLegacyTeamPlans). Swap back to the seat-picker + monthly/
-            yearly cards once the 18-product catalog is live everywhere. */}
+          - otherwise → new-subscription purchase through the store, using the
+            SAME Monthly/Yearly card design as web. renderPlanCard's Team
+            Members dropdown is filtered to real legacy products per
+            platform+period (see legacyTeamPlansForPeriod/findLegacyTeamPlan
+            in iapBridge.ts), and its Purchase button routes native taps
+            through handleLegacyPurchase with the resolved real productId.
+            Swap the dropdown's option source back to the full 18-product
+            catalog (IAP_TEAM_TIERS) once it's live in both stores. */}
       {native && !iapReady ? (
         <ManagedOnWebNote text="Team plans are not available for purchase in this version of the app." />
       ) : native && hasLiveSub ? (
         <ManagedOnWebNote text="Your team plan is active. Seat changes, plan changes and cancellation are managed where you purchased it — your app store's subscription settings, or your account on the web." />
-      ) : native ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {getLegacyTeamPlans().map((plan) => {
-            const price = teamStorePrices[plan.productId]?.priceString ?? "…";
-            const loading = checkoutLoading === plan.productId;
-            return (
-              <div
-                key={plan.productId}
-                className="rounded-2xl border border-border bg-card p-5 flex flex-col items-center text-center"
-              >
-                <div className="font-extrabold text-lg text-foreground">
-                  {plan.seats} Members
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {plan.period === "monthly" ? "Monthly" : "Yearly"} plan
-                </div>
-                <div className="mt-2 text-2xl font-extrabold text-primary">
-                  {price}
-                </div>
-                <button
-                  onClick={() => handleLegacyPurchase(plan.productId)}
-                  disabled={!!checkoutLoading}
-                  className={`${RESET} mt-4 w-full h-11 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
-                >
-                  {loading ? "Loading…" : "Subscribe"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {renderPlanCard("monthly")}
