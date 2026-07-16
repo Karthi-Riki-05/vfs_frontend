@@ -32,6 +32,7 @@ import {
   IAP_PRODUCTS,
   IAP_TEAM_TIERS,
   teamProductId,
+  getLegacyTeamPlans,
   isNativeShell,
   useIapAvailable,
   iapLogin,
@@ -1122,15 +1123,13 @@ function SubscriptionPageInner() {
     }
   }, [searchParams, router, fetchCurrent, fetchStatus]);
 
-  // Native shell: fetch localized store prices for every in-app team tier
-  // so the plan cards show what the STORE will charge.
+  // Native shell: fetch localized store prices for the PHASE-1 legacy team
+  // plans (the 4 products already live in each store — see getLegacyTeamPlans).
+  // Once the new 18-product catalog is live in both stores, swap this back to
+  // IAP_TEAM_TIERS/teamProductId.
   useEffect(() => {
     if (!native || !iapReady) return;
-    const ids: string[] = [];
-    IAP_TEAM_TIERS.forEach((seats) => {
-      ids.push(teamProductId(seats, "monthly"));
-      ids.push(teamProductId(seats, "yearly"));
-    });
+    const ids = getLegacyTeamPlans().map((p) => p.productId);
     iapPrices(ids).then(setTeamStorePrices);
   }, [native, iapReady]);
 
@@ -1171,6 +1170,30 @@ function SubscriptionPageInner() {
   // the off-session fallback charges the saved card immediately, so the
   // user must see what happens (prorated charge, unchanged renewal date)
   // BEFORE any money moves (bug-043).
+  // PHASE 1 TESTING: buys one of the 4 legacy team products already live in
+  // the store (getLegacyTeamPlans is platform-aware — iOS vs Android). New
+  // subscriptions only; an existing sub is managed where it was bought (its
+  // controls are hidden in the shell). The store's own payment sheet is the
+  // price confirmation. Swap back to handlePurchase's IAP branch once the
+  // new 18-product catalog is live in both stores.
+  const handleLegacyPurchase = async (productId: string) => {
+    if (!iapReady) return;
+    setCheckoutLoading(productId);
+    const userId = (session?.user as any)?.id as string | undefined;
+    if (userId) await iapLogin(userId);
+    const res = await iapPurchase(productId);
+    if (res.status === "success") {
+      toast.success("Purchase successful — activating your plan…");
+      await waitThenRefresh(() => {
+        fetchCurrent();
+        fetchStatus();
+      });
+    } else if (res.status === "error") {
+      toast.error(res.message || "Purchase failed");
+    }
+    setCheckoutLoading(null);
+  };
+
   const handlePurchase = async (plan: "monthly" | "yearly") => {
     // Native shell → store purchase, NEW subscriptions only (an existing
     // subscription is managed where it was bought — those controls are
@@ -1658,11 +1681,45 @@ function SubscriptionPageInner() {
       {/* Plan cards. Native shell rules (IAP_CONTRACT.md):
           - IAP unavailable → no purchase UI at all (store policy);
           - live subscription → managed where it was bought, no change UI;
-          - otherwise → new-subscription purchase through the store. */}
+          - otherwise → new-subscription purchase through the store.
+            PHASE 1 TESTING: native shells show only the 4 legacy team
+            products already live in each store (platform-aware — see
+            getLegacyTeamPlans). Swap back to the seat-picker + monthly/
+            yearly cards once the 18-product catalog is live everywhere. */}
       {native && !iapReady ? (
         <ManagedOnWebNote text="Team plans are not available for purchase in this version of the app." />
       ) : native && hasLiveSub ? (
         <ManagedOnWebNote text="Your team plan is active. Seat changes, plan changes and cancellation are managed where you purchased it — your app store's subscription settings, or your account on the web." />
+      ) : native ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {getLegacyTeamPlans().map((plan) => {
+            const price = teamStorePrices[plan.productId]?.priceString ?? "…";
+            const loading = checkoutLoading === plan.productId;
+            return (
+              <div
+                key={plan.productId}
+                className="rounded-2xl border border-border bg-card p-5 flex flex-col items-center text-center"
+              >
+                <div className="font-extrabold text-lg text-foreground">
+                  {plan.seats} Members
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {plan.period === "monthly" ? "Monthly" : "Yearly"} plan
+                </div>
+                <div className="mt-2 text-2xl font-extrabold text-primary">
+                  {price}
+                </div>
+                <button
+                  onClick={() => handleLegacyPurchase(plan.productId)}
+                  disabled={!!checkoutLoading}
+                  className={`${RESET} mt-4 w-full h-11 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
+                >
+                  {loading ? "Loading…" : "Subscribe"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {renderPlanCard("monthly")}

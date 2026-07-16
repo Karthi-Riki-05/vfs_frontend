@@ -40,6 +40,34 @@ export const IAP_PRODUCTS = {
   } as Record<string, string>,
 };
 
+/**
+ * PHASE 1 TESTING ONLY: the 4 legacy team products already live in each
+ * store (owner decision — test with these before the 18 new products are
+ * created). Each store only recognizes its own IDs, so the web page must
+ * show the right 4 depending on platform — see getNativePlatform() below.
+ * Mirrors backend/src/config/iapProducts.js and
+ * flutter_webview-main/lib/subscription_plans.dart.
+ */
+export interface LegacyTeamPlan {
+  productId: string;
+  seats: number;
+  period: "monthly" | "yearly";
+}
+
+export const LEGACY_IOS_TEAM_PLANS: LegacyTeamPlan[] = [
+  { productId: "com.valuecharts.app.mon_5", seats: 5, period: "monthly" },
+  { productId: "com.valuecharts.app.mon_10", seats: 10, period: "monthly" },
+  { productId: "com.valuecharts.app.year_5", seats: 5, period: "yearly" },
+  { productId: "com.valuecharts.app.year_10", seats: 10, period: "yearly" },
+];
+
+export const LEGACY_ANDROID_TEAM_PLANS: LegacyTeamPlan[] = [
+  { productId: "com.valuecharts.app.mth_10", seats: 10, period: "monthly" },
+  { productId: "com.valuecharts.app.mth_15", seats: 15, period: "monthly" },
+  { productId: "com.valuecharts.app.mth_20", seats: 20, period: "monthly" },
+  { productId: "com.valuecharts.app.mth_25", seats: 25, period: "monthly" },
+];
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface IapPrice {
@@ -100,6 +128,29 @@ export function useIapAvailable(): boolean {
     return () => window.removeEventListener("flutterIapAvailable", handler);
   }, []);
   return available;
+}
+
+/**
+ * 'ios' | 'android' | null — injected by the shell (webview_native.dart
+ * _injectIapAvailability). The shell's User-Agent is IDENTICAL on both
+ * platforms by design, so this flag is the ONLY way the web page can tell
+ * which store a purchase must target.
+ */
+export function getNativePlatform(): "ios" | "android" | null {
+  if (typeof window === "undefined") return null;
+  const p = (window as any).flutterPlatform;
+  return p === "ios" || p === "android" ? p : null;
+}
+
+/**
+ * PHASE 1 TESTING: the 4 legacy team plans for whichever platform this
+ * device is. Falls back to Android's set if the platform flag hasn't landed
+ * yet (matches the shell's own default — see kAppVariant).
+ */
+export function getLegacyTeamPlans(): LegacyTeamPlan[] {
+  return getNativePlatform() === "ios"
+    ? LEGACY_IOS_TEAM_PLANS
+    : LEGACY_ANDROID_TEAM_PLANS;
 }
 
 // ── Bridge plumbing ─────────────────────────────────────────────────────────
