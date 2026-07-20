@@ -28,6 +28,7 @@ import {
   Loader2,
   History,
   Save,
+  LogOut,
   Cloud,
   Download,
   Copy,
@@ -120,6 +121,14 @@ const HIDE_AI_CSS = `
     border: none !important;
     pointer-events: none !important;
     opacity: 0 !important;
+  }
+
+  /* B5: the left sketch-toolbar keyboard-shortcut badges render at 8px and are
+     hard to read. Bump to a legible size. (B6 "first letter clipped" was a
+     misread — these are single-character shortcut keys, not truncated labels.) */
+  .geShortcutKey {
+    font-size: 10px !important;
+    line-height: 1.2 !important;
   }
 `;
 
@@ -435,6 +444,17 @@ export default function EditorView({
   const isReadOnly = permission === "view";
   const isSharedEdit = permission === "edit";
 
+  // Paid gate shared by EVERY share entry point (custom sidebar icon, the
+  // native Publish Link override, and the openShare defensive re-check).
+  // getClientAppType() is a shell signal (Flutter UA), NOT an entitlement —
+  // it returns "web" for every browser session, so never gate by it.
+  const sessionCanShare = () => {
+    const sess = sessionRef.current;
+    const hasPro = (sess?.user as any)?.hasPro ?? false;
+    const version = (sess?.user as any)?.currentVersion ?? "free";
+    return hasPro || version === "team";
+  };
+
   const sendUserContext = (perm?: string) => {
     const sess = sessionRef.current;
     const hasPro = (sess?.user as any)?.hasPro ?? false;
@@ -459,6 +479,33 @@ export default function EditorView({
     sendUserContext();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
+
+  // B22: flush a pending autosave before the tab is hidden/closed. Autosave
+  // debounces 5s, so a change made just before a refresh/close was lost. When
+  // the page is hidden or unloaded and a debounce is still pending, cancel it
+  // and trigger the save immediately so the last edit is persisted.
+  useEffect(() => {
+    const flush = () => {
+      if (autosaveTimerRef.current && permRef.current !== "view") {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+        createVersionRef.current = false;
+        triggerExport();
+      }
+    };
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("beforeunload", flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("beforeunload", flush);
+      window.removeEventListener("pagehide", flush);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -493,14 +540,11 @@ export default function EditorView({
             toast.warning("You cannot share a flow you don't own");
             return;
           }
-          // Defensive gate: free users in the team app cannot share.
-          const sess = sessionRef.current;
-          const tier = (sess?.user as any)?.currentVersion ?? "free";
-          const isPaid =
-            (sess?.user as any)?.hasPro || tier === "pro" || tier === "team";
-          const isTeamApp = getClientAppType() === "team";
-          if (isTeamApp && (!isPaid || tier !== "team")) {
-            toast.warning("Upgrade to a Team plan to share flows");
+          // Defensive gate: sharing is a paid entitlement. The old check
+          // keyed off getClientAppType() === "team", which only matches the
+          // Flutter shell — it was dead code on the website.
+          if (!sessionCanShare()) {
+            toast.warning("Upgrade to share flows");
             return;
           }
           setFlowShareModalOpen(true);
@@ -683,8 +727,15 @@ export default function EditorView({
           return;
         }
 
-        // 0d. Iframe → parent: show our Ant Design "Share" modal.
+        // 0d. Iframe → parent: show our Ant Design "Share" modal. Reached
+        // via draw.io's NATIVE File → Export As → Publish Link menu (the
+        // showPublishLinkDialog override in over-ride.js), which bypasses
+        // the gated custom sidebar icon — so it needs the same paid gate.
         if (msg.event === "showShareDialog") {
+          if (!sessionCanShare()) {
+            toast.warning("Upgrade to share flows");
+            return;
+          }
           setShareModalOpen(true);
           return;
         }
@@ -1432,12 +1483,15 @@ export default function EditorView({
             title={isViewMode ? "Close" : "Exit"}
             className="appearance-none cursor-pointer outline-none h-9 px-3 rounded-lg border border-border bg-card text-sm text-foreground/70 font-medium flex items-center gap-1.5 shrink-0 hover:bg-secondary"
           >
+            {/* B9: give Exit a matching leading icon on desktop too, so it's
+                visually consistent with the icon+label Save button. */}
             {isMobile ? (
               <X className="w-4 h-4" />
-            ) : isViewMode ? (
-              "Close"
             ) : (
-              "Exit"
+              <>
+                <LogOut className="w-3.5 h-3.5" />
+                {isViewMode ? "Close" : "Exit"}
+              </>
             )}
           </button>
         </div>

@@ -20,6 +20,9 @@ export const paymentsApi = {
 
   createSetupIntent: () => api.post("/payments/setup-intent"),
 
+  checkDuplicateCard: (paymentMethodId: string) =>
+    api.post("/payments/check-duplicate-card", { paymentMethodId }),
+
   listPaymentMethods: () => api.get("/payments/payment-methods"),
 
   setDefaultCard: (paymentMethodId: string) =>

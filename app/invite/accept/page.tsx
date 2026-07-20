@@ -11,6 +11,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import api from "@/lib/axios";
+import { setAiBillingTeamId } from "@/lib/aiBilling";
 import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
 
 const { Title, Text, Paragraph } = Typography;
@@ -79,6 +80,11 @@ function AcceptInvitationContent() {
       const data = res.data?.data || res.data;
 
       if (res.data?.success !== false) {
+        // Switch the active workspace/billing context to the newly joined
+        // team so the redirect lands inside the inviter's team, not the
+        // user's own personal workspace (X-Team-Context comes from this
+        // stored selection — see lib/aiBilling.ts).
+        if (data?.teamId) setAiBillingTeamId(data.teamId);
         window.location.href = "/dashboard/teams";
       } else {
         setAcceptError(data?.error?.message || "Failed to accept invitation.");

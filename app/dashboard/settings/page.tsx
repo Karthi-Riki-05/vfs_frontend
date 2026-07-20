@@ -41,7 +41,7 @@ import {
   type NotificationPreferenceItem,
 } from "@/api/notifications.api";
 
-const RESET = "appearance-none cursor-pointer outline-none";
+const RESET = "appearance-none cursor-pointer";
 
 type View = "hub" | "edit" | "password" | "notifPrefs";
 
@@ -194,7 +194,7 @@ function FieldInput({
   const type = eye ? (show ? "text" : "password") : props.type;
   return (
     <div
-      className={`flex items-center gap-2 h-11 px-3 rounded-xl border border-border ${
+      className={`flex items-center gap-2 h-11 px-3 rounded-xl border border-border transition-colors focus-within:border-primary ${
         disabled ? "bg-secondary" : "bg-background"
       }`}
     >

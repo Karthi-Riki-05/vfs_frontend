@@ -3,10 +3,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Spin } from "antd";
 import { toast } from "sonner";
+import { loadStripe, Stripe } from "@stripe/stripe-js";
+import { Elements } from "@stripe/react-stripe-js";
 import { CreditCard, Star, Trash2, Plus, AlertCircle } from "lucide-react";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { paymentsApi, SavedCard } from "@/api/payments.api";
 import { useTabFocus } from "@/hooks/useTabFocus";
+import { AddCardForm } from "@/components/billing/AddCardForm";
 
 const RESET = "appearance-none cursor-pointer outline-none border-0";
 
@@ -27,10 +30,6 @@ function CardBrandIcon({ brand }: { brand: string }) {
     </span>
   );
 }
-
-// (AddCardForm + Stripe Elements removed — card entry now happens on Stripe's
-//  hosted Billing Portal, opened in the external browser. App Store 3.1.1-safe:
-//  no in-app card entry. See handleOpenPortal in the page component below.)
 
 // ─── Card row ─────────────────────────────────────────────────────────────────
 function CardRow({
@@ -100,7 +99,10 @@ export default function PaymentMethodsPage() {
   const [cards, setCards] = useState<SavedCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [portalLoading, setPortalLoading] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(
+    null,
+  );
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [cancelRecurringInfo, setCancelRecurringInfo] =
     useState<CancelRecurringInfo | null>(null);
@@ -121,41 +123,20 @@ export default function PaymentMethodsPage() {
     fetchCards();
   }, [fetchCards]);
 
-  // Refresh the card list when the user returns to this page/tab — e.g. after
-  // adding a card on Stripe's hosted Billing Portal (opened in the external
-  // browser on mobile, or same-tab on web).
+  // Refresh the card list when the user returns to this page/tab.
   useTabFocus(fetchCards);
 
-  // Add / manage cards on Stripe's hosted Billing Portal. Card details are
-  // entered on Stripe's page, never inside the app (App Store 3.1.1-safe).
-  // In the native shell the WebView nav policy sends billing.stripe.com to the
-  // external browser; on web this navigates the current tab.
-  const handleOpenPortal = async () => {
-    setPortalLoading(true);
-    try {
-      const res = await fetch("/api/subscription/customer-portal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          returnPath: "/dashboard/settings/payment-methods",
-        }),
-      });
-      const data = await res.json();
-      if (data.success && data.data?.url) {
-        window.location.href = data.data.url;
-        // On web the page unloads here. In the native shell the WebView nav to
-        // billing.stripe.com is intercepted and opened in the external browser
-        // (this page stays mounted), so re-enable the button after a moment.
-        setTimeout(() => setPortalLoading(false), 3000);
-      } else {
-        toast.error(data.error?.message || "Could not open card management");
-        setPortalLoading(false);
-      }
-    } catch {
-      toast.error("Failed to open card management");
-      setPortalLoading(false);
-    }
-  };
+  // Lazily load Stripe.js once, so the embedded card form can mount instantly
+  // when the user clicks "Add card".
+  useEffect(() => {
+    fetch("/api/payments/stripe-config")
+      .then((r) => r.json())
+      .then((d) => {
+        const key = d.data?.publishableKey;
+        if (d.success && key) setStripePromise(loadStripe(key));
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSetDefault = async (paymentMethodId: string) => {
     setActionLoading(true);
@@ -268,16 +249,32 @@ export default function PaymentMethodsPage() {
             />
           ))}
 
-          {/* Add / manage card — opens Stripe's hosted Billing Portal (external
-              browser in the app). No card details are entered inside the app. */}
-          <button
-            onClick={handleOpenPortal}
-            disabled={portalLoading}
-            className={`${RESET} flex w-full items-center justify-center gap-2 h-11 rounded-2xl border-2 border-dashed border-border bg-card text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50`}
-          >
-            <Plus className="h-4 w-4" />
-            {portalLoading ? "Opening…" : "Add / manage card on Stripe"}
-          </button>
+          {/* Add card — custom embedded form, validated and tokenized directly
+              with Stripe. */}
+          {showAddForm ? (
+            stripePromise && (
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <Elements stripe={stripePromise}>
+                  <AddCardForm
+                    onSuccess={async () => {
+                      setShowAddForm(false);
+                      toast.success("Card saved successfully");
+                      await fetchCards();
+                    }}
+                    onCancel={() => setShowAddForm(false)}
+                  />
+                </Elements>
+              </div>
+            )
+          ) : (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className={`${RESET} flex w-full items-center justify-center gap-2 h-11 rounded-2xl border-2 border-dashed border-border bg-card text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary`}
+            >
+              <Plus className="h-4 w-4" />
+              Add card
+            </button>
+          )}
 
           <p className="text-xs text-muted-foreground text-center px-2">
             Cards are added and updated securely on Stripe.

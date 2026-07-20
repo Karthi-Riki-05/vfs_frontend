@@ -8,6 +8,13 @@ interface AIConsentModalProps {
   open: boolean;
   onAccept: () => void;
   onDecline: () => void;
+  /**
+   * Dismiss WITHOUT recording a decision (backdrop click / Escape). Issue #5:
+   * this must NOT be treated as an explicit "Decline" — a decline writes
+   * consent=false, which (in a team context) used to corrupt the user's
+   * personal consent. Falls back to onDecline if not provided.
+   */
+  onDismiss?: () => void;
 }
 
 const ALLOW = [
@@ -25,9 +32,10 @@ export default function AIConsentModal({
   open,
   onAccept,
   onDecline,
+  onDismiss,
 }: AIConsentModalProps) {
   return (
-    <ModalShell open={open} onClose={onDecline}>
+    <ModalShell open={open} onClose={onDismiss || onDecline}>
       <div className="p-6 max-h-[70dvh] overflow-y-auto">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">

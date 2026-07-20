@@ -3,12 +3,15 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { Select, Spin } from "antd";
 import { toast } from "sonner";
+import { loadStripe, Stripe } from "@stripe/stripe-js";
+import { Elements } from "@stripe/react-stripe-js";
 import {
   ModalShell,
   ModalHeader,
   ModalFooter,
 } from "@/components/common/Modal";
 import { confirmDialog } from "@/components/common/ConfirmDialog";
+import { AddCardForm } from "@/components/billing/AddCardForm";
 import {
   Crown,
   Zap,
@@ -48,7 +51,7 @@ import {
 // ALL real billing logic preserved verbatim — only the presentation changed.
 // Native controls reset per preflight-off rule (DESIGN.md §1): bg-less buttons
 // carry their own bg; nothing inherits a global reset.
-const RESET = "appearance-none cursor-pointer outline-none border-0";
+const RESET = "appearance-none cursor-pointer border-0";
 
 const TEAM_OPTIONS = [5, 10, 15, 20, 25, 50, 75, 100];
 
@@ -1096,6 +1099,9 @@ function SubscriptionPageInner() {
     null,
   );
   const [selectedCardId, setSelectedCardId] = useState<string | "new">("new");
+  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(
+    null,
+  );
   useEffect(() => {
     paymentsApi
       .listPaymentMethods()
@@ -1109,6 +1115,18 @@ function SubscriptionPageInner() {
       .catch(() => {
         /* silently ignore — cards are optional */
       });
+  }, []);
+
+  // Lazily load Stripe.js once, so the embedded "add a new card" form in the
+  // Select Payment Method modal can mount instantly.
+  useEffect(() => {
+    fetch("/api/payments/stripe-config")
+      .then((r) => r.json())
+      .then((d) => {
+        const key = d.data?.publishableKey;
+        if (d.success && key) setStripePromise(loadStripe(key));
+      })
+      .catch(() => {});
   }, []);
 
   // Handle direct-charge success redirect (?subscribed=1)
@@ -1232,7 +1250,7 @@ function SubscriptionPageInner() {
       status?.hasSubscription &&
       (status.status === "active" || status.status === "cancelling")
     );
-    if (isNewSub && savedCards.length > 0) {
+    if (isNewSub) {
       setPendingPlan(plan);
       return;
     }
@@ -1271,7 +1289,10 @@ function SubscriptionPageInner() {
     await _executePurchase(plan);
   };
 
-  const _executePurchase = async (plan: "monthly" | "yearly") => {
+  const _executePurchase = async (
+    plan: "monthly" | "yearly",
+    overridePmId?: string,
+  ) => {
     const teamMembers = plan === "monthly" ? monthlyMembers : yearlyMembers;
     setCheckoutLoading(plan);
     try {
@@ -1281,10 +1302,10 @@ function SubscriptionPageInner() {
       ) {
         await changePlan(plan, teamMembers);
       } else {
-        // Pass the saved card ID so the backend charges it directly (no redirect).
-        // When selectedCardId is "new" we omit it — backend falls through to
-        // Stripe Hosted Checkout where the user enters a new card.
-        const pmId = selectedCardId !== "new" ? selectedCardId : undefined;
+        // Pass the saved (or freshly-added) card ID so the backend charges it
+        // directly (no hosted-checkout redirect).
+        const pmId =
+          overridePmId ?? (selectedCardId !== "new" ? selectedCardId : undefined);
         await createCheckout(plan, teamMembers, pmId);
       }
     } finally {
@@ -1467,7 +1488,10 @@ function SubscriptionPageInner() {
           <div
             className={`mt-1.5 text-xs inline-flex items-center gap-1 ${isYearly ? "text-white/70" : "text-muted-foreground"}`}
           >
-            <Zap className="w-3.5 h-3.5" /> Up to 100 Users
+            <Zap className="w-3.5 h-3.5" />
+            {native
+              ? `Up to ${Math.max(...nativeSeatOptions.map((p) => p.seats), 0)} Users`
+              : "Up to 100 Users"}
           </div>
           {isYearly && (
             <span className="absolute right-4 top-4 text-[10px] font-extrabold uppercase px-2 py-1 rounded-full bg-primary text-white">
@@ -1796,32 +1820,56 @@ function SubscriptionPageInner() {
               </span>
             </label>
           ))}
-          <label className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 cursor-pointer hover:border-primary">
-            <input
-              type="radio"
-              name="card"
-              value="new"
-              checked={selectedCardId === "new"}
-              onChange={() => setSelectedCardId("new")}
-              className="accent-primary"
-            />
-            <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="text-sm font-medium">Use a different card</span>
-          </label>
+          {savedCards.length > 0 && (
+            <label className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 cursor-pointer hover:border-primary">
+              <input
+                type="radio"
+                name="card"
+                value="new"
+                checked={selectedCardId === "new"}
+                onChange={() => setSelectedCardId("new")}
+                className="accent-primary"
+              />
+              <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Use a different card</span>
+            </label>
+          )}
+
+          {selectedCardId === "new" && stripePromise && (
+            <div
+              className={
+                savedCards.length > 0
+                  ? "rounded-xl border border-border bg-card p-3"
+                  : undefined
+              }
+            >
+              <Elements stripe={stripePromise}>
+                <AddCardForm
+                  onSuccess={(paymentMethodId) => {
+                    setSelectedCardId(paymentMethodId);
+                    const plan = pendingPlan;
+                    setPendingPlan(null);
+                    if (plan) _executePurchase(plan, paymentMethodId);
+                  }}
+                  onCancel={() => setPendingPlan(null)}
+                />
+              </Elements>
+            </div>
+          )}
         </div>
-        <ModalFooter
-          close={() => setPendingPlan(null)}
-          primary={() => {
-            if (pendingPlan) {
-              setPendingPlan(null);
-              _executePurchase(pendingPlan);
-            }
-          }}
-          primaryLabel={
-            selectedCardId === "new" ? "Continue to Checkout" : "Pay Now"
-          }
-          loading={!!checkoutLoading}
-        />
+        {selectedCardId !== "new" && (
+          <ModalFooter
+            close={() => setPendingPlan(null)}
+            primary={() => {
+              if (pendingPlan) {
+                setPendingPlan(null);
+                _executePurchase(pendingPlan);
+              }
+            }}
+            primaryLabel="Pay Now"
+            loading={!!checkoutLoading}
+          />
+        )}
       </ModalShell>
     </div>
   );

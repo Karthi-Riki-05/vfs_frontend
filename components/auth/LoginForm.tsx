@@ -288,9 +288,13 @@ export default function LoginForm() {
     <>
       {banners}
       <form onSubmit={handleSubmit} className="space-y-4">
+        <label htmlFor="login-email" className="sr-only">
+          Email
+        </label>
         <div className="flex h-12 items-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors focus-within:border-primary">
           <Mail className="h-4 w-4 text-muted-foreground" />
           <input
+            id="login-email"
             type="email"
             value={email}
             onChange={(e) => {
@@ -313,9 +317,13 @@ export default function LoginForm() {
           </p>
         )}
 
+        <label htmlFor="login-password" className="sr-only">
+          Password
+        </label>
         <div className="flex h-12 items-center gap-2 rounded-lg border border-border bg-card px-4 transition-colors focus-within:border-primary">
           <Lock className="h-4 w-4 text-muted-foreground" />
           <input
+            id="login-password"
             type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => {
@@ -494,10 +502,14 @@ export default function LoginForm() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email */}
             <div>
-              <label className="text-[13px] font-bold text-foreground">
+              <label
+                htmlFor="login-email-m"
+                className="text-[13px] font-bold text-foreground"
+              >
                 Email
               </label>
               <PillInput
+                id="login-email-m"
                 icon={Mail}
                 error={!!fieldErr.email}
                 type="email"
@@ -524,7 +536,10 @@ export default function LoginForm() {
             {/* Password */}
             <div>
               <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-[13px] font-bold text-foreground">
+                <label
+                  htmlFor="login-password-m"
+                  className="text-[13px] font-bold text-foreground"
+                >
                   Password
                 </label>
                 <a
@@ -535,6 +550,7 @@ export default function LoginForm() {
                 </a>
               </div>
               <PillInput
+                id="login-password-m"
                 icon={Lock}
                 error={!!fieldErr.password}
                 type={showPassword ? "text" : "password"}

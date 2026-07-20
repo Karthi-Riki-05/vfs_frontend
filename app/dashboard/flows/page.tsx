@@ -15,6 +15,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -38,7 +44,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Lock,
-  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SectionHeader from "@/components/common/SectionHeader";
@@ -47,6 +52,7 @@ import ShareFlowModal from "@/components/flows/ShareFlowModal";
 import AssignProjectModal from "@/components/flows/AssignProjectModal";
 import FlowMenuModal from "@/components/flows/FlowMenuModal";
 import { useFlows, useLockState } from "@/hooks/useFlows";
+import { useEntitlements } from "@/hooks/useEntitlements";
 import { useTabFocus } from "@/hooks/useTabFocus";
 import { createNewFlow } from "@/lib/flow";
 import api from "@/lib/axios";
@@ -237,6 +243,7 @@ function LocalSearchBar({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={placeholder}
         className="flex-1 bg-transparent outline-none text-sm border-0 p-0 appearance-none"
       />
       <button
@@ -332,6 +339,10 @@ export default function FlowsPage() {
     effectiveUnlimited: packUnlimited,
   } = usePackStatus();
   const { activeTeamId, effectivePlan, hydrated } = useAppContext();
+  // Sharing is a paid entitlement (canShareFlows: pro/team only, inherited
+  // inside a paid tenant). null while loading → fail closed (Share hidden).
+  const { entitlements } = useEntitlements();
+  const canShareFlows = !!entitlements?.canShareFlows;
   const resolvedAppType: "pro" | "team" =
     effectivePlan === "pro" ? "pro" : "team";
   const { lockState, lockLoading, markModalShown } = useLockState();
@@ -482,6 +493,7 @@ export default function FlowsPage() {
   /* ── Flow action menu (opens FlowMenuModal — same as mobile) ── */
   const renderFlowActions = (flow: any) => (
     <button
+      aria-label={`Actions for ${flow?.name || "flow"}`}
       onClick={(e) => {
         e.stopPropagation();
         setFlowMenu({ open: true, flow });
@@ -494,6 +506,7 @@ export default function FlowsPage() {
 
   const renderSharedActions = (flow: any) => (
     <button
+      aria-label={`Actions for ${flow?.name || "flow"}`}
       onClick={(e) => {
         e.stopPropagation();
         setFlowMenu({ open: true, flow });
@@ -617,7 +630,11 @@ export default function FlowsPage() {
                       {flow.thumbnail ? (
                         <img
                           src={flow.thumbnail}
-                          alt=""
+                          alt={
+                            flow?.name
+                              ? `${flow.name} thumbnail`
+                              : "Flow thumbnail"
+                          }
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -641,6 +658,7 @@ export default function FlowsPage() {
                       </div>
                     </div>
                     <button
+                      aria-label={`Actions for ${flow?.name || "flow"}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         setFlowMenu({ open: true, flow });
@@ -675,7 +693,11 @@ export default function FlowsPage() {
                         {flow.thumbnail ? (
                           <img
                             src={flow.thumbnail}
-                            alt=""
+                            alt={
+                              flow?.name
+                                ? `${flow.name} thumbnail`
+                                : "Flow thumbnail"
+                            }
                             className="absolute inset-0 w-full h-full object-cover"
                           />
                         ) : (
@@ -702,7 +724,7 @@ export default function FlowsPage() {
                         {!flow.createdBySelf && flow.createdByName && (
                           <div
                             className="text-[11px] mt-0.5"
-                            style={{ color: "#1890FF" }}
+                            style={{ color: "var(--blue)" }}
                           >
                             Created by {flow.createdByName}
                           </div>
@@ -710,6 +732,7 @@ export default function FlowsPage() {
                       </div>
                     </button>
                     <button
+                      aria-label={`Actions for ${flow?.name || "flow"}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         setFlowMenu({ open: true, flow });
@@ -790,6 +813,7 @@ export default function FlowsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search flows…"
+              aria-label="Search flows"
               className="flex-1 bg-transparent outline-none text-sm border-0 p-0 appearance-none min-w-0"
             />
           </div>
@@ -879,7 +903,7 @@ export default function FlowsPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-3 2xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
             {TEMPLATE_CATEGORIES.map((cat) => (
               <button
                 key={cat.id}
@@ -943,7 +967,11 @@ export default function FlowsPage() {
                         {flow.thumbnail ? (
                           <img
                             src={flow.thumbnail}
-                            alt=""
+                            alt={
+                              flow?.name
+                                ? `${flow.name} thumbnail`
+                                : "Flow thumbnail"
+                            }
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -971,7 +999,7 @@ export default function FlowsPage() {
                         {!flow.createdBySelf && flow.createdByName && (
                           <div
                             className="text-[11px] mt-0.5"
-                            style={{ color: "#1890FF" }}
+                            style={{ color: "var(--blue)" }}
                           >
                             Created by {flow.createdByName}
                           </div>
@@ -999,7 +1027,11 @@ export default function FlowsPage() {
                       {flow.thumbnail ? (
                         <img
                           src={flow.thumbnail}
-                          alt=""
+                          alt={
+                            flow?.name
+                              ? `${flow.name} thumbnail`
+                              : "Flow thumbnail"
+                          }
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -1027,7 +1059,7 @@ export default function FlowsPage() {
                       {!flow.createdBySelf && flow.createdByName && (
                         <div
                           className="text-[11px] mt-0.5"
-                          style={{ color: "#1890FF" }}
+                          style={{ color: "var(--blue)" }}
                         >
                           Created by {flow.createdByName}
                         </div>
@@ -1149,7 +1181,11 @@ export default function FlowsPage() {
                         {flow.thumbnail ? (
                           <img
                             src={flow.thumbnail}
-                            alt=""
+                            alt={
+                              flow?.name
+                                ? `${flow.name} thumbnail`
+                                : "Flow thumbnail"
+                            }
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -1323,7 +1359,11 @@ export default function FlowsPage() {
             currentProjectId: flowMenu.flow.projectId,
           })
         }
-        onShare={() => setShareModal({ open: true, flow: flowMenu.flow })}
+        onShare={
+          canShareFlows
+            ? () => setShareModal({ open: true, flow: flowMenu.flow })
+            : undefined
+        }
         onDuplicate={() => duplicateFlow(flowMenu.flow.id)}
         onDelete={() => deleteFlow(flowMenu.flow.id)}
       />
@@ -1446,75 +1486,64 @@ export default function FlowsPage() {
       </Sheet>
 
       {/* ── Over-limit lock modal ── */}
-      {lockModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-card rounded-3xl shadow-2xl border border-border overflow-hidden">
-            {/* Close button */}
-            <div className="flex justify-end px-4 pt-4">
-              <button
-                onClick={() => setLockModalOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center bg-secondary border-0 cursor-pointer text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
+      <Dialog open={lockModalOpen} onOpenChange={setLockModalOpen}>
+        <DialogContent className="tw w-full max-w-sm bg-card rounded-3xl shadow-2xl border border-border p-0 gap-0">
+          {/* Header */}
+          <div className="flex flex-col items-center gap-3 px-6 pt-10 pb-5 text-center">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-red-50 border border-red-100">
+              <Lock className="w-7 h-7 text-red-500" />
             </div>
-            {/* Header */}
-            <div className="flex flex-col items-center gap-3 px-6 pt-2 pb-5 text-center">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-red-50 border border-red-100">
-                <Lock className="w-7 h-7 text-red-500" />
-              </div>
-              <h2 className="text-lg font-bold text-foreground">
-                {isLocked ? "Your flows are locked" : "This flow is locked"}
-              </h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {isLocked ? (
-                  <>
-                    You have{" "}
-                    <span className="font-semibold text-foreground">
-                      {lockState.flowUsed ?? "—"}
-                    </span>{" "}
-                    flows but your plan allows{" "}
-                    <span className="font-semibold text-foreground">
-                      {lockState.totCount ?? "—"}
-                    </span>
-                    . All flows are locked until you resolve this.
-                  </>
-                ) : (
-                  <>
-                    This flow is over your plan&apos;s limit. Upgrade your plan
-                    to unlock it.
-                  </>
-                )}
-              </p>
-            </div>
+            <DialogTitle className="text-lg font-bold text-foreground">
+              {isLocked ? "Your flows are locked" : "This flow is locked"}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
+              {isLocked ? (
+                <>
+                  You have{" "}
+                  <span className="font-semibold text-foreground">
+                    {lockState.flowUsed ?? "—"}
+                  </span>{" "}
+                  flows but your plan allows{" "}
+                  <span className="font-semibold text-foreground">
+                    {lockState.totCount ?? "—"}
+                  </span>
+                  . All flows are locked until you resolve this.
+                </>
+              ) : (
+                <>
+                  This flow is over your plan&apos;s limit. Upgrade your plan to
+                  unlock it.
+                </>
+              )}
+            </DialogDescription>
+          </div>
 
-            {/* Actions */}
-            <div className="flex flex-col gap-2 px-6 pb-7">
+          {/* Actions */}
+          <div className="flex flex-col gap-2 px-6 pb-7">
+            <button
+              onClick={() => {
+                setLockModalOpen(false);
+                router.push("/dashboard/subscription");
+              }}
+              className="w-full h-12 rounded-2xl font-bold text-sm text-white border-0 cursor-pointer"
+              style={{ background: "#34A881" }}
+            >
+              Upgrade Plan
+            </button>
+            {isLocked && (
               <button
                 onClick={() => {
                   setLockModalOpen(false);
-                  router.push("/dashboard/subscription");
+                  router.push("/dashboard/limitflows");
                 }}
-                className="w-full h-12 rounded-2xl font-bold text-sm text-white border-0 cursor-pointer"
-                style={{ background: "#34A881" }}
+                className="w-full h-12 rounded-2xl font-semibold text-sm border border-border bg-secondary text-foreground cursor-pointer"
               >
-                Upgrade Plan
+                Limit to {lockState.totCount ?? "—"} flows
               </button>
-              {isLocked && (
-                <button
-                  onClick={() => {
-                    setLockModalOpen(false);
-                    router.push("/dashboard/limitflows");
-                  }}
-                  className="w-full h-12 rounded-2xl font-semibold text-sm border border-border bg-secondary text-foreground cursor-pointer"
-                >
-                  Limit to {lockState.totCount ?? "—"} flows
-                </button>
-              )}
-            </div>
+            )}
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

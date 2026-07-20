@@ -16,7 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePro } from "@/hooks/usePro";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useRouter } from "next/navigation";
-import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
 
 // ──────── Main Dashboard ────────
 
@@ -27,6 +27,10 @@ export default function DashboardPage() {
     useDashboard();
   const router = useRouter();
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+  // Stack the widgets grid on mobile AND tablet — a 3-column row squeezes the
+  // activity chart once the sidebar rail eats into the tablet content width.
+  const stackWidgets = isMobile || isTablet;
 
   const isProApp = currentApp === "pro";
   const isUnlimited = status?.isUnlimited ?? false;
@@ -148,12 +152,12 @@ export default function DashboardPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",
+          gridTemplateColumns: stackWidgets ? "1fr" : "1fr 1fr 1fr",
           gap: 16,
           marginBottom: isMobile ? 20 : 28,
         }}
       >
-        <div style={{ gridColumn: isMobile ? "1" : "1 / 3" }}>
+        <div style={{ gridColumn: stackWidgets ? "1" : "1 / 3" }}>
           <DashActivityChart activity={activity} loading={loading} />
         </div>
         <SubscriptionWidget />

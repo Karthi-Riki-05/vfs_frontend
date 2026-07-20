@@ -226,7 +226,7 @@ export default function TeamDashboardPage() {
       )}
 
       {/* ── Mobile layout (<1024px) ── */}
-      <div className="lg:hidden px-5 pt-3 space-y-5">
+      <div className="lg:hidden px-5 pt-3 pb-28 space-y-5">
         {/* Greeting */}
         <div>
           <div className="text-xs font-semibold text-muted-foreground">
@@ -457,7 +457,7 @@ export default function TeamDashboardPage() {
       </div>
 
       {/* ── Desktop layout (≥1024px) ── */}
-      <div className="hidden lg:block px-6 pt-6 pb-10 max-w-[1200px] mx-auto space-y-6">
+      <div className="hidden lg:block px-6 pt-6 pb-28 max-w-[1200px] mx-auto space-y-6">
         {/* Greeting */}
         <div>
           <div className="text-xs font-semibold text-muted-foreground">

@@ -653,6 +653,12 @@ export default function AIAssistant({
     declineConsent();
     setShowConsentModal(false);
   }
+  // Issue #5: dismissing (backdrop/Escape) is NOT a decline — just close the
+  // modal without writing consent=false, which in a team context would
+  // corrupt the user's personal consent.
+  function handleConsentDismiss() {
+    setShowConsentModal(false);
+  }
 
   const showEmptyState = !loadingHistory && messages.length === 0 && !sending;
 
@@ -1044,6 +1050,7 @@ export default function AIAssistant({
         open={showConsentModal}
         onAccept={handleConsentAccept}
         onDecline={handleConsentDecline}
+        onDismiss={handleConsentDismiss}
       />
       <CreditsExhaustedModal
         visible={showCreditsExhausted}
@@ -1076,7 +1083,16 @@ export default function AIAssistant({
         <div
           className="fixed z-[200]"
           style={{
-            bottom: isMobile ? (isEditorPage ? 60 : 24) : 28,
+            // B10: on the editor page the draw.io zoom control (Fit Window /
+            // Reset View) lives at the bottom-right and its popup opens upward;
+            // lift the FAB above it so it no longer overlaps the zoom menu.
+            bottom: isMobile
+              ? isEditorPage
+                ? 60
+                : 24
+              : isEditorPage
+                ? 92
+                : 28,
             right: isMobile ? 20 : 24,
             opacity: (isMobile && sheetOpen) || chatPanelOpen ? 0 : 1,
             pointerEvents:

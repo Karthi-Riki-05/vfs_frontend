@@ -69,6 +69,26 @@ body {
     outline: 2px solid #3cb371;
     outline-offset: 2px;
   }
+
+  /* .tw counterpart (bug-068). The :not(.tw *) guard above left hand-ported
+     .tw buttons/inputs with NO focus indicator once their `outline-none`
+     reset classes were removed. This base-layer rule restores the brand
+     outline inside .tw; Tailwind utilities live in a later layer, so any
+     shadcn component that sets `outline-none` + `focus-visible:ring-*`
+     still wins with its own ring. */
+  .tw :focus-visible {
+    outline: 2px solid #3cb371;
+    outline-offset: 2px;
+  }
+
+  /* Anchors need !important: Ant Design emits an UNLAYERED `a` reset with
+     `outline: none` that beats every layered rule (same cascade story as
+     NavTile's `!transition` / `!bg-*` workarounds). Scoped to .tw anchors
+     only so nothing outside the ported design is affected. */
+  .tw a:focus-visible {
+    outline: 2px solid #3cb371 !important;
+    outline-offset: 2px;
+  }
 }
 
 /* Selection color */
@@ -253,6 +273,21 @@ img {
   select,
   textarea {
     font-size: 16px !important;
+  }
+}
+
+/* Respect the OS "reduce motion" setting (WCAG 2.3.3). Neutralizes every
+   animation/transition (spinners, pulses, hover transforms, layout margin
+   transitions) for users prone to motion sickness. `scroll-behavior: auto`
+   also disables smooth-scroll jumps (e.g. the skip-to-content anchor). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

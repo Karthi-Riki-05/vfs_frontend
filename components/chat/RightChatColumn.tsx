@@ -196,6 +196,7 @@ interface ChatMessage {
   _tempId?: string;
   editedAt?: string;
   deletedAt?: string;
+  reactions?: Array<{ emoji: string; userId: string }>;
 }
 
 interface TeamGroup {
@@ -458,6 +459,20 @@ export default function RightChatColumn({
       const dm = res.data?.data || res.data || {};
       const newMessages = dm.messages || (Array.isArray(dm) ? dm : []);
       setMessages(newMessages);
+      // B15: seed the reactions map from the persisted reactions now returned
+      // by getMessages, so existing reactions render on load/refresh (not only
+      // via the live socket echo).
+      const seeded = new Map<string, Record<string, string[]>>();
+      for (const m of newMessages) {
+        if (Array.isArray(m.reactions) && m.reactions.length) {
+          const byEmoji: Record<string, string[]> = {};
+          for (const r of m.reactions) {
+            (byEmoji[r.emoji] = byEmoji[r.emoji] || []).push(r.userId);
+          }
+          seeded.set(m.id, byEmoji);
+        }
+      }
+      setReactions(seeded);
     } catch {
       // silently fail
     } finally {
@@ -739,6 +754,11 @@ export default function RightChatColumn({
     setSelectedGroupAvatarBg(avatarBg);
     setView("messages");
     setMessages([]);
+    // B39/B43/B46: ensure the socket is in this conversation's room so live
+    // messages/reactions/images arrive without a refresh. The socket only
+    // auto-joins rooms at connect, so a group opened/created afterwards needs
+    // an explicit join here.
+    socket?.emit("chat:join-group", { groupId });
   };
 
   const backToList = () => {
@@ -1200,7 +1220,7 @@ export default function RightChatColumn({
             src={imgSrc}
             alt={msgText || "Image"}
             style={{
-              maxWidth: 200,
+              maxWidth: "100%",
               maxHeight: 200,
               borderRadius: 8,
               cursor: "pointer",
@@ -1236,7 +1256,7 @@ export default function RightChatColumn({
                     src={fileUrl}
                     alt={file.fileName || "Image"}
                     style={{
-                      maxWidth: 200,
+                      maxWidth: "100%",
                       maxHeight: 200,
                       borderRadius: 8,
                       cursor: "pointer",
@@ -1839,7 +1859,7 @@ export default function RightChatColumn({
           <div className="flex items-center gap-1">
             {!isDeleted && twActionTrigger(msg)}
             <div
-              className={`max-w-[78%] px-4 py-3 rounded-2xl rounded-br-md text-[14px] leading-snug break-words ${
+              className={`min-w-0 max-w-[78%] px-4 py-3 rounded-2xl rounded-br-md text-[14px] leading-snug break-all [overflow-wrap:anywhere] ${
                 isDeleted
                   ? "bg-secondary text-muted-foreground italic"
                   : "bg-primary text-white"
@@ -1884,7 +1904,7 @@ export default function RightChatColumn({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1">
               <div
-                className={`max-w-[80%] border border-border px-4 py-3 rounded-2xl rounded-tl-md text-[14px] leading-snug break-words ${
+                className={`min-w-0 max-w-[80%] border border-border px-4 py-3 rounded-2xl rounded-tl-md text-[14px] leading-snug break-all [overflow-wrap:anywhere] ${
                   otherDeleted
                     ? "bg-secondary text-muted-foreground italic"
                     : "bg-card text-foreground"

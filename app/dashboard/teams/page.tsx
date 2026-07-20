@@ -559,7 +559,7 @@ export default function TeamsPage() {
           <div className="rounded-2xl bg-card border border-border shadow-[var(--shadow-card)] mb-6 overflow-hidden">
             {/* Search + filter bar */}
             <div className="flex gap-2 px-4 py-3 border-b border-border flex-wrap items-center">
-              <div className="flex items-center gap-2 h-10 px-3 rounded-xl bg-background border border-border flex-1 min-w-[160px]">
+              <div className="flex items-center gap-2 h-10 px-3 rounded-xl bg-background border border-border flex-1 min-w-[160px] transition-colors focus-within:border-primary">
                 <Search className="w-4 h-4 text-muted-foreground shrink-0" />
                 <input
                   value={memberSearch}
@@ -989,7 +989,7 @@ export default function TeamsPage() {
               placeholder="What does this team work on?"
               value={createDesc}
               onChange={(e) => setCreateDesc(e.target.value)}
-              className="mt-1.5 w-full min-h-24 rounded-xl border border-border bg-background p-3 text-sm font-sans outline-none resize-none"
+              className="mt-1.5 w-full min-h-24 rounded-xl border border-border bg-background p-3 text-sm font-sans resize-none"
             />
           </div>
         </div>
@@ -1033,7 +1033,7 @@ export default function TeamsPage() {
               placeholder="What does this team work on?"
               value={editDesc}
               onChange={(e) => setEditDesc(e.target.value)}
-              className="mt-1.5 w-full min-h-24 rounded-xl border border-border bg-background p-3 text-sm font-sans outline-none resize-none"
+              className="mt-1.5 w-full min-h-24 rounded-xl border border-border bg-background p-3 text-sm font-sans resize-none"
             />
           </div>
         </div>
@@ -1070,7 +1070,7 @@ export default function TeamsPage() {
             placeholder={"colleague1@company.com,\ncolleague2@company.com"}
             value={inviteEmails}
             onChange={(e) => setInviteEmails(e.target.value)}
-            className="w-full min-h-24 rounded-xl border border-border bg-background p-3 text-sm font-sans outline-none resize-none"
+            className="w-full min-h-24 rounded-xl border border-border bg-background p-3 text-sm font-sans resize-none"
           />
           <div className="text-[11px] text-muted-foreground">
             Separate multiple emails with commas

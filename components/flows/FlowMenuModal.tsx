@@ -18,7 +18,8 @@ interface FlowMenuModalProps {
   onToggleFavorite: () => void;
   onRename: () => void;
   onAssign: () => void;
-  onShare: () => void;
+  /** Omit to hide Share entirely (e.g. free tier — no canShareFlows entitlement). */
+  onShare?: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   locked?: boolean;
@@ -58,7 +59,7 @@ export default function FlowMenuModal({
     },
     { I: Edit2, n: "Rename", action: onRename },
     { I: FolderInput, n: "Assign to Project", action: onAssign },
-    { I: Share2, n: "Share", action: onShare },
+    ...(onShare ? [{ I: Share2, n: "Share", action: onShare }] : []),
     { I: Copy, n: "Duplicate", action: onDuplicate },
     { I: Trash2, n: "Delete", action: onDelete, danger: true },
   ];

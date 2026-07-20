@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   Rocket,
   GitBranch,
@@ -62,6 +64,21 @@ const helpCards = [
 export default function SupportPage() {
   const [query, setQuery] = useState("");
 
+  // B18/B32: `mailto:` only works when the OS has a registered mail handler —
+  // webmail-only users saw nothing happen. Keep the mailto (desktop clients
+  // still open) but also open Gmail's web compose in a new tab and copy the
+  // address as a fallback, so contacting support always works.
+  const SUPPORT_EMAIL = "support@valuecharts.com";
+  const handleSupportEmail = (subject?: string) => {
+    const gmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+      SUPPORT_EMAIL,
+    )}${subject ? `&su=${encodeURIComponent(subject)}` : ""}`;
+    window.open(gmail, "_blank", "noopener,noreferrer");
+    copyToClipboard(SUPPORT_EMAIL).then((ok) => {
+      if (ok) toast.success(`Support email copied — ${SUPPORT_EMAIL}`);
+    });
+  };
+
   const filtered = query.trim()
     ? helpCards.filter(
         (c) =>
@@ -96,7 +113,7 @@ export default function SupportPage() {
           {/* content — outside overflow-hidden so nothing clips */}
           <div className="relative z-10 px-6 pt-6 pb-6 lg:px-10 lg:pt-8 lg:pb-8">
             <p className="text-white/80 text-sm mb-4">
-              Search our knowledge base or browse topics below
+              Filter the help topics below, or contact us directly
             </p>
             <div
               className="flex items-center gap-2 px-4"
@@ -105,7 +122,8 @@ export default function SupportPage() {
               <Search size={16} style={{ color: "#9ca3af", flexShrink: 0 }} />
               <input
                 type="text"
-                placeholder="Search for help articles..."
+                placeholder="Filter help topics..."
+                aria-label="Filter help topics"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 style={{
@@ -126,8 +144,23 @@ export default function SupportPage() {
         {/* Help cards grid */}
         <div>
           {filtered.length === 0 ? (
-            <div className="rounded-3xl bg-card border border-border shadow-card p-10 text-center text-muted-foreground text-sm">
-              No articles found for &quot;{query}&quot;
+            <div className="rounded-3xl bg-card border border-border shadow-card p-10 text-center text-sm">
+              <p className="text-muted-foreground m-0">
+                No topics match &quot;{query}&quot;.
+              </p>
+              <p className="text-muted-foreground mt-1 mb-4">
+                Try a different term, or reach out and we&apos;ll help.
+              </p>
+              <a
+                href={`mailto:support@valuecharts.com?subject=${encodeURIComponent(
+                  `Help: ${query}`,
+                )}`}
+                onClick={() => handleSupportEmail(`Help: ${query}`)}
+                className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-primary text-white font-semibold no-underline"
+              >
+                <Mail size={16} />
+                Email Support
+              </a>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -169,12 +202,14 @@ export default function SupportPage() {
               Contact Us
             </div>
             <div className="text-[13px] text-muted-foreground mt-0.5">
-              Can&apos;t find what you&apos;re looking for? Reach out directly.
+              Can&apos;t find what you&apos;re looking for? Reach out directly —
+              we read every message and reply as soon as we can.
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <a
               href="mailto:support@valuecharts.com"
+              onClick={() => handleSupportEmail()}
               style={{ backgroundColor: "#e7f6f0" }}
               className="flex items-center gap-3 p-4 rounded-2xl no-underline group"
             >

@@ -27,7 +27,7 @@ import { logout } from "@/lib/logout";
 import { aiApi } from "@/api/ai.api";
 import { createNewFlow } from "@/lib/flow";
 import { useDeviceMode } from "@/hooks/useDeviceMode";
-import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
+import { useIsChatColumnHidden } from "@/hooks/useMediaQuery";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import NavTile from "./NavTile";
 import SidebarTeamSwitcher from "./SidebarTeamSwitcher";
@@ -49,8 +49,7 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
 }) => {
   const pathname = usePathname() || "";
   const router = useRouter();
-  const isMobile = useIsMobile();
-  const isTablet = useIsTablet();
+  const chatColumnHidden = useIsChatColumnHidden();
   const { data: session } = useSession();
   const { isWeb, isMobileApp } = useDeviceMode();
   const { totalUnread } = useUnreadCount();
@@ -86,8 +85,8 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
   const handleChatClick = (e: React.MouseEvent) => {
     e.preventDefault();
     handleNavClick();
-    // Mobile/tablet have no docked chat column — go to the full-screen page.
-    if (isMobile || isTablet) router.push("/dashboard/chat");
+    // Below 1180px there's no docked chat column — go to the full-screen page.
+    if (chatColumnHidden) router.push("/dashboard/chat");
     else (window as any).__toggleChat?.();
   };
 

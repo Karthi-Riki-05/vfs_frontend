@@ -146,7 +146,7 @@ export default function ProjectsPage() {
             </p>
           </div>
 
-          {/* புராஜெக்ட்ஸ் இருந்தால் மட்டுமே இந்த பட்டன் வெளியே தெரியும் */}
+          {/* Header create button only shows once at least one project exists. */}
           {projects.length > 0 && (
             <button
               type="button"

@@ -26,6 +26,7 @@ import {
   notificationsApi,
   type NotificationItem,
 } from "@/api/notifications.api";
+import { setAiBillingTeamId } from "@/lib/aiBilling";
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -167,6 +168,10 @@ export default function NotificationsPage() {
       );
     }
     if (n.actionUrl) {
+      // Team-scoped notifications (e.g. team_member_joined) must land inside
+      // that team's workspace — switch the active context first so the
+      // destination page isn't rendered with the wrong X-Team-Context.
+      if (n.teamId) setAiBillingTeamId(n.teamId);
       if (n.actionUrl.startsWith("http")) window.location.href = n.actionUrl;
       else router.push(n.actionUrl);
     }

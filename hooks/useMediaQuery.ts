@@ -49,3 +49,14 @@ export function useIsDesktop(): boolean {
 export function useIsWideMobile(): boolean {
   return useMediaQuery("(min-width: 500px) and (max-width: 767px)");
 }
+
+/**
+ * True when the docked 430px right chat column cannot coexist with the 256px
+ * sidebar and a usable content area. Below 1180px the chat button routes to the
+ * full-page /dashboard/chat instead of opening the fixed column — this closes
+ * the 1024–1179px "tablet dead zone" where sidebar(256)+chat(430) left the
+ * content area unusably narrow. Superset of mobile + tablet.
+ */
+export function useIsChatColumnHidden(): boolean {
+  return useMediaQuery("(max-width: 1179px)");
+}

@@ -16,7 +16,7 @@ import { usePro } from "@/hooks/usePro";
 import {
   useIsMobile,
   useIsTablet,
-  useIsWideMobile,
+  useIsChatColumnHidden,
 } from "@/hooks/useMediaQuery";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { AppContextLoader } from "./AppContextLoader";
@@ -152,7 +152,7 @@ export default function DashboardLayout({
   }, [proLoading, hasPro, proPurchasedAt, currentApp, switchApp]);
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
-  const isWideMobile = useIsWideMobile();
+  const chatColumnHidden = useIsChatColumnHidden();
   // App SHELL brand (WebView UA), read post-mount. Declared here — above the
   // editor-page early return — so the hook order stays stable across renders.
   const brand = useAppBrand();
@@ -340,11 +340,6 @@ export default function DashboardLayout({
   // stable brand signal; fall back to currentApp only for genuine web visitors.
   const isProBrand =
     brand === "pro" || (brand === "web" && currentApp === "pro");
-  console.log("[DashboardLayout] brand/currentApp:", {
-    brand,
-    currentApp,
-    isProBrand,
-  });
   const SidebarComponent = isProBrand ? ProSidebar : Sidebar;
 
   // Mobile: no fixed sidebar, use drawer. No right chat column on mobile.
@@ -356,6 +351,12 @@ export default function DashboardLayout({
         appMode={forcedMode}
       >
         <Layout style={{ minHeight: "100dvh" }}>
+          <a
+            href="#main-content"
+            className="tw sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[2000] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-white focus:font-semibold focus:text-sm focus:shadow-lg"
+          >
+            Skip to content
+          </a>
           <Header onMenuClick={() => setMobileOpen(true)} />
 
           {/* Mobile sidebar drawer */}
@@ -373,6 +374,7 @@ export default function DashboardLayout({
           </div>
 
           <Content
+            id="main-content"
             className="responsive-content bg-background"
             style={{
               padding: "16px",
@@ -396,8 +398,9 @@ export default function DashboardLayout({
   // Tablet and Desktop. 256px expanded matches the new_design lg:w-64 rail
   // (kept in lockstep with Sider width={256} in Sidebar/ProSidebar).
   const siderWidth = collapsed ? 60 : 256;
-  // On tablet: hide right chat column (no room); chat button routes to /dashboard/chat
-  const showChatColumn = !hideChatColumn && chatOpen && !isTablet;
+  // Below 1180px (tablet + narrow desktop): hide the docked chat column — no room
+  // beside the sidebar; the chat button routes to /dashboard/chat instead.
+  const showChatColumn = !hideChatColumn && chatOpen && !chatColumnHidden;
   const chatColumnWidth = showChatColumn && !chatFullView ? 430 : 0;
   // Chat is the focus → suppress the floating FAB + AI button so they don't
   // collide with the chat input/send (column open, full view, or the
@@ -414,6 +417,12 @@ export default function DashboardLayout({
       appMode={forcedMode}
     >
       <Layout style={{ minHeight: "100dvh" }}>
+        <a
+          href="#main-content"
+          className="tw sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[2000] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-white focus:font-semibold focus:text-sm focus:shadow-lg"
+        >
+          Skip to content
+        </a>
         <Header />
         <Layout style={{ marginTop: 56 }}>
           <SidebarComponent collapsed={collapsed} onCollapse={setCollapsed} />
@@ -421,6 +430,7 @@ export default function DashboardLayout({
           {/* Main content — hidden when chat is in full view */}
           {!chatFullView && (
             <Content
+              id="main-content"
               className="responsive-content"
               style={{
                 marginLeft: siderWidth,

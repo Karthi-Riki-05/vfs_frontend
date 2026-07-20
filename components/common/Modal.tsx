@@ -1,8 +1,11 @@
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Shared modal shell ported from the new_design prototype (DESIGN.md §4 Modals,
@@ -57,6 +60,51 @@ export function ModalShell({
     };
   }, [open, disableClose]);
 
+  // Focus management (Ant Modal gave this for free): move focus into the
+  // dialog on open, keep Tab/Shift+Tab cycling inside it, and hand focus
+  // back to the triggering element on close.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const trigger = document.activeElement as HTMLElement | null;
+    const card = cardRef.current;
+    const first = card?.querySelector<HTMLElement>(FOCUSABLE);
+    (first ?? card)?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !cardRef.current) return;
+      const scope = cardRef.current;
+      const nodes = Array.from(
+        scope.querySelectorAll<HTMLElement>(FOCUSABLE),
+      ).filter(
+        (el) => el.offsetParent !== null || el === document.activeElement,
+      );
+      if (nodes.length === 0) {
+        e.preventDefault();
+        scope.focus();
+        return;
+      }
+      const firstEl = nodes[0];
+      const lastEl = nodes[nodes.length - 1];
+      const active = document.activeElement;
+      const inside = active instanceof Node && scope.contains(active);
+      if (e.shiftKey) {
+        if (!inside || active === firstEl) {
+          e.preventDefault();
+          lastEl.focus();
+        }
+      } else if (!inside || active === lastEl) {
+        e.preventDefault();
+        firstEl.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      trigger?.focus?.();
+    };
+  }, [open]);
+
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
@@ -66,8 +114,10 @@ export function ModalShell({
         onClick={disableClose ? undefined : onClose}
       />
       <div
+        ref={cardRef}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         className={`relative w-full sm:w-[92%] ${maxW} bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl animate-in slide-in-from-bottom max-h-[88vh] overflow-y-auto`}
       >
@@ -91,7 +141,8 @@ export function ModalHeader({
       <button
         type="button"
         onClick={close}
-        className="appearance-none cursor-pointer outline-none border-0 bg-transparent w-8 h-8 max-lg:w-11 max-lg:h-11 rounded-full hover:bg-secondary flex items-center justify-center"
+        aria-label="Close"
+        className="appearance-none cursor-pointer border-0 bg-transparent w-8 h-8 max-lg:w-11 max-lg:h-11 rounded-full hover:bg-secondary flex items-center justify-center"
       >
         <X className="w-4 h-4 text-muted-foreground" />
       </button>
@@ -122,7 +173,7 @@ export function ModalFooter({
       <button
         type="button"
         onClick={close}
-        className="appearance-none cursor-pointer outline-none h-10 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
+        className="appearance-none cursor-pointer h-10 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
       >
         {cancelLabel}
       </button>
@@ -132,8 +183,8 @@ export function ModalFooter({
         disabled={loading || disabled}
         className={
           danger
-            ? "appearance-none cursor-pointer outline-none h-10 px-5 rounded-xl border-2 border-coral bg-transparent text-coral font-bold text-sm hover:bg-coral/10 disabled:opacity-60 disabled:cursor-not-allowed"
-            : "appearance-none cursor-pointer outline-none border-0 h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+            ? "appearance-none cursor-pointer h-10 px-5 rounded-xl border-2 border-coral bg-transparent text-coral font-bold text-sm hover:bg-coral/10 disabled:opacity-60 disabled:cursor-not-allowed"
+            : "appearance-none cursor-pointer border-0 h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
         }
       >
         {loading ? "…" : primaryLabel}

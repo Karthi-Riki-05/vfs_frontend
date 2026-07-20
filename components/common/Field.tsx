@@ -41,7 +41,7 @@ export function FieldInput({
   const type = eye ? (show ? "text" : "password") : props.type;
   return (
     <div
-      className={`flex items-center gap-2 h-11 px-3 rounded-xl border border-border ${
+      className={`flex items-center gap-2 h-11 px-3 rounded-xl border border-border transition-colors focus-within:border-primary ${
         disabled ? "bg-secondary" : "bg-background"
       }`}
     >
@@ -50,13 +50,13 @@ export function FieldInput({
         {...props}
         type={type}
         disabled={disabled}
-        className="flex-1 bg-transparent outline-none text-sm font-sans appearance-none border-0 p-0 disabled:text-muted-foreground"
+        className="flex-1 bg-transparent text-sm font-sans appearance-none border-0 p-0 disabled:text-muted-foreground"
       />
       {eye && (
         <button
           type="button"
           onClick={() => setShow((v) => !v)}
-          className="appearance-none cursor-pointer outline-none bg-transparent border-0 text-muted-foreground max-lg:w-11 max-lg:h-11 max-lg:flex max-lg:items-center max-lg:justify-center max-lg:shrink-0 max-lg:-mr-3"
+          className="appearance-none cursor-pointer bg-transparent border-0 text-muted-foreground max-lg:w-11 max-lg:h-11 max-lg:flex max-lg:items-center max-lg:justify-center max-lg:shrink-0 max-lg:-mr-3"
         >
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>

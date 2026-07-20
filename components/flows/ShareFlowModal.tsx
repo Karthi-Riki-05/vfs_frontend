@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Select, Button, Spin } from "antd";
 import { toast } from "sonner";
 import {
   Share2,
@@ -12,6 +11,7 @@ import {
   Trash2,
   Pencil,
   Lock,
+  Loader2,
 } from "lucide-react";
 import {
   ModalShell,
@@ -52,6 +52,40 @@ function InitialAvatar({ name, email }: { name?: string; email?: string }) {
   return (
     <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold shrink-0">
       {(name || email || "?").charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
+/**
+ * Tailwind segmented View/Edit toggle — replaces the legacy AntD <Select>
+ * that used to render inside each user row (Issue #4, Part C).
+ */
+function PermToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="inline-flex rounded-lg border border-border bg-card p-0.5 text-[11px] font-semibold shrink-0">
+      {PERM_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(opt.value)}
+          className={`appearance-none cursor-pointer outline-none border-0 px-2.5 py-1 rounded-md transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            value === opt.value
+              ? "bg-primary text-white"
+              : "bg-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -131,9 +165,12 @@ export default function ShareFlowModal({
     setSharingUser(userId);
     try {
       await flowsApi.shareFlow(flow.id, [{ userId, permission: perm }]);
-      toast.success("Flow shared");
-      await loadData();
+      toast.success("Flow shared successfully");
       onSuccess?.();
+      // Issue #4, Part D: close the modal after a successful share — it used
+      // to stay open (only the footer "Done" button closed it), which read as
+      // a broken action despite the success toast.
+      onClose();
     } catch {
       toast.error("Failed to share flow");
     } finally {
@@ -178,8 +215,12 @@ export default function ShareFlowModal({
       });
 
       setEmailInput("");
-      await loadData();
-      if (successes.length > 0) onSuccess?.();
+      if (successes.length > 0) {
+        onSuccess?.();
+        onClose(); // close on success — mirrors handleShare (Issue #4, Part D)
+      } else {
+        await loadData();
+      }
     } catch {
       toast.error("Failed to share flow");
     } finally {
@@ -286,7 +327,7 @@ export default function ShareFlowModal({
 
         {loading ? (
           <div className="flex justify-center py-10">
-            <Spin />
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
         ) : (
           <>
@@ -306,13 +347,10 @@ export default function ShareFlowModal({
                       }
                     />
                   </div>
-                  <Select
+                  <PermToggle
                     value={emailPermission}
                     onChange={setEmailPermission}
-                    style={{ width: 84 }}
-                    getPopupContainer={(t) => t.parentElement || document.body}
-                    popupMatchSelectWidth={false}
-                    options={PERM_OPTIONS}
+                    disabled={emailSharing}
                   />
                   <button
                     type="button"
@@ -320,7 +358,12 @@ export default function ShareFlowModal({
                     disabled={!emailInput.trim() || emailSharing}
                     className="appearance-none cursor-pointer outline-none border-0 h-11 px-4 rounded-xl bg-primary text-white font-bold text-sm inline-flex items-center gap-1 disabled:opacity-60"
                   >
-                    <Plus className="w-4 h-4" /> Invite
+                    {emailSharing ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}{" "}
+                    Invite
                   </button>
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground rounded-xl bg-secondary px-3 py-2">
@@ -353,7 +396,7 @@ export default function ShareFlowModal({
                     filteredMembers.map((member) => (
                       <div
                         key={member.id}
-                        className="flex items-center justify-between gap-2 rounded-xl bg-background p-2.5"
+                        className="flex items-center justify-between gap-2 rounded-xl bg-background border border-border p-2.5 hover:border-primary/40 transition"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <InitialAvatar
@@ -369,32 +412,27 @@ export default function ShareFlowModal({
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <Select
-                            size="small"
+                        <div className="flex items-center gap-2 shrink-0">
+                          <PermToggle
                             value={permissions[member.id] || "view"}
                             onChange={(v) =>
                               setPermissions((p) => ({ ...p, [member.id]: v }))
                             }
-                            style={{ width: 80 }}
-                            getPopupContainer={(t) =>
-                              t.parentElement || document.body
-                            }
-                            popupMatchSelectWidth={false}
-                            options={PERM_OPTIONS}
+                            disabled={sharingUser === member.id}
                           />
-                          <Button
-                            type="primary"
-                            size="small"
-                            loading={sharingUser === member.id}
+                          <button
+                            type="button"
+                            disabled={sharingUser === member.id}
                             onClick={() => handleShare(member.id)}
-                            style={{
-                              backgroundColor: "#34A881",
-                              borderColor: "#34A881",
-                            }}
+                            className="appearance-none cursor-pointer outline-none border-0 h-8 px-3 rounded-lg bg-primary text-white font-semibold text-xs inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
                           >
+                            {sharingUser === member.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Share2 className="w-3.5 h-3.5" />
+                            )}
                             Share
-                          </Button>
+                          </button>
                         </div>
                       </div>
                     ))
@@ -437,17 +475,10 @@ export default function ShareFlowModal({
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Select
-                          size="small"
+                      <div className="flex items-center gap-2 shrink-0">
+                        <PermToggle
                           value={share.permission}
                           onChange={(v) => handleChangePermission(share.id, v)}
-                          style={{ width: 80 }}
-                          getPopupContainer={(t) =>
-                            t.parentElement || document.body
-                          }
-                          popupMatchSelectWidth={false}
-                          options={PERM_OPTIONS}
                         />
                         <button
                           type="button"

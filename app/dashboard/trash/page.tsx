@@ -228,6 +228,7 @@ export default function TrashPage() {
                   <button
                     onClick={() => handlePermanentDelete(flow.id)}
                     title="Delete permanently"
+                    aria-label={`Delete ${flow?.name || "flow"} permanently`}
                     className="w-11 h-9 max-lg:h-11 sm:w-9 sm:h-9 rounded-xl bg-[#fef2f2] text-[#F85729] inline-flex items-center justify-center border-0 appearance-none cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />

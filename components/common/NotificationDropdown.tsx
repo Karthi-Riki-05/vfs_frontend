@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import api from "@/lib/axios";
+import { AI_BILLING_EVENT } from "@/lib/aiBilling";
 
 export default function NotificationDropdown() {
   const router = useRouter();
@@ -36,10 +37,20 @@ export default function NotificationDropdown() {
       }
     })();
 
+    // B41: the unread count is strictly workspace-scoped (X-Team-Context), so
+    // when the user switches workspace/billing context the badge must re-fetch
+    // — otherwise it shows a stale count from the previous workspace while the
+    // Notifications page (freshly scoped) is empty ("phantom dot").
+    const onSwitch = () => refreshCount();
+    window.addEventListener(AI_BILLING_EVENT, onSwitch);
+    window.addEventListener("vc:workspace-switch", onSwitch);
+
     const t = setInterval(refreshCount, 60000);
     return () => {
       clearInterval(t);
       cleanup?.();
+      window.removeEventListener(AI_BILLING_EVENT, onSwitch);
+      window.removeEventListener("vc:workspace-switch", onSwitch);
     };
   }, []);
 

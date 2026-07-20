@@ -290,7 +290,10 @@ export default function FlowCard({
             <img
               alt={flow.name}
               src={flow.thumbnail}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              /* B44: `contain` (not `cover`) so the whole diagram is visible and
+                 consistently scaled across cards — `cover` cropped wide/tall
+                 thumbnails and produced inconsistent card layouts. */
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
             />
           ) : (
             <ProjectOutlined style={{ fontSize: 48, color: "#BFBFBF" }} />

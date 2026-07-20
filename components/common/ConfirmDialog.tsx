@@ -54,7 +54,7 @@ export function ConfirmDialog({
         <button
           type="button"
           onClick={onCancel}
-          className="appearance-none cursor-pointer outline-none h-11 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
+          className="appearance-none cursor-pointer h-11 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
         >
           {cancelLabel}
         </button>
@@ -64,8 +64,8 @@ export function ConfirmDialog({
           disabled={loading}
           className={
             danger
-              ? "appearance-none cursor-pointer outline-none h-11 px-5 rounded-xl border-2 border-coral bg-transparent text-coral font-bold text-sm inline-flex items-center justify-center gap-2 hover:bg-coral/10 disabled:opacity-60 disabled:cursor-not-allowed"
-              : "appearance-none cursor-pointer outline-none border-0 h-11 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+              ? "appearance-none cursor-pointer h-11 px-5 rounded-xl border-2 border-coral bg-transparent text-coral font-bold text-sm inline-flex items-center justify-center gap-2 hover:bg-coral/10 disabled:opacity-60 disabled:cursor-not-allowed"
+              : "appearance-none cursor-pointer border-0 h-11 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
           }
         >
           {loading ? "…" : confirmLabel}

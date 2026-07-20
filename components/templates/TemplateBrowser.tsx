@@ -1136,12 +1136,13 @@ function TemplatePreview({
               }}
               title={template.name}
             />
-            {/* Category chip */}
+            {/* Category chip — B4: moved to top-RIGHT so it no longer overlaps
+                draw.io's page title ("Page 1"), which draws at the top-left. */}
             <div
               style={{
                 position: "absolute",
                 top: 14,
-                left: 16,
+                right: 16,
                 background: "rgba(255,255,255,0.92)",
                 border: "1px solid #d1fae5",
                 borderRadius: 20,

@@ -89,18 +89,20 @@ function SubscriptionSuccessContent() {
   const rows: { icon: React.ReactNode; label: string; value: string }[] = [];
   if (status?.hasSubscription) {
     rows.push({
-      icon: <CrownOutlined style={{ fontSize: 18, color: "#3CB371" }} />,
+      icon: <CrownOutlined style={{ fontSize: 18, color: "var(--primary)" }} />,
       label: "Plan",
       value: `${status.plan === "yearly" ? "Yearly" : "Monthly"} Plan`,
     });
     rows.push({
-      icon: <TeamOutlined style={{ fontSize: 18, color: "#3CB371" }} />,
+      icon: <TeamOutlined style={{ fontSize: 18, color: "var(--primary)" }} />,
       label: "Team Members",
       value: `Up to ${status.teamMemberLimit} members`,
     });
     if (status.currentPeriodEnd) {
       rows.push({
-        icon: <CalendarOutlined style={{ fontSize: 18, color: "#3CB371" }} />,
+        icon: (
+          <CalendarOutlined style={{ fontSize: 18, color: "var(--primary)" }} />
+        ),
         label: "Next Billing Date",
         value: new Date(status.currentPeriodEnd).toLocaleDateString("en-US", {
           year: "numeric",
@@ -125,7 +127,7 @@ function SubscriptionSuccessContent() {
       }}
     >
       <CheckCircleFilled
-        style={{ color: "#3CB371", fontSize: 56, marginBottom: 16 }}
+        style={{ color: "var(--primary)", fontSize: 56, marginBottom: 16 }}
       />
       <Title level={3} style={{ margin: 0, textAlign: "center" }}>
         Subscription Activated!
@@ -200,8 +202,8 @@ function SubscriptionSuccessContent() {
           borderRadius: 12,
           height: 50,
           fontWeight: 600,
-          backgroundColor: "#3CB371",
-          borderColor: "#3CB371",
+          backgroundColor: "var(--primary)",
+          borderColor: "var(--primary)",
         }}
       >
         Go to Dashboard

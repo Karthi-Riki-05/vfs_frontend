@@ -37,7 +37,22 @@ vi.mock("@/hooks/useMediaQuery", () => ({
   useIsMobile: () => mockIsMobile,
   useIsTablet: () => false,
   useIsWideMobile: () => false,
+  useIsChatColumnHidden: () => false,
 }));
+
+// Radix Tooltip needs a TooltipProvider ancestor; stub the primitives as
+// pass-throughs so the unit test renders Header without wrapping every call.
+vi.mock("@/components/ui/tooltip", async () => {
+  const React = await import("react");
+  const Pass = ({ children }: { children?: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children);
+  return {
+    Tooltip: Pass,
+    TooltipProvider: Pass,
+    TooltipTrigger: Pass,
+    TooltipContent: Pass,
+  };
+});
 
 vi.mock("@/context/AppContext", () => ({
   useAppContext: () => ({

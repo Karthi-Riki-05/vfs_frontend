@@ -37,6 +37,7 @@ vi.mock("@/context/AppContext", () => ({
 vi.mock("@/hooks/useMediaQuery", () => ({
   useIsMobile: () => false,
   useIsTablet: () => false,
+  useIsChatColumnHidden: () => false,
 }));
 
 vi.mock("@/hooks/useUnreadCount", () => ({

@@ -8,6 +8,7 @@ export interface NotificationItem {
   isRead: boolean;
   actionUrl: string | null;
   metadata: any;
+  teamId?: string | null;
   createdAt: string;
 }
 

@@ -31,7 +31,7 @@ import { createNewFlow } from "@/lib/flow";
 import { usePro } from "@/hooks/usePro";
 import { useDeviceMode } from "@/hooks/useDeviceMode";
 import { useAppContext } from "@/context/AppContext";
-import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
+import { useIsChatColumnHidden } from "@/hooks/useMediaQuery";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { getLogoForApp } from "@/lib/getLogo";
 import TeamUpgradeModal from "@/components/common/TeamUpgradeModal";
@@ -55,8 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const pathname = usePathname() || "";
   const router = useRouter();
-  const isMobile = useIsMobile();
-  const isTablet = useIsTablet();
+  const chatColumnHidden = useIsChatColumnHidden();
   const { currentApp, loading: proLoading } = usePro();
   const { isWeb, isMobileApp } = useDeviceMode();
   const { isTeamContext, effectivePlan } = useAppContext();
@@ -162,8 +161,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     e.preventDefault();
     handleNavClick();
     if (hasTeamFeatures) {
-      // Mobile/tablet have no docked chat column — go to the full-screen page.
-      if (isMobile || isTablet) router.push("/dashboard/chat");
+      // Below 1180px there's no docked chat column — go to the full-screen page.
+      if (chatColumnHidden) router.push("/dashboard/chat");
       else (window as any).__toggleChat?.();
     } else {
       setUpgradeFeature("chat");

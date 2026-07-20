@@ -106,6 +106,23 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
     };
   }, [fetchAll, hydrated]);
 
+  // B24: the editor opens in a NEW tab (window.open), so this dashboard tab
+  // never remounts — Recent Flows went stale after editing until a manual
+  // refresh. Refetch when the tab regains focus / becomes visible so the
+  // recent list reflects the latest edit on return.
+  useEffect(() => {
+    if (!hydrated) return;
+    const onFocus = () => {
+      if (document.visibilityState === "visible") fetchAll();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [fetchAll, hydrated]);
+
   // Blank every stat/array on workspace switch so the previous bucket's
   // numbers never linger while the new context's stats are in flight.
   useEffect(

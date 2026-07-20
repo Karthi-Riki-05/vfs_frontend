@@ -306,6 +306,10 @@ export default function RegisterForm() {
             }
           />
           <PasswordStrengthBar password={password} />
+          <p className="mt-1.5 px-4 text-[12px] leading-relaxed text-muted-foreground">
+            At least 8 characters. Adding an uppercase letter, a number, and a
+            symbol makes it stronger.
+          </p>
         </div>
 
         {/* Confirm Password */}
@@ -315,12 +319,18 @@ export default function RegisterForm() {
           </label>
           <PillInput
             icon={Lock}
+            error={confirmPassword.length > 0 && password !== confirmPassword}
             type={showPassword ? "text" : "password"}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Re-enter password"
             autoComplete="new-password"
           />
+          {confirmPassword.length > 0 && password !== confirmPassword && (
+            <p className="mt-1.5 px-4 text-[12px] font-medium text-[#DC2626]">
+              Passwords do not match
+            </p>
+          )}
         </div>
 
         {/* Terms */}

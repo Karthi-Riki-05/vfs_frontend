@@ -35,11 +35,7 @@ import { Menu as MenuIcon, MessageCircle } from "lucide-react";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
 import SidebarTeamSwitcher from "@/components/layout/SidebarTeamSwitcher";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
-import {
-  useIsMobile,
-  useIsTablet,
-  useIsWideMobile,
-} from "@/hooks/useMediaQuery";
+import { useIsMobile, useIsChatColumnHidden } from "@/hooks/useMediaQuery";
 import { useAppContext, type TeamContextOption } from "@/context/AppContext";
 import { usePro } from "@/hooks/usePro";
 import { useAiBilling } from "@/context/AiBillingContext";
@@ -83,9 +79,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const pathname = usePathname() || "";
   const pageTitle = getPageTitle(pathname);
   const isMobile = useIsMobile();
-  const isTablet = useIsTablet();
-  const isWideMobile = useIsWideMobile();
-
+  const chatColumnHidden = useIsChatColumnHidden();
   const user = session?.user;
   const userName = user?.name || "User";
   const userInitial = userName.charAt(0).toUpperCase();
@@ -231,9 +225,9 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       setChatLockedOpen(true);
       return;
     }
-    // Mobile AND tablet: navigate to full-screen chat page
-    // (chat column is hidden on tablet — no room with sidebar + content)
-    if (isMobile || isTablet) {
+    // Below 1180px (mobile, tablet, narrow desktop): navigate to the full-screen
+    // chat page — the docked column can't coexist with the sidebar + content.
+    if (chatColumnHidden) {
       router.push("/dashboard/chat");
     } else {
       (window as any).__toggleChat?.();

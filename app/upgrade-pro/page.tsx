@@ -291,6 +291,14 @@ function UpgradeProContent() {
                   Pay once. Lifetime access. No recurring charges.
                 </Text>
               </div>
+              {!native && pricing?.prices.team_monthly?.display && (
+                <div style={{ marginTop: 6 }}>
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    The Team plan is {pricing.prices.team_monthly.display}/month
+                    — Pro is a one-time payment.
+                  </Text>
+                </div>
+              )}
               {!native && pricing && pricing.currency !== "USD" && (
                 <p
                   style={{
