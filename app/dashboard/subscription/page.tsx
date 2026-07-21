@@ -30,6 +30,7 @@ import { paymentsApi, SavedCard } from "@/api/payments.api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useAiBilling } from "@/context/AiBillingContext";
+import { useAppContext } from "@/context/AppContext";
 import { getClientAppType } from "@/lib/detectWebView";
 import {
   IAP_PRODUCTS,
@@ -307,6 +308,7 @@ function ProSubscriptionContent() {
   >({});
   const { status: packStatus, refresh: refreshPackStatus } = usePackStatus();
   const { activeOption, refresh: refreshAiBilling } = useAiBilling();
+  const { refresh: refreshAppContext } = useAppContext();
   const planCredits = activeOption.aiCredits?.planCredits || 0;
   const addonCredits = activeOption.aiCredits?.addonCredits || 0;
   const totalCredits = planCredits + addonCredits;
@@ -982,6 +984,7 @@ function ProSubscriptionContent() {
             fetchProSubStatus();
             refreshPackStatus();
             refreshAiBilling();
+            refreshAppContext();
           }}
         />
       )}
@@ -1064,6 +1067,7 @@ function SubscriptionPageInner() {
   const searchParams = useSearchParams();
   const { currentApp, loading: proLoading } = usePro();
   const { activeOption, refresh: refreshAiBilling } = useAiBilling();
+  const { refresh: refreshAppContext } = useAppContext();
   const { data: session } = useSession();
   // Native shell: purchases must go through the store (IAP_CONTRACT.md).
   const native = isNativeShell();
@@ -1222,20 +1226,44 @@ function SubscriptionPageInner() {
   // new 18-product catalog is live in both stores.
   const handleLegacyPurchase = async (productId: string) => {
     if (!iapReady) return;
-    setCheckoutLoading(productId);
-    const userId = (session?.user as any)?.id as string | undefined;
-    if (userId) await iapLogin(userId);
-    const res = await iapPurchase(productId);
-    if (res.status === "success") {
-      toast.success("Purchase successful — activating your plan…");
-      await waitThenRefresh(() => {
-        fetchCurrent();
-        fetchStatus();
-      });
-    } else if (res.status === "error") {
-      toast.error(res.message || "Purchase failed");
+    // Fail fast on a known-offline device — avoids ever starting a purchase
+    // that has no chance of completing, and its accompanying stuck spinner.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      toast.error("No internet connection — please check your connection and try again.");
+      return;
     }
-    setCheckoutLoading(null);
+    setCheckoutLoading(productId);
+    try {
+      const userId = (session?.user as any)?.id as string | undefined;
+      if (userId) await iapLogin(userId);
+      const res = await iapPurchase(productId);
+      if (res.status === "success") {
+        toast.success("Purchase successful — activating your plan…");
+        await waitThenRefresh(() => {
+          fetchCurrent();
+          fetchStatus();
+        });
+        // fetchCurrent/fetchStatus only update this page's local state —
+        // the sidebar/chat read plan from AppContext, which otherwise only
+        // re-syncs on next mount or JWT refresh. Force it now.
+        refreshAppContext();
+      } else if (res.status === "error") {
+        toast.error(res.message || "Purchase failed");
+      }
+      // "cancelled" is intentionally silent — the user backed out on purpose.
+    } catch (err: unknown) {
+      // Covers a bridge timeout/rejection or any other thrown error — without
+      // this, the button would stay stuck on "Loading…" forever.
+      const isOffline =
+        typeof navigator !== "undefined" && navigator.onLine === false;
+      toast.error(
+        isOffline
+          ? "No internet connection — please check your connection and try again."
+          : "Something went wrong — please try again.",
+      );
+    } finally {
+      setCheckoutLoading(null);
+    }
   };
 
   const handlePurchase = async (plan: "monthly" | "yearly") => {
@@ -1777,6 +1805,7 @@ function SubscriptionPageInner() {
             fetchCurrent();
             fetchStatus();
             refreshAiBilling();
+            refreshAppContext();
           }}
         />
       )}
