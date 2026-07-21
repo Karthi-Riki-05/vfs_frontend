@@ -786,6 +786,54 @@ export default function FlowsPage() {
             </button>
           </div>
         )}
+
+        {/* ── Shared With Me (mobile) ── B50/mobile: the shared section only
+            existed in the desktop block, so mobile never showed shared flows.
+            Render it here too (All Flows tab), matching the mobile list style. */}
+        {tab === "all" &&
+          Array.isArray(sharedFlows) &&
+          sharedFlows.length > 0 && (
+            <div className="mt-8">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-3">
+                SHARED WITH ME
+              </div>
+              <div className="space-y-2">
+                {sharedFlows.map((flow: any) => (
+                  <div
+                    key={flow.id}
+                    onClick={() => handleEdit(flow.id)}
+                    className="flex items-center gap-3 p-3 rounded-2xl bg-card border border-border shadow-[var(--shadow-card)] cursor-pointer"
+                  >
+                    <div
+                      className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center"
+                      style={{ background: `${BRAND_GREEN}14` }}
+                    >
+                      {flow.thumbnail ? (
+                        <img
+                          src={flow.thumbnail}
+                          alt={flow?.name ? `${flow.name} thumbnail` : "Flow"}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <MiniFlow color={BRAND_GREEN} />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm truncate text-foreground">
+                        {flow.name}
+                      </div>
+                      {flow.sharedByName && (
+                        <div className="text-[11px] text-blue-500 flex items-center gap-1">
+                          <Share2 className="w-3 h-3" />
+                          By {flow.sharedByName}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
       </div>
 
       {/* ══════════ DESKTOP (≥1024px) ══════════ */}
