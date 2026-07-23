@@ -31,7 +31,8 @@ export const aiApi = {
 
   getCredits: () => api.get("/ai/credits"),
 
-  detectIntent: (message: string) => api.post("/ai/detect", { message }),
+  detectIntent: (message: string, conversationId?: string | null) =>
+    api.post("/ai/detect", { message, conversationId: conversationId || null }),
 
   generateDiagramWithConfirm: (message: string, confirmed: boolean) =>
     api.post("/ai/generate-diagram", { message, confirmed }),

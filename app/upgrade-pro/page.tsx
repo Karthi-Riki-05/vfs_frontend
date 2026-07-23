@@ -25,7 +25,7 @@ const FEATURES = [
   "Lifetime access — pay once, use forever",
   "All Team features unlocked",
   "10 flow diagrams included",
-  "100 AI diagram credits/month",
+  "50 AI diagram credits",
   "Claude AI powered diagrams",
   "Unlimited teams & chat",
   "All shapes, templates & export formats",

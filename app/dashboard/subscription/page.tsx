@@ -54,11 +54,11 @@ import {
 // carry their own bg; nothing inherits a global reset.
 const RESET = "appearance-none cursor-pointer border-0";
 
-const TEAM_OPTIONS = [5, 10, 15, 20, 25, 50, 75, 100];
+const TEAM_OPTIONS = [5, 10, 15, 20, 25];
 
 const FEATURES = [
   "Unlimited flows",
-  "60 AI credits/user/month (Team)",
+  "40 AI credits/user/month (Team)",
   "Claude AI powered diagrams",
   "All shapes library",
   "Export all formats",
@@ -122,6 +122,30 @@ function ManagedOnWebNote({ text }: { text: string }) {
   return (
     <div className="rounded-2xl bg-secondary/40 border border-border px-4 py-3 text-[13px] text-muted-foreground">
       {text}
+    </div>
+  );
+}
+
+// Disclosure shown before a RECURRING purchase (Team subscription / Pro
+// recurring Flow Add-on): the card is saved and the plan auto-renews. This is
+// information + acknowledge (not an opt-out) — a recurring plan requires a
+// stored card, so the way to stop future charges is to cancel. Merged into the
+// existing confirmDialog `content` (ReactNode). See bug-081.
+function RecurringSaveNotice({
+  price,
+  period,
+}: {
+  price: string;
+  period: string;
+}) {
+  return (
+    <div className="mt-3 rounded-xl bg-secondary/50 border border-border px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
+      <div className="font-semibold text-foreground flex items-center gap-1.5 mb-0.5">
+        <CreditCard className="w-3.5 h-3.5" /> Card saved for automatic renewal
+      </div>
+      Your card will be securely saved and charged {price}/{period}. To stop
+      future payments, cancel anytime — your plan stays active until the end of
+      the current period, then won&apos;t renew.
     </div>
   );
 }
@@ -243,44 +267,44 @@ function CreditAddOns({
           <ManagedOnWebNote text="Credit top-ups are not available in this version of the app." />
         </div>
       ) : (
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-        {ADDON_PACK_META.map((pack) => {
-          const priceInfo = pricing?.prices[pack.priceKey];
-          const storePrice =
-            storePrices[IAP_PRODUCTS.aiCredits[pack.packType]]?.priceString;
-          const popular = "popular" in pack && pack.popular;
-          return (
-            <div
-              key={pack.packType}
-              className={`relative rounded-2xl border bg-card p-5 flex flex-col items-center text-center ${
-                popular
-                  ? "border-2 border-primary bg-primary-tint/40"
-                  : "border-border"
-              }`}
-            >
-              {popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-primary text-white">
-                  Most Popular
-                </span>
-              )}
-              <div className="text-3xl font-extrabold text-foreground">
-                {pack.credits}
-              </div>
-              <div className="text-[11px] text-muted-foreground">credits</div>
-              <div className="mt-2 text-xl font-extrabold text-primary">
-                {native ? (storePrice ?? "…") : (priceInfo?.display ?? "…")}
-              </div>
-              <button
-                onClick={() => handleBuy(pack.packType)}
-                disabled={!!buying}
-                className={`${RESET} mt-3 w-full h-10 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+          {ADDON_PACK_META.map((pack) => {
+            const priceInfo = pricing?.prices[pack.priceKey];
+            const storePrice =
+              storePrices[IAP_PRODUCTS.aiCredits[pack.packType]]?.priceString;
+            const popular = "popular" in pack && pack.popular;
+            return (
+              <div
+                key={pack.packType}
+                className={`relative rounded-2xl border bg-card p-5 flex flex-col items-center text-center ${
+                  popular
+                    ? "border-2 border-primary bg-primary-tint/40"
+                    : "border-border"
+                }`}
               >
-                {buying === pack.packType ? "Loading…" : "Buy Now"}
-              </button>
-            </div>
-          );
-        })}
-      </div>
+                {popular && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-primary text-white">
+                    Most Popular
+                  </span>
+                )}
+                <div className="text-3xl font-extrabold text-foreground">
+                  {pack.credits}
+                </div>
+                <div className="text-[11px] text-muted-foreground">credits</div>
+                <div className="mt-2 text-xl font-extrabold text-primary">
+                  {native ? (storePrice ?? "…") : (priceInfo?.display ?? "…")}
+                </div>
+                <button
+                  onClick={() => handleBuy(pack.packType)}
+                  disabled={!!buying}
+                  className={`${RESET} mt-3 w-full h-10 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
+                >
+                  {buying === pack.packType ? "Loading…" : "Buy Now"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {!native && pricing && pricing.currency !== "USD" && (
@@ -476,11 +500,22 @@ function ProSubscriptionContent() {
       flowAddonStatus === "cancelling"
         ? " Your pending cancellation will be removed."
         : "";
-    const content = isUpgrade
-      ? `You'll be upgraded to Unlimited Flows immediately. The prorated difference for the rest of the current period will be billed to your card${
-          periodEndStr ? `, your renewal date stays ${periodEndStr},` : ""
-        } and from then on you'll pay ${price}/month.${wasCancellingNote} Continue?`
-      : `You'll be charged ${price}/month starting today.${wasCancellingNote} Continue?`;
+    // New subscribe → disclose card saving + auto-renew (bug-081). Upgrade
+    // keeps its plain proration copy: the card is already on file and the plan
+    // is already recurring, so the disclosure would be redundant.
+    const content: React.ReactNode = isUpgrade ? (
+      `You'll be upgraded to Unlimited Flows immediately. The prorated difference for the rest of the current period will be billed to your card${
+        periodEndStr ? `, your renewal date stays ${periodEndStr},` : ""
+      } and from then on you'll pay ${price}/month.${wasCancellingNote} Continue?`
+    ) : (
+      <>
+        <p>
+          You&apos;ll be charged {price}/month starting today.
+          {wasCancellingNote}
+        </p>
+        <RecurringSaveNotice price={price} period="month" />
+      </>
+    );
 
     confirmDialog({
       title: isUpgrade ? "Confirm Upgrade" : "Confirm Subscription",
@@ -850,48 +885,48 @@ function ProSubscriptionContent() {
             // store-bought add-on is cancelled/changed in Google Play /
             // App Store subscription settings; a web-bought one on the web.
             <span className="text-xs text-muted-foreground">
-              Manage this subscription where you purchased it — your app
-              store's subscription settings, or your account on the web.
+              Manage this subscription where you purchased it — your app store's
+              subscription settings, or your account on the web.
             </span>
           ) : (
-          <div className="flex items-center gap-2 flex-wrap">
-            {isStandardActive && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {isStandardActive && (
+                <button
+                  onClick={() => handleAddonSubscribe("unlimited")}
+                  disabled={purchasing === "unlimited"}
+                  className={`${RESET} h-10 px-4 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
+                >
+                  {purchasing === "unlimited"
+                    ? "Loading…"
+                    : "Upgrade to Unlimited"}
+                </button>
+              )}
+              {flowAddonStatus === "active" && (
+                <button
+                  onClick={handleAddonCancel}
+                  disabled={cancelling}
+                  className={`${RESET} h-10 px-4 rounded-xl bg-transparent border border-[var(--coral)] text-[var(--coral)] font-bold text-sm font-sans disabled:opacity-60`}
+                >
+                  {cancelling ? "…" : "Cancel Subscription"}
+                </button>
+              )}
+              {flowAddonStatus === "cancelling" && (
+                <button
+                  onClick={handleAddonReactivate}
+                  disabled={cancelling}
+                  className={`${RESET} h-10 px-4 rounded-xl bg-transparent border-2 border-primary text-primary font-bold text-sm font-sans disabled:opacity-60`}
+                >
+                  {cancelling ? "…" : "Reactivate"}
+                </button>
+              )}
               <button
-                onClick={() => handleAddonSubscribe("unlimited")}
-                disabled={purchasing === "unlimited"}
-                className={`${RESET} h-10 px-4 rounded-xl bg-primary text-white font-bold text-sm font-sans hover:bg-primary-deep transition disabled:opacity-60`}
+                onClick={handlePortal}
+                disabled={portalLoading}
+                className={`${RESET} h-10 px-4 rounded-xl bg-transparent border border-border text-foreground font-semibold text-sm font-sans inline-flex items-center gap-2 disabled:opacity-60`}
               >
-                {purchasing === "unlimited"
-                  ? "Loading…"
-                  : "Upgrade to Unlimited"}
+                <CreditCard className="w-4 h-4" /> Manage Billing
               </button>
-            )}
-            {flowAddonStatus === "active" && (
-              <button
-                onClick={handleAddonCancel}
-                disabled={cancelling}
-                className={`${RESET} h-10 px-4 rounded-xl bg-transparent border border-[var(--coral)] text-[var(--coral)] font-bold text-sm font-sans disabled:opacity-60`}
-              >
-                {cancelling ? "…" : "Cancel Subscription"}
-              </button>
-            )}
-            {flowAddonStatus === "cancelling" && (
-              <button
-                onClick={handleAddonReactivate}
-                disabled={cancelling}
-                className={`${RESET} h-10 px-4 rounded-xl bg-transparent border-2 border-primary text-primary font-bold text-sm font-sans disabled:opacity-60`}
-              >
-                {cancelling ? "…" : "Reactivate"}
-              </button>
-            )}
-            <button
-              onClick={handlePortal}
-              disabled={portalLoading}
-              className={`${RESET} h-10 px-4 rounded-xl bg-transparent border border-border text-foreground font-semibold text-sm font-sans inline-flex items-center gap-2 disabled:opacity-60`}
-            >
-              <CreditCard className="w-4 h-4" /> Manage Billing
-            </button>
-          </div>
+            </div>
           )}
         </div>
       )}
@@ -1103,9 +1138,8 @@ function SubscriptionPageInner() {
     null,
   );
   const [selectedCardId, setSelectedCardId] = useState<string | "new">("new");
-  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(
-    null,
-  );
+  const [stripePromise, setStripePromise] =
+    useState<Promise<Stripe | null> | null>(null);
   useEffect(() => {
     paymentsApi
       .listPaymentMethods()
@@ -1229,7 +1263,9 @@ function SubscriptionPageInner() {
     // Fail fast on a known-offline device — avoids ever starting a purchase
     // that has no chance of completing, and its accompanying stuck spinner.
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      toast.error("No internet connection — please check your connection and try again.");
+      toast.error(
+        "No internet connection — please check your connection and try again.",
+      );
       return;
     }
     setCheckoutLoading(productId);
@@ -1279,7 +1315,40 @@ function SubscriptionPageInner() {
       (status.status === "active" || status.status === "cancelling")
     );
     if (isNewSub) {
-      setPendingPlan(plan);
+      // Disclose recurring billing + card saving BEFORE payment (bug-081,
+      // info + acknowledge). On Continue, route to payment:
+      //   - NO saved card → Stripe hosted Checkout (plan summary, amount,
+      //     wallets, 3DS/SCA, tax, receipt). _executePurchase with no pmId →
+      //     createCheckout returns a hosted-checkout URL and redirects
+      //     (subscription.service.js Branch B).
+      //   - HAS saved card → in-page card selector ("Pay Now" direct charge).
+      const seats = plan === "monthly" ? monthlyMembers : yearlyMembers;
+      const perSeat =
+        plan === "yearly"
+          ? (pricing?.prices?.team_yearly?.usdCents ?? 2000) / 100
+          : (pricing?.prices?.team_monthly?.usdCents ?? 200) / 100;
+      const total = (seats * perSeat).toFixed(2);
+      const period = plan === "yearly" ? "year" : "month";
+      confirmDialog({
+        title: "Confirm Subscription",
+        content: (
+          <>
+            <p>
+              You&apos;ll be charged ${total}/{period} for {seats} member
+              {seats === 1 ? "" : "s"}, starting today.
+            </p>
+            <RecurringSaveNotice price={`$${total}`} period={period} />
+          </>
+        ),
+        confirmLabel: "Continue",
+        onConfirm: () => {
+          if (savedCards.length === 0) {
+            _executePurchase(plan);
+          } else {
+            setPendingPlan(plan);
+          }
+        },
+      });
       return;
     }
     if (!isNewSub) {
@@ -1333,7 +1402,8 @@ function SubscriptionPageInner() {
         // Pass the saved (or freshly-added) card ID so the backend charges it
         // directly (no hosted-checkout redirect).
         const pmId =
-          overridePmId ?? (selectedCardId !== "new" ? selectedCardId : undefined);
+          overridePmId ??
+          (selectedCardId !== "new" ? selectedCardId : undefined);
         await createCheckout(plan, teamMembers, pmId);
       }
     } finally {
@@ -1550,8 +1620,9 @@ function SubscriptionPageInner() {
             // Native: only real store products for this platform + period
             // (see nativeSeatOptions above). Web keeps the full TEAM_OPTIONS
             // range, purchased via Stripe.
-            options={(
-              native ? nativeSeatOptions.map((p) => p.seats) : TEAM_OPTIONS
+            options={(native
+              ? nativeSeatOptions.map((p) => p.seats)
+              : TEAM_OPTIONS
             ).map((n) => ({
               label: `${n} Members`,
               value: n,
@@ -1570,8 +1641,8 @@ function SubscriptionPageInner() {
           )}
           <div className="text-[11px] text-muted-foreground">
             {plan === "monthly"
-              ? `${members * 60} AI credits/month included`
-              : `${members * 800} AI credits/year included (~${Math.round((members * 800) / 12)}/month)`}
+              ? `${members * 40} AI credits/month included`
+              : `${members * 500} AI credits/year included (~${Math.round((members * 500) / 12)}/month)`}
           </div>
           {pricing && pricing.currency !== "USD" && (
             <div className="text-[10px] text-muted-foreground mt-1">

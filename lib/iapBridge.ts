@@ -21,7 +21,7 @@ import { iapApi } from "@/api/iap.api";
 
 // ── Product IDs — MUST mirror backend/src/config/iapProducts.js ────────────
 
-/** In-app team tiers (owner decision 2026-07-04: max 25; 50/75/100 web-only) */
+/** Team tiers (owner decision 2026-07-23: max 25 on ALL platforms; 50/75/100 retired) */
 export const IAP_TEAM_TIERS = [5, 10, 15, 20, 25];
 
 export const teamProductId = (seats: number, plan: "monthly" | "yearly") =>

@@ -239,6 +239,8 @@ export default function SettingsPage() {
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(""); // OAuth users type "DELETE"
+  const [hasPassword, setHasPassword] = useState(true); // assume credentials until /users/me resolves
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -298,7 +300,11 @@ export default function SettingsPage() {
     setDeleteError(null);
     setDeleteLoading(true);
     try {
-      await accountApi.deleteAccount(deletePassword);
+      await accountApi.deleteAccount(
+        hasPassword
+          ? { password: deletePassword }
+          : { confirmation: deleteConfirm },
+      );
       toast.success("Account deleted");
       signOut({ callbackUrl: "/login" });
     } catch (err: any) {
@@ -314,6 +320,13 @@ export default function SettingsPage() {
         );
       } else if (code === "INVALID_CREDENTIALS") {
         setDeleteError("Password is incorrect. Please try again.");
+      } else if (
+        code === "CONFIRMATION_REQUIRED" ||
+        code === "PASSWORD_REQUIRED"
+      ) {
+        setDeleteError(
+          hasPassword ? "Password is required." : 'Type "DELETE" to confirm.',
+        );
       } else {
         setDeleteError(msg || "Failed to delete account. Please try again.");
       }
@@ -332,6 +345,9 @@ export default function SettingsPage() {
         setName(data.name || user?.name || "");
         setEmail(data.email || user?.email || "");
         setContactNo(data.contactNo || "");
+        // Social-login users have no password → delete confirms via "DELETE"
+        // typed text instead of a password field.
+        setHasPassword(data.hasPassword !== false);
         if (data.image || data.avatar || data.photo) {
           setAvatarUrl(data.image || data.avatar || data.photo);
         }
@@ -618,6 +634,7 @@ export default function SettingsPage() {
         <button
           onClick={() => {
             setDeletePassword("");
+            setDeleteConfirm("");
             setDeleteError(null);
             setDeleteModalOpen(true);
           }}
@@ -646,6 +663,7 @@ export default function SettingsPage() {
             if (deleteLoading) return;
             setDeleteModalOpen(false);
             setDeletePassword("");
+            setDeleteConfirm("");
             setDeleteError(null);
           }}
         />
@@ -654,19 +672,36 @@ export default function SettingsPage() {
             All your data will be <strong>permanently deleted</strong>. This
             cannot be undone.
           </p>
-          <Field label="Enter your password to confirm">
-            <FieldInput
-              eye
-              value={deletePassword}
-              onChange={(e) => {
-                setDeletePassword(e.target.value);
-                setDeleteError(null);
-              }}
-              placeholder="Your current password"
-              disabled={deleteLoading}
-              onKeyDown={(e) => e.key === "Enter" && handleDeleteAccount()}
-            />
-          </Field>
+          {hasPassword ? (
+            <Field label="Enter your password to confirm">
+              <FieldInput
+                eye
+                value={deletePassword}
+                onChange={(e) => {
+                  setDeletePassword(e.target.value);
+                  setDeleteError(null);
+                }}
+                placeholder="Your current password"
+                disabled={deleteLoading}
+                onKeyDown={(e) => e.key === "Enter" && handleDeleteAccount()}
+              />
+            </Field>
+          ) : (
+            // Social-login users (Google/Facebook/etc.) have no password —
+            // confirm by typing DELETE instead.
+            <Field label="Type DELETE to confirm">
+              <FieldInput
+                value={deleteConfirm}
+                onChange={(e) => {
+                  setDeleteConfirm(e.target.value);
+                  setDeleteError(null);
+                }}
+                placeholder="DELETE"
+                disabled={deleteLoading}
+                onKeyDown={(e) => e.key === "Enter" && handleDeleteAccount()}
+              />
+            </Field>
+          )}
           {deleteError && (
             <div className="text-sm text-coral leading-relaxed">
               {deleteError}
@@ -678,6 +713,7 @@ export default function SettingsPage() {
             if (deleteLoading) return;
             setDeleteModalOpen(false);
             setDeletePassword("");
+            setDeleteConfirm("");
             setDeleteError(null);
           }}
           primary={handleDeleteAccount}

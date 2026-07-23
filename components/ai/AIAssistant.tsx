@@ -434,11 +434,14 @@ export default function AIAssistant({
     try {
       let isDiagram = false;
       let balance: any = null;
+      let creditEstimate: { min: number; max: number; likely: number } | null =
+        null;
       try {
-        const detectRes = await aiApi.detectIntent(text);
+        const detectRes = await aiApi.detectIntent(text, activeConversationId);
         const dd = detectRes.data?.data || detectRes.data || {};
         isDiagram = !!dd.isDiagramRequest;
         balance = dd.balance || null;
+        creditEstimate = dd.creditEstimate || null;
       } catch {
         // detection failure: treat as chat
       }
@@ -454,9 +457,13 @@ export default function AIAssistant({
           setShowCreditsExhausted(true);
           return;
         }
+        const estText =
+          creditEstimate && creditEstimate.min
+            ? `about ${creditEstimate.min}–${creditEstimate.max} credits`
+            : "a few credits (based on the diagram's size)";
         appendMessage({
           role: "assistant",
-          content: `I'll create a diagram for you: "${text}". Click Generate below to use 1 credit.`,
+          content: `I'll create a diagram for you: "${text}". Click Generate below — this will use ${estText}.`,
           suggestion: { prompt: text },
         });
         return;
@@ -489,7 +496,7 @@ export default function AIAssistant({
         appendMessage({
           role: "assistant",
           content:
-            "⚡ Ready to generate? Click the button below to use 1 credit.",
+            "⚡ Ready to generate? Click the button below — this uses AI credits based on the diagram's size (about 2–8). You'll see the exact amount after it generates.",
           suggestion: { prompt: text },
         });
       }
@@ -565,9 +572,22 @@ export default function AIAssistant({
             : msg,
         ),
       );
+      // Actual credits charged = balance before − balance after (token-based,
+      // so it can be more than 1). Fall back to a generic label if unknown.
+      const before = typeof credits === "number" ? credits : null;
+      const remaining =
+        data.remainingCredits ?? data.balance?.totalCredits ?? null;
+      const used =
+        before != null && remaining != null && before - remaining > 0
+          ? before - remaining
+          : null;
+      const usedText =
+        used != null
+          ? `${used} AI credit${used === 1 ? "" : "s"} used`
+          : "AI credits used";
       window.dispatchEvent(new CustomEvent("aiCreditsChanged"));
       antdMessage.success({
-        content: `⚡ 1 AI credit used · Balance: ${data.remainingCredits ?? data.balance?.totalCredits ?? "?"}`,
+        content: `⚡ ${usedText} · Balance: ${remaining ?? "?"}`,
         duration: 3,
         style: { marginTop: 60 },
       });
