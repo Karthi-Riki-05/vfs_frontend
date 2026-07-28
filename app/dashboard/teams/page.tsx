@@ -39,6 +39,7 @@ import { useTabFocus } from "@/hooks/useTabFocus";
 import { teamsApi } from "@/api/teams.api";
 import { usePro } from "@/hooks/usePro";
 import { useAppContext } from "@/context/AppContext";
+import { useAiBilling } from "@/context/AiBillingContext";
 import RoleBadge from "@/components/team/RoleBadge";
 import { subscriptionsApi } from "@/api/subscriptions.api";
 import TeamUpgradeModal from "@/components/common/TeamUpgradeModal";
@@ -153,6 +154,14 @@ export default function TeamsPage() {
   useTabFocus(fetchTeams);
   const { currentApp, loading: proLoading } = usePro();
   const { isTeamContext } = useAppContext();
+  // bug-085 (Option A): the profile switcher only ever selects JOINED teams the
+  // user does NOT own (an owned team folds into the personal context, teamId
+  // null). So a non-null active billing team means the user is operating inside
+  // someone else's workspace — where they may invite, but must NOT create a new
+  // caller-owned team (the backend also enforces this with 403
+  // TEAM_CREATE_FORBIDDEN). Hide the "Create Team" affordance there.
+  const { activeBillingTeamId } = useAiBilling();
+  const inJoinedWorkspace = !!activeBillingTeamId;
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -542,14 +551,16 @@ export default function TeamsPage() {
                 {totalMembers} member{totalMembers !== 1 ? "s" : ""}
               </p>
             </div>
-            <button
-              onClick={() => setCreateModalOpen(true)}
-              className="shrink-0 h-11 px-5 rounded-xl bg-primary text-white font-semibold text-sm inline-flex items-center gap-2 shadow-[var(--shadow-fab)] hover:bg-[#1F7D5E] transition-colors border-0 cursor-pointer appearance-none"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Create Team</span>
-              <span className="sm:hidden">New</span>
-            </button>
+            {!inJoinedWorkspace && (
+              <button
+                onClick={() => setCreateModalOpen(true)}
+                className="shrink-0 h-11 px-5 rounded-xl bg-primary text-white font-semibold text-sm inline-flex items-center gap-2 shadow-[var(--shadow-fab)] hover:bg-[#1F7D5E] transition-colors border-0 cursor-pointer appearance-none"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Create Team</span>
+                <span className="sm:hidden">New</span>
+              </button>
+            )}
           </div>
 
           {/* ── Members section ─────────────────────────────────── */}
@@ -782,12 +793,14 @@ export default function TeamsPage() {
                 <p className="text-sm text-muted-foreground mt-1 mb-6">
                   Create a team to collaborate with others on flows
                 </p>
-                <button
-                  onClick={() => setCreateModalOpen(true)}
-                  className="h-11 px-6 rounded-full bg-primary text-white font-semibold text-sm inline-flex items-center gap-2 shadow-[var(--shadow-fab)] hover:bg-[#1F7D5E] transition-colors border-0 cursor-pointer appearance-none"
-                >
-                  <Plus className="w-4 h-4" /> Create Team
-                </button>
+                {!inJoinedWorkspace && (
+                  <button
+                    onClick={() => setCreateModalOpen(true)}
+                    className="h-11 px-6 rounded-full bg-primary text-white font-semibold text-sm inline-flex items-center gap-2 shadow-[var(--shadow-fab)] hover:bg-[#1F7D5E] transition-colors border-0 cursor-pointer appearance-none"
+                  >
+                    <Plus className="w-4 h-4" /> Create Team
+                  </button>
+                )}
               </div>
             ) : (
               <>

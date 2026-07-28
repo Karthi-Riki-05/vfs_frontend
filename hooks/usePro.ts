@@ -122,7 +122,7 @@ export function usePro() {
       const data = res.data?.data || res.data;
 
       // Backend returns { requiresPurchase: true, url } when the user
-      // hasn't bought Pro yet — Pro is a separate one-time $1 product
+      // hasn't bought Pro yet — Pro is a separate one-time $5 product
       // that team-plan owners must buy explicitly. Redirect to checkout.
       if (data?.requiresPurchase && data?.url) {
         window.location.href = data.url;

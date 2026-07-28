@@ -78,12 +78,17 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       // Sync OAuth users to backend database
       if (account && account.provider !== "credentials") {
         try {
           const backendUrl =
             process.env.BACKEND_URL || "http://vc-backend:5000";
+          // bug-082: forward the provider's own verified-email claim. Google and
+          // LinkedIn assert it (LinkedIn as the string "true"); Facebook asserts
+          // nothing, so it stays false and the backend refuses to treat the
+          // address as an identity key.
+          const rawVerified = (profile as any)?.email_verified;
           const response = await axios.post(
             `${backendUrl}/api/v1/auth/oauth-sync`,
             {
@@ -93,19 +98,43 @@ export const authOptions: NextAuthOptions = {
               provider: account.provider,
               providerAccountId: account.providerAccountId,
               accountType: account.type || "oauth",
+              emailVerified: rawVerified === true || rawVerified === "true",
+            },
+            {
+              // bug-083: the route is server-to-server only. Without this header
+              // the backend 404s, so a missing secret fails closed rather than
+              // leaving the endpoint open to anyone who can reach the API.
+              headers: {
+                "X-Internal-Auth": process.env.INTERNAL_API_SECRET || "",
+              },
             },
           );
           if (response.data?.success && response.data?.data) {
             const data = response.data.data;
-            // Block super_admin accounts from using the OAuth login path
+            // Block super_admin accounts from using the OAuth login path.
+            // Defence in depth — the backend rejects them too (bug-082).
             if (data.role === "super_admin") return false;
             (user as any).backendId = data.id;
             (user as any).role = data.role;
             (user as any).hasPro = data.hasPro;
             (user as any).currentVersion = data.currentVersion;
             (user as any).hasTeamAccess = data.hasTeamAccess;
+          } else {
+            // 2xx without a usable body: do NOT fall through to a session keyed
+            // on the provider's sub — that signs the user in to nothing.
+            console.error("OAuth sync returned no data:", response.data);
+            return "/login?error=OAuthSyncFailed";
           }
-        } catch (error) {
+        } catch (error: any) {
+          const code = error?.response?.data?.error?.code;
+          if (
+            code === "SOCIAL_EMAIL_NOT_VERIFIED" ||
+            code === "ACCOUNT_INACTIVE" ||
+            code === "USER_DEACTIVATED" ||
+            code === "OAUTH_NOT_ALLOWED"
+          ) {
+            return `/login?error=${code}`;
+          }
           console.error("OAuth sync error:", error);
           return "/login?error=OAuthBackendDown";
         }

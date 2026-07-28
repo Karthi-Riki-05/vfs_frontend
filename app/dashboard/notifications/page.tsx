@@ -26,7 +26,7 @@ import {
   notificationsApi,
   type NotificationItem,
 } from "@/api/notifications.api";
-import { setAiBillingTeamId } from "@/lib/aiBilling";
+import { setAiBillingTeamId, AI_BILLING_EVENT } from "@/lib/aiBilling";
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -139,6 +139,20 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     load();
+
+    // B41 follow-up: the feed is workspace-scoped (X-Team-Context), so if the
+    // user switches workspace/billing context WHILE parked on this page (the
+    // switcher fires these events without navigating/remounting), the list must
+    // re-fetch — otherwise it keeps showing the previous workspace's items while
+    // the header bell (which already listens) shows the new one. Mirrors
+    // NotificationDropdown's listeners.
+    const onSwitch = () => load();
+    window.addEventListener(AI_BILLING_EVENT, onSwitch);
+    window.addEventListener("vc:workspace-switch", onSwitch);
+    return () => {
+      window.removeEventListener(AI_BILLING_EVENT, onSwitch);
+      window.removeEventListener("vc:workspace-switch", onSwitch);
+    };
   }, [load]);
 
   const unread = items.filter((n) => !n.isRead).length;

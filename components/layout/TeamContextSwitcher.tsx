@@ -9,9 +9,13 @@ import {
 } from "@ant-design/icons";
 import { useAiBilling, type BillingOption } from "@/context/AiBillingContext";
 
-// Account/team switcher rendered at the top of the profile dropdown. Switching
-// here only changes which AI-credit pool is billed — it does NOT change which
-// data the user sees (flows/dashboard stay owner-private, DATA-LOSS-001).
+// Account/team switcher rendered at the top of the profile dropdown. Selecting
+// a row calls AiBillingContext.switchBilling(teamId), which re-scopes BOTH the
+// billed AI-credit pool AND the workspace data: it flushes the workspace cache,
+// sets the scoped X-Team-Context header, and fires vc:workspace-switch so
+// flows/chat/dashboard follow the selection. DATA-LOSS-001 still holds — rows
+// stay {ownerId, teamId}-bounded, so the bucket changes, not the owner bound.
+// (Corrected: the "billing-only, data never changes" claim (TCS-C1) was false.)
 export default function TeamContextSwitcher() {
   const { options, activeBillingTeamId, hasTeams, loading, switchBilling } =
     useAiBilling();

@@ -19,11 +19,16 @@ import {
 import { flushWorkspaceCache } from "@/lib/workspaceCache";
 
 // ─────────────────────────────────────────────────────────────────────────
-// AI-billing context — which AI-credit pool (personal vs a team's shared pool)
-// gets billed for AI generations. This is intentionally SEPARATE from
-// AppContext: switching here changes credit billing ONLY. It never sets
-// activeTeamId and never re-scopes flows/dashboard/chat data, which stay
-// owner-private (DATA-LOSS-001 / Unified Ownership Model).
+// AI-billing context — the profile/workspace switcher. Its PRIMARY job is to
+// pick which AI-credit pool (personal vs a team's shared pool) gets billed —
+// but selecting a workspace here ALSO re-scopes the user's data. switchBilling
+// flushes the workspace cache, writes the billing teamId that the axios
+// interceptor sends as X-Team-Context, and dispatches vc:workspace-switch so
+// AppContext updates activeTeamId / isTeamContext / effectivePlan. Flows, chat
+// and dashboard therefore follow the selection (per-team isolation model, not
+// the old personal-context-superset design). DATA-LOSS-001 is upheld because
+// every row stays {ownerId, teamId}-bounded — the BUCKET changes, not the
+// owner bound. Do NOT strip the flush / vc:workspace-switch as "billing-only".
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface BillingCredits {

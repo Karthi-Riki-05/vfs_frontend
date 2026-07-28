@@ -183,7 +183,7 @@ function UpgradeProContent() {
   }
 
   // Only show "You already have Pro" when the user has explicitly PURCHASED
-  // the $1 lifetime Pro product (proPurchasedAt is set). Team-plan users have
+  // the $5 lifetime Pro product (proPurchasedAt is set). Team-plan users have
   // hasPro=true but proPurchasedAt=null — they are a different product and
   // CAN buy Pro independently. Also don't block if they came back from Stripe
   // (cancelled payment — proPurchasedAt might be stale until page refresh).
