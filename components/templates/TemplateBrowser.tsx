@@ -1125,9 +1125,14 @@ function TemplatePreview({
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               </div>
             )}
+            {/* B3: lightbox=1 → draw.io's read-only viewer, which fits AND
+                CENTERS the diagram in the pane (plain embed fit anchors to the
+                top-left page origin → the "shifted left" preview). embed=1&
+                proto=json keep the postMessage `load` seam working; chrome=0/
+                nav=0 keep it clean. */}
             <iframe
               ref={iframeRef}
-              src="/draw_io/index.html?embed=1&proto=json&chrome=0&noExitBtn=1&noSaveBtn=1&nav=0&fit=1"
+              src="/draw_io/index.html?embed=1&proto=json&lightbox=1&chrome=0&nav=0&fit=1"
               style={{
                 width: "100%",
                 height: "100%",

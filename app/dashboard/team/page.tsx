@@ -19,6 +19,10 @@ import {
 } from "lucide-react";
 import StatCard from "@/components/dashboard/StatCard";
 import MiniFlow from "@/components/dashboard/MiniFlow";
+import {
+  RecentFlowMenu,
+  useRecentFlowModals,
+} from "@/components/dashboard/RecentFlowMenu";
 import { FlowUsageBar } from "@/components/dashboard/FlowUsageBar";
 import { aiApi } from "@/api/ai.api";
 import { subscriptionsApi } from "@/api/subscriptions.api";
@@ -157,9 +161,13 @@ export default function TeamDashboardPage() {
     }
   };
 
-  const { stats, activity, recentFlows, teamActivity, loading } = useDashboard({
-    fetchTeamActivity: true,
-  });
+  const { stats, activity, recentFlows, teamActivity, loading, refresh } =
+    useDashboard({
+      fetchTeamActivity: true,
+    });
+
+  const { openRename, openAssign, modals: recentFlowModals } =
+    useRecentFlowModals(refresh);
 
   const chartData = Array.isArray(activity)
     ? activity.slice(-7).map((a) => ({
@@ -416,41 +424,54 @@ export default function TeamDashboardPage() {
             style={{ scrollbarWidth: "none" }}
           >
             {recentFlows.slice(0, 4).map((f, idx) => (
-              <button
+              <div
                 key={f.id}
-                onClick={() =>
-                  window.open(`/dashboard/flows/${f.id}`, "_blank")
-                }
-                className="bg-transparent border-0 p-0 appearance-none cursor-pointer shrink-0 w-44 rounded-2xl border border-border overflow-hidden shadow-card text-left"
+                className="relative shrink-0 w-44 rounded-2xl border border-border overflow-hidden shadow-card text-left"
                 style={{ background: "white" }}
               >
-                <div className="h-24 bg-gradient-to-br from-secondary to-white relative overflow-hidden">
-                  {f.thumbnail ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={f.thumbnail}
-                      alt={f.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <MiniFlow color={FLOW_COLORS[idx % FLOW_COLORS.length]} />
-                  )}
-                  {f.isFavorite && (
-                    <HeartFilled
-                      style={{ color: "#FF4D6A", fontSize: 12 }}
-                      className="absolute top-2 right-2"
-                    />
-                  )}
-                </div>
-                <div className="p-3">
-                  <div className="font-semibold text-sm truncate text-foreground">
-                    {f.name}
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.open(`/dashboard/flows/${f.id}`, "_blank")
+                  }
+                  className="block w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                >
+                  <div className="h-24 bg-gradient-to-br from-secondary to-white relative overflow-hidden">
+                    {f.thumbnail ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={f.thumbnail}
+                        alt={f.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <MiniFlow color={FLOW_COLORS[idx % FLOW_COLORS.length]} />
+                    )}
+                    {f.isFavorite && (
+                      <HeartFilled
+                        style={{ color: "#FF4D6A", fontSize: 12 }}
+                        className="absolute top-2 left-2"
+                      />
+                    )}
                   </div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5">
-                    Updated {getTimeAgo(f.updatedAt)}
+                  <div className="p-3">
+                    <div className="font-semibold text-sm truncate text-foreground">
+                      {f.name}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      Updated {getTimeAgo(f.updatedAt)}
+                    </div>
                   </div>
+                </button>
+                <div className="absolute top-1.5 right-1.5">
+                  <RecentFlowMenu
+                    flow={f}
+                    onChanged={refresh}
+                    onRename={openRename}
+                    onAssign={openAssign}
+                  />
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
@@ -593,43 +614,56 @@ export default function TeamDashboardPage() {
             <div className="grid grid-cols-2 gap-4">
               {Array.isArray(recentFlows) &&
                 recentFlows.slice(0, 4).map((f, idx) => (
-                  <button
+                  <div
                     key={f.id}
-                    onClick={() =>
-                      window.open(`/dashboard/flows/${f.id}`, "_blank")
-                    }
-                    className="bg-transparent border-0 p-0 appearance-none cursor-pointer rounded-2xl border border-border overflow-hidden shadow-card text-left w-full"
+                    className="relative rounded-2xl border border-border overflow-hidden shadow-card text-left w-full"
                     style={{ background: "white" }}
                   >
-                    <div className="h-28 bg-gradient-to-br from-secondary to-white relative overflow-hidden">
-                      {f.thumbnail ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={f.thumbnail}
-                          alt={f.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <MiniFlow
-                          color={FLOW_COLORS[idx % FLOW_COLORS.length]}
-                        />
-                      )}
-                      {f.isFavorite && (
-                        <HeartFilled
-                          style={{ color: "#FF4D6A", fontSize: 12 }}
-                          className="absolute top-2 right-2"
-                        />
-                      )}
-                    </div>
-                    <div className="p-4">
-                      <div className="font-semibold text-sm truncate text-foreground">
-                        {f.name}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.open(`/dashboard/flows/${f.id}`, "_blank")
+                      }
+                      className="block w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                    >
+                      <div className="h-28 bg-gradient-to-br from-secondary to-white relative overflow-hidden">
+                        {f.thumbnail ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={f.thumbnail}
+                            alt={f.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <MiniFlow
+                            color={FLOW_COLORS[idx % FLOW_COLORS.length]}
+                          />
+                        )}
+                        {f.isFavorite && (
+                          <HeartFilled
+                            style={{ color: "#FF4D6A", fontSize: 12 }}
+                            className="absolute top-2 left-2"
+                          />
+                        )}
                       </div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5">
-                        Updated {getTimeAgo(f.updatedAt)}
+                      <div className="p-4">
+                        <div className="font-semibold text-sm truncate text-foreground">
+                          {f.name}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          Updated {getTimeAgo(f.updatedAt)}
+                        </div>
                       </div>
+                    </button>
+                    <div className="absolute top-2 right-2">
+                      <RecentFlowMenu
+                        flow={f}
+                        onChanged={refresh}
+                        onRename={openRename}
+                        onAssign={openAssign}
+                      />
                     </div>
-                  </button>
+                  </div>
                 ))}
               {(!recentFlows || recentFlows.length === 0) && !loading && (
                 <div className="col-span-2 text-center text-sm text-muted-foreground py-8">
@@ -685,6 +719,7 @@ export default function TeamDashboardPage() {
           </div>
         </div>
       </div>
+      {recentFlowModals}
     </div>
   );
 }

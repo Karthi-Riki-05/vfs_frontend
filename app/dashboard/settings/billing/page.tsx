@@ -587,8 +587,10 @@ export default function BillingPage() {
               <Spin size="small" />
             </div>
           ) : mappedHistory.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No records yet
+            <div className="py-8 px-4 text-center text-sm text-muted-foreground">
+              No past plans yet. This lists plans that have ended — your
+              current plan is shown at the top of this page, and individual
+              payments appear under Transaction History above.
             </div>
           ) : (
             <>

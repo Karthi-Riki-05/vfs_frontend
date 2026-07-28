@@ -41,6 +41,9 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onInsert: (shape: EditorShape) => void;
+  /** B7: drag a tile onto the canvas. Optional so the panel still works without a drag host. */
+  onDragShapeStart?: (shape: EditorShape, e: React.DragEvent) => void;
+  onDragShapeEnd?: () => void;
 }
 
 const TYPE_META: Record<
@@ -126,7 +129,13 @@ function ShapePreview({ shape }: { shape: EditorShape }) {
   );
 }
 
-export default function CustomShapesPanel({ open, onClose, onInsert }: Props) {
+export default function CustomShapesPanel({
+  open,
+  onClose,
+  onInsert,
+  onDragShapeStart,
+  onDragShapeEnd,
+}: Props) {
   // Re-scope the editor's shape library to the active account/team on switch.
   const { activeTeamId } = useAppContext();
   const [shapes, setShapes] = useState<EditorShape[]>([]);
@@ -273,13 +282,16 @@ export default function CustomShapesPanel({ open, onClose, onInsert }: Props) {
             return (
               <div
                 key={shape.id}
-                title={`Click to insert "${shape.name}"`}
+                title={`Click or drag "${shape.name}" onto the canvas`}
+                draggable={!!onDragShapeStart}
+                onDragStart={(e) => onDragShapeStart?.(shape, e)}
+                onDragEnd={() => onDragShapeEnd?.()}
                 onClick={() => {
                   onInsert(shape);
                   onClose();
                 }}
                 style={{
-                  cursor: "pointer",
+                  cursor: onDragShapeStart ? "grab" : "pointer",
                   borderRadius: 8,
                   overflow: "hidden",
                   border: "1px solid #f0f0f0",

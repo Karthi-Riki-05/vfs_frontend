@@ -163,6 +163,10 @@ interface SidebarData {
   // isn't a member of the requested team — chat is a team feature, so the
   // UI renders a locked placeholder.
   locked?: boolean;
+  // Owner/admin-only group creation (CSV-51): false in a joined-team workspace
+  // where the caller is a plain member — the "+ Create Group" button is hidden
+  // (the backend enforces it regardless). Undefined/true → button shown.
+  canCreateGroups?: boolean;
 }
 
 interface ChatFile {
@@ -1635,7 +1639,7 @@ export default function RightChatColumn({
       <div className="px-4 pt-3">
         {twSearch()}
         {twTabs()}
-        {tab === "group" && (
+        {tab === "group" && sidebarData?.canCreateGroups !== false && (
           <div className="flex gap-2 mt-3">
             <button
               onClick={() => {

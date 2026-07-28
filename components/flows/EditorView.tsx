@@ -1124,6 +1124,36 @@ export default function EditorView({
     toast.success(`"${shape.name}" inserted`);
   };
 
+  // B7 — drag a Custom Shapes tile onto the canvas (in addition to click-insert).
+  // The tile drag starts in this React document; the canvas is a same-origin
+  // <iframe>, so the drop fires inside draw.io. We can't rely on dataTransfer
+  // surviving the document boundary, so the shape XML is handed to the iframe's
+  // drop handler (over-ride.js) via postMessage ("arm"), and the drop inserts it
+  // at the cursor. Disarm on dragend so an aborted drag leaves nothing armed.
+  const handleCustomShapeDragStart = (
+    shape: EditorShape,
+    e: React.DragEvent,
+  ) => {
+    if (!iframeRef.current?.contentWindow) return;
+    try {
+      e.dataTransfer.effectAllowed = "copy";
+      // Some browsers won't start a drag unless dataTransfer carries something.
+      e.dataTransfer.setData("text/plain", shape.id);
+    } catch {}
+    const xml = buildShapeXml(shape);
+    iframeRef.current.contentWindow.postMessage(
+      JSON.stringify({ action: "vcArmShapeDrop", xml }),
+      "*",
+    );
+  };
+
+  const handleCustomShapeDragEnd = () => {
+    iframeRef.current?.contentWindow?.postMessage(
+      JSON.stringify({ action: "vcDisarmShapeDrop" }),
+      "*",
+    );
+  };
+
   const handleImportFile = async (file: File): Promise<void> => {
     const ext = (file.name.split(".").pop() || "").toLowerCase();
     const iframe = iframeRef.current;
@@ -1575,6 +1605,8 @@ export default function EditorView({
           open={customShapesOpen}
           onClose={() => setCustomShapesOpen(false)}
           onInsert={handleCustomShapeInsert}
+          onDragShapeStart={handleCustomShapeDragStart}
+          onDragShapeEnd={handleCustomShapeDragEnd}
         />
 
         {/* Collaborative Share modal — opened by the Share sidebar icon

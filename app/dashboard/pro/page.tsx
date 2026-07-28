@@ -13,6 +13,10 @@ import { useRouter } from "next/navigation";
 import { Workflow, FileText, Share2, Crown, ChevronRight } from "lucide-react";
 import StatCard from "@/components/dashboard/StatCard";
 import MiniFlow from "@/components/dashboard/MiniFlow";
+import {
+  RecentFlowMenu,
+  useRecentFlowModals,
+} from "@/components/dashboard/RecentFlowMenu";
 import { FlowUsageBar } from "@/components/dashboard/FlowUsageBar";
 
 // ─── Local atoms (Dashboard-only) ────────────────────────────────────────────
@@ -143,9 +147,12 @@ export default function ProDashboardPage() {
     }
   };
 
-  const { stats, activity, recentFlows, loading } = useDashboard({
+  const { stats, activity, recentFlows, loading, refresh } = useDashboard({
     fetchTeamActivity: false,
   });
+
+  const { openRename, openAssign, modals: recentFlowModals } =
+    useRecentFlowModals(refresh);
 
   // Build chart data from activity (last 7 entries)
   const chartData = Array.isArray(activity)
@@ -339,26 +346,39 @@ export default function ProDashboardPage() {
         >
           {Array.isArray(recentFlows) &&
             recentFlows.slice(0, 4).map((f, idx) => (
-              <button
+              <div
                 key={f.id}
-                onClick={() =>
-                  window.open(`/dashboard/flows/${f.id}`, "_blank")
-                }
-                className="bg-transparent border-0 p-0 appearance-none cursor-pointer shrink-0 w-44 rounded-2xl bg-card! border border-border overflow-hidden shadow-card text-left"
+                className="relative shrink-0 w-44 rounded-2xl bg-card! border border-border overflow-hidden shadow-card text-left"
                 style={{ background: "white" }}
               >
-                <div className="h-24 bg-gradient-to-br from-secondary to-white relative">
-                  <MiniFlow color={FLOW_COLORS[idx % FLOW_COLORS.length]} />
-                </div>
-                <div className="p-3">
-                  <div className="font-semibold text-sm truncate text-foreground">
-                    {f.name}
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.open(`/dashboard/flows/${f.id}`, "_blank")
+                  }
+                  className="block w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                >
+                  <div className="h-24 bg-gradient-to-br from-secondary to-white relative">
+                    <MiniFlow color={FLOW_COLORS[idx % FLOW_COLORS.length]} />
                   </div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5">
-                    Edited {getTimeAgo(f.updatedAt)}
+                  <div className="p-3">
+                    <div className="font-semibold text-sm truncate text-foreground">
+                      {f.name}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      Edited {getTimeAgo(f.updatedAt)}
+                    </div>
                   </div>
+                </button>
+                <div className="absolute top-1.5 right-1.5">
+                  <RecentFlowMenu
+                    flow={f}
+                    onChanged={refresh}
+                    onRename={openRename}
+                    onAssign={openAssign}
+                  />
                 </div>
-              </button>
+              </div>
             ))}
         </div>
       </div>
@@ -502,26 +522,39 @@ export default function ProDashboardPage() {
           <div className="grid grid-cols-4 gap-4">
             {Array.isArray(recentFlows) &&
               recentFlows.slice(0, 4).map((f, idx) => (
-                <button
+                <div
                   key={f.id}
-                  onClick={() =>
-                    window.open(`/dashboard/flows/${f.id}`, "_blank")
-                  }
-                  className="bg-transparent border-0 p-0 appearance-none cursor-pointer rounded-2xl bg-card! border border-border overflow-hidden shadow-card text-left w-full"
+                  className="relative rounded-2xl bg-card! border border-border overflow-hidden shadow-card text-left w-full"
                   style={{ background: "white" }}
                 >
-                  <div className="h-28 bg-gradient-to-br from-secondary to-white relative">
-                    <MiniFlow color={FLOW_COLORS[idx % FLOW_COLORS.length]} />
-                  </div>
-                  <div className="p-4">
-                    <div className="font-semibold text-sm truncate text-foreground">
-                      {f.name}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.open(`/dashboard/flows/${f.id}`, "_blank")
+                    }
+                    className="block w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
+                  >
+                    <div className="h-28 bg-gradient-to-br from-secondary to-white relative">
+                      <MiniFlow color={FLOW_COLORS[idx % FLOW_COLORS.length]} />
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">
-                      Edited {getTimeAgo(f.updatedAt)}
+                    <div className="p-4">
+                      <div className="font-semibold text-sm truncate text-foreground">
+                        {f.name}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        Edited {getTimeAgo(f.updatedAt)}
+                      </div>
                     </div>
+                  </button>
+                  <div className="absolute top-2 right-2">
+                    <RecentFlowMenu
+                      flow={f}
+                      onChanged={refresh}
+                      onRename={openRename}
+                      onAssign={openAssign}
+                    />
                   </div>
-                </button>
+                </div>
               ))}
             {(!recentFlows || recentFlows.length === 0) && !loading && (
               <div className="col-span-4 text-center text-sm text-muted-foreground py-8">
@@ -531,6 +564,7 @@ export default function ProDashboardPage() {
           </div>
         </div>
       </div>
+      {recentFlowModals}
     </div>
   );
 }

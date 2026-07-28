@@ -1177,6 +1177,78 @@ function extendApp() {
       }
     });
 
+    // B7 — Custom Shapes drag-and-drop onto the canvas.
+    // The tile drag starts in the PARENT (React) document; because the canvas
+    // iframe is same-origin, dragover/drop fire inside draw.io here. The shape
+    // XML can't be trusted to survive the document boundary via dataTransfer, so
+    // the parent hands it over by postMessage ("vcArmShapeDrop") before the drop;
+    // on drop we import it at the cursor. Isolated from the mergeAiXml path above.
+    try {
+      var __vcDragXml = null;
+      var __vcDropWired = false;
+
+      function __vcWireShapeDrop() {
+        if (__vcDropWired) return;
+        var editorUi = window.__editorUi;
+        if (!editorUi || !editorUi.editor || !editorUi.editor.graph) return;
+        var graph = editorUi.editor.graph;
+        var container = graph.container;
+        if (!container) return;
+        __vcDropWired = true;
+
+        mxEvent.addListener(container, "dragover", function (evt) {
+          if (__vcDragXml == null) return; // only while a VC shape drag is armed
+          evt.preventDefault();
+          if (evt.dataTransfer) evt.dataTransfer.dropEffect = "copy";
+        });
+
+        mxEvent.addListener(container, "drop", function (evt) {
+          if (__vcDragXml == null) return;
+          evt.preventDefault();
+          var xml = __vcDragXml;
+          __vcDragXml = null;
+          try {
+            var xmlToProcess = xml;
+            try {
+              var tmpDoc = mxUtils.parseXml(xml);
+              var tmpRoot = tmpDoc.documentElement;
+              if (tmpRoot && tmpRoot.nodeName === "mxfile") {
+                var extracted = Editor.extractGraphModel(tmpRoot);
+                if (extracted) xmlToProcess = mxUtils.getXml(extracted);
+              }
+            } catch (e2) {}
+            var cells = editorUi.stringToCells(xmlToProcess);
+            if (cells == null || cells.length === 0) return;
+            var bbox = graph.getBoundingBoxFromGeometry(cells);
+            if (bbox) editorUi.sidebar.graph.moveCells(cells, -bbox.x, -bbox.y);
+            var pt = graph.getPointForEvent(evt); // drop location → graph coords
+            graph.model.beginUpdate();
+            try {
+              graph.setSelectionCells(graph.importCells(cells, pt.x, pt.y));
+            } finally {
+              graph.model.endUpdate();
+            }
+            graph.scrollCellToVisible(graph.getSelectionCell());
+          } catch (e3) {
+            console.error("[over-ride.js] shape drop insert failed", e3);
+          }
+        });
+      }
+
+      window.addEventListener("message", function (evt) {
+        if (!evt.data || typeof evt.data !== "string") return;
+        try {
+          var msg = JSON.parse(evt.data);
+          if (msg.action === "vcArmShapeDrop" && msg.xml) {
+            __vcDragXml = msg.xml;
+            __vcWireShapeDrop();
+          } else if (msg.action === "vcDisarmShapeDrop") {
+            __vcDragXml = null;
+          }
+        } catch (e) {}
+      });
+    } catch (e) {}
+
     // --- ADDED SAVE/LOAD LOGIC ---
     const urlParams = new URLSearchParams(window.location.search);
     const flowId = urlParams.get("id");
@@ -1967,6 +2039,33 @@ function extendApp() {
         if (__vcOrigSaveData) {
           return __vcOrigSaveData.call(this, title, format, data, mime);
         }
+      };
+    }
+
+    // 3d) Force CLIENT-SIDE (canvas) raster export for PNG/JPEG/etc.
+    //     (bug B21/B34). draw.io's Editor.isExportToCanvas() returns
+    //     mxClient.IS_CHROMEAPP || Editor.useCanvasForExport. The latter is
+    //     set by an ASYNC image-onload feature-detect that can leave it
+    //     false — in which case native File→Export As→PNG POSTs to the
+    //     optional drawio-export server (Compose profile "export"). That
+    //     server is usually not running → the proxy returns 503 and draw.io
+    //     writes the JSON error body into the .png → "image corrupted".
+    //     Canvas export needs no server (it's the same renderer that draws
+    //     the live canvas + generates save thumbnails). Overriding the
+    //     METHOD (not the flag) is immune to the async detect since it's
+    //     evaluated at export time. Defer to the original only when math
+    //     typesetting is on — canvas can't rasterise MathJax output.
+    if (typeof Editor !== "undefined" && Editor.prototype) {
+      var __vcOrigIsExportToCanvas = Editor.prototype.isExportToCanvas;
+      Editor.prototype.isExportToCanvas = function () {
+        try {
+          if (this.graph && this.graph.mathEnabled) {
+            return __vcOrigIsExportToCanvas
+              ? __vcOrigIsExportToCanvas.apply(this, arguments)
+              : mxClient.IS_CHROMEAPP || Editor.useCanvasForExport;
+          }
+        } catch (e) {}
+        return true;
       };
     }
 
