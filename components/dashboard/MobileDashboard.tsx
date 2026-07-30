@@ -535,7 +535,7 @@ export function MobileDashboard({
                 <img
                   src={flow.thumbnail}
                   alt={flow.name}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
                 />
               ) : (
                 <span style={{ fontSize: 16 }}>📄</span>

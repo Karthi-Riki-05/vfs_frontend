@@ -117,8 +117,44 @@ export async function unregisterNotificationToken(): Promise<void> {
     // ignore — still attempt the backend delete below
   }
 
+  // A null token means getToken() failed above — we do NOT know which device
+  // this is. Sending the delete anyway used to unregister EVERY device on the
+  // account (the backend now rejects an unscoped delete outright), so one
+  // laptop logout could silence push on the user's phones. Skip instead: a
+  // stale row is harmless — FCM rejects the dead token and fcm.service prunes
+  // it on the next send.
+  if (!token) return;
+
   try {
     await api.delete("/auth/mobile/fcm-token", { data: { fcmToken: token } });
+  } catch {
+    // best-effort; logout proceeds regardless
+  }
+}
+
+/**
+ * Unregister the NATIVE FCM token injected by the Flutter shell.
+ *
+ * Inside the WebView `unregisterNotificationToken()` returns early — the web
+ * push SDK isn't available there (no PushManager/Notification), so it can
+ * never resolve a token. But the device IS registered: `useNativeFcmBridge`
+ * POSTs the shell's native token on mount and on every foreground return.
+ * Without this, logging out of the app left the phone receiving pushes for an
+ * account no longer signed in on it.
+ *
+ * The shell keeps the current token on `window.flutterDeviceToken`; the same
+ * cookie-backed proxy the bridge registers through removes it.
+ */
+export async function unregisterNativeDeviceToken(): Promise<void> {
+  if (typeof window === "undefined") return;
+
+  const fcmToken = (
+    window as unknown as { flutterDeviceToken?: string }
+  ).flutterDeviceToken?.trim();
+  if (!fcmToken) return;
+
+  try {
+    await api.delete("/auth/mobile/fcm-token", { data: { fcmToken } });
   } catch {
     // best-effort; logout proceeds regardless
   }

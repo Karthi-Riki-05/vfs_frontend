@@ -21,6 +21,16 @@ html {
      when any child creates an overflow context. */
   height: auto;
   min-height: 100%;
+  /* B1: `body` sets a white background but `html` had none, and no
+     color-scheme was declared. The canvas background propagates from html, so
+     on a hard load/refresh a dark-mode browser could paint its own dark canvas
+     before our CSS applied — the reported "blank black screen". In-app (soft)
+     navigation never blanks (verified: 347 screencast frames, 0 blank), so
+     this is hardening for the hard-load path. Declared here in the existing
+     unlayered html rule — `background`/`color-scheme` on html are not set by
+     AntD or the scoped `.tw` preflight, so this cannot shadow them. */
+  background: #ffffff;
+  color-scheme: light;
 }
 body {
   margin: 0;

@@ -3,7 +3,12 @@ import { vi } from "vitest";
 
 // jsdom does not implement matchMedia / ResizeObserver, which Ant Design
 // and our useMediaQuery hook rely on. Provide minimal polyfills.
-if (!window.matchMedia) {
+//
+// setupFiles run for EVERY test file, including any that opt into the node
+// environment via `// @vitest-environment node` (server-only code such as the
+// NextAuth JWT encoder, which jsdom's cross-realm TextEncoder breaks). There
+// is no `window` there, so guard rather than assume a DOM.
+if (typeof window !== "undefined" && !window.matchMedia) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: false,
     media: query,

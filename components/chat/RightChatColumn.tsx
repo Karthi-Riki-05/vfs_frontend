@@ -320,6 +320,13 @@ export default function RightChatColumn({
   const [flatGroups, setFlatGroups] = useState<ChatGroup[]>([]);
   const [loadingSidebar, setLoadingSidebar] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  // B45: image lightbox target (null = closed)
+  const [imagePreview, setImagePreview] = useState<{
+    url: string;
+    name: string;
+    msg: ChatMessage;
+    own: boolean;
+  } | null>(null);
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
@@ -1206,6 +1213,17 @@ export default function RightChatColumn({
     );
   };
 
+  // B45: clicking a chat image used to `window.open` it — with the backend now
+  // serving images `inline` that shows a bare image in a new tab, with no way
+  // to download or delete it ("image action options missing"). Open a proper
+  // lightbox instead, with Open / Download / Delete (own messages only).
+  const openImagePreview = (
+    url: string,
+    name: string,
+    msg: ChatMessage,
+    own: boolean,
+  ) => setImagePreview({ url, name, msg, own });
+
   // ---- RENDER: Message content (text, images, files) ----
   const renderMessageContent = (msg: ChatMessage, own: boolean) => {
     const files = msg.files || [];
@@ -1230,7 +1248,9 @@ export default function RightChatColumn({
               cursor: "pointer",
               display: "block",
             }}
-            onClick={() => window.open(imgSrc, "_blank")}
+            onClick={() =>
+              openImagePreview(imgSrc, msgText || "Image", msg, own)
+            }
             onError={(e) => {
               (e.target as HTMLImageElement).src =
                 "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='60'%3E%3Crect fill='%23f0f0f0' width='100' height='60'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='10'%3EImage%3C/text%3E%3C/svg%3E";
@@ -1266,7 +1286,14 @@ export default function RightChatColumn({
                       cursor: "pointer",
                       display: "block",
                     }}
-                    onClick={() => window.open(fileUrl, "_blank")}
+                    onClick={() =>
+                      openImagePreview(
+                        fileUrl,
+                        file.fileName || "Image",
+                        msg,
+                        own,
+                      )
+                    }
                     onError={(e) => {
                       (e.target as HTMLImageElement).src =
                         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='60'%3E%3Crect fill='%23f0f0f0' width='100' height='60'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='10'%3EImage%3C/text%3E%3C/svg%3E";
@@ -2111,6 +2138,101 @@ export default function RightChatColumn({
     </div>
   );
 
+  // ---- RENDER: B45 image lightbox (open / download / delete) ----
+  const renderImagePreview = () => {
+    if (!imagePreview) return null;
+    const { url, name, msg, own } = imagePreview;
+    const close = () => setImagePreview(null);
+    const btn: React.CSSProperties = {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "8px 14px",
+      borderRadius: 10,
+      border: "none",
+      cursor: "pointer",
+      fontSize: 13,
+      fontWeight: 600,
+      background: "rgba(255,255,255,0.14)",
+      color: "#fff",
+    };
+    return (
+      <div
+        onClick={close}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.82)",
+          zIndex: 3000,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 16,
+          padding: 24,
+        }}
+      >
+        <div
+          style={{
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 600,
+            maxWidth: "80vw",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {name}
+        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt={name}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            maxWidth: "90vw",
+            maxHeight: "72vh",
+            objectFit: "contain",
+            borderRadius: 10,
+            background: "#fff",
+          }}
+        />
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
+        >
+          <button style={btn} onClick={() => window.open(url, "_blank")}>
+            Open in new tab
+          </button>
+          {/* ?download=1 makes the backend send Content-Disposition: attachment
+              (images are served inline by default since B45). */}
+          <a
+            href={`${url}${url.includes("?") ? "&" : "?"}download=1`}
+            download={name}
+            style={{ ...btn, textDecoration: "none" }}
+          >
+            Download
+          </a>
+          {own && (
+            <button
+              style={{ ...btn, background: "rgba(239,68,68,0.85)" }}
+              onClick={async () => {
+                await handleDeleteMessage(msg);
+                close();
+              }}
+            >
+              Delete
+            </button>
+          )}
+          <button style={btn} onClick={close}>
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // ---- RENDER: Create group modal (new_design ModalShell, prototype 1723–1757) ----
   const renderCreateModal = () => {
     const closeCreate = () => {
@@ -2345,6 +2467,7 @@ export default function RightChatColumn({
           </div>
         </div>
         {renderCreateModal()}
+        {renderImagePreview()}
         {renderAddMembersModal()}
       </>
     );
@@ -2371,6 +2494,7 @@ export default function RightChatColumn({
           </div>
         </div>
         {renderCreateModal()}
+        {renderImagePreview()}
       </>
     );
   }
@@ -2380,6 +2504,7 @@ export default function RightChatColumn({
     <div className="tw right-chat-column w-full h-full flex flex-col overflow-hidden border-l border-border bg-background">
       {renderTwThread(true)}
       {renderCreateModal()}
+        {renderImagePreview()}
       {renderAddMembersModal()}
     </div>
   );

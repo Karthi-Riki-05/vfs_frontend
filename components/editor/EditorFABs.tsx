@@ -67,7 +67,12 @@ export default function EditorFABs() {
     <div
       style={{
         position: "fixed",
-        bottom: isMobile ? 120 : 90,
+        // CSV-50: the Chat FAB stacks ABOVE the AI FAB (AIAssistant, at
+        // bottom 92 desktop / 96 mobile) so BOTH show without overlapping and
+        // both clear the "− 100% +" zoom float. ~60px above the AI FAB → a
+        // clean 12px gap between the two 48px buttons. Desktop 152 sits just
+        // below the draw.io Format panel (ends ~y695); mobile 156.
+        bottom: isMobile ? 156 : 152,
         right: isMobile ? 20 : 28,
         zIndex: 500,
         display: "flex",

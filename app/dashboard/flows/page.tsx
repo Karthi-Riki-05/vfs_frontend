@@ -635,7 +635,7 @@ export default function FlowsPage() {
                               ? `${flow.name} thumbnail`
                               : "Flow thumbnail"
                           }
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                         />
                       ) : (
                         <MiniFlow color={BRAND_GREEN} />
@@ -698,7 +698,7 @@ export default function FlowsPage() {
                                 ? `${flow.name} thumbnail`
                                 : "Flow thumbnail"
                             }
-                            className="absolute inset-0 w-full h-full object-cover"
+                            className="absolute inset-0 w-full h-full object-contain"
                           />
                         ) : (
                           <MiniFlow color={BRAND_GREEN} />
@@ -812,7 +812,7 @@ export default function FlowsPage() {
                         <img
                           src={flow.thumbnail}
                           alt={flow?.name ? `${flow.name} thumbnail` : "Flow"}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                         />
                       ) : (
                         <MiniFlow color={BRAND_GREEN} />
@@ -1020,7 +1020,7 @@ export default function FlowsPage() {
                                 ? `${flow.name} thumbnail`
                                 : "Flow thumbnail"
                             }
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-contain"
                           />
                         ) : (
                           <MiniFlow color={BRAND_GREEN} />
@@ -1080,7 +1080,7 @@ export default function FlowsPage() {
                               ? `${flow.name} thumbnail`
                               : "Flow thumbnail"
                           }
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                         />
                       ) : (
                         <MiniFlow color={BRAND_GREEN} />
@@ -1234,7 +1234,7 @@ export default function FlowsPage() {
                                 ? `${flow.name} thumbnail`
                                 : "Flow thumbnail"
                             }
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-contain"
                           />
                         ) : (
                           <MiniFlow color={BRAND_GREEN} />

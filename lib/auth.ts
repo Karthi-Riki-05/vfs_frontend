@@ -3,7 +3,14 @@ import GoogleProvider from "next-auth/providers/google";
 import LinkedInProvider from "next-auth/providers/linkedin";
 import FacebookProvider from "next-auth/providers/facebook";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { encode as defaultJwtEncode } from "next-auth/jwt";
 import axios from "axios";
+
+// Session lifetimes. "Remember me" (and every OAuth login) buys 30 days;
+// otherwise a session lasts a day. Both are ROLLING — `jwt.encode` below runs
+// on every session read, so the clock restarts each time the user is active.
+const REMEMBERED_MAX_AGE = 30 * 24 * 60 * 60;
+const DEFAULT_MAX_AGE = 24 * 60 * 60;
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -151,12 +158,18 @@ export const authOptions: NextAuthOptions = {
         token.currentVersion = (user as any).currentVersion;
         token.hasTeamAccess = (user as any).hasTeamAccess ?? false;
         token.lastRefresh = Date.now();
-        // Credentials: honor remember-me checkbox. OAuth: always 30-day session.
-        const rememberMe =
+        // Credentials: honor the remember-me checkbox. OAuth: always 30 days
+        // (no checkbox to read). Mobile also lands here as `true` — LoginForm
+        // forces `remember` on in a WebView, where there is no checkbox and a
+        // 24h expiry would mean re-typing a password every day.
+        //
+        // This flag is the ONLY session-lifetime signal; `jwt.encode` below
+        // reads it. Setting `token.exp` here would do nothing: next-auth's
+        // `encode()` ends with `.setExpirationTime(now() + maxAge)` and jose
+        // writes that straight over any `exp` already on the payload, which is
+        // why the previous hand-rolled version of this silently never applied.
+        token.remember =
           (user as any).remember === true || !!(user as any).backendId;
-        token.exp =
-          Math.floor(Date.now() / 1000) +
-          (rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60);
         return token;
       }
 
@@ -209,10 +222,34 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30-day cookie ceiling; real cutoff is token.exp
+    // Cookie ceiling only. It stays at the longer of the two lifetimes because
+    // it must still be able to carry a remembered session; a non-remembered
+    // token expires inside the cookie after DEFAULT_MAX_AGE and simply stops
+    // decoding, which next-auth treats as signed out.
+    maxAge: REMEMBERED_MAX_AGE,
   },
   jwt: {
-    maxAge: 30 * 24 * 60 * 60, // 30-day ceiling; remember-me sets token.exp
+    maxAge: REMEMBERED_MAX_AGE,
+    /**
+     * Per-session expiry, keyed off the remember-me flag stamped in the `jwt`
+     * callback. The stock `encode` applies a single static `maxAge` to
+     * everyone — overriding it here is the only place the two lifetimes can
+     * actually diverge, because `encode` sets the JWE `exp` last and wins over
+     * anything the callbacks put on the payload.
+     *
+     * Runs on every session read, so both lifetimes are rolling: an active
+     * user is never signed out mid-use, and the clock only runs down while
+     * they are away. `decode` is left stock — an expired token throws there
+     * and next-auth reads that as no session.
+     */
+    encode({ token, secret, salt }) {
+      return defaultJwtEncode({
+        token,
+        secret,
+        salt,
+        maxAge: token?.remember ? REMEMBERED_MAX_AGE : DEFAULT_MAX_AGE,
+      });
+    },
   },
   pages: {
     signIn: "/login",

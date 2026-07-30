@@ -141,7 +141,7 @@ export function DashRecentFlows({ flows, loading }: DashRecentFlowsProps) {
                 <img
                   src={flow.thumbnail}
                   alt=""
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
                 />
               ) : (
                 <ProjectOutlined style={{ fontSize: 28, color: "#D9D9D9" }} />

@@ -17,7 +17,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       { expiresIn: '1h' }
     );
 
-    const res = await fetch(`${BACKEND_URL}/api/v1/chat/files/${params.id}`, {
+    // B45: forward the query string so `?download=1` still reaches the backend
+    // and forces `Content-Disposition: attachment` — without this the proxy
+    // dropped it and every image came back inline, so "download" was dead.
+    const qs = req.nextUrl.search || '';
+    const res = await fetch(`${BACKEND_URL}/api/v1/chat/files/${params.id}${qs}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { dashboardApi } from "@/api/dashboard.api";
 import { useAppContext } from "@/context/AppContext";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
+import { AI_BILLING_EVENT } from "@/lib/aiBilling";
 
 interface DashboardStats {
   totalFlows: number;
@@ -136,6 +137,32 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
       }),
     [],
   );
+
+  // B31 (owner chose option c: accept the ~1.5s switch latency, show loading).
+  // The block above listens for WORKSPACE_FLUSH_EVENT, but `flushWorkspaceCache()`
+  // has NO production caller — only tests — so it never fires and the blanking
+  // never actually ran. The live signal is `vc:workspace-switch` (dispatched by
+  // TeamContextSwitcher, the same one NotificationDropdown and useTeams use) plus
+  // AI_BILLING_EVENT. Measured before this: 0/45 frames showed a skeleton or
+  // spinner during a switch, so the user stared at blank/zeroed cards for ~1.5s
+  // with no indication anything was loading — that is what reads as "buffering".
+  useEffect(() => {
+    if (!hydrated) return;
+    const onSwitch = () => {
+      if (!mountedRef.current) return;
+      setStats(null);
+      setActivity([]);
+      setRecentFlows([]);
+      setTeamActivity([]);
+      setLoading(true);
+    };
+    window.addEventListener("vc:workspace-switch", onSwitch);
+    window.addEventListener(AI_BILLING_EVENT, onSwitch);
+    return () => {
+      window.removeEventListener("vc:workspace-switch", onSwitch);
+      window.removeEventListener(AI_BILLING_EVENT, onSwitch);
+    };
+  }, [hydrated]);
 
   return {
     stats,

@@ -1,7 +1,10 @@
 "use client";
 
 import { signOut } from "next-auth/react";
-import { unregisterNotificationToken } from "@/lib/firebase";
+import {
+  unregisterNativeDeviceToken,
+  unregisterNotificationToken,
+} from "@/lib/firebase";
 
 // BUG-008: per-tab/per-browser workspace + billing context that must NOT
 // survive a logout — otherwise the next user on a shared browser inherits the
@@ -36,6 +39,14 @@ function clearWorkspaceStorage(): void {
 export async function logout(opts?: { callbackUrl?: string }): Promise<void> {
   try {
     await unregisterNotificationToken();
+  } catch {
+    // never block sign-out on cleanup
+  }
+  // Web push and native push are separate registrations and only one of them
+  // exists per device: the browser path above no-ops inside the WebView, and
+  // this no-ops in a real browser (no window.flutterDeviceToken).
+  try {
+    await unregisterNativeDeviceToken();
   } catch {
     // never block sign-out on cleanup
   }

@@ -48,6 +48,11 @@ yarn-error.log*
 next-env.d.ts
 
 # Local test/audit artifacts — not for deploy
+# Throwaway Playwright probes live at the repo root and hardcode test credentials.
+# Real suites belong in e2e/ or lib/__tests__/, which stay tracked.
+/probe*.mjs
+/verify-*.mjs
+/profile-*.mjs
 e2e/.auth/gate.json
 e2e/APP_SWITCHER_AUDIT.md
 e2e/**/*-snapshots/

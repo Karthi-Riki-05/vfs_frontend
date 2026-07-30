@@ -8,7 +8,7 @@ import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { getLogoForApp } from "@/lib/getLogo";
 import { useAppBrand } from "@/hooks/useAppBrand";
 import { getPostLoginDashboardUrl } from "@/lib/postLoginRedirect";
-import { getClientAppType } from "@/lib/detectWebView";
+import { getClientAppType, isNativeAppWebView } from "@/lib/detectWebView";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
 import AuthShell from "./AuthShell";
 import DesktopAuthShell from "./DesktopAuthShell";
@@ -117,9 +117,17 @@ export default function LoginForm() {
       redirect: false,
       email,
       password,
-      // Desktop honors the checkbox; mobile has no checkbox and defaults to a
-      // persistent 30-day session.
-      remember: String(rememberMe || !isDesktop),
+      // Session length: 30 days when remembered, 24h otherwise (lib/auth.ts).
+      //
+      // The 24h rule is a WEBSITE rule — the native shells are always
+      // remembered. That exemption keys off the app's User-Agent, NOT
+      // `isDesktop`: `isDesktop` is `min-width: 1024px`, so a tablet running
+      // the Pro/Team app reports desktop, renders the checkbox, and would have
+      // dropped an app user to 24h if they left it unticked.
+      //
+      // `!isDesktop` still stands in for "no checkbox was rendered" on narrow
+      // browsers, where the user has no way to opt in.
+      remember: String(rememberMe || !isDesktop || isNativeAppWebView()),
     });
 
     setLoading(false);

@@ -1103,12 +1103,14 @@ export default function AIAssistant({
         <div
           className="fixed z-[200]"
           style={{
-            // B10: on the editor page the draw.io zoom control (Fit Window /
-            // Reset View) lives at the bottom-right and its popup opens upward;
-            // lift the FAB above it so it no longer overlaps the zoom menu.
+            // B10/CSV-50: on the editor page the draw.io zoom control ("− 100% +",
+            // Fit Window / Reset View) lives at the bottom and its popup opens
+            // upward; lift the FAB above it so it never overlaps the zoom float.
+            // Mobile editor was 60 (only ~8px above the zoom control) → 96 for a
+            // clear margin; the green Chat FAB (EditorFABs) stacks above at 156.
             bottom: isMobile
               ? isEditorPage
-                ? 60
+                ? 96
                 : 24
               : isEditorPage
                 ? 92

@@ -219,7 +219,10 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
           new CustomEvent("vc:workspace-switch", {
             detail: {
               teamId: resolved || null,
-              plan: matched?.plan || (resolved ? "team" : null),
+              // bug-086: fail CLOSED on an unknown plan. This defaulted to
+              // "team", handing the full paid tier to any workspace the server
+              // didn't label (getMyContexts sends `plan` as of bug-086).
+              plan: matched?.plan || (resolved ? "free" : null),
               teamName: matched?.label || null,
               hasPro: matched?.hasPro || false,
               ownerName: matched?.ownerName || null,
@@ -270,7 +273,8 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
           new CustomEvent("vc:workspace-switch", {
             detail: {
               teamId: teamId || null,
-              plan: matched?.plan || (teamId ? "team" : null),
+              // bug-086: fail closed — see the same fallback in refresh().
+              plan: matched?.plan || (teamId ? "free" : null),
               teamName: matched?.label || null,
               hasPro: matched?.hasPro || false,
               ownerName: matched?.ownerName || null,

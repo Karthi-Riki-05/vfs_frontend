@@ -166,7 +166,12 @@ export function AppContextProvider({
       ).detail;
       if (!detail) return;
       if (detail.teamId) {
-        const plan = (detail.plan as "free" | "pro" | "team") || "team";
+        // bug-086: this defaulted an UNKNOWN plan to "team" — the most
+        // privileged value — so any workspace whose plan the server didn't
+        // send (getMyContexts never sent one) granted the full Team tier:
+        // purple "Team Plan" badge, unlocked Chat/Teams, unlimited flows.
+        // Fail closed instead; the server now always sends `plan`.
+        const plan = (detail.plan as "free" | "pro" | "team") || "free";
         setActiveContext({
           type: "team",
           teamId: detail.teamId,
@@ -174,7 +179,7 @@ export function AppContextProvider({
           ownerId: "",
           ownerName: detail.ownerName || null,
           plan,
-          hasPro: detail.hasPro || plan !== "free",
+          hasPro: !!detail.hasPro || plan !== "free",
           proUnlimitedFlows: plan === "team",
           proFlowLimit: plan === "free" ? 10 : 0,
         });
