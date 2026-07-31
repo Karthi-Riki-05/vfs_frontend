@@ -4,15 +4,21 @@
     "target": {
       "namespace": "android_app",
       "package_name": "com.valuecharts.app",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_PRO_SHA256_FINGERPRINT"]
+      "sha256_cert_fingerprints": [
+        "D4:DE:6E:F3:01:FF:D8:C9:F9:FF:16:50:2B:3B:3C:B5:E7:DD:6E:41:8E:57:9A:51:28:EE:C0:AF:E7:43:1E:52",
+        "F1:63:6E:1C:8F:74:E2:69:47:A0:8D:88:42:45:E5:3D:CA:42:72:A2:0A:28:06:CB:A6:6C:B2:84:45:33:24:45"
+      ]
     }
   },
   {
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.valuecharts.app.team",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_TEAM_SHA256_FINGERPRINT"]
+      "package_name": "com.valuecharts.app.pro",
+      "sha256_cert_fingerprints": [
+        "D4:DE:6E:F3:01:FF:D8:C9:F9:FF:16:50:2B:3B:3C:B5:E7:DD:6E:41:8E:57:9A:51:28:EE:C0:AF:E7:43:1E:52",
+        "F1:63:6E:1C:8F:74:E2:69:47:A0:8D:88:42:45:E5:3D:CA:42:72:A2:0A:28:06:CB:A6:6C:B2:84:45:33:24:45"
+      ]
     }
   }
 ]
