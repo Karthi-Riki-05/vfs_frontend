@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["5HQ828K78T.com.valuecharts.flow.chart"],
+        "components": [
+          { "/": "/reset-password*", "comment": "password reset from email" },
+          { "/": "/verify-otp*", "comment": "OTP verification from email" },
+          { "/": "/invite*", "comment": "team invite from email" }
+        ]
+      }
+    ]
+  }
+}
