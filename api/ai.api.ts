@@ -70,12 +70,14 @@ export const aiApi = {
     confirmed: boolean,
     conversationId?: string | null,
     messageId?: string | null,
+    existingXml?: string | null,
   ) =>
     api.post("/ai/generate-diagram-job", {
       message,
       confirmed,
       conversationId: conversationId || undefined,
       messageId: messageId || undefined,
+      existingXml: existingXml || undefined,
     }),
 
   getDiagramJob: (jobId: string) =>

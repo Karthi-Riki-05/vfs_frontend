@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 import AIConsentModal from "./AIConsentModal";
 import CreditsExhaustedModal from "./CreditsExhaustedModal";
 import DiagramPreviewModal from "./DiagramPreviewModal";
+import DiagramThumbnail from "./DiagramThumbnail";
+import GeneratingProgress from "./GeneratingProgress";
 import { flowsApi } from "@/api/flows.api";
 import { aiApi } from "@/api/ai.api";
 
@@ -62,8 +64,25 @@ interface ChatMsg {
   content: string;
   xml?: string | null;
   fileName?: string | null;
-  suggestion?: { prompt: string } | null;
+  // isEdit marks a suggestion/result that MODIFIES the diagram already on the
+  // canvas (vs generating a brand-new one). It drives two things: sending the
+  // current canvas XML to the AI, and REPLACING (not merging) on insert.
+  suggestion?: { prompt: string; isEdit?: boolean } | null;
+  isEdit?: boolean;
   createdAt: string;
+}
+
+// Heuristic: does this message ask to change the diagram already on the canvas?
+// The backend create-intent classifier intentionally returns NO for edits, so
+// the panel detects them client-side (only meaningful when a diagram exists).
+const EDIT_INTENT_RE =
+  /\b(fix|correct|adjust|change|update|modify|edit|tweak|revise|rework|redo|remove|delete|rename|replace|recolor|re-?color|add(?:\s+an?|\s+the)?|move|resize|swap|make it|make this|make the)\b/i;
+const REFERS_TO_EXISTING_RE =
+  /\b(this|that|the|existing|current|above|it)\b.*\b(diagram|flow|chart|flowchart|node|box|step|shape|arrow|edge|label|decision)\b|\b(diagram|flow|chart|flowchart)\b.*\b(this|that|above|it)\b|\bit\b/i;
+function isLikelyEditRequest(text: string): boolean {
+  const t = (text || "").trim();
+  if (!t) return false;
+  return EDIT_INTENT_RE.test(t) && REFERS_TO_EXISTING_RE.test(t);
 }
 
 function timeAgo(iso: string | null | undefined): string {
@@ -125,6 +144,7 @@ export default function AIAssistant({
   const [previewModal, setPreviewModal] = useState<{
     visible: boolean;
     xml: string;
+    isEdit?: boolean;
   }>({ visible: false, xml: "" });
 
   // Credits modal on 402
@@ -432,6 +452,41 @@ export default function AIAssistant({
     setSending(true);
 
     try {
+      // ── Edit-existing-diagram intent (client-side) ──
+      // The backend create-intent classifier deliberately returns NO for
+      // "fix / adjust / change my diagram", so edits are detected here. Only
+      // meaningful in the editor when the canvas actually holds a diagram.
+      if (isInEditor && isLikelyEditRequest(text)) {
+        const current = await requestCurrentCanvasXml();
+        if (canvasHasRealDiagram(current)) {
+          let editBalance: any = null;
+          try {
+            const dRes = await aiApi.detectIntent(text, activeConversationId);
+            editBalance =
+              (dRes.data?.data || dRes.data || {}).balance || null;
+          } catch {
+            // balance lookup is best-effort; the job still gates on credits
+          }
+          if (editBalance) setCreditBalance(editBalance);
+          if (editBalance && editBalance.totalCredits <= 0) {
+            appendMessage({
+              role: "assistant",
+              content:
+                "You've used all your diagram credits for this month. Upgrade or buy more to continue.",
+            });
+            setShowCreditsExhausted(true);
+            return;
+          }
+          appendMessage({
+            role: "assistant",
+            content: `I'll update the diagram on your canvas: "${text}". Click Update below — this uses a few credits based on the change.`,
+            suggestion: { prompt: text, isEdit: true },
+          });
+          return;
+        }
+        // No real diagram to edit → fall through to normal create detection.
+      }
+
       let isDiagram = false;
       let balance: any = null;
       let creditEstimate: { min: number; max: number; likely: number } | null =
@@ -534,7 +589,42 @@ export default function AIAssistant({
     throw timeoutErr;
   }
 
-  async function handleGenerateFromSuggestion(msgId: string, prompt: string) {
+  // Ask the editor (EditorView) for the CURRENT canvas XML. Resolves with the
+  // XML string, or "" if the editor doesn't answer in time (e.g. no editor
+  // mounted / mobile shell) so callers gracefully fall back to from-scratch.
+  function requestCurrentCanvasXml(timeoutMs = 2500): Promise<string> {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined") return resolve("");
+      let settled = false;
+      const finish = (xml: string) => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener("vc:current-xml", onReply as EventListener);
+        resolve(xml);
+      };
+      const onReply = (e: CustomEvent) => finish(e?.detail?.xml || "");
+      window.addEventListener("vc:current-xml", onReply as EventListener);
+      window.dispatchEvent(new CustomEvent("vc:request-current-xml"));
+      setTimeout(() => finish(""), timeoutMs);
+    });
+  }
+
+  // A canvas counts as having a real diagram only if it holds actual cells —
+  // an empty/near-empty mxGraphModel does not, so "add a step" on a blank canvas
+  // still generates from scratch instead of trying to "edit" nothing.
+  function canvasHasRealDiagram(xml: string): boolean {
+    const t = (xml || "").trim();
+    if (t.length < 120) return false;
+    // At least one content cell beyond the two structural cells (id 0 and 1).
+    const cellCount = (t.match(/<mxCell\b/g) || []).length;
+    return cellCount > 2;
+  }
+
+  async function handleGenerateFromSuggestion(
+    msgId: string,
+    prompt: string,
+    isEdit = false,
+  ) {
     if (generatingId) return;
     setGeneratingId(msgId);
     try {
@@ -549,8 +639,23 @@ export default function AIAssistant({
         }
       }
 
+      // Edit mode: pull the current canvas XML so the AI modifies THAT diagram
+      // instead of regenerating from scratch. Falls back to "" (from-scratch) if
+      // the editor doesn't reply or the canvas has no real diagram.
+      let existingXml = "";
+      if (isEdit) {
+        const current = await requestCurrentCanvasXml();
+        if (canvasHasRealDiagram(current)) existingXml = current;
+      }
+
       // Async job: start (returns immediately, no gateway 504) then poll.
-      const startRes = await aiApi.startDiagramJob(prompt, true, convId, msgId);
+      const startRes = await aiApi.startDiagramJob(
+        prompt,
+        true,
+        convId,
+        msgId,
+        existingXml || undefined,
+      );
       const jobId = startRes.data?.data?.jobId || startRes.data?.jobId || null;
       if (!jobId) throw new Error("Failed to start diagram generation");
       const data = await pollDiagramJob(jobId);
@@ -558,6 +663,9 @@ export default function AIAssistant({
         setActiveConversationId(data.conversationId);
         localStorage.setItem(ACTIVE_CONV_KEY, data.conversationId);
       }
+      // Whether this result should REPLACE the canvas (a real edit) or be
+      // inserted/merged (a fresh diagram) — carried on the message for Insert.
+      const didEdit = !!existingXml;
       // Attach xml to the message — DO NOT dispatch aiXmlReady here.
       setMessages((m) =>
         m.map((msg) =>
@@ -566,8 +674,10 @@ export default function AIAssistant({
                 ...msg,
                 suggestion: null,
                 xml: data.xml,
-                content:
-                  "Diagram generated. Preview below — click Insert to add to canvas.",
+                isEdit: didEdit,
+                content: didEdit
+                  ? "Diagram updated. Preview below — click Insert to apply the changes to your canvas."
+                  : "Diagram generated. Preview below — click Insert to add to canvas.",
               }
             : msg,
         ),
@@ -639,11 +749,19 @@ export default function AIAssistant({
     });
   }
 
-  async function handleInsertDiagram(xml: string) {
+  async function handleInsertDiagram(xml: string, isEdit = false) {
     // EXPLICIT user click only
     if (isInEditor) {
-      window.dispatchEvent(new CustomEvent("aiXmlReady", { detail: { xml } }));
-      antdMessage.success("✅ Diagram inserted into canvas");
+      // An edit REPLACES the whole canvas (the AI returned the complete,
+      // id-stable diagram); a fresh diagram MERGES in as added cells.
+      window.dispatchEvent(
+        new CustomEvent(isEdit ? "aiXmlReplace" : "aiXmlReady", {
+          detail: { xml },
+        }),
+      );
+      antdMessage.success(
+        isEdit ? "✅ Diagram updated" : "✅ Diagram inserted into canvas",
+      );
       // Auto-close the chat panel so the user can immediately see the canvas
       setState("collapsed");
       setShowHistory(false);
@@ -860,56 +978,61 @@ export default function AIAssistant({
   );
 
   // ---- Generate-diagram suggestion (orange) ----
-  const renderSuggestion = (msg: ChatMsg) => (
-    <div className="mt-2 rounded-xl border border-[#FFD9A0] bg-[#FFF8EF] p-3">
-      <p className="text-[13px] text-foreground mb-3">
-        I&apos;ll create: {msg.suggestion!.prompt}
-      </p>
-      <button
-        onClick={() =>
-          handleGenerateFromSuggestion(msg.id, msg.suggestion!.prompt)
-        }
-        disabled={generatingId === msg.id}
-        className={cn(
-          BTN,
-          "h-9 px-4 rounded-lg bg-[#FF9A30] text-white border-0 text-[13px] font-bold inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed",
-        )}
-      >
-        {generatingId === msg.id ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" /> Generating…
-          </>
-        ) : (
-          <>
-            <Zap className="w-4 h-4" /> Generate Diagram
-          </>
-        )}
-      </button>
-    </div>
-  );
+  const renderSuggestion = (msg: ChatMsg) => {
+    const suggEdit = !!msg.suggestion!.isEdit;
+    // While this suggestion is generating, show the live staged progress in
+    // place of the button; otherwise show the Generate/Update button.
+    if (generatingId === msg.id) return <GeneratingProgress isEdit={suggEdit} />;
+    return (
+      <div className="mt-2 rounded-xl border border-[#FFD9A0] bg-[#FFF8EF] p-3">
+        <p className="text-[13px] text-foreground mb-3">
+          {suggEdit ? "I'll update" : "I'll create"}: {msg.suggestion!.prompt}
+        </p>
+        <button
+          onClick={() =>
+            handleGenerateFromSuggestion(
+              msg.id,
+              msg.suggestion!.prompt,
+              suggEdit,
+            )
+          }
+          className={cn(
+            BTN,
+            "h-9 px-4 rounded-lg bg-[#FF9A30] text-white border-0 text-[13px] font-bold inline-flex items-center gap-1.5",
+          )}
+        >
+          <Zap className="w-4 h-4" />{" "}
+          {suggEdit ? "Update Diagram" : "Generate Diagram"}
+        </button>
+      </div>
+    );
+  };
 
   // ---- Generated-diagram result card (orange, prototype "Open in canvas") ----
-  const renderDiagramCard = (xml: string) => (
+  const renderDiagramCard = (xml: string, isEdit = false) => (
     <div className="mt-3 rounded-xl border border-border overflow-hidden bg-card">
-      <div
-        onClick={() => setPreviewModal({ visible: true, xml })}
-        className="h-[90px] bg-secondary flex items-center justify-center cursor-pointer text-2xl"
-      >
-        📊
-      </div>
+      <DiagramThumbnail
+        xml={xml}
+        height={220}
+        onClick={() => setPreviewModal({ visible: true, xml, isEdit })}
+      />
       <div className="p-2.5 flex gap-2">
         <button
-          onClick={() => handleInsertDiagram(xml)}
+          onClick={() => handleInsertDiagram(xml, isEdit)}
           className={cn(
             BTN,
             "flex-1 h-9 rounded-lg bg-[#FF9A30] text-white border-0 text-[13px] font-bold inline-flex items-center justify-center gap-1.5",
           )}
         >
-          {isInEditor ? "Insert into canvas" : "Open in canvas"}
+          {isEdit
+            ? "Apply changes"
+            : isInEditor
+              ? "Insert into canvas"
+              : "Open in canvas"}
           <ArrowRight className="w-4 h-4" />
         </button>
         <button
-          onClick={() => setPreviewModal({ visible: true, xml })}
+          onClick={() => setPreviewModal({ visible: true, xml, isEdit })}
           className={cn(
             BTN,
             "h-9 px-3 rounded-lg border border-border bg-card text-foreground text-[13px] font-bold",
@@ -972,7 +1095,7 @@ export default function AIAssistant({
             msg.content,
             <>
               {msg.suggestion && renderSuggestion(msg)}
-              {msg.xml && renderDiagramCard(msg.xml)}
+              {msg.xml && renderDiagramCard(msg.xml, !!msg.isEdit)}
             </>,
           );
         })}
@@ -1084,8 +1207,9 @@ export default function AIAssistant({
         onClose={() => setPreviewModal({ visible: false, xml: "" })}
         onInsert={() => {
           const xml = previewModal.xml;
+          const wasEdit = !!previewModal.isEdit;
           setPreviewModal({ visible: false, xml: "" });
-          handleInsertDiagram(xml);
+          handleInsertDiagram(xml, wasEdit);
         }}
       />
     </>

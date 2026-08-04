@@ -325,6 +325,10 @@ export default function EditorView({
   // FEAT-002: true when the next internal save should create a version
   // snapshot (manual save / Save button); false for autosaves.
   const createVersionRef = useRef(false);
+  // AI-edit read channel: true while the AI panel is waiting for the CURRENT
+  // canvas XML (it dispatched 'vc:request-current-xml'). When the next export
+  // response lands, we reply once with 'vc:current-xml' and clear this.
+  const pendingXmlRequestRef = useRef(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle",
   );
@@ -876,6 +880,18 @@ export default function EditorView({
             typeof msg.format === "string" ? msg.format.toLowerCase() : "png";
           if (typeof xmlData === "string") latestXmlRef.current = xmlData;
 
+          // AI-edit read channel: if the AI panel asked for the current canvas
+          // XML, reply now that we have a fresh export, then fall through so the
+          // normal (thumbnail-save) handling still runs.
+          if (pendingXmlRequestRef.current) {
+            pendingXmlRequestRef.current = false;
+            window.dispatchEvent(
+              new CustomEvent("vc:current-xml", {
+                detail: { xml: latestXmlRef.current || "" },
+              }),
+            );
+          }
+
           const wasInternalSave = isInternalSaveRef.current;
           isInternalSaveRef.current = false;
           const shouldCreateVersion = createVersionRef.current;
@@ -1038,6 +1054,48 @@ export default function EditorView({
     window.addEventListener("aiXmlReady", handleAiXml as EventListener);
     return () =>
       window.removeEventListener("aiXmlReady", handleAiXml as EventListener);
+  }, []);
+
+  // AI-edit: the panel asks for the CURRENT canvas XML so it can send it to the
+  // AI as the diagram to modify. Force a fresh export; the export handler above
+  // replies with 'vc:current-xml'. If the iframe isn't ready, reply empty so the
+  // panel falls back to a from-scratch generation instead of hanging.
+  useEffect(() => {
+    function handleRequestXml() {
+      if (iframeRef.current?.contentWindow) {
+        pendingXmlRequestRef.current = true;
+        triggerExport();
+      } else {
+        window.dispatchEvent(
+          new CustomEvent("vc:current-xml", { detail: { xml: "" } }),
+        );
+      }
+    }
+    window.addEventListener("vc:request-current-xml", handleRequestXml);
+    return () =>
+      window.removeEventListener("vc:request-current-xml", handleRequestXml);
+  }, []);
+
+  // AI-edit: REPLACE the whole canvas with the AI's updated diagram (an edit
+  // returns the complete, id-stable diagram). Uses draw.io's standard 'load'
+  // action — unlike 'mergeAiXml' which ADDS cells (that would duplicate the
+  // diagram on an edit).
+  useEffect(() => {
+    function handleReplaceXml(e: CustomEvent) {
+      const { xml } = e.detail || {};
+      if (xml && iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ action: "load", xml, autosave: 1 }),
+          "*",
+        );
+      }
+    }
+    window.addEventListener("aiXmlReplace", handleReplaceXml as EventListener);
+    return () =>
+      window.removeEventListener(
+        "aiXmlReplace",
+        handleReplaceXml as EventListener,
+      );
   }, []);
 
   // Build draw.io XML for a custom shape and merge it into the canvas via
