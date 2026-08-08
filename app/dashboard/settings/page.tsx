@@ -411,40 +411,102 @@ export default function SettingsPage() {
     }
   };
 
-  const handleAvatarUpload = (file: File) => {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      const MAX = 200;
-      const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+  const handleAvatarUpload = async (file: File) => {
+    // An avatar is displayed in a CIRCLE everywhere in the app, so it must be
+    // stored SQUARE. This used to scale-to-fit inside a 200px box, which
+    // preserves the source aspect ratio: a 400×2856 phone screenshot was stored
+    // as 28×200. Every round chip then had 28 real pixels to work with across
+    // its diameter (blurry), and any surface that did not pin BOTH dimensions
+    // rendered it as a tall smear — that is what the flow cards hit, where
+    // globals.css's unlayered `img { height: auto }` beats Tailwind's `h-4`.
+    //
+    // Now: centre-crop to the largest square the source contains, then scale
+    // that square to 200×200. Cropping is what the circle does visually anyway
+    // — doing it at upload time makes the stored bytes agree with what everyone
+    // sees, instead of leaving each render site to fix it.
+    if (!file.type?.startsWith("image/")) {
+      toast.error("Please choose an image file");
+      return false;
+    }
+    // Guard the decode, not the output: a 40MP HEIC decodes to hundreds of MB
+    // of bitmap and can kill the tab on a phone — and the phone is the WebView.
+    const MAX_BYTES = 15 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      toast.error("Image is too large (max 15MB)");
+      return false;
+    }
+
+    const OUT = 200;
+    let source: ImageBitmap | HTMLImageElement | null = null;
+    let objectUrl: string | null = null;
+    try {
+      try {
+        // `imageOrientation: "from-image"` applies the EXIF rotation tag. Phone
+        // cameras store the sensor image sideways and record the rotation there,
+        // so without this a portrait selfie uploads rotated 90°. Not every
+        // engine accepts the option (it throws where unsupported), hence the
+        // decode fallback below.
+        source = await createImageBitmap(file, {
+          imageOrientation: "from-image",
+        });
+      } catch {
+        objectUrl = URL.createObjectURL(file);
+        source = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const el = new Image();
+          el.onload = () => resolve(el);
+          el.onerror = () => reject(new Error("decode failed"));
+          el.src = objectUrl as string;
+        });
+      }
+
+      const sw = "width" in source ? source.width : 0;
+      const sh = "height" in source ? source.height : 0;
+      if (!sw || !sh) throw new Error("empty image");
+
+      // The largest centred square the source contains.
+      const side = Math.min(sw, sh);
+      const sx = Math.round((sw - side) / 2);
+      const sy = Math.round((sh - side) / 2);
+      // Never upscale: a 64px source stays 64px rather than being blown up to
+      // 200 and re-compressed.
+      const out = Math.min(side, OUT);
+
       const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * ratio);
-      canvas.height = Math.round(img.height * ratio);
+      canvas.width = out;
+      canvas.height = out;
       const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      if (!ctx) throw new Error("no 2d context");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      // JPEG has no alpha — without this, transparent PNGs composite onto black.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, out, out);
+      ctx.drawImage(source as CanvasImageSource, sx, sy, side, side, 0, 0, out, out);
       const base64 = canvas.toDataURL("image/jpeg", 0.85);
-      URL.revokeObjectURL(objectUrl);
-      api
-        .put("/users/me", { photo: base64 })
-        .then((res) => {
-          const photo =
-            res.data?.data?.user?.photo || res.data?.data?.photo || base64;
-          setAvatarUrl(photo);
-          // Notify other surfaces (sidebar drawer, header) so the new photo
-          // syncs immediately without a page reload.
-          window.dispatchEvent(
-            new CustomEvent("userAvatarChanged", { detail: { url: photo } }),
-          );
-          toast.success("Avatar updated");
-        })
-        .catch(() => toast.error("Avatar upload failed"));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      toast.error("Failed to read image");
-    };
-    img.src = objectUrl;
+
+      const res = await api.put("/users/me", { photo: base64 });
+      const photo =
+        res.data?.data?.user?.photo || res.data?.data?.photo || base64;
+      setAvatarUrl(photo);
+      // Notify other surfaces (sidebar drawer, header) so the new photo
+      // syncs immediately without a page reload.
+      window.dispatchEvent(
+        new CustomEvent("userAvatarChanged", { detail: { url: photo } }),
+      );
+      toast.success("Avatar updated");
+    } catch (err: any) {
+      // Separate messages: a decode failure is the user's file, a failed PUT is
+      // ours. Collapsing them into "upload failed" sent people back to pick a
+      // different photo when the photo was never the problem.
+      toast.error(
+        err?.response
+          ? err.response?.data?.error?.message || "Avatar upload failed"
+          : "Could not read that image",
+      );
+    } finally {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (source && "close" in source) source.close();
+    }
     return false;
   };
 
@@ -474,7 +536,15 @@ export default function SettingsPage() {
       style={{ width: size, height: size, fontSize: size * 0.36 }}
     >
       {avatarUrl ? (
-        <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+        // Inline px from the `size` prop — the unlayered `img { height: auto }`
+        // in globals.css beats `h-full`, so class-sized avatars do not fill
+        // their circle (same fix as the Header and Sidebar avatars).
+        <img
+          src={avatarUrl}
+          alt=""
+          style={{ width: size, height: size }}
+          className="rounded-full object-cover shrink-0"
+        />
       ) : (
         initial
       )}

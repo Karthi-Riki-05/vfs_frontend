@@ -12,7 +12,7 @@ import { useAiBilling, type BillingOption } from "@/context/AiBillingContext";
 // Account/team switcher rendered at the top of the profile dropdown. Selecting
 // a row calls AiBillingContext.switchBilling(teamId), which re-scopes BOTH the
 // billed AI-credit pool AND the workspace data: it flushes the workspace cache,
-// sets the scoped X-Team-Context header, and fires vc:workspace-switch so
+// sets the scoped X-Workspace-Context header, and fires vc:workspace-switch so
 // flows/chat/dashboard follow the selection. DATA-LOSS-001 still holds — rows
 // stay {ownerId, teamId}-bounded, so the bucket changes, not the owner bound.
 // (Corrected: the "billing-only, data never changes" claim (TCS-C1) was false.)

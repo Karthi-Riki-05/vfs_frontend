@@ -3,56 +3,15 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
-import api from "@/lib/axios";
-import { AI_BILLING_EVENT } from "@/lib/aiBilling";
+import { useNotificationCount } from "@/hooks/useNotificationCount";
 
 export default function NotificationDropdown() {
   const router = useRouter();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  const refreshCount = () => {
-    api
-      .get("/notifications/count")
-      .then((res) => {
-        const d = res.data?.data || res.data || {};
-        setUnreadCount(d.unread ?? 0);
-      })
-      .catch(() => {});
-  };
-
-  useEffect(() => {
-    refreshCount();
-
-    let cleanup: (() => void) | undefined;
-    (async () => {
-      try {
-        const { getSocket } = await import("@/lib/socket");
-        const socket = getSocket();
-        if (!socket) return;
-        const onNew = () => refreshCount();
-        socket.on("notification:new", onNew);
-        cleanup = () => socket.off("notification:new", onNew);
-      } catch {
-        // socket unavailable — rely on the poll
-      }
-    })();
-
-    // B41: the unread count is strictly workspace-scoped (X-Team-Context), so
-    // when the user switches workspace/billing context the badge must re-fetch
-    // — otherwise it shows a stale count from the previous workspace while the
-    // Notifications page (freshly scoped) is empty ("phantom dot").
-    const onSwitch = () => refreshCount();
-    window.addEventListener(AI_BILLING_EVENT, onSwitch);
-    window.addEventListener("vc:workspace-switch", onSwitch);
-
-    const t = setInterval(refreshCount, 60000);
-    return () => {
-      clearInterval(t);
-      cleanup?.();
-      window.removeEventListener(AI_BILLING_EVENT, onSwitch);
-      window.removeEventListener("vc:workspace-switch", onSwitch);
-    };
-  }, []);
+  // OPT-5: one shared store — this component renders more than once per page
+  // (desktop + mobile headers), and each copy previously ran its own fetch and
+  // its own 60s timer: 4 requests a minute for a single number. The store also
+  // owns the socket attachment and re-attaches on reconnect.
+  const { unread: unreadCount } = useNotificationCount();
 
   return (
     <div className="tw">

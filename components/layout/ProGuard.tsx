@@ -54,7 +54,7 @@ export function ProGuard({ children }: { children: React.ReactNode }) {
     // PRIORITY 1: Already purchased Pro → straight through to the dashboard.
     if (hasPro && proPurchasedAt) {
       grantAttempted.current = true;
-      // Restore proTeamId into the billing key so axios sends X-Team-Context
+      // Restore proTeamId into the billing key so axios sends X-Workspace-Context
       // on the first flow query. localStorage may be cleared between sessions
       // (iOS WebView kills storage on app restart) without this the first
       // query has no header and leaks free flows into the Pro app (race
@@ -102,7 +102,7 @@ export function ProGuard({ children }: { children: React.ReactNode }) {
               // localStorage blocked in restricted WebView — non-fatal.
             }
             // Pin as the active billing/data context immediately so the axios
-            // interceptor sends X-Team-Context=proTeamId on all subsequent
+            // interceptor sends X-Workspace-Context=proTeamId on all subsequent
             // requests without waiting for AiBillingContext.refresh().
             setAiBillingTeamId(result.proTeamId);
             // Non-blocking: best-effort persist of active context server-side.
@@ -200,7 +200,7 @@ export function ProGuard({ children }: { children: React.ReactNode }) {
   //     this is the window in which an unentitled web user would otherwise see
   //     the Pro shell before the effect bounces them to /upgrade-pro.
   // Genuine WebView users skip the loading-gate so the Pro dashboard renders
-  // immediately (the X-Team-Context header is available from frame 1).
+  // immediately (the X-Workspace-Context header is available from frame 1).
   // Only consult the UA AFTER hydration (mounted) — see the `mounted` note
   // above. On the hydration render this is `false`, matching the server.
   const webViewDetected = mounted && isProWebView();

@@ -257,6 +257,85 @@ function CreateGroupOverlay({
 // Backend caps shape content at 24M chars. base64 ≈ 1.33× the raw file,
 // so the largest safe raw image is ~18MB.
 const MAX_CONTENT_CHARS = 24_000_000;
+
+/**
+ * Shrink an oversized image shape before it is stored (bug-109).
+ *
+ * Shapes were saved as the raw file, verbatim: `readAsDataURL(file)` with no
+ * resize. A single one was allowed up to ~18MB (MAX_CONTENT_CHARS), and EVERY
+ * insert embeds the whole data URL into the flow's diagram XML — so two 13.5MB
+ * shapes on one flow produced a 27MB save against the backend's 25MB body limit
+ * and the save failed with "request entity too large". It also made each
+ * FlowVersion snapshot carry a copy.
+ *
+ * Raising the limit would only move the wall to three shapes, so the fix is
+ * here: rasterise to at most MAX_EDGE px and re-encode. A 13.5MB screenshot-as-
+ * SVG becomes tens of KB.
+ *
+ * Small content is returned untouched, which deliberately keeps genuine vector
+ * SVGs vector — they are tiny, and rasterising them would cost scalability for
+ * no benefit.
+ */
+const COMPRESS_ABOVE_BYTES = 1_000_000; // ~1MB of data URL
+const MAX_EDGE = 1024;
+
+async function compressImageContent(dataUrl: string): Promise<string> {
+  if (!dataUrl || dataUrl.length <= COMPRESS_ABOVE_BYTES) return dataUrl;
+  if (!/^data:image\//i.test(dataUrl)) return dataUrl;
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("decode failed"));
+      el.src = dataUrl;
+    });
+
+    // An SVG without intrinsic dimensions decodes to 0×0 — nothing to scale
+    // from, so keep the original rather than writing out a blank canvas.
+    const sw = img.naturalWidth || img.width;
+    const sh = img.naturalHeight || img.height;
+    if (!sw || !sh) return dataUrl;
+
+    const scale = Math.min(MAX_EDGE / sw, MAX_EDGE / sh, 1);
+    const w = Math.max(1, Math.round(sw * scale));
+    const h = Math.max(1, Math.round(sh * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+
+    // PNG first — shapes are overlaid on a canvas and transparency matters.
+    let out = canvas.toDataURL("image/png");
+    // A photographic source can still be large as PNG; fall back to JPEG on a
+    // white matte (JPEG has no alpha) only if PNG did not help enough.
+    if (out.length > COMPRESS_ABOVE_BYTES) {
+      const flat = document.createElement("canvas");
+      flat.width = w;
+      flat.height = h;
+      const fctx = flat.getContext("2d");
+      if (fctx) {
+        fctx.fillStyle = "#ffffff";
+        fctx.fillRect(0, 0, w, h);
+        fctx.drawImage(canvas, 0, 0);
+        const jpg = flat.toDataURL("image/jpeg", 0.85);
+        if (jpg.length < out.length) out = jpg;
+      }
+    }
+    // Never return something BIGGER than we were given.
+    return out.length < dataUrl.length ? out : dataUrl;
+  } catch {
+    // Compression is an optimisation, never a gate — on any failure the
+    // original is stored and the existing size guard still applies.
+    return dataUrl;
+  }
+}
+
 const MAX_IMAGE_MB = 18;
 
 function ShapesContent() {
@@ -449,6 +528,15 @@ function ShapesContent() {
         const file = values.upload[0]?.originFileObj;
         if (file) {
           content = await getBase64(file);
+          const before = content.length;
+          content = await compressImageContent(content);
+          if (content.length < before) {
+            toast.success(
+              `Image optimised: ${(before / 1_000_000).toFixed(1)}MB → ${(
+                content.length / 1_000_000
+              ).toFixed(2)}MB`,
+            );
+          }
         }
       }
 

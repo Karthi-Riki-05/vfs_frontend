@@ -38,9 +38,7 @@ import {
   List as ListIcon,
   LayoutGrid,
   Star,
-  Folder,
   Share2,
-  Eye,
   ChevronLeft,
   ChevronRight,
   Lock,
@@ -51,6 +49,10 @@ import EmptyState from "@/components/common/EmptyState";
 import ShareFlowModal from "@/components/flows/ShareFlowModal";
 import AssignProjectModal from "@/components/flows/AssignProjectModal";
 import FlowMenuModal from "@/components/flows/FlowMenuModal";
+import SharedWithAvatars from "@/components/flows/SharedWithAvatars";
+import FlowCollection, { timeAgo } from "@/components/flows/FlowCollection";
+import ViewToggle from "@/components/common/ViewToggle";
+import { useFlowView } from "@/hooks/useFlowView";
 import { useFlows, useLockState } from "@/hooks/useFlows";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { useTabFocus } from "@/hooks/useTabFocus";
@@ -81,24 +83,6 @@ const MOBILE_THUMB_GRADIENTS = [
   "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)",
   "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)",
 ];
-
-function timeAgo(dateStr: string): string {
-  const now = new Date();
-  const date = new Date(dateStr);
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins} mins ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours} hours ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return date.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 function Spinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const sz =
@@ -264,43 +248,6 @@ function LocalSearchBar({
   );
 }
 
-function LocalViewToggle({
-  view,
-  onChange,
-}: {
-  view: "list" | "grid";
-  onChange: (v: "list" | "grid") => void;
-}) {
-  return (
-    <div className="inline-flex p-1 rounded-xl bg-secondary">
-      <button
-        onClick={() => onChange("list")}
-        aria-label="List view"
-        aria-pressed={view === "list"}
-        className={`w-9 h-8 rounded-lg flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer ${
-          view === "list"
-            ? "bg-card shadow-sm text-primary"
-            : "text-muted-foreground"
-        }`}
-      >
-        <ListIcon className="w-4 h-4" />
-      </button>
-      <button
-        onClick={() => onChange("grid")}
-        aria-label="Grid view"
-        aria-pressed={view === "grid"}
-        className={`w-9 h-8 rounded-lg flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer ${
-          view === "grid"
-            ? "bg-card shadow-sm text-primary"
-            : "text-muted-foreground"
-        }`}
-      >
-        <LayoutGrid className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}
-
 /* ─────────────────────────────────────────────────────── */
 
 export default function FlowsPage() {
@@ -357,23 +304,63 @@ export default function FlowsPage() {
     }
   }, [lockLoading, isLocked, lockState.overLimitModalShown]);
 
+  // ── MASTER FLOWS — my members' flows (RE-ENABLED 2026-08-08) ─────────────
+  // The two lists on this page are now a clean split of the workspace, by owner
+  // decision: the grid above is "MY FLOWS" (flows I created), this panel is
+  // everything my MEMBERS created in the same workspace. No overlap, no gap —
+  // the server enforces it as complementary `creatorId` filters over one shared
+  // workspace+appContext boundary (flow.service `resolveWorkspaceScope` vs
+  // `getOwnerMasterFlows`).
+  //
+  // Both sides are app-scoped, so switching Team↔Pro changes this panel too: in
+  // test123's team app it shows spiderman123's "Spiderman"; in the pro app,
+  // spiderman123's "Untitled Flow". It used to have NO app boundary at all.
+  //
+  // Sends no explicit context — the axios interceptor attaches X-App-Context and
+  // X-Workspace-Context, and both are verified server-side (a forged workspace
+  // header resolves back to the caller's own). Non-owners get `[]`, not a 403,
+  // so this is safe to call unconditionally; the panel simply stays hidden when
+  // the list comes back empty.
   const [masterFlows, setMasterFlows] = useState<any[]>([]);
   const [masterLoading, setMasterLoading] = useState(false);
+  // One request per workspace, not per re-render. `hydrated` and `activeTeamId`
+  // settle on separate ticks, so the effect ran twice on every page load; this
+  // remembers what it already fetched. Same pattern as the shared stores added
+  // for bug-099 — a duplicate layout request is the thing that snowballs into
+  // "Too many requests" when several of them do it at once.
+  const masterFetchedFor = React.useRef<string | null>(null);
   useEffect(() => {
-    if (!activeTeamId) {
-      setMasterFlows([]);
-      return;
-    }
+    // No `if (!activeTeamId) return` guard: activeTeamId is null in the personal
+    // context, and the workspace OWNER sitting in their own context is precisely
+    // who this panel is for. That bail is why it looked dead even after the
+    // server-side gate was fixed.
+    if (!hydrated) return;
+    const key = activeTeamId || "personal";
+    if (masterFetchedFor.current === key) return;
+    masterFetchedFor.current = key;
     setMasterLoading(true);
+    // Staleness is checked against the ref, NOT a per-run `cancelled` flag with
+    // an unmount cleanup. The effect re-runs the moment activeTeamId settles, so
+    // a cleanup would flip `cancelled` on the run that owns the in-flight
+    // request — the response then arrived and every setState was skipped,
+    // including the one that turns the spinner off. The panel span forever.
+    // Comparing keys instead means only a genuinely superseded workspace is
+    // dropped.
+    const isCurrent = () => masterFetchedFor.current === key;
     api
       .get("/flows/master-view")
       .then((r) => {
+        if (!isCurrent()) return;
         const data = r.data?.data || r.data;
         setMasterFlows(Array.isArray(data?.flows) ? data.flows : []);
       })
-      .catch(() => setMasterFlows([]))
-      .finally(() => setMasterLoading(false));
-  }, [activeTeamId]);
+      .catch(() => {
+        if (isCurrent()) setMasterFlows([]);
+      })
+      .finally(() => {
+        if (isCurrent()) setMasterLoading(false);
+      });
+  }, [activeTeamId, hydrated]);
 
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   useEffect(() => {
@@ -386,7 +373,9 @@ export default function FlowsPage() {
     (projectId ? 1 : 0) +
     (sort !== "updatedAt" ? 1 : 0) +
     (sortDirection !== "desc" ? 1 : 0);
-  const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
+  // Shared with every other flow surface (trash, favourites, recents, project
+  // detail, dashboard) — one preference, one storage key.
+  const [viewMode, handleViewChange] = useFlowView("grid");
   const [tab, setTab] = useState<"templates" | "all">("all");
   const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false);
   const [templateBrowserCategory, setTemplateBrowserCategory] = useState("All");
@@ -414,16 +403,6 @@ export default function FlowsPage() {
     open: boolean;
     flow: any | null;
   }>({ open: false, flow: null });
-
-  useEffect(() => {
-    const saved = localStorage.getItem("flows_view_mode");
-    if (saved === "grid" || saved === "list") setViewMode(saved);
-  }, []);
-
-  const handleViewChange = (v: "grid" | "list") => {
-    setViewMode(v);
-    localStorage.setItem("flows_view_mode", v);
-  };
 
   const handleEdit = (id: string) => {
     const flow = [...flows, ...sharedFlows].find((f) => f.id === id);
@@ -504,6 +483,33 @@ export default function FlowsPage() {
     </button>
   );
 
+  // ── Shared flow renderers ────────────────────────────────────────────────
+  // MY FLOWS and ALL FLOWS render the SAME card and row, so they are one
+  // implementation each rather than a copy per section. The copies had already
+  // started drifting (the desktop list row grew a favourite star the mobile one
+  // never got); a third copy for ALL FLOWS would have made that permanent.
+  //
+  // No `showCreator` flag: every row already prints "Created by X" when
+  // `createdBySelf` is false, and the server sets that on exactly the rows where
+  // it is true — ALL FLOWS is member-created by definition, MY FLOWS never is.
+
+  // ── Flow renderers ───────────────────────────────────────────────────────
+  // MY FLOWS, ALL FLOWS and Shared-with-me all render through the one shared
+  // FlowCollection, which is also what every other flow surface in the app now
+  // uses. Desktop/mobile is decided inside it.
+
+  const renderFlows = (list: any[], newTile = false) => (
+    <FlowCollection
+      flows={list}
+      view={viewMode}
+      onOpen={handleEdit}
+      onMenu={(flow) => setFlowMenu({ open: true, flow })}
+      isLocked={isLocked}
+      newTile={newTile}
+      onNewFlow={handleNewFlow}
+    />
+  );
+
   const renderSharedActions = (flow: any) => (
     <button
       aria-label={`Actions for ${flow?.name || "flow"}`}
@@ -559,9 +565,13 @@ export default function FlowsPage() {
         {tab === "all" && (
           <div className="flex items-center justify-between mt-3">
             <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              All Flows
+              {/* "My Flows", matching desktop — this list is creator-scoped now,
+                  and calling it "All Flows" would collide with the ALL FLOWS
+                  section below it, which is the members' half. The TAB above
+                  keeps its "All Flows" label: that one means "not Templates". */}
+              My Flows
             </div>
-            <LocalViewToggle view={viewMode} onChange={handleViewChange} />
+            <ViewToggle view={viewMode} onChange={handleViewChange} />
           </div>
         )}
 
@@ -609,151 +619,7 @@ export default function FlowsPage() {
           </div>
         ) : displayFlows.length > 0 ? (
           <>
-            {viewMode === "list" ? (
-              <div className="mt-3 space-y-2">
-                {displayFlows.map((flow: any) => (
-                  <div
-                    key={flow.id}
-                    className="flex items-center gap-3 p-3 rounded-2xl bg-card border border-border shadow-[var(--shadow-card)]"
-                  >
-                    <div
-                      className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center cursor-pointer"
-                      style={{
-                        background:
-                          MOBILE_THUMB_GRADIENTS[
-                            displayFlows.indexOf(flow) %
-                              MOBILE_THUMB_GRADIENTS.length
-                          ],
-                      }}
-                      onClick={() => handleEdit(flow.id)}
-                    >
-                      {flow.thumbnail ? (
-                        <img
-                          src={flow.thumbnail}
-                          alt={
-                            flow?.name
-                              ? `${flow.name} thumbnail`
-                              : "Flow thumbnail"
-                          }
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <MiniFlow color={BRAND_GREEN} />
-                      )}
-                      {(isLocked || !!flow?.markedForDowngrade) && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl">
-                          <Lock className="w-4 h-4 text-white" />
-                        </div>
-                      )}
-                    </div>
-                    <div
-                      className="flex-1 min-w-0 cursor-pointer"
-                      onClick={() => handleEdit(flow.id)}
-                    >
-                      <div className="font-semibold text-sm truncate text-foreground">
-                        {flow.name}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">
-                        Edited {timeAgo(flow.updatedAt)}
-                      </div>
-                    </div>
-                    <button
-                      aria-label={`Actions for ${flow?.name || "flow"}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFlowMenu({ open: true, flow });
-                      }}
-                      className="w-9 h-9 rounded-lg flex items-center justify-center border-0 p-0 appearance-none cursor-pointer bg-secondary"
-                    >
-                      <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="mmt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3">
-                {displayFlows.map((flow: any, index: number) => (
-                  <div
-                    key={flow.id}
-                    className="relative rounded-2xl bg-card border border-border overflow-hidden shadow-[var(--shadow-card)]"
-                  >
-                    <button
-                      onClick={() => handleEdit(flow.id)}
-                      className="w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
-                    >
-                      <div
-                        className="h-36 w-full relative overflow-hidden flex items-center justify-center text-3xl"
-                        style={{
-                          background:
-                            MOBILE_THUMB_GRADIENTS[
-                              index % MOBILE_THUMB_GRADIENTS.length
-                            ],
-                        }}
-                      >
-                        {flow.thumbnail ? (
-                          <img
-                            src={flow.thumbnail}
-                            alt={
-                              flow?.name
-                                ? `${flow.name} thumbnail`
-                                : "Flow thumbnail"
-                            }
-                            className="absolute inset-0 w-full h-full object-contain"
-                          />
-                        ) : (
-                          <MiniFlow color={BRAND_GREEN} />
-                        )}
-                        {(isLocked || !!flow?.markedForDowngrade) && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
-                            <div className="flex flex-col items-center gap-1">
-                              <Lock className="w-6 h-6 text-white drop-shadow" />
-                              <span className="text-white text-[10px] font-semibold drop-shadow">
-                                Locked
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-3 pr-9">
-                        <div className="font-semibold text-[13px] truncate text-foreground">
-                          {flow.name}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          Edited {timeAgo(flow.updatedAt)}
-                        </div>
-                        {!flow.createdBySelf && flow.createdByName && (
-                          <div
-                            className="text-[11px] mt-0.5"
-                            style={{ color: "var(--blue)" }}
-                          >
-                            Created by {flow.createdByName}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                    <button
-                      aria-label={`Actions for ${flow?.name || "flow"}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFlowMenu({ open: true, flow });
-                      }}
-                      className="absolute bottom-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center border-0 p-0 appearance-none cursor-pointer bg-secondary"
-                    >
-                      <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                  </div>
-                ))}
-                <div
-                  onClick={handleNewFlow}
-                  className="border-2 border-dashed border-border rounded-2xl h-44 flex flex-col items-center justify-center bg-background cursor-pointer gap-1"
-                >
-                  <span className="text-2xl text-primary font-bold">+</span>
-                  <span className="text-sm font-semibold text-primary">
-                    New Flow
-                  </span>
-                </div>
-              </div>
-            )}
+            {renderFlows(displayFlows, true)}
 
             <SimplePager
               current={page}
@@ -784,6 +650,23 @@ export default function FlowsPage() {
             >
               + Create Flow
             </button>
+          </div>
+        )}
+
+        {/* ── ALL FLOWS (mobile) — my members' flows ──
+            Same data and rule as the desktop section, same grid/list toggle,
+            using the mobile card/row styling.
+
+            This section is NEW on mobile, and it has to be: MY FLOWS became
+            creator-scoped, so without it an owner on the phone (the Flutter
+            WebView included) would simply stop seeing their members' work — the
+            desktop-only panel is what used to cover them. */}
+        {tab === "all" && masterFlows.length > 0 && (
+          <div className="mt-8">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+              ALL FLOWS
+            </div>
+            {renderFlows(masterFlows)}
           </div>
         )}
 
@@ -920,7 +803,7 @@ export default function FlowsPage() {
             </SelectContent>
           </Select>
 
-          <LocalViewToggle view={viewMode} onChange={handleViewChange} />
+          <ViewToggle view={viewMode} onChange={handleViewChange} />
         </div>
 
         {/* ── Template Section ── */}
@@ -997,127 +880,7 @@ export default function FlowsPage() {
           </div>
         ) : displayFlows.length > 0 ? (
           <>
-            {viewMode === "grid" ? (
-              <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
-                {displayFlows.map((flow: any) => (
-                  <div
-                    key={flow.id}
-                    className="relative rounded-2xl bg-card border border-border overflow-hidden shadow-[var(--shadow-card)] hover:-translate-y-0.5 transition"
-                  >
-                    <button
-                      onClick={() => handleEdit(flow.id)}
-                      className="w-full text-left appearance-none border-0 p-0 bg-transparent cursor-pointer"
-                    >
-                      <div
-                        className="h-28 relative flex items-center justify-center overflow-hidden"
-                        style={{ background: `${BRAND_GREEN}14` }}
-                      >
-                        {flow.thumbnail ? (
-                          <img
-                            src={flow.thumbnail}
-                            alt={
-                              flow?.name
-                                ? `${flow.name} thumbnail`
-                                : "Flow thumbnail"
-                            }
-                            className="w-full h-full object-contain"
-                          />
-                        ) : (
-                          <MiniFlow color={BRAND_GREEN} />
-                        )}
-                        {(isLocked || !!flow?.markedForDowngrade) && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40 backdrop-blur-[1px]">
-                            <Lock className="w-6 h-6 text-white drop-shadow" />
-                            <span className="text-white text-[10px] font-semibold drop-shadow">
-                              Locked
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-3 pr-10">
-                        <div className="font-semibold text-[13px] truncate text-foreground flex items-center gap-1">
-                          {flow.name}
-                          {flow.isFavorite && (
-                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 shrink-0" />
-                          )}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          Edited {timeAgo(flow.updatedAt)}
-                        </div>
-                        {!flow.createdBySelf && flow.createdByName && (
-                          <div
-                            className="text-[11px] mt-0.5"
-                            style={{ color: "var(--blue)" }}
-                          >
-                            Created by {flow.createdByName}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                    <div className="absolute bottom-2 right-2">
-                      {renderFlowActions(flow)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {displayFlows.map((flow: any) => (
-                  <div
-                    key={flow.id}
-                    className="flex items-center gap-3 p-3 rounded-2xl bg-card border border-border shadow-[var(--shadow-card)]"
-                  >
-                    <div
-                      className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center cursor-pointer"
-                      style={{ background: `${BRAND_GREEN}1a` }}
-                      onClick={() => handleEdit(flow.id)}
-                    >
-                      {flow.thumbnail ? (
-                        <img
-                          src={flow.thumbnail}
-                          alt={
-                            flow?.name
-                              ? `${flow.name} thumbnail`
-                              : "Flow thumbnail"
-                          }
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <MiniFlow color={BRAND_GREEN} />
-                      )}
-                      {(isLocked || !!flow?.markedForDowngrade) && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl">
-                          <Lock className="w-4 h-4 text-white" />
-                        </div>
-                      )}
-                    </div>
-                    <div
-                      className="flex-1 min-w-0 cursor-pointer"
-                      onClick={() => handleEdit(flow.id)}
-                    >
-                      <div className="font-semibold text-sm truncate text-foreground flex items-center gap-1">
-                        {flow.name}
-                        {flow.isFavorite && (
-                          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 shrink-0" />
-                        )}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">
-                        Edited {timeAgo(flow.updatedAt)}
-                      </div>
-                      {!flow.createdBySelf && flow.createdByName && (
-                        <div
-                          className="text-[11px] mt-0.5"
-                          style={{ color: "var(--blue)" }}
-                        >
-                          Created by {flow.createdByName}
-                        </div>
-                      )}
-                    </div>
-                    {renderFlowActions(flow)}
-                  </div>
-                ))}
-              </div>
-            )}
+            {renderFlows(displayFlows)}
 
             <SimplePager
               current={page}
@@ -1136,73 +899,23 @@ export default function FlowsPage() {
           />
         )}
 
-        {/* ── Team master view (§5 owner sees all member flows) ── */}
+        {/* ── ALL FLOWS — what my members created in this workspace ──
+            The complement of MY FLOWS above (my own), scoped to the same
+            workspace and app context. Owner-only: everyone else gets an empty
+            list from the server, so this renders nothing for them.
+
+            Uses the SAME card and row renderers as MY FLOWS and follows the same
+            grid/list toggle — it was a bespoke 4-column table, the only list on
+            the page that ignored the view switch. */}
         {(masterLoading || masterFlows.length > 0) && (
           <div className="mt-12">
-            <SectionHeader title="TEAM — ALL FLOWS" />
+            <SectionHeader title="ALL FLOWS" />
             {masterLoading ? (
               <div className="flex items-center justify-center py-10">
                 <Spinner />
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-secondary/50">
-                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">
-                        Project
-                      </th>
-                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-[11px] uppercase tracking-wider w-40">
-                        Last Modified
-                      </th>
-                      <th className="w-20" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {masterFlows.map((flow: any) => (
-                      <tr
-                        key={flow.id}
-                        className="hover:bg-secondary/30 transition"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-foreground">
-                            {flow.name}
-                          </div>
-                          {!flow.createdBySelf && (
-                            <Badge color="blue">
-                              Created by {flow.createdByName || "member"}
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {flow.projectName ? (
-                            <span className="inline-flex items-center gap-1">
-                              <Folder className="w-3.5 h-3.5" />
-                              {flow.projectName}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground text-[12px]">
-                          {timeAgo(flow.updatedAt)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleEdit(flow.id)}
-                            className="inline-flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-medium border border-border bg-background hover:bg-secondary transition cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5" /> Open
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              renderFlows(masterFlows)
             )}
           </div>
         )}

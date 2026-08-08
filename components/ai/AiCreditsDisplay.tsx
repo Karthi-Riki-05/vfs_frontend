@@ -7,7 +7,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ThunderboltFilled } from "@ant-design/icons";
-import { aiApi } from "@/api/ai.api";
+import { useAiCredits } from "@/hooks/useAiCredits";
 import { useAiBilling } from "@/context/AiBillingContext";
 
 interface CreditBalance {
@@ -24,20 +24,21 @@ export default function AiCreditsDisplay({
   compact?: boolean;
 }) {
   const { activeBillingTeamId } = useAiBilling();
-  const [balance, setBalance] = useState<CreditBalance | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const fetchBalance = useCallback(async () => {
-    try {
-      const res = await aiApi.getCredits();
-      const data = res.data?.data || res.data;
-      setBalance(data);
-    } catch {
-      setBalance(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // OPT-3: the fetch lives in the shared store. `activeBillingTeamId` still
+  // matters — the same user sees a different balance per billing profile — but
+  // the store already invalidates on AI_BILLING_EVENT, so this component no
+  // longer needs its own request to follow the switch.
+  const {
+    data: balance,
+    loading,
+    reload,
+  } = useAiCredits() as {
+    data: CreditBalance | null;
+    loading: boolean;
+    reload: () => void;
+  };
+  const fetchBalance = useCallback(() => reload(), [reload]);
 
   // Re-fetch whenever the AI-billing context changes — the same user can see
   // different balances for personal vs each team's shared credit pool.

@@ -58,8 +58,13 @@ export function createProxy(
           Authorization: `Bearer ${token}`,
         };
         // Forward workspace-scoping headers set by the browser's axios interceptor.
-        const teamCtx = req.headers.get("x-team-context");
-        if (teamCtx) headers["X-Team-Context"] = teamCtx;
+        // Read the legacy name too: a browser tab loaded before this deploy
+        // still sends X-Team-Context, and dropping it would silently reset that
+        // tab to the personal workspace.
+        const teamCtx =
+          req.headers.get("x-workspace-context") ||
+          req.headers.get("x-team-context");
+        if (teamCtx) headers["X-Workspace-Context"] = teamCtx;
         const appCtx = req.headers.get("x-app-context");
         if (appCtx) headers["X-App-Context"] = appCtx;
         const { searchParams } = new URL(req.url);
@@ -92,7 +97,7 @@ export function createProxy(
           status: response.status,
           headers: {
             "Cache-Control": "no-store, no-cache, must-revalidate",
-            Vary: "X-App-Context, X-Team-Context",
+            Vary: "X-App-Context, X-Workspace-Context",
             Pragma: "no-cache",
             Expires: "0",
           },

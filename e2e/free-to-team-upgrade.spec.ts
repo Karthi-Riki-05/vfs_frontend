@@ -9,7 +9,7 @@
  *
  * Guards the shape.service + project.service fix:
  *   NULL-teamId data created as a free user must remain visible after upgrade
- *   creates a team and the frontend starts sending X-Team-Context.
+ *   creates a team and the frontend starts sending X-Workspace-Context.
  *
  * Auth strategy: login ONCE per phase and reuse storageState to avoid
  * tripping the auth rate limiter (10 attempts / 15 min per email).
@@ -168,7 +168,7 @@ async function apiPost(
     "Content-Type": "application/json",
     "X-App-Context": "team",
   };
-  if (teamId) headers["X-Team-Context"] = teamId;
+  if (teamId) headers["X-Workspace-Context"] = teamId;
   return ctx.request
     .post(`${BASE_URL}${path}`, { data: body, headers })
     .then((r) => r.json());
@@ -176,7 +176,7 @@ async function apiPost(
 
 async function apiGet(ctx: BrowserContext, path: string, teamId?: string) {
   const headers: Record<string, string> = { "X-App-Context": "team" };
-  if (teamId) headers["X-Team-Context"] = teamId;
+  if (teamId) headers["X-Workspace-Context"] = teamId;
   return ctx.request
     .get(`${BASE_URL}${path}`, { headers })
     .then((r) => r.json());
@@ -356,7 +356,7 @@ test.describe("Free → Team Upgrade: Data Persistence", () => {
       );
       expect(
         e2e.length,
-        `Expected 2 pre-upgrade flows with X-Team-Context. ` +
+        `Expected 2 pre-upgrade flows with X-Workspace-Context. ` +
           `Got: ${JSON.stringify(list.map((f: { name: string }) => f.name))}`,
       ).toBe(2);
     });
@@ -373,7 +373,7 @@ test.describe("Free → Team Upgrade: Data Persistence", () => {
       );
       expect(
         e2e.length,
-        `Shape created BEFORE upgrade must still be visible AFTER upgrade with X-Team-Context. ` +
+        `Shape created BEFORE upgrade must still be visible AFTER upgrade with X-Workspace-Context. ` +
           `This is the core regression for shape.service isOwnTeamAppTeam fix. ` +
           `Got: ${JSON.stringify(list.map((s: { name: string }) => s.name))}`,
       ).toBeGreaterThanOrEqual(1);

@@ -30,7 +30,7 @@ export function useTeams() {
   useEffect(() => onWorkspaceFlush(() => setTeams([])), []);
 
   // Re-fetch once the new workspace context is fully committed (teamId written
-  // to localStorage, axios interceptor will send the correct X-Team-Context).
+  // to localStorage, axios interceptor will send the correct X-Workspace-Context).
   useEffect(() => {
     const handler = () => fetchTeams();
     window.addEventListener("vc:workspace-switch", handler);

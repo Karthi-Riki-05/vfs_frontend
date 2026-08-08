@@ -212,7 +212,9 @@ export default function TeamDetailPage() {
     confirmDialog({
       title: "Delete team?",
       content:
-        "This permanently deletes the team for all members. This cannot be undone.",
+        // bug-094: the second delete entry point — keep it honest about the
+        // chat and projects going too, same as the Teams-page dialog.
+        "This permanently deletes the team, its team chat, and all its projects, for all members. This cannot be undone.",
       confirmLabel: "Delete",
       danger: true,
       onConfirm: async () => {

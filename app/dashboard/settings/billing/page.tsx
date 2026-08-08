@@ -393,7 +393,11 @@ export default function BillingPage() {
               purchased (app-store settings or the web) — no Stripe
               cancel/reactivate actions in-app. clientAppType !== "web"
               covers both shells. */}
+          {/* bug-091: a Play/App Store subscription cannot be cancelled or
+              resumed through Stripe (409 MANAGED_BY_STORE), and that is true
+              on the web too — not just in a native shell. */}
           {clientAppType === "web" &&
+            !status?.managedByStore &&
             !isProApp &&
             isTeamSubUsable &&
             (subscription?.status === "cancelling" ? (
@@ -427,6 +431,12 @@ export default function BillingPage() {
                 Cancel Subscription
               </button>
             ))}
+          {status?.managedByStore && isTeamSubUsable && (
+            <div className="w-full sm:flex-1 flex items-center justify-center text-xs text-muted-foreground text-center px-2">
+              Managed by {status.storeName || "your app store"} — cancel or
+              change seats there.
+            </div>
+          )}
         </div>
 
         {/* {(subscription || proStatus?.hasPro) && (

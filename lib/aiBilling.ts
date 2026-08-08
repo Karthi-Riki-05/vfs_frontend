@@ -1,6 +1,6 @@
 // Shared helpers for the team context.
 //
-// The X-Team-Context header drives BOTH data scope (flow/shape workspace) AND
+// The X-Workspace-Context header drives BOTH data scope (flow/shape workspace) AND
 // AI billing context. A single selection picks the active workspace (which
 // flows, dashboard stats, chat and projects you see) and the AI-credit pool
 // (personal vs a team's) that gets billed. It is sent on ALL routes via the

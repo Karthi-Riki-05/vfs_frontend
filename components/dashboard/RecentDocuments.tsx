@@ -16,8 +16,9 @@ import {
   MoreOutlined,
   FolderOutlined,
 } from "@ant-design/icons";
-import FlowCard from "@/components/flows/FlowCard";
-import AssignProjectModal from "@/components/flows/AssignProjectModal";
+import FlowCollection from "@/components/flows/FlowCollection";
+import { useFlowView } from "@/hooks/useFlowView";
+import { useFlowActions } from "@/hooks/useFlowActions";
 import SectionHeader from "@/components/common/SectionHeader";
 import ViewToggle from "@/components/common/ViewToggle";
 import EmptyState from "@/components/common/EmptyState";
@@ -84,7 +85,7 @@ export default function RecentDocuments() {
     duplicateFlow,
     favoriteFlow,
   } = useFlows();
-  const [view, setView] = useState<"grid" | "list">("grid");
+  const [view, handleViewChange] = useFlowView("grid");
   const router = useRouter();
 
   // Rename state
@@ -108,20 +109,17 @@ export default function RecentDocuments() {
     flowId: null,
   });
 
-  // Load saved preference
-  useEffect(() => {
-    const saved = localStorage.getItem("dashboard_view_mode");
-    if (saved === "grid" || saved === "list") setView(saved);
-  }, []);
-
-  const handleViewChange = (newView: "grid" | "list") => {
-    setView(newView);
-    localStorage.setItem("dashboard_view_mode", newView);
-  };
-
   const handleEdit = (id: string) => {
     window.open(`/dashboard/flows/${id}`, "_blank");
   };
+
+  // Same seven options as /dashboard/flows. This block previously rendered
+  // whatever `FlowCard` built in grid view and a different inline menu in list
+  // view, so the dashboard's own two views disagreed with each other.
+  const actions = useFlowActions({
+    onChanged: fetchFlows,
+    onEdit: (id) => handleEdit(id),
+  });
 
   const handleDelete = async (id: string) => {
     await deleteFlow(id);
@@ -226,190 +224,16 @@ export default function RecentDocuments() {
           onAction={handleCreateNew}
           icon={<FileAddOutlined style={{ fontSize: 48, color: "#3CB371" }} />}
         />
-      ) : view === "grid" ? (
-        <Row gutter={[24, 24]}>
-          {flows.map((flow: any, index: number) => (
-            <Col xs={24} sm={12} md={8} lg={6} key={flow.id}>
-              <FlowCard
-                flow={flow}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onDuplicate={handleDuplicate}
-                onFavorite={handleFavorite}
-                onRename={(id, name) =>
-                  setRenameModal({ open: true, id, name })
-                }
-                onAssignProject={(id) =>
-                  setAssignModal({
-                    open: true,
-                    flowId: id,
-                    currentProjectId: flow.projectId,
-                  })
-                }
-                variant="default"
-                placeholderColor={
-                  PLACEHOLDER_COLORS[index % PLACEHOLDER_COLORS.length]
-                }
-              />
-            </Col>
-          ))}
-        </Row>
       ) : (
-        /* List View */
-        <div
-          style={{
-            border: "1px solid #F0F0F0",
-            borderRadius: 8,
-            overflow: "hidden",
-          }}
-        >
-          {flows.map((flow: any) => (
-            <div
-              key={flow.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 16,
-                padding: "12px 16px",
-                borderBottom: "1px solid #F0F0F0",
-                cursor: "pointer",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#FAFAFA";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-              }}
-              onClick={() => handleEdit(flow.id)}
-            >
-              <div
-                style={{
-                  width: 48,
-                  height: 40,
-                  borderRadius: 6,
-                  background: "#F8F9FA",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "hidden",
-                  flexShrink: 0,
-                }}
-              >
-                {flow.thumbnail ? (
-                  <img
-                    src={flow.thumbnail}
-                    alt=""
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "contain",
-                    }}
-                  />
-                ) : (
-                  <ProjectOutlined style={{ fontSize: 20, color: "#BFBFBF" }} />
-                )}
-              </div>
-              <div style={{ flex: 1, overflow: "hidden" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Text
-                    strong
-                    ellipsis
-                    style={{ fontSize: 14, color: "#1A1A2E" }}
-                  >
-                    {flow.name}
-                  </Text>
-                  {flow.isFavorite && (
-                    <HeartFilled style={{ fontSize: 12, color: "#FF4D6A" }} />
-                  )}
-                </div>
-                {flow.projectName && (
-                  <Text style={{ fontSize: 11, color: "#8C8C8C" }}>
-                    <FolderOutlined style={{ marginRight: 4 }} />
-                    {flow.projectName}
-                  </Text>
-                )}
-              </div>
-              <Text style={{ fontSize: 12, color: "#8C8C8C", flexShrink: 0 }}>
-                Edited {timeAgo(flow.updatedAt)}
-              </Text>
-              <div onClick={(e) => e.stopPropagation()}>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="tw appearance-none cursor-pointer outline-none border-0 bg-transparent w-7 h-7 rounded flex items-center justify-center hover:bg-secondary text-muted-foreground"
-                    >
-                      <MoreOutlined />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="tw">
-                    {(getMoreItems(flow) as any[]).map(
-                      (item: any, i: number) =>
-                        item.type === "divider" ? (
-                          <DropdownMenuSeparator key={`sep-${i}`} />
-                        ) : (
-                          <DropdownMenuItem
-                            key={item.key}
-                            onSelect={item.onClick}
-                            disabled={item.disabled}
-                            className={
-                              item.danger
-                                ? "text-destructive focus:text-destructive"
-                                : ""
-                            }
-                          >
-                            {item.icon}
-                            {item.label}
-                          </DropdownMenuItem>
-                        ),
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          ))}
-        </div>
+        <FlowCollection
+          flows={flows}
+          view={view}
+          onOpen={(id) => handleEdit(id)}
+          onMenu={actions.openMenu}
+        />
       )}
 
-      {/* Rename Modal — new_design ModalShell */}
-      <ModalShell
-        open={renameModal.open}
-        onClose={() => setRenameModal({ open: false, id: "", name: "" })}
-      >
-        <ModalHeader
-          title="Rename Flow"
-          close={() => setRenameModal({ open: false, id: "", name: "" })}
-        />
-        <div className="px-5 pb-5">
-          <Field label="New name" required>
-            <FieldInput
-              autoFocus
-              maxLength={255}
-              value={renameModal.name}
-              onChange={(e) =>
-                setRenameModal({ ...renameModal, name: e.target.value })
-              }
-              onKeyDown={(e) => e.key === "Enter" && handleRename()}
-            />
-          </Field>
-        </div>
-        <ModalFooter
-          close={() => setRenameModal({ open: false, id: "", name: "" })}
-          primary={handleRename}
-          primaryLabel="Save"
-          disabled={!renameModal.name.trim()}
-        />
-      </ModalShell>
-
-      {/* Assign to Project Modal */}
-      <AssignProjectModal
-        open={assignModal.open}
-        flowId={assignModal.flowId}
-        currentProjectId={assignModal.currentProjectId}
-        onClose={() => setAssignModal({ open: false, flowId: null })}
-        onSuccess={fetchFlows}
-      />
+      {actions.modals}
     </div>
   );
 }

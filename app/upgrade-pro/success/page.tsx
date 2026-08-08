@@ -9,6 +9,14 @@ import { proApi } from "@/api/pro.api";
 import { colors, borderRadius } from "@/lib/theme";
 
 const PRO_REDIRECT_KEY = "vc_pro_purchase_redirect";
+// bug-095: /upgrade-pro sets this before handing off to Stripe so it can detect
+// a user who BACKED OUT of checkout (that path has no cancel_url, so the marker
+// is the only signal). Landing here means the opposite happened — the payment
+// went through — so the marker must be cleared, or every later visit to
+// /upgrade-pro in this tab claims "Payment not completed. No charge was made."
+// AND skips the guard that redirects an already-Pro user away from the
+// purchase page.
+const STRIPE_PENDING_KEY = "vc_stripe_pending_pro";
 
 function UpgradeProSuccessContent() {
   const searchParams = useSearchParams();
@@ -35,6 +43,8 @@ function UpgradeProSuccessContent() {
   const redirectAfterPurchase = () => {
     try {
       sessionStorage.removeItem(PRO_REDIRECT_KEY);
+      // Belt and braces — the mount effect above already cleared this.
+      sessionStorage.removeItem(STRIPE_PENDING_KEY);
       // Bug-056: without this, the fresh /dashboard/pro load keeps sending
       // the stale X-App-Context header, so the Pro dashboard's stats resolve
       // to the user's Team-app data instead of their (new, empty) Pro data.
@@ -42,6 +52,21 @@ function UpgradeProSuccessContent() {
     } catch {}
     window.location.href = getPostPurchaseRedirect();
   };
+
+  // bug-095: clear the pending-checkout marker on MOUNT, not in
+  // redirectAfterPurchase(). Verification polls for up to 30s and the redirect
+  // is another 2s after that — a user who closes the tab, hits back, or just
+  // navigates away in the meantime would otherwise leave the marker behind and
+  // reproduce the whole bug. Arriving here with a session_id is already proof
+  // that Stripe completed the checkout.
+  useEffect(() => {
+    if (!sessionId) return;
+    try {
+      sessionStorage.removeItem(STRIPE_PENDING_KEY);
+    } catch {
+      // sessionStorage blocked — nothing to clear.
+    }
+  }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId) {

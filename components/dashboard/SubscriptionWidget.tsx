@@ -6,7 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { aiApi } from "@/api/ai.api";
+import { useAiCredits } from "@/hooks/useAiCredits";
 
 const { Text } = Typography;
 
@@ -39,7 +39,9 @@ interface SubInfo {
 
 export default function SubscriptionWidget() {
   const [sub, setSub] = useState<SubInfo | null>(null);
-  const [aiCredits, setAiCredits] = useState<AiCredits | null>(null);
+  // OPT-3: credits come from the shared store (one request for all six
+  // displays) instead of a per-widget fetch + its own aiCreditsChanged listener.
+  const { data: aiCredits } = useAiCredits() as { data: AiCredits | null };
   const [loading, setLoading] = useState(true);
   const [isProApp, setIsProApp] = useState(false);
 
@@ -51,15 +53,6 @@ export default function SubscriptionWidget() {
     }
   }, []);
 
-  const fetchCredits = () => {
-    aiApi
-      .getCredits()
-      .then((res) => {
-        const d = res.data?.data || res.data;
-        if (d) setAiCredits(d);
-      })
-      .catch(() => setAiCredits(null));
-  };
 
   useEffect(() => {
     fetch("/api/subscription/info")
@@ -67,13 +60,6 @@ export default function SubscriptionWidget() {
       .then((data) => setSub(data.data || data))
       .catch(() => setSub({ plan: "Free", is_active: true, expires_at: null }))
       .finally(() => setLoading(false));
-    fetchCredits();
-  }, []);
-
-  useEffect(() => {
-    const handler = () => fetchCredits();
-    window.addEventListener("aiCreditsChanged", handler);
-    return () => window.removeEventListener("aiCreditsChanged", handler);
   }, []);
 
   if (loading) {

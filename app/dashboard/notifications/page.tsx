@@ -140,7 +140,7 @@ export default function NotificationsPage() {
   useEffect(() => {
     load();
 
-    // B41 follow-up: the feed is workspace-scoped (X-Team-Context), so if the
+    // B41 follow-up: the feed is workspace-scoped (X-Workspace-Context), so if the
     // user switches workspace/billing context WHILE parked on this page (the
     // switcher fires these events without navigating/remounting), the list must
     // re-fetch — otherwise it keeps showing the previous workspace's items while
@@ -184,7 +184,7 @@ export default function NotificationsPage() {
     if (n.actionUrl) {
       // Team-scoped notifications (e.g. team_member_joined) must land inside
       // that team's workspace — switch the active context first so the
-      // destination page isn't rendered with the wrong X-Team-Context.
+      // destination page isn't rendered with the wrong X-Workspace-Context.
       if (n.teamId) setAiBillingTeamId(n.teamId);
       if (n.actionUrl.startsWith("http")) window.location.href = n.actionUrl;
       else router.push(n.actionUrl);

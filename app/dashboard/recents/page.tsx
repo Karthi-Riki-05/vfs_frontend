@@ -21,6 +21,9 @@ import { useAppContext } from "@/context/AppContext";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
 import { BRAND_GREEN } from "@/lib/theme";
 import FlowMenuModal from "@/components/flows/FlowMenuModal";
+import FlowCollection from "@/components/flows/FlowCollection";
+import ViewToggle from "@/components/common/ViewToggle";
+import { useFlowView } from "@/hooks/useFlowView";
 import ShareFlowModal from "@/components/flows/ShareFlowModal";
 import AssignProjectModal from "@/components/flows/AssignProjectModal";
 import {
@@ -137,35 +140,6 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-function ViewToggleLocal({
-  view,
-  onChange,
-}: {
-  view: "list" | "grid";
-  onChange: (v: "list" | "grid") => void;
-}) {
-  return (
-    <div className="inline-flex p-1 rounded-xl bg-secondary">
-      <button
-        onClick={() => onChange("list")}
-        aria-label="List view"
-        aria-pressed={view === "list"}
-        className={`w-9 h-8 rounded-lg flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer ${view === "list" ? "bg-card shadow-sm text-primary" : "text-muted-foreground"}`}
-      >
-        <ListIcon className="w-4 h-4" />
-      </button>
-      <button
-        onClick={() => onChange("grid")}
-        aria-label="Grid view"
-        aria-pressed={view === "grid"}
-        className={`w-9 h-8 rounded-lg flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer ${view === "grid" ? "bg-card shadow-sm text-primary" : "text-muted-foreground"}`}
-      >
-        <LayoutGrid className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}
-
 function ListItem({
   title,
   subtitle,
@@ -227,7 +201,7 @@ export default function RecentsPage() {
   const { activeTeamId, hydrated } = useAppContext();
   const [flows, setFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"list" | "grid">("list");
+  const [view, setView] = useFlowView("grid");
   const [lockModalOpen, setLockModalOpen] = useState(false);
   const { lockState } = useLockState();
   const isLocked = lockState.overLimitLocked;
@@ -260,16 +234,16 @@ export default function RecentsPage() {
   const fetchRecentFlows = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.get("/flows");
+      // Ask for the 15 this page shows. It called `/flows` with NO params, so
+      // the backend applied its default `limit = 10` — the client-side sort and
+      // `.slice(0, 15)` below could then never see more than 10 rows, and
+      // "Recents" silently capped at 10 no matter how many flows existed. The
+      // sort was redundant too: getAllFlows already orders updatedAt desc.
+      const response = await api.get("/flows", {
+        params: { limit: 15, sort: "updatedAt", sortDirection: "desc" },
+      });
       const d = response.data?.data || response.data || {};
-      const allFlows = d.flows || (Array.isArray(d) ? d : []);
-      const sorted = [...allFlows]
-        .sort(
-          (a: any, b: any) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-        )
-        .slice(0, 15);
-      setFlows(sorted);
+      setFlows(d.flows || (Array.isArray(d) ? d : []));
     } catch {
       toast.error("Failed to load recent flows");
     } finally {
@@ -419,7 +393,7 @@ export default function RecentsPage() {
                 See all flows <ChevronRight className="w-3 h-3" />
               </button>
             )}
-            <ViewToggleLocal view={view} onChange={setView} />
+            <ViewToggle view={view} onChange={setView} />
           </div>
         </div>
 
@@ -429,92 +403,13 @@ export default function RecentsPage() {
             <div key={groupName}>
               {groupIdx > 0 && <SectionLabel>{groupName}</SectionLabel>}
 
-              {view === "list" ? (
-                <>
-                  {grouped[groupName].map((flow: any) => {
-                    const color =
-                      FLOW_COLORS[flows.indexOf(flow) % FLOW_COLORS.length];
-                    const flowLocked = isLocked || !!flow?.markedForDowngrade;
-                    return (
-                      <ListItem
-                        key={flow.id}
-                        title={flow.name}
-                        subtitle={`Edited ${timeAgo(flow.updatedAt)}`}
-                        color={color}
-                        onClick={() => handleEdit(flow)}
-                        onMenu={() => setFlowMenu({ open: true, flow })}
-                        locked={flowLocked}
-                      />
-                    );
-                  })}
-                </>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 mb-3">
-                  {grouped[groupName].map((flow: any, index: number) => {
-                    const flowLocked = isLocked || !!flow?.markedForDowngrade;
-                    return (
-                      <div
-                        key={flow.id}
-                        className="relative rounded-2xl bg-card border border-border overflow-hidden shadow-[var(--shadow-card)] hover:-translate-y-0.5 transition"
-                      >
-                        <button
-                          onClick={() => handleEdit(flow)}
-                          className="w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
-                        >
-                          <div
-                            className="h-36 w-full relative overflow-hidden flex items-center justify-center"
-                            style={{
-                              background:
-                                MOBILE_THUMB_GRADIENTS[
-                                  index % MOBILE_THUMB_GRADIENTS.length
-                                ],
-                            }}
-                          >
-                            {flow.thumbnail ? (
-                              <img
-                                src={flow.thumbnail}
-                                alt=""
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
-                            ) : (
-                              <MiniFlow color={BRAND_GREEN} />
-                            )}
-                            {flowLocked && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
-                                <div className="flex flex-col items-center gap-1">
-                                  <Lock className="w-6 h-6 text-white drop-shadow" />
-                                  <span className="text-white text-[10px] font-semibold drop-shadow">
-                                    Locked
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          <div className="p-3 pr-9 max-lg:pr-13">
-                            <div className="font-semibold text-[13px] truncate text-foreground">
-                              {flow.name}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground">
-                              Edited {timeAgo(flow.updatedAt)}
-                            </div>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="More options"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFlowMenu({ open: true, flow });
-                          }}
-                          className="absolute bottom-2 right-2 w-7 h-7 max-lg:w-11 max-lg:h-11 rounded-lg flex items-center justify-center bg-secondary border-0 p-0 appearance-none cursor-pointer"
-                        >
-                          <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <FlowCollection
+                flows={grouped[groupName]}
+                view={view}
+                onOpen={(_id, flow) => handleEdit(flow)}
+                onMenu={(flow) => setFlowMenu({ open: true, flow })}
+                isLocked={isLocked}
+              />
             </div>
           ),
         )}

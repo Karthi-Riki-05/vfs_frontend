@@ -24,6 +24,31 @@ import { useAppBrand } from "@/hooks/useAppBrand";
 
 const { Content } = Layout;
 
+/**
+ * Which app a route DECLARES, or null if it declares nothing.
+ *
+ * Only the two app-root routes declare an app; every other dashboard route
+ * (Teams, Flows, Chat, …) is shared and must inherit whichever app the tab is
+ * already in.
+ *
+ * ⚠️ Exact match on purpose. This used to be `startsWith("/dashboard/team")`,
+ * which ALSO matched the Teams page at `/dashboard/teams` — so opening Teams
+ * from the Pro app silently rewrote the tab's context to "team". Every request
+ * after that carried `X-App-Context: team`, and the Pro app started listing
+ * Team-context teams. A cross-app isolation break from one missing character.
+ *
+ * Both roots are leaf pages (no child routes), so equality is sufficient; the
+ * trailing-slash forms are accepted defensively in case that ever changes.
+ */
+function appFromPathname(pathname?: string | null): "pro" | "team" | null {
+  if (!pathname) return null;
+  if (pathname === "/dashboard/pro" || pathname.startsWith("/dashboard/pro/"))
+    return "pro";
+  if (pathname === "/dashboard/team" || pathname.startsWith("/dashboard/team/"))
+    return "team";
+  return null;
+}
+
 // Extend window type for global chat toggle
 declare global {
   interface Window {
@@ -91,11 +116,8 @@ export default function DashboardLayout({
   // — regardless of how deep the fetching component sits in the tree.
   useLayoutEffect(() => {
     try {
-      if (pathname?.startsWith("/dashboard/pro")) {
-        sessionStorage.setItem("vc_app_context", "pro");
-      } else if (pathname?.startsWith("/dashboard/team")) {
-        sessionStorage.setItem("vc_app_context", "team");
-      }
+      const app = appFromPathname(pathname);
+      if (app) sessionStorage.setItem("vc_app_context", app);
     } catch {
       // sessionStorage may be blocked in restricted WebViews.
     }
@@ -115,12 +137,10 @@ export default function DashboardLayout({
     try {
       // URL path is the ground truth on first dashboard load — covers social
       // login where vc_app_context is never written during the OAuth redirect.
-      if (pathname?.startsWith("/dashboard/pro")) {
-        mode = "pro";
-        sessionStorage.setItem("vc_app_context", "pro");
-      } else if (pathname?.startsWith("/dashboard/team")) {
-        mode = "team";
-        sessionStorage.setItem("vc_app_context", "team");
+      const fromPath = appFromPathname(pathname);
+      if (fromPath) {
+        mode = fromPath;
+        sessionStorage.setItem("vc_app_context", fromPath);
       } else {
         // sessionStorage is per-tab — reads this tab's app context, not a
         // value potentially overwritten by another tab (Fix 3).

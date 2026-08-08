@@ -98,23 +98,54 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
     }
   }, [activeTeamId, fetchTeamActivity]);
 
+  // OPT-6 (2026-08-08): skip a refetch when nothing that scopes it changed.
+  //
+  // `fetchAll` is rebuilt whenever `activeTeamId` changes and this effect
+  // depends on it, so the workspace context settling AFTER boot re-ran the
+  // whole trio. An app switch does exactly that — `switchApp` resets the
+  // context to personal — so one Team⇄Pro switch fetched stats/activity/
+  // recent-flows TWICE inside a single page boot (measured 4× each, i.e. 2
+  // rounds × StrictMode).
+  //
+  // Keyed on the scope, not a mount guard: a genuine workspace change still
+  // refetches, because the key changes with it.
+  const lastFetchKeyRef = useRef<string | null>(null);
   useEffect(() => {
     mountedRef.current = true;
     if (!hydrated) return;
-    fetchAll();
+    const key = `${activeTeamId || "personal"}:${fetchTeamActivity ?? "auto"}`;
+    if (lastFetchKeyRef.current !== key) {
+      lastFetchKeyRef.current = key;
+      fetchAll();
+    }
     return () => {
       mountedRef.current = false;
     };
-  }, [fetchAll, hydrated]);
+  }, [fetchAll, hydrated, activeTeamId, fetchTeamActivity]);
 
   // B24: the editor opens in a NEW tab (window.open), so this dashboard tab
   // never remounts — Recent Flows went stale after editing until a manual
   // refresh. Refetch when the tab regains focus / becomes visible so the
   // recent list reflects the latest edit on return.
+  //
+  // OPT-2 (2026-08-08): throttled, and the double-fire removed. A single
+  // tab-back raises BOTH `focus` and `visibilitychange`, and each listener ran
+  // fetchAll — so one alt-tab cost 6 requests (3 endpoints × 2), and five
+  // alt-tabs cost 30. Both events are still listened for (they are not
+  // redundant: `focus` fires when the window regains focus without any
+  // visibility change), but a shared timestamp collapses them into one refetch.
+  //
+  // 30s window: long enough that flipping between windows is free, short enough
+  // that the B24 case — edit in the editor tab, come back — still refreshes.
+  const lastFocusFetchRef = useRef<number>(0);
   useEffect(() => {
     if (!hydrated) return;
     const onFocus = () => {
-      if (document.visibilityState === "visible") fetchAll();
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastFocusFetchRef.current < 30_000) return;
+      lastFocusFetchRef.current = now;
+      fetchAll();
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
@@ -130,6 +161,8 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
     () =>
       onWorkspaceFlush(() => {
         if (!mountedRef.current) return;
+        // Force the next effect run to refetch — the scope really did change.
+        lastFetchKeyRef.current = null;
         setStats(null);
         setActivity([]);
         setRecentFlows([]);
@@ -150,6 +183,7 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
     if (!hydrated) return;
     const onSwitch = () => {
       if (!mountedRef.current) return;
+      lastFetchKeyRef.current = null;
       setStats(null);
       setActivity([]);
       setRecentFlows([]);

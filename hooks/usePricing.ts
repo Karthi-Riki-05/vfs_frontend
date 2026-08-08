@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { createSharedResource } from "@/lib/sharedResource";
 
 export interface PriceInfo {
   display: string;
@@ -78,51 +78,50 @@ const FALLBACK_PRICING: PricingData = {
   },
 };
 
+// OPT-3 (2026-08-08): one shared fetch for all consumers.
+//
+// This hook is called from the subscription page, the upgrade page and the
+// credits-exhausted modal, and each instance ran its own request — 4 × GET
+// /pricing on a plain dashboard load, for a value that is the same for
+// everybody and changes about never.
+//
+// Note FORCE_USD below: while it is on, the response is DISCARDED and the
+// fallback table is displayed. The request is still worth deduping rather than
+// deleting — the backend keeps currency detection alive behind it, and the
+// display override is meant to be temporary (FEAT-010).
+const pricingResource = createSharedResource<{
+  pricing: PricingData;
+  isTestMode: boolean;
+}>("pricing", async () => {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const res = await fetch(
+    `/api/pricing?timezone=${encodeURIComponent(timezone)}`,
+    { cache: "no-store" },
+  );
+  const data = await res.json();
+  if (data?.success && data?.data) {
+    // FEAT-010: multi-currency deferred — always display USD in the UI.
+    // Backend detection stays intact; we only override the display layer.
+    // Reset the WHOLE pricing object (currency, symbol AND prices) to the USD
+    // default so local-currency amounts can never leak through.
+    const FORCE_USD = true;
+    if (FORCE_USD) return { pricing: FALLBACK_PRICING, isTestMode: false };
+    return { pricing: data.data, isTestMode: !!data.data.isTestMode };
+  }
+  return { pricing: FALLBACK_PRICING, isTestMode: false };
+});
+
 export function usePricing() {
-  const [pricing, setPricing] = useState<PricingData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isTestMode, setIsTestMode] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchPricing = async () => {
-      try {
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const res = await fetch(
-          `/api/pricing?timezone=${encodeURIComponent(timezone)}`,
-          { cache: "no-store" },
-        );
-        const data = await res.json();
-        if (cancelled) return;
-        if (data.success && data.data) {
-          // FEAT-010: multi-currency deferred — always display USD in the UI.
-          // Backend detection stays intact; we only override the display layer.
-          // Reset the WHOLE pricing object (currency, symbol AND prices) to the
-          // USD default so local-currency amounts can never leak through.
-          const FORCE_USD = true;
-          if (FORCE_USD) {
-            setPricing(FALLBACK_PRICING);
-            return;
-          }
-          setPricing(data.data);
-          setIsTestMode(!!data.data.isTestMode);
-        } else {
-          setPricing(FALLBACK_PRICING);
-        }
-      } catch (err) {
-        console.error("[usePricing] Error fetching pricing:", err);
-        if (!cancelled) setPricing(FALLBACK_PRICING);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    fetchPricing();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { pricing, loading, isTestMode };
+  // A single constant key: pricing is not per-user, so every consumer in the
+  // app shares one entry for the life of the page.
+  const { data, loading, error } = pricingResource.use("global");
+  return {
+    // On failure the store keeps `data` null, so fall back here — callers render
+    // prices unconditionally and a null would blank the paywall.
+    pricing: data?.pricing || (error ? FALLBACK_PRICING : data?.pricing || null),
+    loading,
+    isTestMode: data?.isTestMode ?? false,
+  };
 }
+
+export const __pricingResource = pricingResource;

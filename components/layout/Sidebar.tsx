@@ -24,11 +24,13 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { aiApi } from "@/api/ai.api";
 import api from "@/lib/axios";
 import { usePathname, useRouter } from "next/navigation";
 import { createNewFlow } from "@/lib/flow";
 import { usePro } from "@/hooks/usePro";
+import { useCurrentUser, resolveAvatar } from "@/hooks/useCurrentUser";
+import { useEntitlements } from "@/hooks/useEntitlements";
+import { useAiCredits } from "@/hooks/useAiCredits";
 import { useDeviceMode } from "@/hooks/useDeviceMode";
 import { useAppContext } from "@/context/AppContext";
 import { useIsChatColumnHidden } from "@/hooks/useMediaQuery";
@@ -56,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const pathname = usePathname() || "";
   const router = useRouter();
   const chatColumnHidden = useIsChatColumnHidden();
-  const { currentApp, loading: proLoading } = usePro();
+  const { currentApp, loading: proLoading, switchApp } = usePro();
   const { isWeb, isMobileApp } = useDeviceMode();
   const { isTeamContext, effectivePlan } = useAppContext();
   const { data: session } = useSession();
@@ -67,9 +69,30 @@ const Sidebar: React.FC<SidebarProps> = ({
   // (See product spec in git history — Pro lifetime does NOT unlock Team app
   // chat; access requires an active team subscription or a team context.)
   const isProApp = currentApp === "pro";
+  // bug-106 (2026-08-08): the SERVER's answer wins.
+  //
+  // Every signal below except this one answers "what did YOU buy?" —
+  // `session.hasTeamAccess` comes from `getHasTeamAccess(userId)`, which reads
+  // the caller's own subscription row and has no `workspaceId` in the query at
+  // all. So a MEMBER standing inside a paid workspace got padlocks on Teams and
+  // Chat while `/entitlements` said `canManageTeams: true` and listed both
+  // modules — the backend would have let them straight through
+  // (`requireTeamChatEntitlement` allows a member of a paid owner's workspace).
+  // The padlock was the client's opinion, formed from the wrong question.
+  //
+  // `/entitlements` is workspace-aware (Inherited Subscription Power) and is
+  // what the route guards actually enforce, so the UI now agrees with the API.
+  // The personal signals are KEPT as a fallback: entitlements is null while
+  // loading and on failure, and dropping them would flash locks on the owner's
+  // own screen every page load.
+  const { entitlements } = useEntitlements();
+  const entitlementGrantsTeam =
+    !!entitlements?.modules?.includes("teams") ||
+    !!entitlements?.modules?.includes("chat");
   const hasTeamFeatures =
     proLoading ||
     isProApp ||
+    entitlementGrantsTeam ||
     isTeamContext ||
     effectivePlan === "team" ||
     sessionHasTeamAccess;
@@ -79,6 +102,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     "teams",
   );
   const [checkingTeamsAccess, setCheckingTeamsAccess] = useState(false);
+  // Which app we are switching TO while the PUT is in flight — drives the
+  // pressed/disabled state so the toggle doesn't look frozen, and blocks the
+  // double-click that used to queue two switches.
+  const [switchingApp, setSwitchingApp] = useState<"team" | "pro" | null>(null);
 
   const getSelectedKey = () => {
     if (pathname.startsWith("/dashboard/recents")) return "recents";
@@ -108,13 +135,40 @@ const Sidebar: React.FC<SidebarProps> = ({
     handleNavClick();
   };
 
-  // App-switcher (Team ⇄ Pro). A bare router.push can't switch apps here —
-  // the sidebar/data scope is driven by sessionStorage `vc_app_context`, which
-  // DashboardLayout reconciles into `currentApp` on load. So we set the context
-  // first, then do a full navigation so the reconcile effect runs fresh.
-  const switchToApp = (mode: "team" | "pro") => {
+  // App-switcher (Team ⇄ Pro). A bare router.push can't switch apps here — the
+  // sidebar/data scope is driven by server-side `currentVersion` plus the
+  // sessionStorage `vc_app_context` header, so a full navigation is needed to
+  // re-boot the shell under the new context.
+  //
+  // Order is load-bearing: SWITCH FIRST, then navigate ONCE. This used to
+  // navigate immediately and let DashboardLayout's reconcile effect notice the
+  // mismatch on the new page, PUT /pro/switch-app, and then
+  // `window.location.reload()` — so one click cost TWO full page loads about
+  // ten seconds apart (measured: Team→Pro 75 requests, Pro→Team 123). The user
+  // watched the whole app boot, render, and then boot again from skeletons, and
+  // a few toggles tripped the 600-req/2-min limiter with "Too many requests".
+  //
+  // Awaiting switchApp also routes the not-yet-purchased case correctly: it
+  // returns false after redirecting to Stripe checkout, so we must not navigate.
+  const switchToApp = async (mode: "team" | "pro") => {
     // No-op if already in this app — avoids a redundant full-page reload.
     if (mode === (isProApp ? "pro" : "team")) return;
+    if (switchingApp) return; // ignore double-clicks while the PUT is in flight
+    setSwitchingApp(mode);
+    try {
+      // `switchApp` writes vc_app_context itself and resets the workspace to
+      // personal; it maps team → the API's "free" app.
+      const ok = await switchApp(mode === "pro" ? "pro" : "free");
+      if (!ok) {
+        // Either a checkout redirect is under way or the switch failed — in
+        // both cases navigating would land the user in the wrong app.
+        setSwitchingApp(null);
+        return;
+      }
+    } catch {
+      setSwitchingApp(null);
+      return;
+    }
     try {
       sessionStorage.setItem("vc_app_context", mode);
     } catch {
@@ -174,57 +228,48 @@ const Sidebar: React.FC<SidebarProps> = ({
   const railCollapsed = !isMobileDrawer && collapsed;
 
   // Drawer hero: live AI-credit balance for the plan pill (drawer only).
-  const [credits, setCredits] = useState<number | null>(null);
-  useEffect(() => {
-    if (!isMobileDrawer) return;
-    const fetchCredits = async () => {
-      try {
-        const res = await aiApi.getCredits();
-        const d = res.data?.data || res.data || {};
-        const total =
-          d.totalCredits ?? d.balance?.totalCredits ?? d.credits ?? null;
-        if (typeof total === "number") setCredits(total);
-      } catch {
-        /* keep last known value */
-      }
-    };
-    fetchCredits();
-    window.addEventListener("aiCreditsChanged", fetchCredits);
-    return () => window.removeEventListener("aiCreditsChanged", fetchCredits);
-  }, [isMobileDrawer]);
+  // OPT-3: shared store — six components displayed this balance and six fetched
+  // it, each with its own `aiCreditsChanged` listener.
+  const { total: credits } = useAiCredits();
 
-  const planLabel = effectivePlan === "team" ? "Team Plan" : "Free Plan";
+  // Same rule as the badge: the workspace's tier, not the caller's receipt.
+  const workspaceTier = entitlements?.tier ?? null;
+  const planLabel =
+    workspaceTier === "team" || effectivePlan === "team"
+      ? "Team Plan"
+      : workspaceTier === "pro"
+        ? "Pro Plan"
+        : "Free Plan";
 
   // Drawer avatar: the uploaded profile photo lives on the user record, not in
   // the NextAuth JWT — so the session image goes stale after an avatar change.
   // Seed from the session, then fetch the live value and refresh on the
   // `userAvatarChanged` event the Settings page dispatches after an upload.
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(
-    (session?.user?.image as string) || null,
-  );
+  //
+  // OPT-3 (2026-08-08): shares the `useCurrentUser` store with the Header
+  // instead of issuing its own identical GET /users/me. Note this hook is called
+  // UNCONDITIONALLY (hooks cannot be conditional) where the old effect bailed on
+  // `!isMobileDrawer` — that costs nothing, because the store is already loaded
+  // by the Header on every page.
+  const { data: currentUser } = useCurrentUser();
+  const [optimisticAvatar, setOptimisticAvatar] = useState<string | null>(null);
   useEffect(() => {
-    if (!isMobileDrawer) return;
-    const fetchAvatar = async () => {
-      try {
-        const res = await api.get("/users/me");
-        const d = res.data?.data || res.data || {};
-        const url = d.image || d.avatar || d.photo || null;
-        if (url) setAvatarUrl(url);
-      } catch {
-        /* keep last known value */
-      }
-    };
-    fetchAvatar();
     const onChange = (e: Event) => {
       const url = (e as CustomEvent<{ url?: string }>).detail?.url;
-      if (url) setAvatarUrl(url);
-      else fetchAvatar();
+      if (url) setOptimisticAvatar(url);
     };
     window.addEventListener("userAvatarChanged", onChange);
     return () => window.removeEventListener("userAvatarChanged", onChange);
-  }, [isMobileDrawer]);
+  }, []);
+  const avatarUrl =
+    optimisticAvatar ||
+    resolveAvatar(currentUser) ||
+    ((currentUser as any)?.avatar as string) ||
+    (session?.user?.image as string) ||
+    null;
   const hasAvatar =
     typeof avatarUrl === "string" && avatarUrl.trim().length > 0;
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   // ─────────── Create-a-Flow pill ───────────
   const createPill = (
@@ -266,14 +311,16 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={() => switchToApp("team")}
+            disabled={switchingApp !== null}
             title="Team"
             role="tab"
             aria-selected={!isProApp}
-            className={`flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition ${
-              !isProApp
+            aria-busy={switchingApp === "team"}
+            className={`flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition disabled:cursor-wait ${
+              !isProApp || switchingApp === "team"
                 ? "bg-card text-primary-deep shadow"
                 : "bg-transparent text-muted-foreground hover:text-foreground"
-            }`}
+            } ${switchingApp && switchingApp !== "team" ? "opacity-50" : ""}`}
           >
             <Users className="w-3.5 h-3.5" /> Team
           </button>
@@ -281,14 +328,16 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={() => switchToApp("pro")}
+            disabled={switchingApp !== null}
             title="ValueChart Pro"
             role="tab"
             aria-selected={isProApp}
-            className={`flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition ${
-              isProApp
+            aria-busy={switchingApp === "pro"}
+            className={`flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition disabled:cursor-wait ${
+              isProApp || switchingApp === "pro"
                 ? "bg-[var(--orange)] text-white shadow"
                 : "bg-transparent text-muted-foreground hover:text-foreground"
-            }`}
+            } ${switchingApp && switchingApp !== "pro" ? "opacity-50" : ""}`}
           >
             <User className="w-3.5 h-3.5" /> PRO
           </button>
@@ -457,13 +506,18 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-12 h-12 rounded-full bg-white/15 ring-2 ring-white/30 flex items-center justify-center text-white font-bold text-lg shrink-0 overflow-hidden">
-                  {hasAvatar ? (
+                  {hasAvatar && !avatarFailed ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={avatarUrl as string}
                       alt={name}
-                      className="w-full h-full object-cover"
-                      onError={() => setAvatarUrl(null)}
+                      // Inline px to match the w-12/h-12 ring — see the note on
+                      // the Header avatar: the unlayered `img { height: auto }`
+                      // in globals.css beats `h-full`, so a class-sized avatar
+                      // does not fill its circle.
+                      style={{ width: 48, height: 48 }}
+                      className="rounded-full object-cover shrink-0"
+                      onError={() => setAvatarFailed(true)}
                     />
                   ) : (
                     name.charAt(0).toUpperCase()

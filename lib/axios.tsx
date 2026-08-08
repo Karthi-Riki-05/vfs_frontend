@@ -66,7 +66,7 @@ api.interceptors.request.use((config) => {
 });
 
 // Private team buckets: ONE active-context selection (the profile switcher)
-// drives BOTH data scope and AI-credit billing. We attach X-Team-Context to
+// drives BOTH data scope and AI-credit billing. We attach X-Workspace-Context to
 // every API request. The backend scopes every data list by ownerId AND teamId
 // (never teamId alone), so this can't leak another user's rows (DATA-LOSS-001),
 // and AI controllers route the deduction via resolveBillingUser. Personal
@@ -77,7 +77,7 @@ api.interceptors.request.use((config) => {
     const teamId = getAiBillingTeamId();
     if (teamId) {
       config.headers = config.headers || {};
-      (config.headers as Record<string, string>)["X-Team-Context"] = teamId;
+      (config.headers as Record<string, string>)["X-Workspace-Context"] = teamId;
       config.params = { ...config.params, _tc: teamId };
     }
   } catch {

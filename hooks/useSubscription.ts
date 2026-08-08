@@ -20,6 +20,34 @@ interface SubscriptionStatus {
   planName?: string | null;
   price?: number;
   scheduledChange?: ScheduledChange | null;
+  // bug-091: true when Google Play / the App Store owns the billing
+  // relationship. Those subscriptions CANNOT be changed server-side (store
+  // policy), so the Stripe-backed controls must be hidden rather than offered
+  // and then rejected with a 409.
+  managedByStore?: boolean;
+  storeName?: string | null;
+}
+
+/**
+ * bug-091: surface what the API actually said instead of a hardcoded string.
+ * `cancel`/`reactivate`/`activateNow`/`cancelScheduledChange` all used bare
+ * `catch {}` + a generic message, which threw away MANAGED_BY_STORE — the one
+ * error that tells the user where to go. `fallback` is only used when the API
+ * gave us nothing usable.
+ */
+function toastApiError(err: any, fallback: string) {
+  const code = err?.response?.data?.error?.code;
+  const apiMsg = err?.response?.data?.error?.message;
+  if (code === "MANAGED_BY_STORE") {
+    // Longer duration: this is an instruction to go elsewhere, not a "retry".
+    toast.warning(apiMsg || fallback, { duration: 10000 });
+    return;
+  }
+  if (code === "DOWNGRADE_NOT_ALLOWED") {
+    toast.warning(apiMsg || fallback);
+    return;
+  }
+  toast.error(apiMsg || fallback);
 }
 
 export function useSubscription() {
@@ -166,13 +194,7 @@ export function useSubscription() {
     } catch (err: any) {
       const code = err?.response?.data?.error?.code;
       const apiMsg = err?.response?.data?.error?.message;
-      if (code === "DOWNGRADE_NOT_ALLOWED") {
-        toast.warning(
-          apiMsg || "Downgrading from yearly to monthly is not available",
-        );
-      } else {
-        toast.error(apiMsg || "Failed to change plan");
-      }
+      toastApiError(err, "Failed to change plan");
       // Log full error so the browser console shows what Stripe / the API actually returned.
       // eslint-disable-next-line no-console
       console.error("[changePlan] failed", {
@@ -191,8 +213,8 @@ export function useSubscription() {
       toast.success("Subscription will be cancelled at end of billing period");
       fetchCurrent();
       fetchStatus();
-    } catch {
-      toast.error("Failed to cancel subscription");
+    } catch (err: any) {
+      toastApiError(err, "Failed to cancel subscription");
     }
   };
 
@@ -202,8 +224,8 @@ export function useSubscription() {
       toast.success("Subscription reactivated — it will renew as normal");
       fetchCurrent();
       fetchStatus();
-    } catch {
-      toast.error("Failed to reactivate subscription");
+    } catch (err: any) {
+      toastApiError(err, "Failed to reactivate subscription");
     }
   };
 
@@ -219,8 +241,8 @@ export function useSubscription() {
         fetchStatus();
       }
       return data;
-    } catch {
-      toast.error("Failed to activate scheduled plan");
+    } catch (err: any) {
+      toastApiError(err, "Failed to activate scheduled plan");
     }
   };
 
@@ -230,8 +252,8 @@ export function useSubscription() {
       toast.success("Scheduled plan change cancelled");
       fetchCurrent();
       fetchStatus();
-    } catch {
-      toast.error("Failed to cancel scheduled change");
+    } catch (err: any) {
+      toastApiError(err, "Failed to cancel scheduled change");
     }
   };
 

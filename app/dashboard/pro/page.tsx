@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { Button } from "antd";
 import { toast } from "sonner";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
@@ -90,15 +91,9 @@ export default function ProDashboardPage() {
       ),
     ) || 0;
 
-  const [subStatus, setSubStatus] = useState<string | null>(null);
+  // OPT-3: shared store, same as the Team dashboard.
+  const { status: subStatus } = useSubscriptionStatus();
   const [portalLoading, setPortalLoading] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/subscription/status")
-      .then((r) => r.json())
-      .then((d) => setSubStatus(d?.data?.status ?? null))
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

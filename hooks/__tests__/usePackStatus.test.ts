@@ -3,13 +3,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const packStatus = vi.fn();
 
+vi.mock("@/api/flows.api", () => ({
+  flowsApi: { checkExpiry: () => Promise.resolve({}) },
+}));
+
 vi.mock("@/api/notifications.api", () => ({
   flowPackApi: {
     packStatus: (...a: any[]) => packStatus(...a),
   },
 }));
 
-import { usePackStatus } from "../usePackStatus";
+import { usePackStatus, __resetPackStatus } from "../usePackStatus";
 
 const status = (overrides: Record<string, any> = {}) => ({
   data: {
@@ -32,6 +36,11 @@ const status = (overrides: Record<string, any> = {}) => ({
 describe("usePackStatus", () => {
   beforeEach(() => {
     packStatus.mockReset();
+    // OPT-4: usePackStatus reads a module-level shared store now (one request
+    // for the several components that mount it). That state outlives a test
+    // case, so it has to be cleared or the next case asserts on the previous
+    // case's snapshot.
+    __resetPackStatus();
   });
 
   it("returns the pack status after fetch", async () => {

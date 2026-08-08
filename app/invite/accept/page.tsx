@@ -82,7 +82,7 @@ function AcceptInvitationContent() {
       if (res.data?.success !== false) {
         // Switch the active workspace/billing context to the newly joined
         // team so the redirect lands inside the inviter's team, not the
-        // user's own personal workspace (X-Team-Context comes from this
+        // user's own personal workspace (X-Workspace-Context comes from this
         // stored selection — see lib/aiBilling.ts).
         if (data?.teamId) setAiBillingTeamId(data.teamId);
         window.location.href = "/dashboard/teams";

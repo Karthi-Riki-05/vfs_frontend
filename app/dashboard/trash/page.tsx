@@ -5,7 +5,9 @@ import { toast } from "sonner";
 import { confirmDialog } from "@/components/common/ConfirmDialog";
 import { RotateCcw, Trash2, Workflow, AlertTriangle } from "lucide-react";
 import api from "@/lib/axios";
-import { timeAgo } from "@/lib/flowUtils";
+import FlowCollection, { timeAgo } from "@/components/flows/FlowCollection";
+import ViewToggle from "@/components/common/ViewToggle";
+import { useFlowView } from "@/hooks/useFlowView";
 import { useAppContext } from "@/context/AppContext";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
 
@@ -31,9 +33,12 @@ export default function TrashPage() {
   const { activeTeamId, hydrated } = useAppContext();
   const [flows, setFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // Trash had no view toggle at all — list only — while every sibling page
+  // offered both. It now follows the same shared preference.
+  const [view, setView] = useFlowView("grid");
 
   // activeTeamId in deps → re-scopes + refetches the trash bucket on switch.
-  // The X-Team-Context header is attached by the axios interceptor, so the
+  // The X-Workspace-Context header is attached by the axios interceptor, so the
   // refetch automatically targets the newly active workspace.
   const fetchTrash = useCallback(async () => {
     setLoading(true);
@@ -146,12 +151,15 @@ export default function TrashPage() {
             </p>
           </div>
           {flows.length > 0 && (
-            <button
-              onClick={handleEmptyTrash}
-              className="h-9 max-lg:h-11 px-4 rounded-xl bg-[#FDE7E0] text-[#F85729] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 border-0 appearance-none cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" /> Empty Trash
-            </button>
+            <div className="flex items-center gap-3 shrink-0">
+              <ViewToggle view={view} onChange={setView} />
+              <button
+                onClick={handleEmptyTrash}
+                className="h-9 max-lg:h-11 px-4 rounded-xl bg-[#FDE7E0] text-[#F85729] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 border-0 appearance-none cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Empty Trash
+              </button>
+            </div>
           )}
         </div>
 
@@ -177,66 +185,46 @@ export default function TrashPage() {
             </div>
           </div>
         ) : (
-          flows.map((flow: any, index: number) => {
-            const color = FLOW_COLORS[index % FLOW_COLORS.length];
-            const daysLeft = daysUntilPurge(flow.deletedAt);
-            return (
-              <div
-                key={flow.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-2xl bg-card border border-border mb-2 opacity-90"
-              >
-                {/* Left Side Group: Thumbnail and Flow Details */}
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
-                    style={{ background: `${color}1a` }}
-                  >
-                    {flow.thumbnail ? (
-                      <img
-                        src={flow.thumbnail}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Workflow className="w-5 h-5" style={{ color }} />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm truncate">
-                      {flow.name}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      Deleted {timeAgo(flow.deletedAt || flow.updatedAt)}
-                    </div>
-                    <div className="text-[10px] font-semibold text-[#F85729]">
-                      Deletes permanently in {daysLeft}{" "}
-                      {daysLeft === 1 ? "day" : "days"}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons: Stacked on mobile, row layout on desktop */}
-                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto mt-1 sm:mt-0">
-                  <button
-                    onClick={() => handleRestore(flow.id)}
-                    title="Restore"
-                    className="flex-1 sm:flex-initial h-9 max-lg:h-11 px-3 rounded-xl bg-secondary text-[#1F7D5E] text-xs font-bold inline-flex items-center justify-center gap-1 border-0 appearance-none cursor-pointer"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" /> Restore
-                  </button>
-                  <button
-                    onClick={() => handlePermanentDelete(flow.id)}
-                    title="Delete permanently"
-                    aria-label={`Delete ${flow?.name || "flow"} permanently`}
-                    className="w-11 h-9 max-lg:h-11 sm:w-9 sm:h-9 rounded-xl bg-[#fef2f2] text-[#F85729] inline-flex items-center justify-center border-0 appearance-none cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+          <FlowCollection
+            flows={flows}
+            view={view}
+            // Trash rows are not editable — clicking one does nothing rather
+            // than opening a deleted flow in the editor.
+            onOpen={() => {}}
+            metaLabel={(flow) =>
+              `Deleted ${timeAgo(flow.deletedAt || flow.updatedAt)} · ${daysUntilPurge(
+                flow.deletedAt,
+              )} ${daysUntilPurge(flow.deletedAt) === 1 ? "day" : "days"} left`
+            }
+            // Restore / Delete forever replace the ⋯ menu: none of the seven
+            // standard options apply to a deleted flow.
+            renderActions={(flow) => (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRestore(flow.id);
+                  }}
+                  title="Restore"
+                  aria-label={`Restore ${flow?.name || "flow"}`}
+                  className="w-8 h-8 rounded-lg bg-secondary text-[#1F7D5E] inline-flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePermanentDelete(flow.id);
+                  }}
+                  title="Delete permanently"
+                  aria-label={`Delete ${flow?.name || "flow"} permanently`}
+                  className="w-8 h-8 rounded-lg bg-[#fef2f2] text-[#F85729] inline-flex items-center justify-center border-0 p-0 appearance-none cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
-            );
-          })
+            )}
+          />
         )}
       </div>
     </div>

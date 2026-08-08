@@ -1129,6 +1129,14 @@ function SubscriptionPageInner() {
     fetchCurrent,
     fetchStatus,
   } = useSubscription();
+  // bug-091: Google Play / App Store owns this subscription's billing, so the
+  // Stripe-backed controls below cannot act on it (the API answers 409
+  // MANAGED_BY_STORE). Hide them and say where to go, instead of offering a
+  // button whose only outcome is an error. Distinct from `native`, which is
+  // about the CURRENT client — a store subscription is just as unmanageable
+  // from a desktop browser, which is exactly how this was reported.
+  const managedByStore = !!status?.managedByStore;
+  const storeName = status?.storeName || "your app store";
   const [monthlyMembers, setMonthlyMembers] = useState(5);
   const [yearlyMembers, setYearlyMembers] = useState(5);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
@@ -1561,7 +1569,9 @@ function SubscriptionPageInner() {
       !!isDowngradeBlocked(plan) ||
       isScheduledFor(plan) ||
       checkoutLoading !== null ||
-      (native && !legacyPlan);
+      (native && !legacyPlan) ||
+      // bug-091: a store-owned plan cannot be changed from here at all.
+      managedByStore;
 
     return (
       <div
@@ -1689,6 +1699,7 @@ function SubscriptionPageInner() {
               : buttonLabel}
           </button>
           {!native &&
+            !managedByStore &&
             isCurrent &&
             status?.status === "active" &&
             !status?.cancelAtPeriodEnd && (
@@ -1699,6 +1710,11 @@ function SubscriptionPageInner() {
                 Cancel Subscription
               </button>
             )}
+          {managedByStore && isCurrent && (
+            <div className="mt-2 text-xs text-muted-foreground text-center">
+              Managed by {storeName}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1774,7 +1790,7 @@ function SubscriptionPageInner() {
                 {new Date(status.currentPeriodEnd).toLocaleDateString()}
               </div>
             )}
-            {status.cancelAtPeriodEnd && !native && (
+            {status.cancelAtPeriodEnd && !native && !managedByStore && (
               <button
                 onClick={handleReactivate}
                 className={`${RESET} mt-3 h-9 px-4 rounded-lg bg-white text-primary-deep text-[13px] font-bold font-sans`}
@@ -1782,11 +1798,23 @@ function SubscriptionPageInner() {
                 Reactivate Plan
               </button>
             )}
-            {native && (
+            {/* bug-091: name the actual store when we know it. `native` is
+                about this client; `managedByStore` is about who owns the
+                billing — a Play subscription is equally unmanageable from a
+                desktop browser, which is how this was reported. */}
+            {managedByStore ? (
               <div className="text-xs text-white/80 mt-3">
-                Manage this plan where you purchased it — your app store's
-                subscription settings, or your account on the web.
+                This plan is managed by {storeName}. To change your seats,
+                cancel, or update payment, open your subscription settings in{" "}
+                {storeName}.
               </div>
+            ) : (
+              native && (
+                <div className="text-xs text-white/80 mt-3">
+                  Manage this plan where you purchased it — your app store's
+                  subscription settings, or your account on the web.
+                </div>
+              )
             )}
             <span className="absolute right-4 top-4 text-[11px] font-bold px-3 py-1 rounded-full bg-white text-primary-deep">
               {status.cancelAtPeriodEnd ? "Cancelling" : "Active"}
@@ -1813,12 +1841,17 @@ function SubscriptionPageInner() {
           </div>
           {!native && (
             <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={handleActivateNow}
-                className={`${RESET} h-10 px-4 rounded-full bg-primary text-white font-semibold text-sm font-sans hover:bg-primary-deep transition`}
-              >
-                Activate Now
-              </button>
+              {/* bug-091: "Activate Now" bills through Stripe, so it 409s on a
+                  store-owned plan. Cancelling the schedule is DB-only and
+                  still works, so that button stays. */}
+              {!managedByStore && (
+                <button
+                  onClick={handleActivateNow}
+                  className={`${RESET} h-10 px-4 rounded-full bg-primary text-white font-semibold text-sm font-sans hover:bg-primary-deep transition`}
+                >
+                  Activate Now
+                </button>
+              )}
               <button
                 onClick={handleCancelScheduled}
                 className={`${RESET} h-10 px-4 rounded-full bg-transparent border border-[var(--coral)] text-[var(--coral)] font-semibold text-sm font-sans`}

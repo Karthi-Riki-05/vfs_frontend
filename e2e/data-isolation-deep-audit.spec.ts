@@ -14,14 +14,14 @@ import * as path from "node:path";
  * The Pro app and the Team app are NOT a data-isolation boundary. They are the
  * SAME account; `?app=pro` / `?app=team` only unlock different FEATURES. The one
  * and only data boundary is the workspace tuple `{ ownerId, teamId }`, carried
- * on every request by the `X-Team-Context` header and enforced server-side
+ * on every request by the `X-Workspace-Context` header and enforced server-side
  * (DATA-LOSS-001 / "Private Team Buckets"). Filtering personal data by app type
  * is the bug, not the invariant.
  *
  * So this audit verifies the THREE boundaries that actually exist:
  *
  *   AXIS 1 — Team-context data scoping (THE data boundary)
- *            Same user, switch X-Team-Context → flow/project/shape/dashboard
+ *            Same user, switch X-Workspace-Context → flow/project/shape/dashboard
  *            buckets are DISJOINT; no row from team A surfaces under team B or
  *            personal; a non-member team context yields none of others' rows.
  *
@@ -162,14 +162,14 @@ ${rows(axis)}
 type Ctx = { app?: "pro" | "team"; team?: string | null; label: string };
 
 /** In-page same-origin fetch with explicit context headers — the exact path the
- *  app uses (proxy forwards X-App-Context / X-Team-Context). Returns raw rows
+ *  app uses (proxy forwards X-App-Context / X-Workspace-Context). Returns raw rows
  *  via the project convention `data?.data ?? data`. */
 async function apiFetch(page: Page, url: string, ctx: Ctx) {
   return page.evaluate(
     async ({ url, app, team }) => {
       const headers: Record<string, string> = {};
       if (app) headers["X-App-Context"] = app;
-      if (team) headers["X-Team-Context"] = team;
+      if (team) headers["X-Workspace-Context"] = team;
       let status = 0;
       let json: any = null;
       try {

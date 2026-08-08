@@ -33,20 +33,30 @@ export async function POST(req: NextRequest) {
       { expiresIn: "1h" },
     );
 
+    // Forward the workspace-scoping headers the browser's axios interceptor
+    // set. Dropping them makes the backend fall back to the caller's
+    // currentVersion (their strongest plan), not the app they are working in —
+    // which resolves shares and workspace scope against the wrong context.
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+    };
+    const workspaceCtx =
+      req.headers.get("x-workspace-context") ||
+      req.headers.get("x-team-context");
+    if (workspaceCtx) headers["X-Workspace-Context"] = workspaceCtx;
+    const appCtx = req.headers.get("x-app-context");
+    if (appCtx) headers["X-App-Context"] = appCtx;
+
     // Use PUT to update the flow diagram data
-    // Assuming backend accepts diagramData: { xml: ... } or just xml directly?
-    // Let's assume standard update structure. Backend usually expects JSON body.
     await axios.put(
-      `${BACKEND_URL}/api/flows/${flowId}`,
+      `${BACKEND_URL}/api/v1/flows/${flowId}`,
       {
         diagramData: xml,
-        thumbnail: thumbnail, // Assuming you want to send the thumbnail as well, replace with actual thumbnail variable if available
+        thumbnail: thumbnail,
         name: name,
         createVersion: createVersion, // FEAT-002: true on manual save, false on autosave
       },
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
+      { headers },
     );
 
     return NextResponse.json({ message: "Diagram saved successfully" });

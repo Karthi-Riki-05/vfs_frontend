@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useEntitlements } from "@/hooks/useEntitlements";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { useAiCredits } from "@/hooks/useAiCredits";
 import { Button, Skeleton } from "antd";
 import { ExclamationCircleOutlined, HeartFilled } from "@ant-design/icons";
 import { useDashboard } from "@/hooks/useDashboard";
@@ -108,43 +111,37 @@ export default function TeamDashboardPage() {
   const router = useRouter();
   const { activeTeamId } = useAppContext();
 
-  const [subStatus, setSubStatus] = useState<string | null>(null);
-  const [subLoaded, setSubLoaded] = useState(false);
+  // OPT-3: shared store — the Team dashboard, the Pro dashboard and /dashboard
+  // all read the same subscription status.
+  const { status: subStatus, loading: subLoading } = useSubscriptionStatus();
+  const subLoaded = !subLoading;
   const [portalLoading, setPortalLoading] = useState(false);
   const [aiCredits, setAiCredits] = useState<number | null>(null);
 
-  useEffect(() => {
-    subscriptionsApi
-      .getStatus()
-      .then((res) => {
-        const d = res.data?.data || res.data;
-        setSubStatus(d?.status ?? null);
-      })
-      .catch(() => {})
-      .finally(() => setSubLoaded(true));
-  }, []);
-
   // Active team plan = a live (or cancelling-but-still-active) subscription.
   // Free users have status null → show the Free Plan badge instead of Team.
-  const isTeamPlan = subStatus === "active" || subStatus === "cancelling";
+  // bug-106 (2026-08-08): `subStatus` is the CALLER's own subscription
+  // (`getStatus()` takes no workspace), so a member inside a paid workspace saw
+  // "Free Plan / No active subscription / Upgrade to a Team plan to
+  // collaborate" — directly above that workspace's 176 Team AI credits, which
+  // they can actually spend, and while `/entitlements` reported tier "team".
+  //
+  // The workspace's tier decides what this card SAYS; `subStatus` still decides
+  // what the button DOES, because only the owner can manage the billing.
+  const { entitlements } = useEntitlements();
+  const workspaceIsTeam = entitlements?.tier === "team";
+  const ownsSubscription = subStatus === "active" || subStatus === "cancelling";
+  const isTeamPlan = ownsSubscription || workspaceIsTeam;
+  // True when the plan is inherited from the workspace owner rather than bought
+  // by this user — the card must not offer them a billing screen they cannot use.
+  const inheritedPlan = workspaceIsTeam && !ownsSubscription;
 
-  // Remaining AI credits — refresh on the `aiCreditsChanged` event.
+  // Remaining AI credits. OPT-3: from the shared store — the store owns the
+  // `aiCreditsChanged` subscription for every display at once.
+  const { total: sharedAiCredits } = useAiCredits();
   useEffect(() => {
-    const fetchCredits = async () => {
-      try {
-        const res = await aiApi.getCredits();
-        const d = res.data?.data || res.data || {};
-        const total =
-          d.totalCredits ?? d.balance?.totalCredits ?? d.credits ?? null;
-        if (typeof total === "number") setAiCredits(total);
-      } catch {
-        /* leave as null — credits row hidden until known */
-      }
-    };
-    fetchCredits();
-    window.addEventListener("aiCreditsChanged", fetchCredits);
-    return () => window.removeEventListener("aiCreditsChanged", fetchCredits);
-  }, []);
+    if (typeof sharedAiCredits === "number") setAiCredits(sharedAiCredits);
+  }, [sharedAiCredits]);
 
   const openCustomerPortal = async () => {
     setPortalLoading(true);
@@ -309,16 +306,22 @@ export default function TeamDashboardPage() {
             </div>
           )}
           <div className="mt-2 text-xs text-white/85">
-            {isTeamPlan
-              ? "Manage your team plan and billing"
-              : "Upgrade to a Team plan to collaborate"}
+            {inheritedPlan
+              ? "Team plan provided by this workspace"
+              : isTeamPlan
+                ? "Manage your team plan and billing"
+                : "Upgrade to a Team plan to collaborate"}
           </div>
           <button
             onClick={() => router.push("/dashboard/subscription")}
             className="bg-transparent border-0 p-0 appearance-none cursor-pointer mt-4 h-10 px-4 rounded-xl font-bold text-sm inline-flex items-center gap-2 text-[#1F7D5E]"
             style={{ background: "white" }}
           >
-            {isTeamPlan ? "Manage Subscription" : "View Plans"}{" "}
+            {inheritedPlan
+              ? "View Plans"
+              : isTeamPlan
+                ? "Manage Subscription"
+                : "View Plans"}{" "}
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -581,16 +584,22 @@ export default function TeamDashboardPage() {
               </div>
             )}
             <div className="mt-3 text-xs text-white/85">
-              {isTeamPlan
-                ? "Manage your team plan, billing, and member access."
-                : "Upgrade to a Team plan to collaborate"}
+              {inheritedPlan
+                ? "Team plan provided by this workspace"
+                : isTeamPlan
+                  ? "Manage your team plan, billing, and member access."
+                  : "Upgrade to a Team plan to collaborate"}
             </div>
             <button
               onClick={() => router.push("/dashboard/subscription")}
               className="bg-transparent border-0 p-0 appearance-none cursor-pointer mt-6 h-10 px-4 rounded-xl font-bold text-sm inline-flex items-center gap-2 text-[#1F7D5E]"
               style={{ background: "white" }}
             >
-              {isTeamPlan ? "Manage Subscription" : "View Plans"}{" "}
+              {inheritedPlan
+                ? "View Plans"
+                : isTeamPlan
+                  ? "Manage Subscription"
+                  : "View Plans"}{" "}
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

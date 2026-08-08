@@ -360,10 +360,27 @@ export default function CustomShapesPanel({
   }));
 
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+    // bug-108: `modal={false}` is what makes drag-and-drop onto the canvas
+    // possible at all.
+    //
+    // Radix dialogs are modal by default, and a modal dialog sets
+    // `pointer-events: none` on everything outside itself. The draw.io iframe
+    // is outside, so while this panel was open the canvas could not be a drop
+    // target — you could pick a tile up and drag it, and the browser refused
+    // every drop ("easy to drag but can't drop"). Click-insert was unaffected
+    // because it never touches the canvas, which is exactly why one worked and
+    // the other did not.
+    //
+    // Non-modal also matches how this panel is used: it docks beside the canvas
+    // and you are meant to keep interacting with the diagram while it is open.
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()} modal={false}>
       <SheetContentNoOverlay
         side="left"
         className="tw p-0 flex flex-col w-[320px]"
+        // Keep focus in the canvas during a drag: Radix would otherwise pull
+        // focus back into the panel and can cancel the drag mid-flight.
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
       >
         <SheetHeader className="px-4 py-3 border-b border-border shrink-0">
           <SheetTitle className="flex items-center gap-2 text-sm font-medium">

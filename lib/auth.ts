@@ -12,6 +12,106 @@ import axios from "axios";
 const REMEMBERED_MAX_AGE = 30 * 24 * 60 * 60;
 const DEFAULT_MAX_AGE = 24 * 60 * 60;
 
+/**
+ * In-flight entitlement refreshes, ONE PER USER (OPT-1).
+ *
+ * ⚠️ The key is the user id and must stay that way. A single shared promise
+ * would resolve one user's entitlements into another user's signed JWT.
+ *
+ * Process-local: this dedupes within a Node instance, which is the whole deploy
+ * today (one container). Behind several instances each would still make one
+ * call — a 90% cut rather than 100%, and still correct.
+ */
+const userRefreshInflight = new Map<
+  string,
+  Promise<{
+    hasPro?: boolean;
+    currentVersion?: string;
+    hasTeamAccess?: boolean;
+  } | null>
+>();
+
+/** Timeout so one hung backend call cannot park every waiting session request. */
+const REFRESH_TIMEOUT_MS = 8000;
+
+/**
+ * Server-side result cache — the other half of OPT-1, and the half that
+ * actually matters.
+ *
+ * The `token.lastRefresh` throttle in the jwt callback CANNOT work on its own.
+ * `getServerSession()` runs the jwt callback but has no response to attach a
+ * Set-Cookie to, so any `lastRefresh` it writes is discarded. And 17 API proxy
+ * routes call `getServerSession()` — so once the 5-minute window lapses, EVERY
+ * proxied request re-ran the backend fetch, permanently, until an
+ * /api/auth/session response happened to rewrite the cookie.
+ *
+ * Measured after adding in-flight dedupe alone: still 43 backend calls in two
+ * minutes, in bursts of 2–4 per second. In-flight dedupe only collapses calls
+ * that OVERLAP; these were sequential, each finishing before the next began.
+ *
+ * A process-local TTL cache is what the cookie was supposed to provide. Same
+ * staleness bound as the intended design (5 min), now actually enforced.
+ */
+const userRefreshCache = new Map<string, { at: number; data: any }>();
+const REFRESH_TTL_MS = 5 * 60 * 1000;
+/** Bound the map so a long-lived server with many users cannot grow forever. */
+const REFRESH_CACHE_MAX = 500;
+
+export async function refreshUserOnce(userId: string, force = false) {
+  if (!force) {
+    const hit = userRefreshCache.get(userId);
+    if (hit && Date.now() - hit.at < REFRESH_TTL_MS) return hit.data;
+  }
+
+  const existing = userRefreshInflight.get(userId);
+  if (existing) return existing;
+
+  const p = (async () => {
+    try {
+      const backendUrl = process.env.BACKEND_URL || "http://vc-backend:5000";
+      const jwt = require("jsonwebtoken");
+      const tempToken = jwt.sign({ id: userId }, process.env.NEXTAUTH_SECRET!, {
+        expiresIn: "30s",
+      });
+      const res = await axios.get(`${backendUrl}/api/v1/users/me`, {
+        headers: { Authorization: `Bearer ${tempToken}` },
+        timeout: REFRESH_TIMEOUT_MS,
+      });
+      if (res.data?.success && res.data?.data) {
+        if (userRefreshCache.size >= REFRESH_CACHE_MAX) {
+          // Cheap eviction: drop the oldest entry. This is a freshness cache,
+          // not a correctness store — losing one only costs a refetch.
+          let oldestKey: string | null = null;
+          let oldestAt = Infinity;
+          userRefreshCache.forEach((v, k) => {
+            if (v.at < oldestAt) {
+              oldestAt = v.at;
+              oldestKey = k;
+            }
+          });
+          if (oldestKey) userRefreshCache.delete(oldestKey);
+        }
+        userRefreshCache.set(userId, { at: Date.now(), data: res.data.data });
+        return res.data.data;
+      }
+      return null;
+    } catch (err) {
+      // Caught INSIDE the shared promise: every awaiting caller gets `null` and
+      // keeps its existing token values, instead of the rejection propagating
+      // into N separate session requests.
+      console.error("Failed to refresh user data on session update:", err);
+      return null;
+    } finally {
+      // Always clear, success or failure, so a failed refresh does not pin a
+      // permanently-rejected promise in the map.
+      userRefreshInflight.delete(userId);
+    }
+  })();
+
+  userRefreshInflight.set(userId, p);
+  return p;
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -184,26 +284,35 @@ export const authOptions: NextAuthOptions = {
         Date.now() - (token.lastRefresh as number) > REFRESH_INTERVAL_MS;
 
       if ((trigger === "update" || dueForRefresh) && token.id) {
-        try {
-          const backendUrl =
-            process.env.BACKEND_URL || "http://vc-backend:5000";
-          const jwt = require("jsonwebtoken");
-          const tempToken = jwt.sign(
-            { id: token.id },
-            process.env.NEXTAUTH_SECRET!,
-            { expiresIn: "30s" },
-          );
-          const res = await axios.get(`${backendUrl}/api/v1/users/me`, {
-            headers: { Authorization: `Bearer ${tempToken}` },
-          });
-          if (res.data?.success && res.data?.data) {
-            token.hasPro = res.data.data.hasPro;
-            token.currentVersion = res.data.data.currentVersion;
-            token.hasTeamAccess = res.data.data.hasTeamAccess ?? false;
-          }
+        // OPT-1 (2026-08-08): share ONE in-flight refresh per user.
+        //
+        // The 5-minute throttle above is written into the JWT cookie, so it only
+        // stops SEQUENTIAL refreshes. A page load mounts many `useSession()`
+        // consumers at once; they issue parallel /api/auth/session requests, and
+        // every one of them evaluates `dueForRefresh` against a cookie that none
+        // of them has updated yet. All of them then call the backend. Measured
+        // on a real dashboard refresh: 47 × GET /users/me, arriving in bursts of
+        // 5–6 in the same second — a third of ALL backend traffic for that load.
+        //
+        // Keyed by user id, never a bare module variable: a shared promise would
+        // hand user B the entitlements resolved for user A and bake them into
+        // B's signed token.
+        // `trigger === "update"` is the explicit session.update() the purchase
+        // flow calls — it MUST bypass the cache, or a user who just paid keeps
+        // seeing the free tier for up to five minutes.
+        const data = await refreshUserOnce(
+          String(token.id),
+          trigger === "update",
+        );
+        if (data) {
+          token.hasPro = data.hasPro;
+          token.currentVersion = data.currentVersion;
+          token.hasTeamAccess = data.hasTeamAccess ?? false;
           token.lastRefresh = Date.now();
-        } catch (err) {
-          console.error("Failed to refresh user data on session update:", err);
+        } else {
+          // Failed: keep the previous entitlement values (never downgrade on a
+          // network blip) and leave `lastRefresh` alone so the next request
+          // retries rather than waiting out the full 5 minutes.
         }
       }
 

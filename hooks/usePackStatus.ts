@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createSharedResource } from "@/lib/sharedResource";
 import { flowPackApi } from "@/api/notifications.api";
 import { flowsApi } from "@/api/flows.api";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
@@ -49,45 +50,64 @@ function readIsTeamApp(): boolean {
   }
 }
 
+// OPT-4 (2026-08-08): shared store + a guarded expiry check.
+//
+// Two components on the Team dashboard call this hook (the page itself and
+// FlowUsageBar), and the flows page adds FlowPackBanner on top. Each instance
+// ran its own POST /flows/check-expiry FOLLOWED BY a GET /flows/pack-status —
+// measured 4 of each per dashboard load, on a page that lists no flows.
+//
+// `check-expiry` is the worse of the two: it is a WRITE that applies pack
+// expiry server-side. Firing it once per component mount is not a freshness
+// strategy, it is the same maintenance action repeated.
+let lastExpiryCheck = 0;
+const EXPIRY_CHECK_INTERVAL_MS = 60_000;
+
+const packResource = createSharedResource<PackStatus>(
+  "flows/pack-status",
+  async () => {
+    // Still run the expiry check before reading status — a pack that lapsed
+    // while the tab was open must not be reported as active — but at most once
+    // per window, however many components ask.
+    const now = Date.now();
+    if (now - lastExpiryCheck > EXPIRY_CHECK_INTERVAL_MS) {
+      lastExpiryCheck = now;
+      await flowsApi.checkExpiry().catch(() => {});
+    }
+    const res = await flowPackApi.packStatus();
+    return res.data?.data || res.data;
+  },
+  // A purchase or a flow-limit change makes the held value wrong immediately.
+  ["vc:flow-pack-changed"],
+);
+
 export function usePackStatus() {
-  const [status, setStatus] = useState<PackStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: status, loading, reload } = packResource.use("global");
   const [isTeamApp, setIsTeamApp] = useState(false);
 
   const refresh = useCallback(async () => {
-    try {
-      const res = await flowPackApi.packStatus();
-      const data = res.data?.data || res.data;
-      setStatus(data);
-    } catch {
-      setStatus(null);
-    } finally {
-      setLoading(false);
-    }
+    await packResource.load("global", true);
   }, []);
 
   useEffect(() => {
     setIsTeamApp(readIsTeamApp());
-    // Check and apply expiry in real-time on mount, then load fresh pack status.
-    flowsApi
-      .checkExpiry()
-      .catch(() => {})
-      .finally(() => refresh());
-  }, [refresh]);
+  }, []);
 
   // Re-scope on workspace switch: drop the previous workspace's pack/limit
   // state immediately so a stale "at-limit" banner can't bleed across, then
-  // refetch under the new X-Team-Context. Mirrors useFlows' flush handling.
+  // refetch under the new X-Workspace-Context. Mirrors useFlows' flush handling.
   // Also re-read the app surface so the effective limit follows a context flip.
   useEffect(
     () =>
       onWorkspaceFlush(() => {
         setIsTeamApp(readIsTeamApp());
-        setStatus(null);
-        setLoading(true);
-        refresh();
+        // A workspace switch is a genuine change of scope — expiry is re-checked
+        // and the status refetched, bypassing the once-per-window guard.
+        lastExpiryCheck = 0;
+        packResource.reset();
+        void packResource.load("global", true);
       }),
-    [refresh],
+    [],
   );
 
   // Context-aware limit: backend returns BOTH pro (`flowLimit`) and team
@@ -114,4 +134,14 @@ export function usePackStatus() {
     effectiveLimit,
     effectiveUnlimited,
   };
+}
+
+/**
+ * Test seam. The store is module state, so it survives between test cases —
+ * without this, case 2 reads case 1's snapshot and its own mock is never
+ * consulted. (`usePro` carries the same escape hatch for the same reason.)
+ */
+export function __resetPackStatus() {
+  lastExpiryCheck = 0;
+  packResource.reset();
 }

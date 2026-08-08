@@ -30,6 +30,7 @@ import DiagramThumbnail from "./DiagramThumbnail";
 import GeneratingProgress from "./GeneratingProgress";
 import { flowsApi } from "@/api/flows.api";
 import { aiApi } from "@/api/ai.api";
+import { useAiCredits } from "@/hooks/useAiCredits";
 
 type ViewState = "collapsed" | "half" | "fullscreen";
 
@@ -236,24 +237,14 @@ export default function AIAssistant({
     };
   }, []);
 
-  // Keep the header credits counter fresh while the panel is open (both widths)
+  // Keep the header credits counter fresh while the panel is open (both widths).
+  // OPT-3: reads the shared store rather than fetching its own copy — the panel
+  // mounts on every dashboard page, so this was a per-page duplicate.
+  const { total: sharedCredits } = useAiCredits();
   useEffect(() => {
     if (state === "collapsed") return;
-    const fetchCredits = async () => {
-      try {
-        const res = await aiApi.getCredits();
-        const d = res.data?.data || res.data || {};
-        const total =
-          d.totalCredits ?? d.balance?.totalCredits ?? d.credits ?? null;
-        if (typeof total === "number") setCredits(total);
-      } catch {
-        // keep last known value
-      }
-    };
-    fetchCredits();
-    window.addEventListener("aiCreditsChanged", fetchCredits);
-    return () => window.removeEventListener("aiCreditsChanged", fetchCredits);
-  }, [state]);
+    if (typeof sharedCredits === "number") setCredits(sharedCredits);
+  }, [state, sharedCredits]);
 
   // Load recent conversations for the AI home screen (both widths)
   useEffect(() => {

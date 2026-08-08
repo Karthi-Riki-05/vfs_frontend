@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { Menu, Typography, Button } from "antd";
 import { toast } from "sonner";
 import { PlusOutlined } from "@ant-design/icons";
-// App axios client — carries the workspace-scoping X-Team-Context header.
+// App axios client — carries the workspace-scoping X-Workspace-Context header.
 import api from "@/lib/axios";
 import {
   ClockCircleOutlined,

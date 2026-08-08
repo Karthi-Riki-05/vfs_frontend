@@ -1195,45 +1195,128 @@ function extendApp() {
         var container = graph.container;
         if (!container) return;
         __vcDropWired = true;
+        console.log("[over-ride.js] shape drop wired (document capture)");
 
-        mxEvent.addListener(container, "dragover", function (evt) {
-          if (__vcDragXml == null) return; // only while a VC shape drag is armed
-          evt.preventDefault();
-          if (evt.dataTransfer) evt.dataTransfer.dropEffect = "copy";
-        });
+        // bug-108: the drag payload now travels BOTH ways — the postMessage
+        // "arm" and a custom dataTransfer MIME that rides along with the drag
+        // into this same-origin iframe. Relying on the arm alone made the drop
+        // depend on message ordering and on the parent's `dragend` (which
+        // disarms) not firing first; when either went the wrong way the drop
+        // silently did nothing, which is exactly what was reported: click
+        // inserted, drag did not.
+        var VC_SHAPE_MIME = "application/x-vc-shape-xml";
 
-        mxEvent.addListener(container, "drop", function (evt) {
-          if (__vcDragXml == null) return;
-          evt.preventDefault();
-          var xml = __vcDragXml;
-          __vcDragXml = null;
-          try {
-            var xmlToProcess = xml;
-            try {
-              var tmpDoc = mxUtils.parseXml(xml);
-              var tmpRoot = tmpDoc.documentElement;
-              if (tmpRoot && tmpRoot.nodeName === "mxfile") {
-                var extracted = Editor.extractGraphModel(tmpRoot);
-                if (extracted) xmlToProcess = mxUtils.getXml(extracted);
-              }
-            } catch (e2) {}
-            var cells = editorUi.stringToCells(xmlToProcess);
-            if (cells == null || cells.length === 0) return;
-            var bbox = graph.getBoundingBoxFromGeometry(cells);
-            if (bbox) editorUi.sidebar.graph.moveCells(cells, -bbox.x, -bbox.y);
-            var pt = graph.getPointForEvent(evt); // drop location → graph coords
-            graph.model.beginUpdate();
-            try {
-              graph.setSelectionCells(graph.importCells(cells, pt.x, pt.y));
-            } finally {
-              graph.model.endUpdate();
-            }
-            graph.scrollCellToVisible(graph.getSelectionCell());
-          } catch (e3) {
-            console.error("[over-ride.js] shape drop insert failed", e3);
+        function __vcHasShapePayload(evt) {
+          if (__vcDragXml != null) return true;
+          var dt = evt.dataTransfer;
+          if (!dt || !dt.types) return false;
+          for (var i = 0; i < dt.types.length; i++) {
+            if (dt.types[i] === VC_SHAPE_MIME) return true;
           }
-        });
+          return false;
+        }
+
+        function __vcReadShapeXml(evt) {
+          if (__vcDragXml != null) return __vcDragXml;
+          try {
+            return evt.dataTransfer.getData(VC_SHAPE_MIME) || null;
+          } catch (e) {
+            return null;
+          }
+        }
+
+        // bug-108 (second pass): listen on the DOCUMENT, not just
+        // `graph.container`.
+        //
+        // Reported after the first fix: "easy to drag but can't drop". A drop
+        // is refused when nothing calls preventDefault() on dragover — i.e. our
+        // listener never saw the event. draw.io's canvas is not a single
+        // element: the cursor can be over the SVG, a scroll wrapper, a shadow /
+        // overlay layer or the page background, and `graph.container` is only
+        // one of those. Document-level capture sees them all, and we still map
+        // the drop to graph coordinates via graph.getPointForEvent(), so the
+        // cell lands under the cursor either way.
+        var dropRoot = container.ownerDocument || document;
+
+        dropRoot.addEventListener(
+          "dragover",
+          function (evt) {
+            if (!__vcHasShapePayload(evt)) return;
+            evt.preventDefault();
+            evt.stopPropagation();
+            if (evt.dataTransfer) evt.dataTransfer.dropEffect = "copy";
+          },
+          true,
+        );
+
+        dropRoot.addEventListener(
+          "drop",
+          function (evt) {
+            if (!__vcHasShapePayload(evt)) return;
+            evt.preventDefault();
+            evt.stopPropagation();
+            console.log("[over-ride.js] shape drop received");
+            var xml = __vcReadShapeXml(evt);
+            __vcDragXml = null;
+            if (!xml) return;
+            try {
+              var xmlToProcess = xml;
+              try {
+                var tmpDoc = mxUtils.parseXml(xml);
+                var tmpRoot = tmpDoc.documentElement;
+                if (tmpRoot && tmpRoot.nodeName === "mxfile") {
+                  var extracted = Editor.extractGraphModel(tmpRoot);
+                  if (extracted) xmlToProcess = mxUtils.getXml(extracted);
+                }
+              } catch (e2) {}
+              var cells = editorUi.stringToCells(xmlToProcess);
+              if (cells == null || cells.length === 0) return;
+              var bbox = graph.getBoundingBoxFromGeometry(cells);
+              if (bbox)
+                editorUi.sidebar.graph.moveCells(cells, -bbox.x, -bbox.y);
+              var pt = graph.getPointForEvent(evt); // drop location → graph coords
+              graph.model.beginUpdate();
+              try {
+                graph.setSelectionCells(graph.importCells(cells, pt.x, pt.y));
+              } finally {
+                graph.model.endUpdate();
+              }
+              graph.scrollCellToVisible(graph.getSelectionCell());
+            // Tell the parent so it can toast — click-insert toasts from the
+            // React side, but a drop is handled entirely in here, so without
+            // this the two paths gave different feedback for the same action.
+            (window.opener || window.parent).postMessage(
+              JSON.stringify({ event: "vcShapeDropped", success: true }),
+              "*",
+            );
+            } catch (e3) {
+              console.error("[over-ride.js] shape drop insert failed", e3);
+              (window.opener || window.parent).postMessage(
+                JSON.stringify({
+                  event: "vcShapeDropped",
+                  success: false,
+                  error: e3 && e3.message,
+                }),
+                "*",
+              );
+            }
+          },
+          true,
+        );
       }
+
+      // bug-108: wire EAGERLY, as soon as the graph exists — not on the first
+      // arm message. The listeners used to be installed by the arm handler, so
+      // if that message was late, lost, or the drag carried only dataTransfer,
+      // nothing was listening when the drop arrived and the drag silently did
+      // nothing. Poll briefly until EditorUi is up, then stop.
+      // Also accept the drag on the iframe's window itself — some Chrome
+      // versions deliver the first dragover to the window before any element.
+      var __vcWireTries = 0;
+      var __vcWireTimer = setInterval(function () {
+        __vcWireShapeDrop();
+        if (__vcDropWired || ++__vcWireTries > 60) clearInterval(__vcWireTimer);
+      }, 500);
 
       window.addEventListener("message", function (evt) {
         if (!evt.data || typeof evt.data !== "string") return;

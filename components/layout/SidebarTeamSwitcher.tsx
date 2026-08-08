@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/popover";
 import { useAiBilling, type BillingOption } from "@/context/AiBillingContext";
 import { getClientAppType } from "@/lib/detectWebView";
+import { usePro } from "@/hooks/usePro";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -17,7 +18,7 @@ import { cn } from "@/lib/utils";
 //
 // SOURCE OF TRUTH: useAiBilling(). Selecting a row calls switchBilling(teamId),
 // which (see AiBillingContext) flushes the workspace cache, sets the scoped
-// X-Team-Context header, persists server-side, and re-scopes data + AI billing.
+// X-Workspace-Context header, persists server-side, and re-scopes data + AI billing.
 // It NEVER mutates the App-switcher state (vc_app_context / PRO_BILLING_KEY vs
 // AI_BILLING_KEY are separate per-tab keys in lib/aiBilling.ts), so toggling
 // ValueChart ⇄ PRO keeps each app's team selection independent.
@@ -66,6 +67,12 @@ const SidebarTeamSwitcher: React.FC<SidebarTeamSwitcherProps> = ({
     loading,
     switchBilling,
   } = useAiBilling();
+  // Standalone Pro entitlement — decides whether staying in the Pro app after a
+  // workspace switch is viable, or whether ProGuard would bounce them.
+  // `loading` matters: usePro starts as { loading: true, hasPro: false }, and
+  // treating that initial state as "not Pro" bounced Pro users to the Team app
+  // whenever they clicked the switcher before the status resolved.
+  const { hasPro, proPurchasedAt, loading: proLoading } = usePro();
   const [open, setOpen] = useState(false);
 
   // Hide the sidebar variant on web — web uses the header (navbar) switcher instead.
@@ -79,15 +86,29 @@ const SidebarTeamSwitcher: React.FC<SidebarTeamSwitcherProps> = ({
     setOpen(false);
     if (opt.teamId === activeBillingTeamId) return;
     void switchBilling(opt.teamId);
-    // If the user switches workspace while on the Pro route, navigate them to
-    // the team dashboard. ProGuard re-evaluates on the new workspace entitlement
-    // and would redirect to /upgrade-pro for users without standalone Pro
-    // (proPurchasedAt=null) — even if they never intended to use the Pro app.
-    if (
+    // The APP and the WORKSPACE are independent axes: switching workspace must
+    // not move you between apps. Data is separated by app_context, so a Pro
+    // user switching into someone else's workspace stays in the Pro app and
+    // simply sees that workspace's PRO data.
+    //
+    // This used to redirect to /dashboard/team unconditionally. The reason was
+    // real but too broad: ProGuard bounces anyone WITHOUT standalone Pro off
+    // /dashboard/pro to /upgrade-pro, so a free member switching workspaces
+    // would have been thrown at a purchase page they never asked for. That only
+    // applies to users who lack Pro — so the bail-out is now conditional on
+    // exactly that, instead of firing for everyone.
+    const onProRoute =
       typeof window !== "undefined" &&
       (window.location.pathname === "/dashboard/pro" ||
-        window.location.pathname.startsWith("/dashboard/pro/"))
-    ) {
+        window.location.pathname.startsWith("/dashboard/pro/"));
+    // Only bail out when we KNOW they lack Pro. While `usePro` is still
+    // loading, hasPro is false-by-default — redirecting on that raced the
+    // fetch and threw genuine Pro users into the Team app if they clicked
+    // early (reproduced in-browser: bounced at ~7s, stayed put at ~20s).
+    // Staying is the safe default: a real non-Pro user is still caught by
+    // ProGuard on the next render.
+    const knownNotPro = !proLoading && !(hasPro && proPurchasedAt);
+    if (onProRoute && knownNotPro) {
       window.location.href = "/dashboard/team";
     }
   };

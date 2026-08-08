@@ -1,5 +1,5 @@
 // Use the app's axios client so the workspace-scoping request interceptor
-// (lib/axios.tsx) attaches the `X-Team-Context` header. Bare `axios` from
+// (lib/axios.tsx) attaches the `X-Workspace-Context` header. Bare `axios` from
 // the npm module bypasses interceptors and caused team-context flow
 // creations to fall back to personal.
 import api from "@/lib/axios";

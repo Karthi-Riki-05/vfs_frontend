@@ -33,6 +33,8 @@ import {
 // New-design TopBar uses lucide icons (not Ant) — see new_design/src/routes/index.tsx.
 import { Menu as MenuIcon, MessageCircle } from "lucide-react";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
+import { useCurrentUser, resolveAvatar } from "@/hooks/useCurrentUser";
+import { useEntitlements } from "@/hooks/useEntitlements";
 import SidebarTeamSwitcher from "@/components/layout/SidebarTeamSwitcher";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useIsMobile, useIsChatColumnHidden } from "@/hooks/useMediaQuery";
@@ -89,31 +91,33 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   // Seed from the session, then fetch the live value and refresh on the
   // `userAvatarChanged` event the Settings page dispatches after an upload.
   // (Mirrors the Sidebar drawer avatar, Sidebar.tsx:196-220.)
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(
-    (session?.user?.image as string) || null,
-  );
+  //
+  // OPT-3 (2026-08-08): the fetch moved into the SHARED `useCurrentUser` store.
+  // This component and the Sidebar each ran their own identical GET /users/me —
+  // 6 per dashboard load between them. They now share one request and one
+  // snapshot, and the store handles the `userAvatarChanged` invalidation for
+  // both, so an upload still lands here immediately.
+  const { data: currentUser } = useCurrentUser();
+  // The event carries the new url, so the header updates without waiting for
+  // the refetch to come back. Falls back to the store, then to the session.
+  const [optimisticAvatar, setOptimisticAvatar] = useState<string | null>(null);
   useEffect(() => {
-    const fetchAvatar = async () => {
-      try {
-        const res = await api.get("/users/me");
-        const d = res.data?.data || res.data || {};
-        const url = d.image || d.photo || null;
-        if (url) setAvatarUrl(url);
-      } catch {
-        /* keep last known value */
-      }
-    };
-    fetchAvatar();
     const onChange = (e: Event) => {
       const url = (e as CustomEvent<{ url?: string }>).detail?.url;
-      if (url) setAvatarUrl(url);
-      else fetchAvatar();
+      if (url) setOptimisticAvatar(url);
     };
     window.addEventListener("userAvatarChanged", onChange);
     return () => window.removeEventListener("userAvatarChanged", onChange);
   }, []);
+  const avatarUrl =
+    optimisticAvatar ||
+    resolveAvatar(currentUser) ||
+    (session?.user?.image as string) ||
+    null;
   const hasAvatar =
     typeof avatarUrl === "string" && avatarUrl.trim().length > 0;
+  // Kept so the <img onError> path can still fall back to initials.
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   const {
     activeContext,
@@ -167,6 +171,15 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       : forcedAppMode === "team"
         ? "/dashboard/team"
         : "/dashboard";
+  // bug-106 (2026-08-08): in the Team app the badge follows the WORKSPACE's
+  // tier, not the caller's own receipt. A member inside test123's paid
+  // workspace was shown "Free Plan" while spending that workspace's Team AI
+  // credits on the same screen — `/entitlements` (workspace-aware, and what the
+  // route guards enforce) said `team`. Falls back to the previous personal
+  // signals while entitlements is null (loading / failed), so the owner's own
+  // screen never flashes the wrong badge.
+  const { entitlements } = useEntitlements();
+  const workspaceTier = entitlements?.tier ?? null;
   const inAppPlan: "free" | "pro" | "team" = isProApp
     ? // Pro app: Pro entitlement is the only signal
       personalPlanInfo.hasPro
@@ -174,15 +187,17 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       : "free"
     : // Team app: read Team-only signals — active subscription or team
       // context. Personal plan='pro' from a separate Pro purchase is ignored.
-      isTeamContext
-      ? activeContext.type === "team"
-        ? activeContext.plan === "team"
-          ? "team"
+      workspaceTier === "team"
+      ? "team"
+      : isTeamContext
+        ? activeContext.type === "team"
+          ? activeContext.plan === "team"
+            ? "team"
+            : "free"
           : "free"
-        : "free"
-      : personalPlan === "team"
-        ? "team"
-        : "free";
+        : personalPlan === "team"
+          ? "team"
+          : "free";
   const isPro = inAppPlan === "pro" || inAppPlan === "team";
   const personalActive = activeContext.type === "personal";
   const hasTeamContext = availableTeams.length > 0;
@@ -195,6 +210,8 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const hasChatAccess =
     proLoading ||
     isProApp ||
+    // bug-106: the workspace's own answer, same as Sidebar.hasTeamFeatures.
+    !!entitlements?.modules?.includes("chat") ||
     isTeamContext ||
     effectivePlan === "team" ||
     sessionHasTeamAccess;
@@ -355,15 +372,31 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <button
             onClick={() => router.push("/dashboard/settings")}
             aria-label="Open profile"
-            className="ml-1 w-9 h-9 rounded-full bg-primary ring-2 ring-primary/20 flex items-center justify-center text-white text-sm font-bold cursor-pointer border-0 appearance-none overflow-hidden hover:ring-primary/40 transition"
+            // `p-0` is load-bearing: this is a <button>, and Chrome's UA
+            // stylesheet gives buttons `padding: 1px 6px`. Tailwind's preflight
+            // would normally zero that, but preflight is SCOPED TO `.tw` here
+            // (it is kept off the global sheet so it cannot fight AntD) and the
+            // header sits outside it. The 36px circle therefore had a 24px-wide
+            // content box, `img { max-width: 100% }` clamped the photo to 24px,
+            // and the avatar showed as a square floating in a ring of green
+            // background instead of filling the circle.
+            className="ml-1 w-9 h-9 p-0 rounded-full bg-primary ring-2 ring-primary/20 flex items-center justify-center text-white text-sm font-bold cursor-pointer border-0 appearance-none overflow-hidden hover:ring-primary/40 transition"
           >
-            {hasAvatar ? (
+            {hasAvatar && !avatarFailed ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={avatarUrl as string}
                 alt={userName}
-                className="w-full h-full object-cover"
-                onError={() => setAvatarUrl(null)}
+                // Sized INLINE, in px, to match the w-9/h-9 button exactly.
+                // `w-full h-full` did not fill it: globals.css carries an
+                // UNLAYERED `img { max-width: 100%; height: auto }`, and an
+                // unlayered rule beats every @layer — including Tailwind's
+                // utilities — so `h-full` lost and the photo rendered 24×24
+                // inside the 36px circle, leaving a green ring of background
+                // around a square. An inline style outranks the global.
+                style={{ width: 36, height: 36 }}
+                className="rounded-full object-cover shrink-0"
+                onError={() => setAvatarFailed(true)}
               />
             ) : (
               userInitial

@@ -34,7 +34,10 @@ import { flowsApi } from "@/api/flows.api";
 import { useRouter, useParams } from "next/navigation";
 import api from "@/lib/axios";
 import { timeAgo } from "@/lib/flowUtils";
-import FlowCard from "@/components/flows/FlowCard";
+import FlowCollection from "@/components/flows/FlowCollection";
+import ViewToggle from "@/components/common/ViewToggle";
+import { useFlowView } from "@/hooks/useFlowView";
+import { useFlowActions } from "@/hooks/useFlowActions";
 
 const PLACEHOLDER_COLORS = [
   "#E8F5E9",
@@ -71,7 +74,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<any>(null);
   const [flows, setFlows] = useState<ProjectFlow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [flowsView, setFlowsView] = useState<"list" | "grid">("list");
+  const [flowsView, setFlowsView] = useFlowView("grid");
 
   // Rename project modal
   const [renameOpen, setRenameOpen] = useState(false);
@@ -199,19 +202,16 @@ export default function ProjectDetailPage() {
     (f) => !addSearch || f.name.toLowerCase().includes(addSearch.toLowerCase()),
   );
 
-  const flowMenu = (flow: ProjectFlow) => ({
-    items: [
-      {
-        key: "open",
-        label: "Open in editor",
-        icon: <ExternalLink className="w-3.5 h-3.5" />,
-        onClick: () => handleEdit(flow.id),
-      },
-      { type: "divider" as const },
+  // Same seven options as /dashboard/flows, plus the one thing this page can do
+  // that they cannot. Previously it offered only Open + Remove from project.
+  const actions = useFlowActions({
+    onChanged: fetchProject,
+    onEdit: (id) => handleEdit(id),
+    extraItems: (flow) => [
       {
         key: "remove",
         label: "Remove from project",
-        icon: <X className="w-3.5 h-3.5" />,
+        icon: X,
         danger: true,
         onClick: () => handleRemoveFromProject(flow.id),
       },
@@ -298,34 +298,7 @@ export default function ProjectDetailPage() {
               Flows in this project
             </div>
             {flows.length > 0 && (
-              <div className="inline-flex p-1 rounded-xl bg-secondary">
-                <button
-                  type="button"
-                  onClick={() => setFlowsView("list")}
-                  aria-label="List view"
-                  aria-pressed={flowsView === "list"}
-                  className={`w-8 h-7 rounded-lg flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer ${
-                    flowsView === "list"
-                      ? "bg-card shadow-sm text-primary"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  <ListIcon className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFlowsView("grid")}
-                  aria-label="Grid view"
-                  aria-pressed={flowsView === "grid"}
-                  className={`w-8 h-7 rounded-lg flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer ${
-                    flowsView === "grid"
-                      ? "bg-card shadow-sm text-primary"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              <ViewToggle view={flowsView} onChange={setFlowsView} />
             )}
           </div>
 
@@ -350,90 +323,18 @@ export default function ProjectDetailPage() {
                 Add a new flow or assign an existing one
               </div>
             </div>
-          ) : flowsView === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {flows.map((flow, index) => (
-                <FlowCard
-                  key={flow.id}
-                  flow={flow}
-                  onEdit={handleEdit}
-                  onRemoveFromProject={() => handleRemoveFromProject(flow.id)}
-                  placeholderColor={
-                    PLACEHOLDER_COLORS[index % PLACEHOLDER_COLORS.length]
-                  }
-                />
-              ))}
-            </div>
           ) : (
-            flows.map((flow, index) => {
-              const color = ROW_TONES[index % ROW_TONES.length];
-              return (
-                <div
-                  key={flow.id}
-                  className="w-full flex items-center gap-3 p-3 rounded-2xl bg-card border border-border mb-2"
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleEdit(flow.id)}
-                    className="flex items-center gap-3 flex-1 min-w-0 text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
-                  >
-                    <div
-                      className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                      style={{
-                        background: `color-mix(in srgb, ${color} 12%, transparent)`,
-                      }}
-                    >
-                      <Workflow className="w-5 h-5" style={{ color }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm text-foreground truncate">
-                        {flow.name}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground truncate">
-                        Edited {timeAgo(flow.updatedAt)}
-                      </div>
-                    </div>
-                  </button>
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          aria-label="Flow actions"
-                          className="tw w-9 h-9 rounded-lg hover:bg-secondary flex items-center justify-center bg-transparent border-0 p-0 appearance-none cursor-pointer"
-                        >
-                          <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="tw">
-                        {(flowMenu(flow).items as any[]).map(
-                          (item: any, i: number) =>
-                            item.type === "divider" ? (
-                              <DropdownMenuSeparator key={`sep-${i}`} />
-                            ) : (
-                              <DropdownMenuItem
-                                key={item.key}
-                                onSelect={item.onClick}
-                                className={
-                                  item.danger
-                                    ? "text-destructive focus:text-destructive"
-                                    : ""
-                                }
-                              >
-                                {item.icon}
-                                {item.label}
-                              </DropdownMenuItem>
-                            ),
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              );
-            })
+            <FlowCollection
+              flows={flows}
+              view={flowsView}
+              onOpen={(id) => handleEdit(id)}
+              onMenu={actions.openMenu}
+            />
           )}
         </div>
       </div>
+
+      {actions.modals}
 
       {/* Rename Project Modal — new_design ModalShell */}
       <ModalShell open={renameOpen} onClose={() => setRenameOpen(false)}>

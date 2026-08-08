@@ -45,7 +45,7 @@ export default function RootPage() {
 
       if (app === "pro") {
         // Clear any team-app billing teamId so the axios interceptor doesn't
-        // send the old X-Team-Context on the first Pro app requests. ProGuard
+        // send the old X-Workspace-Context on the first Pro app requests. ProGuard
         // will restore the correct proTeamId synchronously before the first
         // render (vc_pro_team_id → vc_ai_billing_team via setAiBillingTeamId).
         localStorage.removeItem("vc_ai_billing_team");

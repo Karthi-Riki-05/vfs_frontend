@@ -23,7 +23,7 @@ import { flushWorkspaceCache } from "@/lib/workspaceCache";
 // pick which AI-credit pool (personal vs a team's shared pool) gets billed —
 // but selecting a workspace here ALSO re-scopes the user's data. switchBilling
 // flushes the workspace cache, writes the billing teamId that the axios
-// interceptor sends as X-Team-Context, and dispatches vc:workspace-switch so
+// interceptor sends as X-Workspace-Context, and dispatches vc:workspace-switch so
 // AppContext updates activeTeamId / isTeamContext / effectivePlan. Flows, chat
 // and dashboard therefore follow the selection (per-team isolation model, not
 // the old personal-context-superset design). DATA-LOSS-001 is upheld because
@@ -85,7 +85,7 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
   // (server returns null; a lazy init that reads localStorage would return a
   // real value on the client and React would throw). The axios interceptor
   // reads getAiBillingTeamId() directly from localStorage at request time, so
-  // the correct X-Team-Context header is attached regardless of this state.
+  // the correct X-Workspace-Context header is attached regardless of this state.
   const [activeBillingTeamId, setActive] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -199,10 +199,24 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
             return false;
           }
         })();
+      // The Pro exception must be narrow: the caller's OWN workspace only.
+      //
+      // It used to be `serverTeamId !== undefined && isInProApp`, which trusted
+      // ANY server-saved workspace while in the Pro app, without checking it
+      // was offered. So a member who had switched into someone else's TEAM
+      // workspace kept that selection after moving to the Pro app — the
+      // switcher showed the other tenant, and the dashboard billed and
+      // displayed THEIR credit pool. Precisely the cross-app leak the
+      // options-list check exists to prevent.
+      //
+      // Under owner-as-workspace a user's own workspace id IS their user id,
+      // so that is the only value worth trusting unlisted (the own/Pro row is
+      // deliberately absent from the switchable list).
+      const ownWorkspaceId = (session?.user as any)?.id || null;
       const valid =
-        (serverTeamId !== undefined && isInProApp) ||
         candidate == null ||
-        nextOptions.some((o) => o.teamId === candidate);
+        nextOptions.some((o) => o.teamId === candidate) ||
+        (isInProApp && !!ownWorkspaceId && candidate === ownWorkspaceId);
       const resolved = valid ? candidate : null;
 
       setActive(resolved);

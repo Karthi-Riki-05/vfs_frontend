@@ -27,6 +27,16 @@ export const teamsApi = {
     role: "ADMIN" | "MEMBER",
   ) => api.put(`/teams/${teamId}/members/${userId}/role`, { role }),
 
+  // CHANGE-001 — workspace-level roster. A team is only a label, so someone
+  // whose teams were all deleted still belongs to the workspace and shows up
+  // here and nowhere else.
+  listWorkspaceMembers: () => api.get("/teams/workspace/members"),
+
+  // The ONLY way to revoke workspace access. Removing someone from every team
+  // does not do it.
+  removeFromWorkspace: (userId: string) =>
+    api.delete(`/teams/workspace/members/${userId}`),
+
   invite: (data: { teamId: string; email?: string; emails?: string[] }) =>
     api.post("/teams/invite", data),
 

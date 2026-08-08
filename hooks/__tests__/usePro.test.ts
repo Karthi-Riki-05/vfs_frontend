@@ -21,7 +21,7 @@ vi.mock("@/api/pro.api", () => ({
   },
 }));
 
-import { usePro } from "../usePro";
+import { usePro, __resetProStore } from "../usePro";
 
 const PRO_STATUS = {
   currentApp: "pro" as const,
@@ -35,6 +35,9 @@ describe("usePro hook", () => {
   beforeEach(() => {
     getAppStatus.mockReset();
     sessionStorage.clear();
+    // usePro now shares one module-level snapshot across all consumers, so it
+    // outlives a single renderHook — clear it or case N reads case N-1's data.
+    __resetProStore();
   });
 
   it("exposes pro status after fetch resolves", async () => {
@@ -90,5 +93,47 @@ describe("usePro hook", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.forcedMode).toBeNull();
+  });
+
+  // ── SHARED: one request for N consumers ──────────────────────────────────
+  // The hook has 16 call sites and `useAppBrand` adds 7 more indirectly, so as
+  // a per-instance hook it fired GET /pro/app-status once PER CONSUMER —
+  // measured 6 per Team page load and 23 per Pro one, doubled by the app
+  // switch's two page loads, which is what tripped the 600-req/2-min limiter.
+  it("SHARED-P01: many consumers mounting together cause ONE request", async () => {
+    getAppStatus.mockResolvedValue({ data: { data: PRO_STATUS } });
+
+    const hooks = Array.from({ length: 6 }, () => renderHook(() => usePro()));
+    await waitFor(() =>
+      hooks.forEach((h) => expect(h.result.current.loading).toBe(false)),
+    );
+
+    expect(getAppStatus).toHaveBeenCalledTimes(1);
+    // …and every consumer sees the same data, not just the one that fetched.
+    hooks.forEach((h) => expect(h.result.current.hasPro).toBe(true));
+  });
+
+  it("SHARED-P02: a consumer mounting later reuses the snapshot, no refetch", async () => {
+    getAppStatus.mockResolvedValue({ data: { data: PRO_STATUS } });
+    const first = renderHook(() => usePro());
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    expect(getAppStatus).toHaveBeenCalledTimes(1);
+
+    // Client-side navigation mounts another consumer — must not re-fetch.
+    const later = renderHook(() => usePro());
+    await waitFor(() => expect(later.result.current.loading).toBe(false));
+
+    expect(getAppStatus).toHaveBeenCalledTimes(1);
+    expect(later.result.current.currentApp).toBe("pro");
+  });
+
+  it("SHARED-P03: refresh() forces a real refetch", async () => {
+    getAppStatus.mockResolvedValue({ data: { data: PRO_STATUS } });
+    const { result } = renderHook(() => usePro());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getAppStatus).toHaveBeenCalledTimes(1);
+
+    await result.current.refresh();
+    expect(getAppStatus).toHaveBeenCalledTimes(2);
   });
 });

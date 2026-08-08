@@ -49,13 +49,48 @@ describe("useTabFocus", () => {
     expect(spy).toHaveBeenCalledWith("visibilitychange", expect.any(Function));
   });
 
-  it("calls callback again on each visible event", () => {
+  // OPT-2: throttled. Every tab-back used to fire an unconditional refetch, so
+  // alt-tabbing five times reloaded the page's data five times — measured at 30
+  // requests on /dashboard. The first event still fires; the rule is "at most
+  // one per window", not "skip the first".
+  it("OPT2-P01: collapses rapid tab-backs into ONE call", () => {
     const callback = vi.fn();
     setVisibility("visible");
     renderHook(() => useTabFocus(callback));
 
     fireVisibilityChange();
     fireVisibilityChange();
+    fireVisibilityChange();
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it("OPT2-P02: fires again once the window has elapsed", () => {
+    vi.useFakeTimers();
+    const callback = vi.fn();
+    setVisibility("visible");
+    // A tab left open for an hour MUST still refresh when you come back to it —
+    // this is a throttle, not a once-per-mount guard.
+    renderHook(() => useTabFocus(callback, 30_000));
+
+    fireVisibilityChange();
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(Date.now() + 31_000);
+    fireVisibilityChange();
     expect(callback).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("OPT2-P03: a custom window is honoured", () => {
+    vi.useFakeTimers();
+    const callback = vi.fn();
+    setVisibility("visible");
+    renderHook(() => useTabFocus(callback, 1_000));
+
+    fireVisibilityChange();
+    vi.setSystemTime(Date.now() + 1_500);
+    fireVisibilityChange();
+    expect(callback).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 });

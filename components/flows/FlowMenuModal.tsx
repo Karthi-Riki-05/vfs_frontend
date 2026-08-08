@@ -23,6 +23,20 @@ interface FlowMenuModalProps {
   onDuplicate: () => void;
   onDelete: () => void;
   locked?: boolean;
+  /**
+   * Page-specific entries appended after the standard seven — currently only
+   * "Remove from project" on project detail. Kept as an addition rather than a
+   * replacement: every page shows the same core options, and a page that has
+   * one more thing to offer adds it here instead of forking the menu.
+   * Suppressed while `locked`, like everything except Delete.
+   */
+  extraItems?: {
+    key: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    onClick: () => void;
+    danger?: boolean;
+  }[];
 }
 
 /**
@@ -42,6 +56,7 @@ export default function FlowMenuModal({
   onDuplicate,
   onDelete,
   locked = false,
+  extraItems = [],
 }: FlowMenuModalProps) {
   const allItems: {
     I: React.ComponentType<{ className?: string }>;
@@ -61,6 +76,12 @@ export default function FlowMenuModal({
     { I: FolderInput, n: "Assign to Project", action: onAssign },
     ...(onShare ? [{ I: Share2, n: "Share", action: onShare }] : []),
     { I: Copy, n: "Duplicate", action: onDuplicate },
+    ...extraItems.map((it) => ({
+      I: it.icon,
+      n: it.label,
+      action: it.onClick,
+      danger: it.danger,
+    })),
     { I: Trash2, n: "Delete", action: onDelete, danger: true },
   ];
 

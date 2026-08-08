@@ -103,13 +103,21 @@ function UpgradeProContent() {
   // proPurchasedAt may be momentarily stale.
   const inProApp = forcedMode === "pro" || isFromProApp;
   useEffect(() => {
+    // bug-095: an already-purchased Pro user is redirected away FIRST, before
+    // the cancelled/returned short-circuit below. Previously a stale
+    // vc_stripe_pending_pro marker suppressed this redirect, stranding a
+    // freshly-paid user on the purchase page with a live Purchase button — the
+    // backend then (correctly) refused with "You already have Pro access".
+    // Showing this page to someone who already owns Pro is never right,
+    // whatever the Stripe round-trip flags say.
+    if (hasPro && proPurchasedAt !== null && !proLoading) {
+      router.replace(backUrl);
+      return;
+    }
     if (wasCancelled || returnedFromStripe) return;
     if (inProApp) {
       router.replace(backUrl);
       return;
-    }
-    if (hasPro && proPurchasedAt !== null && !proLoading) {
-      router.replace(backUrl);
     }
   }, [
     inProApp,

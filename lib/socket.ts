@@ -54,6 +54,12 @@ export async function connectSocket(token: string): Promise<Socket> {
   socket.io.on("reconnect", () => {
     // console.log('[Socket] Reconnected');
     socket?.emit("chat:join-groups");
+    // The `connect` handler above covers most reconnects, but socket.io can
+    // fire this path on its own; dispatching here too keeps the badges' resync
+    // and poll-teardown reliable.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("vc:socket-ready"));
+    }
   });
 
   socket.on("connect_error", (err) => {
@@ -62,6 +68,13 @@ export async function connectSocket(token: string): Promise<Socket> {
 
   socket.on("disconnect", (reason) => {
     // console.log('[Socket] Disconnected:', reason);
+    // OPT-5: unread/notification badges poll ONLY while the socket is down, so
+    // they need the falling edge as well as the rising one. Without this a
+    // dropped connection would silently stop the badges updating at all —
+    // strictly worse than the unconditional poll it replaces.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("vc:socket-lost"));
+    }
   });
 
   return socket;

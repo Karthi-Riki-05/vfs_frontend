@@ -5,7 +5,7 @@
  *
  * Two layers:
  *   1) CROSS-TENANT ISOLATION SENTINEL  (the priority)
- *        Proves the X-Team-Context header cannot be used to read another
+ *        Proves the X-Workspace-Context header cannot be used to read another
  *        tenant's data. The backend currently has NO explicit membership gate
  *        on read paths (checkTeamAccess is mounted only on /teams & /chat);
  *        isolation rests entirely on every query also filtering by
@@ -22,7 +22,7 @@
  * AUTH MODEL
  *   API layers authenticate with a real JWT obtained from
  *   POST /api/v1/auth/validate -> { data: { token, id } }  (argon2 + JWT).
- *   We send Authorization: Bearer <token> plus X-App-Context / X-Team-Context
+ *   We send Authorization: Bearer <token> plus X-App-Context / X-Workspace-Context
  *   so the backend middleware (enforceProContext, scoping) runs exactly as in
  *   production. The UI layer reuses the browser storageState from
  *   playwright.config.ts (use.storageState = "./e2e/.auth/pro.json").
@@ -151,7 +151,7 @@ function headers(sess: Session, app: string, team: string | null) {
     "Content-Type": "application/json",
     "X-App-Context": app,
   };
-  if (team) h["X-Team-Context"] = team;
+  if (team) h["X-Workspace-Context"] = team;
   return h;
 }
 
@@ -342,10 +342,10 @@ test.afterAll(async () => {
 });
 
 /* ══════════════════════════════════════════════════════════════════════
-   LAYER 1 — CROSS-TENANT ISOLATION SENTINEL  (X-Team-Context IDOR)
+   LAYER 1 — CROSS-TENANT ISOLATION SENTINEL  (X-Workspace-Context IDOR)
    ══════════════════════════════════════════════════════════════════════ */
 
-test.describe("🛡️  Cross-Tenant Isolation Sentinel — X-Team-Context must not leak across tenants", () => {
+test.describe("🛡️  Cross-Tenant Isolation Sentinel — X-Workspace-Context must not leak across tenants", () => {
   test.beforeEach(() => {
     test.skip(
       mrYIsRealMember,
@@ -355,7 +355,7 @@ test.describe("🛡️  Cross-Tenant Isolation Sentinel — X-Team-Context must 
   });
 
   for (const ep of ENDPOINTS) {
-    test(`[${ep.name}] Mr. Y pointing X-Team-Context at Mr. X's team gets ZERO foreign records`, async () => {
+    test(`[${ep.name}] Mr. Y pointing X-Workspace-Context at Mr. X's team gets ZERO foreign records`, async () => {
       // Mr. Y, riding his Pro app context, aims the team header at the victim team.
       const res = await getList(api, mrY, ep.list, "pro", victimTeamId);
 
@@ -377,7 +377,7 @@ test.describe("🛡️  Cross-Tenant Isolation Sentinel — X-Team-Context must 
         const leaked = res.records.filter((r) => bait.has(recordId(r)));
         expect(
           leaked,
-          `CROSS-TENANT LEAK: ${ep.name} returned Mr. X's records to Mr. Y via X-Team-Context. ` +
+          `CROSS-TENANT LEAK: ${ep.name} returned Mr. X's records to Mr. Y via X-Workspace-Context. ` +
             `Leaked ids: ${leaked.map(recordId).join(", ")}`,
         ).toHaveLength(0);
       }

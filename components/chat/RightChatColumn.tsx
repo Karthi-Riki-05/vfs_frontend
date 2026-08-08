@@ -150,6 +150,9 @@ interface ChatGroup {
   displayName?: string;
   displayImage?: string | null;
   otherUserId?: string | null;
+  // Subtitles a DM in the thread header — a member count is meaningless for a
+  // two-person conversation.
+  otherUserEmail?: string | null;
   memberCount?: number;
   _count?: { members?: number; messages?: number };
 }
@@ -2022,10 +2025,24 @@ export default function RightChatColumn({
       : null;
     const canAddMembers =
       !!selectedGroupId && !!openedGroup && !openedGroup.isDirect;
-    const memberCount =
-      openedGroup?.memberCount ??
-      openedGroup?._count?.members ??
-      openedGroup?.members?.length;
+    // A DM is a conversation with ONE person, so it is subtitled with their
+    // email — never a member count. The backend counts both participants, so
+    // an unconditional count rendered "2 members" on every direct message,
+    // which reads as a group. `isDirect` is already computed server-side (it
+    // drives the avatar, the title and the add-members button); the header was
+    // the one place that ignored it.
+    const isDirectThread = !!openedGroup?.isDirect;
+    const memberCount = isDirectThread
+      ? null
+      : (openedGroup?.memberCount ??
+        openedGroup?._count?.members ??
+        openedGroup?.members?.length);
+    const directSubtitle = isDirectThread
+      ? openedGroup?.otherUserEmail ||
+        openedGroup?.members?.find((m) => m.id === openedGroup?.otherUserId)
+          ?.email ||
+        null
+      : null;
 
     return (
       <div className="h-full flex flex-col bg-background">
@@ -2055,10 +2072,16 @@ export default function RightChatColumn({
             <div className="font-bold text-[15px] truncate">
               {selectedGroupName}
             </div>
-            {memberCount != null && (
-              <div className="text-[11px] text-muted-foreground">
-                {memberCount} member{memberCount === 1 ? "" : "s"}
+            {directSubtitle ? (
+              <div className="text-[11px] text-muted-foreground truncate">
+                {directSubtitle}
               </div>
+            ) : (
+              memberCount != null && (
+                <div className="text-[11px] text-muted-foreground">
+                  {memberCount} member{memberCount === 1 ? "" : "s"}
+                </div>
+              )
             )}
           </div>
           {canAddMembers && (

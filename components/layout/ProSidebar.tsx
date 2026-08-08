@@ -29,6 +29,8 @@ import { createNewFlow } from "@/lib/flow";
 import { useDeviceMode } from "@/hooks/useDeviceMode";
 import { useIsChatColumnHidden } from "@/hooks/useMediaQuery";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
+import { usePro } from "@/hooks/usePro";
+import { useAiCredits } from "@/hooks/useAiCredits";
 import NavTile from "./NavTile";
 import SidebarTeamSwitcher from "./SidebarTeamSwitcher";
 
@@ -90,19 +92,36 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
     else (window as any).__toggleChat?.();
   };
 
-  // App-switcher (Team ⇄ Pro). A bare router.push can't switch apps here —
-  // the sidebar/data scope is driven by sessionStorage `vc_app_context`, which
-  // DashboardLayout reconciles into `currentApp` on load. So we set the context
-  // first, then do a full navigation so the reconcile effect runs fresh.
-  const switchToApp = (mode: "team" | "pro") => {
+  // App-switcher (Team ⇄ Pro) — the Pro app's copy of the Sidebar switcher.
+  // Keep the two in step: this is the Pro→Team half of the same control.
+  //
+  // Order is load-bearing: SWITCH FIRST, then navigate ONCE. Navigating first
+  // and letting DashboardLayout's reconcile effect notice the mismatch cost a
+  // SECOND full page load ~12s later (measured: 4 navigations and 92 requests
+  // for one Pro→Team click), which is the double skeleton flash and, after a
+  // few toggles, "Too many requests" from the 600-req/2-min limiter.
+  const switchToApp = async (mode: "team" | "pro") => {
     // Already in the Pro app — clicking PRO is a no-op (avoids a reload).
     if (mode === "pro") return;
+    if (switchingApp) return; // ignore double-clicks while the PUT is in flight
+    setSwitchingApp(true);
     try {
-      sessionStorage.setItem("vc_app_context", mode);
+      // Team is the API's "free" app. switchApp also resets the workspace to
+      // personal and rewrites vc_app_context.
+      const ok = await switchApp("free");
+      if (!ok) {
+        setSwitchingApp(false);
+        return;
+      }
+    } catch {
+      setSwitchingApp(false);
+      return;
+    }
+    try {
+      sessionStorage.setItem("vc_app_context", "team");
     } catch {
       /* sessionStorage may be blocked in restricted WebViews */
     }
-    // `mode` is narrowed to "team" here (the "pro" case returned above).
     window.location.href = "/dashboard/team";
   };
 
@@ -110,24 +129,13 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
   const railCollapsed = !isMobileDrawer && collapsed;
 
   // Drawer hero: live AI-credit balance for the plan pill (drawer only).
-  const [credits, setCredits] = useState<number | null>(null);
-  useEffect(() => {
-    if (!isMobileDrawer) return;
-    const fetchCredits = async () => {
-      try {
-        const res = await aiApi.getCredits();
-        const d = res.data?.data || res.data || {};
-        const total =
-          d.totalCredits ?? d.balance?.totalCredits ?? d.credits ?? null;
-        if (typeof total === "number") setCredits(total);
-      } catch {
-        /* keep last known value */
-      }
-    };
-    fetchCredits();
-    window.addEventListener("aiCreditsChanged", fetchCredits);
-    return () => window.removeEventListener("aiCreditsChanged", fetchCredits);
-  }, [isMobileDrawer]);
+  const { switchApp } = usePro();
+  // True while the switch PUT is in flight — keeps the toggle from looking
+  // frozen and blocks the double-click that would queue two switches.
+  const [switchingApp, setSwitchingApp] = useState(false);
+  // OPT-3: shared store (see hooks/useAiCredits) — this was the Pro-app twin of
+  // the Sidebar's identical fetch.
+  const { total: credits } = useAiCredits();
 
   const createPill = (
     <button
@@ -164,10 +172,16 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
           <button
             type="button"
             onClick={() => switchToApp("team")}
+            disabled={switchingApp}
             title="Team"
             role="tab"
             aria-selected={false}
-            className="flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition bg-transparent text-muted-foreground hover:text-foreground"
+            aria-busy={switchingApp}
+            className={`flex-1 h-9 rounded-xl text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition disabled:cursor-wait ${
+              switchingApp
+                ? "bg-card text-primary-deep shadow"
+                : "bg-transparent text-muted-foreground hover:text-foreground"
+            }`}
           >
             <Users className="w-3.5 h-3.5" /> Team
           </button>

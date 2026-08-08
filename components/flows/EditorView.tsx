@@ -537,6 +537,18 @@ export default function EditorView({
           return;
         }
 
+        // 0c. Iframe → parent: a Custom Shapes tile was DROPPED on the canvas.
+        // Click-insert toasts from handleCustomShapeInsert; the drop path runs
+        // entirely inside the iframe, so it reports back here instead.
+        if (msg.event === "vcShapeDropped") {
+          if (msg.success) {
+            toast.success(`"${draggedShapeNameRef.current}" inserted`);
+          } else {
+            toast.error(`Could not insert "${draggedShapeNameRef.current}"`);
+          }
+          return;
+        }
+
         // 0b2. Iframe → parent: open the Share flow modal (installVcShareBtn
         // in over-ride.js fires this when the Share sidebar icon is clicked).
         if (msg.action === "openShare") {
@@ -1102,6 +1114,13 @@ export default function EditorView({
   // the same `mergeAiXml` action Templates use. The over-ride.js handler
   // calls graph.importCells() with the decoded cells — placing them at a
   // free position below the existing diagram without overwriting anything.
+  // Custom MIME so draw.io's own text/plain and file handlers ignore our drag.
+  const VC_SHAPE_MIME = "application/x-vc-shape-xml";
+
+  // Name of the shape currently being dragged — the drop is handled inside the
+  // iframe, so the parent needs this to word the toast.
+  const draggedShapeNameRef = React.useRef<string>("Shape");
+
   const buildShapeXml = (shape: EditorShape): string => {
     const content = (shape.content || shape.xmlContent || "").trim();
     const xmlEscape = (s: string) =>
@@ -1112,13 +1131,33 @@ export default function EditorView({
         .replace(/"/g, "&quot;");
     const label = xmlEscape(shape.name || "");
 
-    // mxGraph style strings use `;` as a separator and `=` to split key/value.
-    // We can't fully URL-encode an image data URL (that would mangle "data:"
-    // into "data%3A" and mxGraph would try to fetch it as a relative URL).
-    // Just percent-encode the two chars that actually break the parser
-    // (`;` and `=`) and leave `:`, `/`, `,` and base64 alone.
+    // Image URLs inside an mxGraph style, done the way draw.io itself does it.
+    //
+    // bug-107: this used to percent-encode BOTH `;` and `=`, which broke every
+    // image custom shape — the canvas showed the label and no image. Two
+    // reasons:
+    //   • mxGraph does NOT percent-decode style values, so `%3Bbase64` stayed
+    //     literal and the data URL was invalid;
+    //   • `%3D` corrupted base64 padding.
+    // `=` never needed escaping: mxGraph splits each entry at the FIRST `=`
+    // (`indexOf("=")` … `substring(f+1)` in mxClient's getCellStyle), so any
+    // later `=` is part of the value.
+    //
+    // draw.io's convention (app.min.js, style parsing) is a data URL in COMMA
+    // form with no `;base64` marker — it re-inserts the marker itself:
+    //     c = a.indexOf(","); if (a.substring(c-7,c+1) != ";base64,")
+    //         a = a.substring(0,c) + ";base64," + a.substring(c+1)
+    // So we hand it `data:image/svg+xml,<base64>` and let it rebuild the rest.
     const styleSafe = (s: string) =>
-      xmlEscape(s.replace(/;/g, "%3B").replace(/=/g, "%3D"));
+      xmlEscape(
+        s
+          // `;base64,` → `,` (draw.io restores it; a raw `;` would end the
+          // style entry and silently truncate the URL).
+          .replace(/;base64,/i, ",")
+          // Any OTHER stray `;` (e.g. the old `;utf8,` form) would still break
+          // the parser and has no draw.io-side repair, so encode it.
+          .replace(/;/g, "%3B"),
+      );
 
     // Decide what URL to use for an "image-shape-style" cell:
     //   • already a data:/http(s) URL → use as-is
@@ -1128,8 +1167,11 @@ export default function EditorView({
     const toRenderableImage = (raw: string): string | null => {
       if (!raw) return null;
       if (/^data:|^https?:\/\//i.test(raw)) return raw;
+      // draw.io recognises exactly two raw-SVG forms: `data:image/svg+xml,<`
+      // and `data:image/svg+xml,%3C`. The `;utf8,` form we used before is
+      // neither, and the `;` broke the style parse as well (bug-107).
       if (raw.toLowerCase().startsWith("<svg"))
-        return `data:image/svg+xml;utf8,${encodeURIComponent(raw)}`;
+        return `data:image/svg+xml,${encodeURIComponent(raw)}`;
       return null;
     };
 
@@ -1193,12 +1235,24 @@ export default function EditorView({
     e: React.DragEvent,
   ) => {
     if (!iframeRef.current?.contentWindow) return;
+    // Named so the drop toast can match click-insert's wording.
+    draggedShapeNameRef.current = shape.name || "Shape";
+    const xml = buildShapeXml(shape);
     try {
       e.dataTransfer.effectAllowed = "copy";
-      // Some browsers won't start a drag unless dataTransfer carries something.
-      e.dataTransfer.setData("text/plain", shape.id);
+      // bug-108: carry the XML in dataTransfer as well as via postMessage.
+      //
+      // The postMessage "arm" alone made the drop depend on two orderings we do
+      // not control: the message landing before the drop, and `dragend`
+      // (which disarms) not landing first. dataTransfer travels WITH the drag
+      // into the same-origin iframe, so the drop can always recover the payload
+      // even if the arm never arrived or was already cleared.
+      e.dataTransfer.setData(VC_SHAPE_MIME, xml);
+      // Some browsers won't start a drag unless text/plain is set. Keep it, but
+      // it must NOT be the shape id any more: draw.io's own drop handler reads
+      // text/plain and would insert the raw id as a text cell.
+      e.dataTransfer.setData("text/plain", "");
     } catch {}
-    const xml = buildShapeXml(shape);
     iframeRef.current.contentWindow.postMessage(
       JSON.stringify({ action: "vcArmShapeDrop", xml }),
       "*",
@@ -1206,10 +1260,15 @@ export default function EditorView({
   };
 
   const handleCustomShapeDragEnd = () => {
-    iframeRef.current?.contentWindow?.postMessage(
-      JSON.stringify({ action: "vcDisarmShapeDrop" }),
-      "*",
-    );
+    // Deferred: `dragend` can fire before the iframe has processed its `drop`,
+    // and disarming synchronously threw the payload away mid-drop (bug-108).
+    // The dataTransfer channel makes this belt-and-braces either way.
+    setTimeout(() => {
+      iframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ action: "vcDisarmShapeDrop" }),
+        "*",
+      );
+    }, 250);
   };
 
   const handleImportFile = async (file: File): Promise<void> => {

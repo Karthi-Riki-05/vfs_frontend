@@ -33,11 +33,93 @@ interface ProStatus {
   flowPackPurchases?: FlowPackPurchase[];
 }
 
+// ── Shared store ───────────────────────────────────────────────────────────
+// `usePro` has 16 call sites, and `useAppBrand` calls it too, so 7 more
+// components inherit it. As a plain per-instance hook that meant one
+// GET /pro/app-status PER CONSUMER: measured 6 on a Team page load and 23 on a
+// Pro one, ×2 because switching apps reloads the page twice. Against the
+// 600-req/2-min limiter that is what produced "Too many requests" while
+// toggling Team⇄Pro, and every duplicate response drove its own render.
+//
+// The module-level store below makes N consumers share ONE request and ONE
+// snapshot. It is deliberately not a React context: the hook is called from
+// route pages and layout components alike, and a provider would have to wrap
+// them all. `AiBillingContext`/`AppContext` (already 1x per load) show the
+// other half of the same idea.
+type ProSnapshot = {
+  status: ProStatus | null;
+  loading: boolean;
+  fetchError: boolean;
+};
+
+let snapshot: ProSnapshot = { status: null, loading: true, fetchError: false };
+let inflight: Promise<void> | null = null;
+let loadedForUser: string | null = null;
+const subscribers = new Set<(s: ProSnapshot) => void>();
+
+function publish(next: Partial<ProSnapshot>) {
+  snapshot = { ...snapshot, ...next };
+  subscribers.forEach((fn) => fn(snapshot));
+}
+
+/**
+ * Fetch once per user, however many consumers ask. Concurrent callers await the
+ * SAME promise — that is what collapses a mount storm into a single request.
+ */
+function loadProStatus(force = false): Promise<void> {
+  if (inflight) return inflight;
+  if (!force && snapshot.status) return Promise.resolve();
+  publish({ fetchError: false });
+  inflight = (async () => {
+    try {
+      const res = await proApi.getAppStatus();
+      publish({ status: res.data?.data || res.data, loading: false });
+    } catch (err: any) {
+      console.error(
+        "[usePro] fetchStatus error:",
+        err?.response?.status,
+        err?.message,
+      );
+      publish({ fetchError: true, loading: false });
+    } finally {
+      inflight = null;
+    }
+  })();
+  return inflight;
+}
+
+/** Drop the cache — on sign-out, user change, or a workspace switch. */
+function resetProStatus() {
+  loadedForUser = null;
+  publish({ status: null, loading: true });
+}
+
+/**
+ * Test seam. The store is module-level and deliberately survives unmounts (that
+ * is what makes N consumers cost one request), so it also survives between test
+ * cases — each one must start from a clean slate.
+ */
+export function __resetProStore() {
+  inflight = null;
+  loadedForUser = null;
+  subscribers.clear();
+  snapshot = { status: null, loading: true, fetchError: false };
+}
+
 export function usePro() {
   const { data: session, status: sessionStatus } = useSession();
-  const [status, setStatus] = useState<ProStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
+  const [local, setLocal] = useState<ProSnapshot>(snapshot);
+  const { status, loading, fetchError } = local;
+
+  // Subscribe first, so a consumer mounting mid-flight still receives the
+  // result of the request another consumer already started.
+  useEffect(() => {
+    setLocal(snapshot);
+    subscribers.add(setLocal);
+    return () => {
+      subscribers.delete(setLocal);
+    };
+  }, []);
   // Must start as null on both server and client — any other initial value
   // causes a React hydration mismatch (server renders null, client reads
   // sessionStorage and gets 'pro'/'team'). The useEffect below populates it
@@ -70,22 +152,9 @@ export function usePro() {
     }
   }, []);
 
+  // Force a refetch through the shared store — exposed as `refresh`.
   const fetchStatus = useCallback(async () => {
-    setFetchError(false);
-    try {
-      const res = await proApi.getAppStatus();
-      const data = res.data?.data || res.data;
-      setStatus(data);
-    } catch (err: any) {
-      console.error(
-        "[usePro] fetchStatus error:",
-        err?.response?.status,
-        err?.message,
-      );
-      setFetchError(true);
-    } finally {
-      setLoading(false);
-    }
+    await loadProStatus(true);
   }, []);
 
   // Use a STABLE primitive as the effect key. NextAuth replaces the
@@ -96,24 +165,38 @@ export function usePro() {
     (session?.user as any)?.id || (session?.user as any)?.email || null;
   useEffect(() => {
     if (sessionStatus === "loading") return;
-    if (userKey) {
-      fetchStatus();
-    } else {
-      setLoading(false);
+    if (!userKey) {
+      // Signed out: drop the previous user's snapshot so it can never be read
+      // by the next one, and stop showing a spinner forever.
+      loadedForUser = null;
+      publish({ status: null, loading: false });
+      return;
     }
-  }, [userKey, sessionStatus, fetchStatus]);
+    // The user changed (or this is the first consumer): fetch once. Every other
+    // consumer that mounts in the same tick joins the in-flight promise instead
+    // of starting its own request.
+    if (loadedForUser !== userKey) {
+      loadedForUser = userKey;
+      loadProStatus(true);
+    } else {
+      loadProStatus();
+    }
+  }, [userKey, sessionStatus]);
 
   // Re-scope on workspace switch: clear the previous workspace's Pro/flow
   // status so any UI gated on proFlows can't bleed across, then refetch under
-  // the new X-Team-Context. Mirrors useFlows' onWorkspaceFlush handling.
+  // the new X-Workspace-Context. Mirrors useFlows' onWorkspaceFlush handling.
+  //
+  // Registered by every consumer, but the store collapses them: the first
+  // reset+load wins and the rest join its promise, so a workspace switch costs
+  // one request rather than one per consumer.
   useEffect(
     () =>
       onWorkspaceFlush(() => {
-        setStatus(null);
-        setLoading(true);
-        fetchStatus();
+        resetProStatus();
+        loadProStatus(true);
       }),
-    [fetchStatus],
+    [],
   );
 
   const switchApp = useCallback(async (app: "free" | "pro") => {
@@ -156,7 +239,14 @@ export function usePro() {
         /* sessionStorage may be blocked in restricted WebViews */
       }
 
-      setStatus((prev) => (prev ? { ...prev, currentApp: app } : prev));
+      // Publish to the shared snapshot so EVERY consumer sees the new app
+      // immediately — previously each hook instance updated only its own copy,
+      // so the sidebar could disagree with the header until a reload.
+      publish({
+        status: snapshot.status
+          ? { ...snapshot.status, currentApp: app }
+          : snapshot.status,
+      });
       return true;
     } catch {
       return false;
