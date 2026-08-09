@@ -109,11 +109,19 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
   //
   // Keyed on the scope, not a mount guard: a genuine workspace change still
   // refetches, because the key changes with it.
+  //
+  // bug-118: `refetchNonce` is part of the key, and it is the ONLY way anything
+  // may blank the hook's state. Blanking used to reset `lastFetchKeyRef` to null
+  // and rely on this effect re-running to refill — but the effect only re-runs
+  // when one of its deps changes, so a "switch" to the workspace you are already
+  // in blanked the data, pinned `loading` true and never fetched again. Bumping
+  // the nonce guarantees blanking and refetching are the same operation.
   const lastFetchKeyRef = useRef<string | null>(null);
+  const [refetchNonce, setRefetchNonce] = useState(0);
   useEffect(() => {
     mountedRef.current = true;
     if (!hydrated) return;
-    const key = `${activeTeamId || "personal"}:${fetchTeamActivity ?? "auto"}`;
+    const key = `${activeTeamId || "personal"}:${fetchTeamActivity ?? "auto"}:${refetchNonce}`;
     if (lastFetchKeyRef.current !== key) {
       lastFetchKeyRef.current = key;
       fetchAll();
@@ -121,7 +129,7 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
     return () => {
       mountedRef.current = false;
     };
-  }, [fetchAll, hydrated, activeTeamId, fetchTeamActivity]);
+  }, [fetchAll, hydrated, activeTeamId, fetchTeamActivity, refetchNonce]);
 
   // B24: the editor opens in a NEW tab (window.open), so this dashboard tab
   // never remounts — Recent Flows went stale after editing until a manual
@@ -161,12 +169,13 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
     () =>
       onWorkspaceFlush(() => {
         if (!mountedRef.current) return;
-        // Force the next effect run to refetch — the scope really did change.
-        lastFetchKeyRef.current = null;
         setStats(null);
         setActivity([]);
         setRecentFlows([]);
         setTeamActivity([]);
+        // Bump, don't null the key: nulling relies on a dep changing to trigger
+        // the refill, and nothing guarantees one does (bug-118).
+        setRefetchNonce((n) => n + 1);
       }),
     [],
   );
@@ -179,16 +188,47 @@ export function useDashboard({ fetchTeamActivity }: UseDashboardOptions = {}) {
   // AI_BILLING_EVENT. Measured before this: 0/45 frames showed a skeleton or
   // spinner during a switch, so the user stared at blank/zeroed cards for ~1.5s
   // with no indication anything was loading — that is what reads as "buffering".
+  //
+  // bug-118 (owner-reported: "dashboard takes a long time, sometimes the data is
+  // not loaded properly … after a few minutes when I click anything it loads"):
+  // BOTH of these events fire on a PLAIN PAGE LOAD. `AiBillingContext`'s boot
+  // reconcile dispatches `vc:workspace-switch` on every load by design ("fire
+  // workspace-switch on page load/refresh so AppContext updates … without
+  // requiring a user click"), and `AI_BILLING_EVENT` follows whenever
+  // localStorage disagreed with the server-resolved value.
+  //
+  // So every boot raced: the mount fetch started, then this handler blanked the
+  // result and pinned `loading` true. Whether you saw data came down to which
+  // finished first — hence "sometimes". Recovery only came from the focus
+  // listener below, which is throttled to 30s, hence "after a few minutes".
+  //
+  // The fix is to ask whether the workspace ACTUALLY changed. A reconcile that
+  // resolves to the workspace you are already in is not a switch. `activeTeamId`
+  // is read through a ref so this listener is registered once and still sees the
+  // current value — re-registering on every change would drop events mid-switch.
+  //
+  // This is the trap bug-105 documented — *an event that fires during boot is
+  // not an invalidation signal* — which was applied to useSubscriptionStatus,
+  // useAiCredits and useEntitlements but missed here.
+  const activeTeamIdRef = useRef(activeTeamId);
+  activeTeamIdRef.current = activeTeamId;
   useEffect(() => {
     if (!hydrated) return;
-    const onSwitch = () => {
+    const onSwitch = (e: Event) => {
       if (!mountedRef.current) return;
-      lastFetchKeyRef.current = null;
+      const detail = (e as CustomEvent<{ teamId?: string | null }>).detail;
+      const next = detail?.teamId ?? null;
+      // Same workspace → boot reconcile or a no-op re-select. Leave the data
+      // alone; blanking it here is exactly what stranded the dashboard.
+      if (next === (activeTeamIdRef.current ?? null)) return;
       setStats(null);
       setActivity([]);
       setRecentFlows([]);
       setTeamActivity([]);
       setLoading(true);
+      // Guarantees the refill. `activeTeamId` will also change, and React
+      // batches both into one render, so this is still a single refetch.
+      setRefetchNonce((n) => n + 1);
     };
     window.addEventListener("vc:workspace-switch", onSwitch);
     window.addEventListener(AI_BILLING_EVENT, onSwitch);

@@ -87,4 +87,72 @@ describe("useDashboard", () => {
     expect(result.current.recentFlows).toEqual([]);
     expect(result.current.teamActivity).toEqual([]);
   });
+
+  // ── bug-118 ──────────────────────────────────────────────────────────────
+  // Owner-reported: the dashboard showed "—" in every card and never resolved
+  // until a click, minutes later. Cause: `vc:workspace-switch` fires on EVERY
+  // page load (AiBillingContext's boot reconcile), and the handler blanked the
+  // data + pinned `loading` true while relying on a dependency change to
+  // refetch — which never came, because the workspace had not actually changed.
+
+  const dispatchSwitch = (teamId: string | null) =>
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("vc:workspace-switch", { detail: { teamId } }),
+      );
+    });
+
+  it("DASH-B118-P01: a boot reconcile for the SAME workspace does not blank loaded data", async () => {
+    mockCtx = { activeTeamId: "team-9", hydrated: true };
+    const { result } = renderHook(() => useDashboard());
+    await waitFor(() => expect(result.current.stats).toEqual(STATS));
+
+    // Exactly what AiBillingContext dispatches on a plain page load.
+    dispatchSwitch("team-9");
+
+    expect(result.current.stats).toEqual(STATS);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("DASH-B118-P02: personal context — a null-workspace reconcile is not a switch", async () => {
+    mockCtx = { activeTeamId: null, hydrated: true };
+    const { result } = renderHook(() => useDashboard());
+    await waitFor(() => expect(result.current.stats).toEqual(STATS));
+
+    dispatchSwitch(null);
+
+    expect(result.current.stats).toEqual(STATS);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("DASH-B118-P03: a REAL switch still blanks and then refetches — loading must resolve", async () => {
+    mockCtx = { activeTeamId: "team-9", hydrated: true };
+    const { result } = renderHook(() => useDashboard());
+    await waitFor(() => expect(result.current.stats).toEqual(STATS));
+    const before = getStats.mock.calls.length;
+
+    dispatchSwitch("team-OTHER");
+
+    // Blanked immediately so the previous workspace's numbers never linger …
+    expect(result.current.stats).toBeNull();
+    // … and refilled without needing any other dependency to change. This is
+    // the assertion that fails on the old code: `loading` stayed true forever.
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getStats.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it("DASH-B118-P04: a workspace flush refetches rather than stranding empty state", async () => {
+    const { result } = renderHook(() => useDashboard());
+    await waitFor(() => expect(result.current.stats).toEqual(STATS));
+    const before = getStats.mock.calls.length;
+
+    act(() => {
+      flushWorkspaceCache();
+    });
+
+    await waitFor(() =>
+      expect(getStats.mock.calls.length).toBeGreaterThan(before),
+    );
+    await waitFor(() => expect(result.current.stats).toEqual(STATS));
+  });
 });
