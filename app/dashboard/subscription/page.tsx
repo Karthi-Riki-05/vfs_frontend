@@ -37,6 +37,8 @@ import {
   getLegacyTeamPlans,
   legacyTeamPlansForPeriod,
   findLegacyTeamPlan,
+  findLegacyProAddon,
+  legacyProAddonIds,
   isNativeShell,
   useIapAvailable,
   iapLogin,
@@ -437,12 +439,16 @@ function ProSubscriptionContent() {
   }, []);
 
   // Native shell: show what the STORE will charge for the flow add-ons.
+  // PHASE 1: query the REAL legacy Pro products (com.valuecharts.pro.ltd /
+  // .unltd). The addon_flows_*_monthly ids belong to the future 18-product
+  // catalog and exist in no store yet, so asking for them returned an empty
+  // price list. Swap back once that catalog is live. Empty on iOS (no legacy
+  // Pro addon product exists there) — the section then shows "unavailable".
   useEffect(() => {
     if (!native || !iapReady) return;
-    iapPrices([
-      IAP_PRODUCTS.addonFlowsStandard,
-      IAP_PRODUCTS.addonFlowsUnlimited,
-    ]).then(setIapStorePrices);
+    const ids = legacyProAddonIds();
+    if (ids.length === 0) return;
+    iapPrices(ids).then(setIapStorePrices);
   }, [native, iapReady]);
 
   const fetchProSubStatus = async () => {
@@ -467,14 +473,18 @@ function ProSubscriptionContent() {
     // confirmation, with the store-localized price (bug-050 satisfied).
     if (native) {
       if (!iapReady) return;
+      // PHASE 1: resolve the REAL legacy Pro product id for this platform.
+      // undefined => this platform has no such product (iOS today) — refuse
+      // rather than call the store with an id it will never recognise.
+      const productId = findLegacyProAddon(plan);
+      if (!productId) {
+        toast.error("This add-on isn't available on this platform yet.");
+        return;
+      }
       setPurchasing(plan);
       const userId = (session?.user as any)?.id as string | undefined;
       if (userId) await iapLogin(userId);
-      const res = await iapPurchase(
-        plan === "unlimited"
-          ? IAP_PRODUCTS.addonFlowsUnlimited
-          : IAP_PRODUCTS.addonFlowsStandard,
-      );
+      const res = await iapPurchase(productId);
       if (res.status === "success") {
         toast.success("Purchase successful — activating your add-on…");
         await waitThenRefresh(() => {
@@ -950,7 +960,7 @@ function ProSubscriptionContent() {
               </div>
               <div className="mt-2 text-3xl font-extrabold text-primary">
                 {native
-                  ? (iapStorePrices[IAP_PRODUCTS.addonFlowsStandard]
+                  ? (iapStorePrices[findLegacyProAddon("standard") ?? ""]
                       ?.priceString ?? "…")
                   : "$10.00"}
                 <span className="text-sm font-semibold text-muted-foreground">
@@ -985,7 +995,7 @@ function ProSubscriptionContent() {
               </div>
               <div className="mt-2 text-3xl font-extrabold text-primary">
                 {native
-                  ? (iapStorePrices[IAP_PRODUCTS.addonFlowsUnlimited]
+                  ? (iapStorePrices[findLegacyProAddon("unlimited") ?? ""]
                       ?.priceString ?? "…")
                   : "$20.00"}
                 <span className="text-sm font-semibold text-muted-foreground">

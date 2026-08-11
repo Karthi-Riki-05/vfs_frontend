@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/axios";
+import { AI_BILLING_EVENT } from "@/lib/aiBilling";
 
 interface UnreadState {
   totalUnread: number;
@@ -192,6 +193,18 @@ function startLiveUpdates(ctx: Ctx) {
   };
   window.addEventListener("vc:socket-lost", onSocketLost);
 
+  // The count is now workspace-scoped on the server, but this store is keyed
+  // only by app context ("pro"/"team") — so two Team workspaces share ONE
+  // store. A workspace switch keeps the same key and would otherwise show the
+  // previous workspace's number until the next poll. Re-fetch on switch (both
+  // the profile-switcher event and the AI-billing event that rides with it),
+  // matching what useNotificationCount does for the bell.
+  const onWorkspaceSwitch = () => {
+    if (!cancelled) fetchCounts(ctx);
+  };
+  window.addEventListener("vc:workspace-switch", onWorkspaceSwitch);
+  window.addEventListener(AI_BILLING_EVENT, onWorkspaceSwitch);
+
   // Start polling if the socket is not up yet; `onSocketReady` stops it.
   (async () => {
     try {
@@ -208,6 +221,8 @@ function startLiveUpdates(ctx: Ctx) {
     stopPolling();
     window.removeEventListener("vc:socket-ready", onSocketReady);
     window.removeEventListener("vc:socket-lost", onSocketLost);
+    window.removeEventListener("vc:workspace-switch", onWorkspaceSwitch);
+    window.removeEventListener(AI_BILLING_EVENT, onWorkspaceSwitch);
     s.teardown = null;
   };
 }

@@ -16,6 +16,8 @@ import { aiApi } from "@/api/ai.api";
 import { useAuth } from "@/hooks/useAuth";
 import { usePro } from "@/hooks/usePro";
 import { useDashboard } from "@/hooks/useDashboard";
+import { useLockState } from "@/hooks/useFlows";
+import FlowListLockModal from "@/components/flows/FlowListLockModal";
 import { useRouter } from "next/navigation";
 import { useIsMobile, useIsTablet } from "@/hooks/useMediaQuery";
 
@@ -35,6 +37,17 @@ export default function DashboardPage() {
 
   const isProApp = currentApp === "pro";
   const isUnlimited = status?.isUnlimited ?? false;
+
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const { lockState } = useLockState();
+  const isLocked = lockState.overLimitLocked;
+  const openFlow = (flow: any) => {
+    if (isLocked || !!flow?.markedForDowngrade) {
+      setLockModalOpen(true);
+      return;
+    }
+    window.open(`/dashboard/flows/${flow.id}`, "_blank");
+  };
 
   // OPT-3: shared store — the Team and Pro dashboards both read this.
   const { status: subStatus } = useSubscriptionStatus();
@@ -157,8 +170,20 @@ export default function DashboardPage() {
         </div>
         <SubscriptionWidget />
       </div>
-      <DashRecentFlows flows={recentFlows} loading={loading} />
+      <DashRecentFlows
+        flows={recentFlows}
+        loading={loading}
+        onOpen={openFlow}
+      />
       <TeamActivityFeed activity={teamActivity} loading={loading} />
+
+      <FlowListLockModal
+        open={lockModalOpen}
+        onClose={() => setLockModalOpen(false)}
+        isLocked={isLocked}
+        flowUsed={lockState.flowUsed}
+        totCount={lockState.totCount}
+      />
     </div>
   );
 }

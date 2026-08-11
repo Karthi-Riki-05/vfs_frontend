@@ -22,7 +22,8 @@ import { useFlowActions } from "@/hooks/useFlowActions";
 import SectionHeader from "@/components/common/SectionHeader";
 import ViewToggle from "@/components/common/ViewToggle";
 import EmptyState from "@/components/common/EmptyState";
-import { useFlows } from "@/hooks/useFlows";
+import { useFlows, useLockState } from "@/hooks/useFlows";
+import FlowListLockModal from "@/components/flows/FlowListLockModal";
 import { useRouter } from "next/navigation";
 import { createNewFlow } from "@/lib/flow";
 import api from "@/lib/axios";
@@ -87,6 +88,9 @@ export default function RecentDocuments() {
   } = useFlows();
   const [view, handleViewChange] = useFlowView("grid");
   const router = useRouter();
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const { lockState } = useLockState();
+  const isLocked = lockState.overLimitLocked;
 
   // Rename state
   const [renameModal, setRenameModal] = useState<{
@@ -109,7 +113,11 @@ export default function RecentDocuments() {
     flowId: null,
   });
 
-  const handleEdit = (id: string) => {
+  const handleEdit = (id: string, flow?: any) => {
+    if (isLocked || !!flow?.markedForDowngrade) {
+      setLockModalOpen(true);
+      return;
+    }
     window.open(`/dashboard/flows/${id}`, "_blank");
   };
 
@@ -118,7 +126,8 @@ export default function RecentDocuments() {
   // view, so the dashboard's own two views disagreed with each other.
   const actions = useFlowActions({
     onChanged: fetchFlows,
-    onEdit: (id) => handleEdit(id),
+    onEdit: (id, flow) => handleEdit(id, flow),
+    isLocked,
   });
 
   const handleDelete = async (id: string) => {
@@ -146,6 +155,10 @@ export default function RecentDocuments() {
   };
 
   const handleCreateNew = () => {
+    if (isLocked) {
+      setLockModalOpen(true);
+      return;
+    }
     createNewFlow();
   };
 
@@ -228,12 +241,21 @@ export default function RecentDocuments() {
         <FlowCollection
           flows={flows}
           view={view}
-          onOpen={(id) => handleEdit(id)}
+          onOpen={(id, flow) => handleEdit(id, flow)}
           onMenu={actions.openMenu}
+          isLocked={isLocked}
         />
       )}
 
       {actions.modals}
+
+      <FlowListLockModal
+        open={lockModalOpen}
+        onClose={() => setLockModalOpen(false)}
+        isLocked={isLocked}
+        flowUsed={lockState.flowUsed}
+        totCount={lockState.totCount}
+      />
     </div>
   );
 }

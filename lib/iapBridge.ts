@@ -73,6 +73,52 @@ export const LEGACY_ANDROID_TEAM_PLANS: LegacyTeamPlan[] = [
   { productId: "com.valuecharts.app.yr_10", seats: 10, period: "yearly" },
 ];
 
+/**
+ * PHASE 1 TESTING — Pro flow add-ons.
+ *
+ * The `addon_flows_*_monthly` ids belong to the future 18-product catalog and
+ * do NOT exist in any store yet, so querying them returns an empty price (the
+ * on-device log showed `notFound: [addon_flows_standard_monthly,
+ * addon_flows_unlimited_monthly]`). These are the REAL products the published
+ * Pro app (`com.valuecharts.pro`) owns — both monthly (basePlan `p1m`,
+ * ACTIVE), verified 2026-08-10 via the Play Developer API:
+ *   .ltd   → limited flow allowance  (maps to the `standard` addon plan)
+ *   .unltd → unlimited flows         (maps to the `unlimited` addon plan)
+ * Mirrors backend/src/config/iapProducts.js.
+ *
+ * iOS deliberately has NO entry: the legacy App Store products are all team
+ * seat tiers (mon_5/mon_10/year_5/year_10) — there is no legacy Pro flow-addon
+ * product, so the section must show "unavailable" rather than a broken price.
+ */
+export const LEGACY_ANDROID_PRO_ADDONS: Record<
+  "standard" | "unlimited",
+  string
+> = {
+  standard: "com.valuecharts.pro.ltd",
+  unlimited: "com.valuecharts.pro.unltd",
+};
+
+/**
+ * Real store product id for a Pro flow-addon plan on the CURRENT platform, or
+ * undefined when this platform has no such product (iOS today). Callers must
+ * treat undefined as "not purchasable" — never fall back to the non-existent
+ * addon_flows_* ids, which only produce empty prices.
+ */
+export function findLegacyProAddon(
+  plan: "standard" | "unlimited",
+): string | undefined {
+  return getNativePlatform() === "ios"
+    ? undefined
+    : LEGACY_ANDROID_PRO_ADDONS[plan];
+}
+
+/** All legacy Pro addon ids to price-check on this platform (empty on iOS). */
+export function legacyProAddonIds(): string[] {
+  return getNativePlatform() === "ios"
+    ? []
+    : Object.values(LEGACY_ANDROID_PRO_ADDONS);
+}
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface IapPrice {

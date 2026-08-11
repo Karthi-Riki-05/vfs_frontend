@@ -38,6 +38,8 @@ import FlowCollection from "@/components/flows/FlowCollection";
 import ViewToggle from "@/components/common/ViewToggle";
 import { useFlowView } from "@/hooks/useFlowView";
 import { useFlowActions } from "@/hooks/useFlowActions";
+import { useLockState } from "@/hooks/useFlows";
+import FlowListLockModal from "@/components/flows/FlowListLockModal";
 
 const PLACEHOLDER_COLORS = [
   "#E8F5E9",
@@ -75,6 +77,9 @@ export default function ProjectDetailPage() {
   const [flows, setFlows] = useState<ProjectFlow[]>([]);
   const [loading, setLoading] = useState(true);
   const [flowsView, setFlowsView] = useFlowView("grid");
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const { lockState } = useLockState();
+  const isLocked = lockState.overLimitLocked;
 
   // Rename project modal
   const [renameOpen, setRenameOpen] = useState(false);
@@ -106,7 +111,11 @@ export default function ProjectDetailPage() {
     fetchProject();
   }, [fetchProject]);
 
-  const handleEdit = (id: string) => {
+  const handleEdit = (id: string, flow?: ProjectFlow) => {
+    if (isLocked || !!(flow as any)?.markedForDowngrade) {
+      setLockModalOpen(true);
+      return;
+    }
     window.open(`/dashboard/flows/${id}`, "_blank");
   };
 
@@ -132,6 +141,10 @@ export default function ProjectDetailPage() {
   };
 
   const handleCreateNewFlow = async () => {
+    if (isLocked) {
+      setLockModalOpen(true);
+      return;
+    }
     try {
       const res = await api.post("/flows", {
         name: "Untitled Flow",
@@ -206,7 +219,8 @@ export default function ProjectDetailPage() {
   // that they cannot. Previously it offered only Open + Remove from project.
   const actions = useFlowActions({
     onChanged: fetchProject,
-    onEdit: (id) => handleEdit(id),
+    onEdit: (id, flow) => handleEdit(id, flow),
+    isLocked,
     extraItems: (flow) => [
       {
         key: "remove",
@@ -327,14 +341,23 @@ export default function ProjectDetailPage() {
             <FlowCollection
               flows={flows}
               view={flowsView}
-              onOpen={(id) => handleEdit(id)}
+              onOpen={(id, flow) => handleEdit(id, flow)}
               onMenu={actions.openMenu}
+              isLocked={isLocked}
             />
           )}
         </div>
       </div>
 
       {actions.modals}
+
+      <FlowListLockModal
+        open={lockModalOpen}
+        onClose={() => setLockModalOpen(false)}
+        isLocked={isLocked}
+        flowUsed={lockState.flowUsed}
+        totCount={lockState.totCount}
+      />
 
       {/* Rename Project Modal — new_design ModalShell */}
       <ModalShell open={renameOpen} onClose={() => setRenameOpen(false)}>

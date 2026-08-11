@@ -63,13 +63,15 @@ export default function NavTile({
   ].join(" ");
 
   const tileCls = [
-    "w-9 h-9 shrink-0 rounded-xl flex items-center justify-center",
+    "relative w-9 h-9 shrink-0 rounded-xl flex items-center justify-center",
     accent === "orange"
       ? "bg-[#FFF2E2] text-[var(--orange)]"
       : active
         ? "bg-primary text-white"
         : "bg-secondary text-primary-deep",
   ].join(" ");
+
+  const hasBadge = badge != null && badge !== 0;
 
   const labelCls = [
     "text-[14px] flex-1 truncate",
@@ -80,9 +82,16 @@ export default function NavTile({
     <>
       <div className={tileCls}>
         <Icon className="w-4 h-4" />
+        {/* Collapsed rail: the full pill has no room, so show a small unread
+            dot on the icon corner instead — otherwise the unread indicator
+            disappears entirely whenever the rail collapses (e.g. when the chat
+            panel opens). Expanded rail keeps the numeric pill below. */}
+        {collapsed && hasBadge && (
+          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[var(--coral)] border-2 border-background" />
+        )}
       </div>
       {!collapsed && <span className={labelCls}>{label}</span>}
-      {!collapsed && badge != null && badge !== 0 && (
+      {!collapsed && hasBadge && (
         <span className="text-[10px] font-bold bg-[var(--coral)] text-white px-1.5 rounded-full">
           {badge}
         </span>

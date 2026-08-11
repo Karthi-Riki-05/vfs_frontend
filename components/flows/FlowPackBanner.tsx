@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Zap, Clock, TrendingUp } from "lucide-react";
 import { usePackStatus } from "@/hooks/usePackStatus";
+import { useIsWorkspaceOwner } from "@/hooks/useIsWorkspaceOwner";
 import FlowPickerModal from "./FlowPickerModal";
 
 // ── Shared atoms ──────────────────────────────────────────────────────────────
@@ -82,6 +83,8 @@ export default function FlowPackBanner() {
   const router = useRouter();
   const { status, refresh, isTeamApp, effectiveLimit, effectiveUnlimited } =
     usePackStatus();
+  // Must sit above the early `return null` — hooks cannot be conditional.
+  const isWorkspaceOwner = useIsWorkspaceOwner();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   if (!status) return null;
@@ -234,35 +237,48 @@ export default function FlowPackBanner() {
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <IconChip icon={TrendingUp} color="#006AA8" />
           <div className="text-sm font-semibold text-[#0050B3] mt-1">
-            You've reached your {effectiveLimit}-flow limit.
+            {isWorkspaceOwner
+              ? `You've reached your ${effectiveLimit}-flow limit.`
+              : `This workspace has reached its ${effectiveLimit}-flow limit.`}
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {isTeamApp ? (
-            <Btn
-              color="#006AA8"
-              onClick={() => router.push("/dashboard/subscription")}
-            >
-              Upgrade to Team — unlimited flows
-            </Btn>
-          ) : (
-            <>
+        {/* bug-122: only the workspace OWNER can lift this limit. The cap comes
+            from THEIR plan (createFlow reads the owner's columns), and the
+            checkout endpoints credit the caller — so a member who bought would
+            have upgraded their own account while this workspace stayed capped.
+            They still get the explanation, just not a checkout button. */}
+        {isWorkspaceOwner ? (
+          <div className="flex gap-2 flex-wrap">
+            {isTeamApp ? (
               <Btn
                 color="#006AA8"
                 onClick={() => router.push("/dashboard/subscription")}
               >
-                Subscribe Standard — 100 Flows
+                Upgrade to Team — unlimited flows
               </Btn>
-              <Btn
-                color="#006AA8"
-                variant="outline"
-                onClick={() => router.push("/dashboard/subscription")}
-              >
-                Subscribe Unlimited flows
-              </Btn>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <Btn
+                  color="#006AA8"
+                  onClick={() => router.push("/dashboard/subscription")}
+                >
+                  Subscribe Standard — 100 Flows
+                </Btn>
+                <Btn
+                  color="#006AA8"
+                  variant="outline"
+                  onClick={() => router.push("/dashboard/subscription")}
+                >
+                  Subscribe Unlimited flows
+                </Btn>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="text-[12px] text-[#0050B3]/80 self-center max-w-xs">
+            Ask the workspace owner to upgrade the plan.
+          </div>
+        )}
       </BannerCard>
     );
   }

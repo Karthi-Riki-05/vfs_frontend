@@ -41,6 +41,7 @@ import CustomShapesPanel, {
   type EditorShape,
 } from "@/components/flows/CustomShapesPanel";
 import ShareFlowModal from "@/components/flows/ShareFlowModal";
+import FlowLockedModal from "@/components/flows/FlowLockedModal";
 import AiCreditsDisplay from "@/components/ai/AiCreditsDisplay";
 import CreateTeamFromShapeModal from "@/components/flows/shape-association/CreateTeamFromShapeModal";
 import CreateChatGroupFromShapeModal from "@/components/flows/shape-association/CreateChatGroupFromShapeModal";
@@ -308,6 +309,8 @@ export default function EditorView({
   const [isMounted, setIsMounted] = useState(false);
   const [flowName, setFlowName] = useState("");
   const [permission, setPermission] = useState<string | null>(null);
+  // bug-123: set when the server refuses this flow with 403 FLOW_LOCKED.
+  const [lockedOut, setLockedOut] = useState(false);
   const permRef = useRef<string | null>(null);
   const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false);
   const [showTemplateChooser, setShowTemplateChooser] = useState(false);
@@ -778,11 +781,27 @@ export default function EditorView({
           } catch (err: any) {
             const code = err?.response?.data?.error?.code;
             if (code === "FLOW_LOCKED") {
-              toast.error(
-                "This flow is locked. Go to your flows page to upgrade or limit your flows.",
-                { duration: 6000 },
-              );
-              setTimeout(() => window.close(), 3000);
+              // bug-123: a toast + `window.close()` left the user staring at a
+              // dead editor whenever the tab was NOT opened by the app —
+              // browsers refuse `close()` there, and a pasted URL is exactly
+              // the case this lock exists for. The modal explains it and owns
+              // the exit (close if allowed, redirect otherwise).
+              //
+              // bug-124: pin this tab's app context from the 403 BEFORE the
+              // modal redirects. A bare editor tab never established one (see
+              // FlowLockedModal), so the redirect used to land on the flows
+              // list in the default "team" context — wrong app AND wrong
+              // workspace, since getAiBillingTeamId() keys off app context.
+              const details = err?.response?.data?.error?.details;
+              if (
+                details?.appContext === "pro" ||
+                details?.appContext === "team"
+              ) {
+                try {
+                  sessionStorage.setItem("vc_app_context", details.appContext);
+                } catch {}
+              }
+              setLockedOut(true);
             } else if (publicView) {
               toast.error(
                 "This link is no longer public, or the flow doesn't exist.",
@@ -1477,6 +1496,11 @@ export default function EditorView({
   };
 
   if (!isMounted) return null;
+
+  // bug-123: render ONLY the modal. Falling through would keep the drawio
+  // iframe mounted, spinning "Loading…" forever behind a dialog for a flow that
+  // is never going to load.
+  if (lockedOut) return <FlowLockedModal />;
 
   return (
     <ErrorBoundary

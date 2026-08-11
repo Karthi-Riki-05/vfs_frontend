@@ -23,11 +23,21 @@ function timeAgo(dateStr: string): string {
 interface DashRecentFlowsProps {
   flows: any[];
   loading: boolean;
+  /** Gated open — the dashboard passes one that shows the lock modal when over-limit. */
+  onOpen?: (flow: any) => void;
 }
 
-export function DashRecentFlows({ flows, loading }: DashRecentFlowsProps) {
+export function DashRecentFlows({
+  flows,
+  loading,
+  onOpen,
+}: DashRecentFlowsProps) {
   const isMobile = useIsMobile();
   const router = useRouter();
+  const openFlow = (flow: any) =>
+    onOpen
+      ? onOpen(flow)
+      : window.open(`/dashboard/flows/${flow.id}`, "_blank");
 
   if (loading) {
     return (
@@ -105,7 +115,7 @@ export function DashRecentFlows({ flows, loading }: DashRecentFlowsProps) {
         {flows.map((flow) => (
           <div
             key={flow.id}
-            onClick={() => window.open(`/dashboard/flows/${flow.id}`, "_blank")}
+            onClick={() => openFlow(flow)}
             style={{
               minWidth: isMobile ? 140 : 180,
               width: isMobile ? 140 : 180,
@@ -141,7 +151,11 @@ export function DashRecentFlows({ flows, loading }: DashRecentFlowsProps) {
                 <img
                   src={flow.thumbnail}
                   alt=""
-                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                  }}
                 />
               ) : (
                 <ProjectOutlined style={{ fontSize: 28, color: "#D9D9D9" }} />

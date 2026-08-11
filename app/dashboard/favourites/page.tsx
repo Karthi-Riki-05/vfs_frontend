@@ -17,11 +17,10 @@ import {
   ChevronRight,
   List as ListIcon,
   LayoutGrid,
-  Lock,
-  X,
 } from "lucide-react";
 import { flowsApi } from "@/api/flows.api";
 import FlowCollection from "@/components/flows/FlowCollection";
+import FlowListLockModal from "@/components/flows/FlowListLockModal";
 import ViewToggle from "@/components/common/ViewToggle";
 import { useFlowView } from "@/hooks/useFlowView";
 import { useFlowActions } from "@/hooks/useFlowActions";
@@ -236,72 +235,13 @@ export default function FavouritesPage() {
 
       {actions.modals}
 
-      {/* ── Lock modal ── */}
-      {lockModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="tw w-full max-w-sm bg-card rounded-3xl shadow-2xl border border-border overflow-hidden">
-            <div className="flex justify-end px-4 pt-4">
-              <button
-                onClick={() => setLockModalOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center bg-secondary border-0 cursor-pointer text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex flex-col items-center gap-3 px-6 pt-2 pb-5 text-center">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-red-50 border border-red-100">
-                <Lock className="w-7 h-7 text-red-500" />
-              </div>
-              <h2 className="text-lg font-bold text-foreground">
-                {isLocked ? "Your flows are locked" : "This flow is locked"}
-              </h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {isLocked ? (
-                  <>
-                    You have{" "}
-                    <span className="font-semibold text-foreground">
-                      {lockState.flowUsed ?? "—"}
-                    </span>{" "}
-                    flows but your plan allows{" "}
-                    <span className="font-semibold text-foreground">
-                      {lockState.totCount ?? "—"}
-                    </span>
-                    . All flows are locked until you resolve this.
-                  </>
-                ) : (
-                  <>
-                    This flow is over your plan&apos;s limit. Upgrade your plan
-                    to unlock it.
-                  </>
-                )}
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 px-6 pb-7">
-              <button
-                onClick={() => {
-                  setLockModalOpen(false);
-                  router.push("/dashboard/subscription");
-                }}
-                className="w-full h-12 rounded-2xl font-bold text-sm text-white border-0 cursor-pointer"
-                style={{ background: "#34A881" }}
-              >
-                Upgrade Plan
-              </button>
-              {isLocked && (
-                <button
-                  onClick={() => {
-                    setLockModalOpen(false);
-                    router.push("/dashboard/limitflows");
-                  }}
-                  className="w-full h-12 rounded-2xl font-bold text-sm border border-border bg-secondary text-foreground cursor-pointer"
-                >
-                  Choose flows to keep
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <FlowListLockModal
+        open={lockModalOpen}
+        onClose={() => setLockModalOpen(false)}
+        isLocked={isLocked}
+        flowUsed={lockState.flowUsed}
+        totCount={lockState.totCount}
+      />
     </div>
   );
 }

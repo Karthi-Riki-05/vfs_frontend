@@ -9,6 +9,7 @@ import { useAppContext } from "@/context/AppContext";
 import { useLockState } from "@/hooks/useFlows";
 
 import MiniFlow from "@/components/dashboard/MiniFlow";
+import { CreatedByLine } from "@/components/flows/FlowCollection";
 import { BRAND_GREEN } from "@/lib/theme";
 
 function timeAgo(dateStr: string): string {
@@ -31,6 +32,12 @@ interface PickerFlow {
   thumbnail: string | null;
   updatedAt: string;
   createdAt: string;
+  // bug-120: this picker is WORKSPACE-scoped, so an owner is also choosing for
+  // their members. The server marks the rows a teammate created so the owner
+  // can see whose work they are about to lock.
+  createdBySelf?: boolean;
+  createdByName?: string | null;
+  createdByImage?: string | null;
 }
 
 export default function LimitFlowsPage() {
@@ -221,6 +228,9 @@ export default function LimitFlowsPage() {
                       <Clock className="w-3 h-3" />
                       Edited {timeAgo(flow.updatedAt)}
                     </p>
+                    {flow.createdBySelf === false && flow.createdByName && (
+                      <CreatedByLine flow={flow} />
+                    )}
                   </div>
 
                   {/* Checkbox */}

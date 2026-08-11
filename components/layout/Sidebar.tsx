@@ -23,6 +23,8 @@ import {
   LogOut,
   Sparkles,
   X,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { usePathname, useRouter } from "next/navigation";
@@ -602,6 +604,28 @@ const Sidebar: React.FC<SidebarProps> = ({
       }}
     >
       <div className="tw flex flex-col h-full bg-card">
+        {/* Manual collapse/expand toggle. The Ant Sider has `trigger={null}`
+            and collapse is otherwise driven only automatically (tablet width,
+            chat/AI panels) — so on a tablet-width window the rail was stuck
+            icon-only with no way to expand it (owner-reported). */}
+        <div
+          className={`flex ${railCollapsed ? "justify-center px-2" : "justify-end px-3"} pt-2`}
+        >
+          <button
+            type="button"
+            onClick={() => onCollapse(!collapsed)}
+            aria-label={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!railCollapsed}
+            title={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="appearance-none cursor-pointer border-0 bg-transparent w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary/60 transition"
+          >
+            {railCollapsed ? (
+              <PanelLeftOpen className="w-4 h-4" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4" />
+            )}
+          </button>
+        </div>
         {proTeamSwitcher}
         <div className={`p-3 ${railCollapsed ? "px-2" : ""}`}>{createPill}</div>
         {nav}

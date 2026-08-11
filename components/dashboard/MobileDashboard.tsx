@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useIsWorkspaceOwner } from "@/hooks/useIsWorkspaceOwner";
 import { TeamActivityFeed } from "@/components/dashboard/TeamActivityFeed";
 
 // Design tokens from DESIGN.md (new_design)
@@ -81,6 +82,9 @@ export function MobileDashboard({
   onViewAllFlows,
   onOpenFlow,
 }: MobileDashboardProps) {
+  // bug-122: the flow cap belongs to the workspace OWNER; a member buying here
+  // would upgrade their own account and lift nothing.
+  const isWorkspaceOwner = useIsWorkspaceOwner();
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
@@ -200,7 +204,8 @@ export function MobileDashboard({
               }}
             />
           </div>
-          {!isUnlimited && onBuyMoreFlows && (
+          {/* owner only — bug-122 */}
+          {!isUnlimited && onBuyMoreFlows && isWorkspaceOwner && (
             <button
               onClick={onBuyMoreFlows}
               style={{
@@ -535,7 +540,11 @@ export function MobileDashboard({
                 <img
                   src={flow.thumbnail}
                   alt={flow.name}
-                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                  }}
                 />
               ) : (
                 <span style={{ fontSize: 16 }}>📄</span>

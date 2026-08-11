@@ -7,6 +7,8 @@ import { useAiCredits } from "@/hooks/useAiCredits";
 import { Button, Skeleton } from "antd";
 import { ExclamationCircleOutlined, HeartFilled } from "@ant-design/icons";
 import { useDashboard } from "@/hooks/useDashboard";
+import { useLockState } from "@/hooks/useFlows";
+import FlowListLockModal from "@/components/flows/FlowListLockModal";
 import { useAuth } from "@/hooks/useAuth";
 import { usePackStatus } from "@/hooks/usePackStatus";
 import { useRouter } from "next/navigation";
@@ -163,8 +165,26 @@ export default function TeamDashboardPage() {
       fetchTeamActivity: true,
     });
 
-  const { openRename, openAssign, modals: recentFlowModals } =
-    useRecentFlowModals(refresh);
+  const {
+    openRename,
+    openAssign,
+    modals: recentFlowModals,
+  } = useRecentFlowModals(refresh);
+
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const { lockState } = useLockState();
+  const isLocked = lockState.overLimitLocked;
+
+  // Same lock gate the flow-listing pages use: a locked flow can't be opened
+  // (the editor enforces it server-side anyway — bug-121/126), so show the
+  // owner-aware modal instead of the editor tab.
+  const openFlow = (flow: any) => {
+    if (isLocked || !!flow?.markedForDowngrade) {
+      setLockModalOpen(true);
+      return;
+    }
+    window.open(`/dashboard/flows/${flow.id}`, "_blank");
+  };
 
   const chartData = Array.isArray(activity)
     ? activity.slice(-7).map((a) => ({
@@ -434,9 +454,7 @@ export default function TeamDashboardPage() {
               >
                 <button
                   type="button"
-                  onClick={() =>
-                    window.open(`/dashboard/flows/${f.id}`, "_blank")
-                  }
+                  onClick={() => openFlow(f)}
                   className="block w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
                 >
                   <div className="h-24 bg-gradient-to-br from-secondary to-white relative overflow-hidden">
@@ -472,6 +490,8 @@ export default function TeamDashboardPage() {
                     onChanged={refresh}
                     onRename={openRename}
                     onAssign={openAssign}
+                    locked={isLocked || !!(f as any)?.markedForDowngrade}
+                    onEdit={() => openFlow(f)}
                   />
                 </div>
               </div>
@@ -630,9 +650,7 @@ export default function TeamDashboardPage() {
                   >
                     <button
                       type="button"
-                      onClick={() =>
-                        window.open(`/dashboard/flows/${f.id}`, "_blank")
-                      }
+                      onClick={() => openFlow(f)}
                       className="block w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
                     >
                       <div className="h-28 bg-gradient-to-br from-secondary to-white relative overflow-hidden">
@@ -670,6 +688,8 @@ export default function TeamDashboardPage() {
                         onChanged={refresh}
                         onRename={openRename}
                         onAssign={openAssign}
+                        locked={isLocked || !!(f as any)?.markedForDowngrade}
+                        onEdit={() => openFlow(f)}
                       />
                     </div>
                   </div>
@@ -729,6 +749,14 @@ export default function TeamDashboardPage() {
         </div>
       </div>
       {recentFlowModals}
+
+      <FlowListLockModal
+        open={lockModalOpen}
+        onClose={() => setLockModalOpen(false)}
+        isLocked={isLocked}
+        flowUsed={lockState.flowUsed}
+        totCount={lockState.totCount}
+      />
     </div>
   );
 }

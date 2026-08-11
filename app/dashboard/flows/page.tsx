@@ -53,6 +53,7 @@ import SharedWithAvatars from "@/components/flows/SharedWithAvatars";
 import FlowCollection, { timeAgo } from "@/components/flows/FlowCollection";
 import ViewToggle from "@/components/common/ViewToggle";
 import { useFlowView } from "@/hooks/useFlowView";
+import { useIsWorkspaceOwner } from "@/hooks/useIsWorkspaceOwner";
 import { useFlows, useLockState } from "@/hooks/useFlows";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { useTabFocus } from "@/hooks/useTabFocus";
@@ -294,6 +295,9 @@ export default function FlowsPage() {
     effectivePlan === "pro" ? "pro" : "team";
   const { lockState, lockLoading, markModalShown } = useLockState();
   const isLocked = lockState.overLimitLocked;
+  // bug-125: a member sees the same lock (getLockState now reads the OWNER's
+  // row), but the remedy differs — only the owner can upgrade or re-pick.
+  const isWorkspaceOwner = useIsWorkspaceOwner();
   const [lockModalOpen, setLockModalOpen] = useState(false);
 
   // Show one-time modal when locked and not yet shown this cycle
@@ -1255,10 +1259,27 @@ export default function FlowsPage() {
               <Lock className="w-7 h-7 text-red-500" />
             </div>
             <DialogTitle className="text-lg font-bold text-foreground">
-              {isLocked ? "Your flows are locked" : "This flow is locked"}
+              {isWorkspaceOwner
+                ? isLocked
+                  ? "Your flows are locked"
+                  : "This flow is locked"
+                : "This workspace's flows are locked"}
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
-              {isLocked ? (
+              {!isWorkspaceOwner ? (
+                <>
+                  This workspace has{" "}
+                  <span className="font-semibold text-foreground">
+                    {lockState.flowUsed ?? "—"}
+                  </span>{" "}
+                  flows but its plan allows{" "}
+                  <span className="font-semibold text-foreground">
+                    {lockState.totCount ?? "—"}
+                  </span>
+                  . Ask the workspace owner to upgrade the plan or choose which
+                  flows to keep.
+                </>
+              ) : isLocked ? (
                 <>
                   You have{" "}
                   <span className="font-semibold text-foreground">
@@ -1279,27 +1300,38 @@ export default function FlowsPage() {
             </DialogDescription>
           </div>
 
-          {/* Actions */}
+          {/* Actions — owner only: a member cannot lift this limit (bug-122/125). */}
           <div className="flex flex-col gap-2 px-6 pb-7">
-            <button
-              onClick={() => {
-                setLockModalOpen(false);
-                router.push("/dashboard/subscription");
-              }}
-              className="w-full h-12 rounded-2xl font-bold text-sm text-white border-0 cursor-pointer"
-              style={{ background: "#34A881" }}
-            >
-              Upgrade Plan
-            </button>
-            {isLocked && (
+            {isWorkspaceOwner ? (
+              <>
+                <button
+                  onClick={() => {
+                    setLockModalOpen(false);
+                    router.push("/dashboard/subscription");
+                  }}
+                  className="w-full h-12 rounded-2xl font-bold text-sm text-white border-0 cursor-pointer"
+                  style={{ background: "#34A881" }}
+                >
+                  Upgrade Plan
+                </button>
+                {isLocked && (
+                  <button
+                    onClick={() => {
+                      setLockModalOpen(false);
+                      router.push("/dashboard/limitflows");
+                    }}
+                    className="w-full h-12 rounded-2xl font-semibold text-sm border border-border bg-secondary text-foreground cursor-pointer"
+                  >
+                    Limit to {lockState.totCount ?? "—"} flows
+                  </button>
+                )}
+              </>
+            ) : (
               <button
-                onClick={() => {
-                  setLockModalOpen(false);
-                  router.push("/dashboard/limitflows");
-                }}
+                onClick={() => setLockModalOpen(false)}
                 className="w-full h-12 rounded-2xl font-semibold text-sm border border-border bg-secondary text-foreground cursor-pointer"
               >
-                Limit to {lockState.totCount ?? "—"} flows
+                Got it
               </button>
             )}
           </div>

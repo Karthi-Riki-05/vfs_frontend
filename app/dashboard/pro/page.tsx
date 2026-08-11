@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { aiApi } from "@/api/ai.api";
 import { useDashboard } from "@/hooks/useDashboard";
+import { useLockState } from "@/hooks/useFlows";
+import FlowListLockModal from "@/components/flows/FlowListLockModal";
 import { usePro } from "@/hooks/usePro";
 import { useAuth } from "@/hooks/useAuth";
 import { useAiBilling } from "@/context/AiBillingContext";
@@ -146,8 +148,26 @@ export default function ProDashboardPage() {
     fetchTeamActivity: false,
   });
 
-  const { openRename, openAssign, modals: recentFlowModals } =
-    useRecentFlowModals(refresh);
+  const {
+    openRename,
+    openAssign,
+    modals: recentFlowModals,
+  } = useRecentFlowModals(refresh);
+
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const { lockState } = useLockState();
+  const isLocked = lockState.overLimitLocked;
+
+  // Same lock gate the flow-listing pages use: a locked flow can't be opened
+  // (the editor enforces it server-side anyway — bug-121/126), so show the
+  // owner-aware modal instead of the editor tab.
+  const openFlow = (flow: any) => {
+    if (isLocked || !!flow?.markedForDowngrade) {
+      setLockModalOpen(true);
+      return;
+    }
+    window.open(`/dashboard/flows/${flow.id}`, "_blank");
+  };
 
   // Build chart data from activity (last 7 entries)
   const chartData = Array.isArray(activity)
@@ -348,9 +368,7 @@ export default function ProDashboardPage() {
               >
                 <button
                   type="button"
-                  onClick={() =>
-                    window.open(`/dashboard/flows/${f.id}`, "_blank")
-                  }
+                  onClick={() => openFlow(f)}
                   className="block w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
                 >
                   <div className="h-24 bg-gradient-to-br from-secondary to-white relative">
@@ -371,6 +389,8 @@ export default function ProDashboardPage() {
                     onChanged={refresh}
                     onRename={openRename}
                     onAssign={openAssign}
+                    locked={isLocked || !!(f as any)?.markedForDowngrade}
+                    onEdit={() => openFlow(f)}
                   />
                 </div>
               </div>
@@ -524,9 +544,7 @@ export default function ProDashboardPage() {
                 >
                   <button
                     type="button"
-                    onClick={() =>
-                      window.open(`/dashboard/flows/${f.id}`, "_blank")
-                    }
+                    onClick={() => openFlow(f)}
                     className="block w-full text-left bg-transparent border-0 p-0 appearance-none cursor-pointer"
                   >
                     <div className="h-28 bg-gradient-to-br from-secondary to-white relative">
@@ -547,6 +565,8 @@ export default function ProDashboardPage() {
                       onChanged={refresh}
                       onRename={openRename}
                       onAssign={openAssign}
+                      locked={isLocked || !!(f as any)?.markedForDowngrade}
+                      onEdit={() => openFlow(f)}
                     />
                   </div>
                 </div>
@@ -560,6 +580,14 @@ export default function ProDashboardPage() {
         </div>
       </div>
       {recentFlowModals}
+
+      <FlowListLockModal
+        open={lockModalOpen}
+        onClose={() => setLockModalOpen(false)}
+        isLocked={isLocked}
+        flowUsed={lockState.flowUsed}
+        totCount={lockState.totCount}
+      />
     </div>
   );
 }

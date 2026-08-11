@@ -131,7 +131,21 @@ export default function NotificationsPage() {
       .then((res) => {
         const d = res.data?.data || res.data || [];
         const list = Array.isArray(d) ? d : d.notifications || [];
-        setItems(Array.isArray(list) ? list : []);
+        const arr = Array.isArray(list) ? list : [];
+        setItems(arr);
+
+        // Clear-on-open (owner decision 2026-08-10): opening this page marks
+        // everything in the CURRENT workspace/app context as read and clears
+        // the header bell dot — matching the expectation that visiting the
+        // inbox resolves the badge. markAllRead is scoped server-side by the
+        // same {workspaceId, appContext} headers as the list above, so it only
+        // touches what this view is actually showing. The badge event fires so
+        // the bell re-reads immediately instead of on the next 60s poll.
+        if (arr.some((n: NotificationItem) => !n.isRead)) {
+          notificationsApi.markAllRead().catch(() => {});
+          setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
+          window.dispatchEvent(new Event("vc:notifications-read"));
+        }
       })
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
@@ -157,21 +171,32 @@ export default function NotificationsPage() {
 
   const unread = items.filter((n) => !n.isRead).length;
 
+  // Tell the shared badge store (useNotificationCount) to re-read immediately.
+  // Without this, marking/deleting here updated the server and this page's
+  // local list, but the header bell dot kept its red state until the next 60s
+  // poll — so a fully-read inbox still showed "unread" for up to a minute.
+  const refreshBadge = () =>
+    window.dispatchEvent(new Event("vc:notifications-read"));
+
   const handleMarkAll = () => {
     if (unread === 0) return;
     notificationsApi.markAllRead().catch(() => {});
     setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    refreshBadge();
   };
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const wasUnread = items.some((n) => n.id === id && !n.isRead);
     notificationsApi.deleteOne(id).catch(() => {});
     setItems((prev) => prev.filter((n) => n.id !== id));
+    if (wasUnread) refreshBadge();
   };
 
   const handleDeleteAll = () => {
     notificationsApi.deleteAll().catch(() => {});
     setItems([]);
+    refreshBadge();
   };
 
   const handleClick = (n: NotificationItem) => {
@@ -180,6 +205,7 @@ export default function NotificationsPage() {
       setItems((prev) =>
         prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)),
       );
+      refreshBadge();
     }
     if (n.actionUrl) {
       // Team-scoped notifications (e.g. team_member_joined) must land inside

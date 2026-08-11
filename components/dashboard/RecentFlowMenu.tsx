@@ -28,7 +28,11 @@ import {
 import { toast } from "sonner";
 import { flowsApi } from "@/api/flows.api";
 import api from "@/lib/axios";
-import { ModalShell, ModalHeader, ModalFooter } from "@/components/common/Modal";
+import {
+  ModalShell,
+  ModalHeader,
+  ModalFooter,
+} from "@/components/common/Modal";
 import { Field, FieldInput } from "@/components/common/Field";
 import AssignProjectModal from "@/components/flows/AssignProjectModal";
 import {
@@ -51,15 +55,23 @@ export function RecentFlowMenu({
   onChanged,
   onRename,
   onAssign,
+  locked = false,
+  onEdit,
 }: {
   flow: RecentFlowLite;
   /** Refresh the dashboard's recent-flows list after a mutation. */
   onChanged: () => void;
   onRename: (flow: RecentFlowLite) => void;
   onAssign: (flow: RecentFlowLite) => void;
+  /** When locked, all items except Delete are suppressed (matches FlowMenuModal). */
+  locked?: boolean;
+  /** Override the Edit action — the dashboards pass a gated open that shows the lock modal. */
+  onEdit?: (flow: RecentFlowLite) => void;
 }) {
   const openEditor = () =>
-    window.open(`/dashboard/flows/${flow.id}`, "_blank");
+    onEdit
+      ? onEdit(flow)
+      : window.open(`/dashboard/flows/${flow.id}`, "_blank");
 
   const favorite = async () => {
     try {
@@ -102,25 +114,29 @@ export function RecentFlowMenu({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="tw">
-          <DropdownMenuItem onSelect={openEditor}>
-            <Pencil className="w-4 h-4" /> Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={favorite}>
-            <Heart
-              className={`w-4 h-4 ${flow.isFavorite ? "fill-current text-[#FF4D6A]" : ""}`}
-            />
-            {flow.isFavorite ? "Remove Favorite" : "Mark as Favorite"}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onRename(flow)}>
-            <PenLine className="w-4 h-4" /> Rename
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onAssign(flow)}>
-            <FolderInput className="w-4 h-4" /> Assign to Project
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={duplicate}>
-            <Copy className="w-4 h-4" /> Duplicate
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          {!locked && (
+            <>
+              <DropdownMenuItem onSelect={openEditor}>
+                <Pencil className="w-4 h-4" /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={favorite}>
+                <Heart
+                  className={`w-4 h-4 ${flow.isFavorite ? "fill-current text-[#FF4D6A]" : ""}`}
+                />
+                {flow.isFavorite ? "Remove Favorite" : "Mark as Favorite"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onRename(flow)}>
+                <PenLine className="w-4 h-4" /> Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onAssign(flow)}>
+                <FolderInput className="w-4 h-4" /> Assign to Project
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={duplicate}>
+                <Copy className="w-4 h-4" /> Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem
             onSelect={remove}
             className="text-destructive focus:text-destructive"

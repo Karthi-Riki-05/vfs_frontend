@@ -1,6 +1,7 @@
 "use client";
 
 import { Zap } from "lucide-react";
+import { useIsWorkspaceOwner } from "@/hooks/useIsWorkspaceOwner";
 
 const RESET = "appearance-none cursor-pointer outline-none border-0";
 
@@ -15,6 +16,10 @@ export function FlowUsageBar({
   isUnlimited,
   onBuyMore,
 }: FlowUsageBarProps) {
+  // bug-122: "Buy More Flows" upgrades the CALLER's account, but the cap comes
+  // from the workspace OWNER's plan — so for a member it spends money and lifts
+  // nothing. Gated here rather than at each of the five call sites.
+  const isWorkspaceOwner = useIsWorkspaceOwner();
   if (!proFlows) return null;
 
   const isLimited = !isUnlimited && proFlows.max > 0;
@@ -59,8 +64,8 @@ export function FlowUsageBar({
           </div>
         )}
 
-        {/* Buy more */}
-        {!isUnlimited && (
+        {/* Buy more — owner only (bug-122) */}
+        {!isUnlimited && isWorkspaceOwner && (
           <button
             onClick={onBuyMore}
             className={`${RESET} w-full h-9 rounded-xl bg-primary text-white text-sm font-semibold`}

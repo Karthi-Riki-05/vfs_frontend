@@ -20,6 +20,8 @@ import {
   Crown,
   LogOut,
   X,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -54,7 +56,13 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
   const chatColumnHidden = useIsChatColumnHidden();
   const { data: session } = useSession();
   const { isWeb, isMobileApp } = useDeviceMode();
-  const { totalUnread } = useUnreadCount();
+  // ProSidebar renders ONLY in the Pro app (DashboardLayout: isProBrand ?
+  // ProSidebar : Sidebar), so its badge must read the PRO unread store. The
+  // bare useUnreadCount() defaulted to "team": the Pro sidebar showed the TEAM
+  // store's count and never cleared when the user read PRO chats (RightChatColumn
+  // marks read in the "pro" store) — the two badges were reading different
+  // stores. See bug-132.
+  const { totalUnread } = useUnreadCount("pro");
 
   const getSelectedKey = () => {
     if (pathname.startsWith("/dashboard/recents")) return "recents";
@@ -253,7 +261,15 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
         active={sel === "chat"}
         collapsed={railCollapsed}
         variant={variant}
-        badge={(session?.user as any)?.hasTeamAccess ? totalUnread : undefined}
+        // bug-133: gate REMOVED. The old `session.hasTeamAccess` was a PERSONAL
+        // signal (the bug-106 class): a member — or a Pro owner who doesn't own a
+        // team — had it false, so the Pro sidebar showed NO chat badge while the
+        // header's chat icon (gated on the workspace's answer) showed the green
+        // unread dot for the same messages. In the Pro app chat is always
+        // available — Sidebar's workspace-based `hasTeamFeatures` is true here via
+        // its `isProApp` term — so the badge simply tracks unread. NavTile hides
+        // it at 0.
+        badge={totalUnread}
         onClick={handleChatClick}
       />
       <NavTile
@@ -436,6 +452,27 @@ const ProSidebar: React.FC<ProSidebarProps> = ({
       }}
     >
       <div className="tw flex flex-col h-full bg-card">
+        {/* Manual collapse/expand toggle — see Sidebar.tsx: the Sider has
+            trigger={null} and collapse is otherwise automatic only, so a
+            tablet-width rail was stuck icon-only with no way to expand. */}
+        <div
+          className={`flex ${railCollapsed ? "justify-center px-2" : "justify-end px-3"} pt-2`}
+        >
+          <button
+            type="button"
+            onClick={() => onCollapse(!collapsed)}
+            aria-label={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!railCollapsed}
+            title={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="appearance-none cursor-pointer border-0 bg-transparent w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary/60 transition"
+          >
+            {railCollapsed ? (
+              <PanelLeftOpen className="w-4 h-4" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4" />
+            )}
+          </button>
+        </div>
         {proTeamSwitcher}
         <SidebarTeamSwitcher collapsed={railCollapsed} />
         {!isMobileApp && (
