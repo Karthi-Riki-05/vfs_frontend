@@ -47,6 +47,7 @@ import {
   iapRestore,
   waitThenRefresh,
   IapPrice,
+  IapResult,
 } from "@/lib/iapBridge";
 
 // Ported from new_design Subscription/ValueChartPlans/ProPlans/CreditAddOns
@@ -152,6 +153,25 @@ function RecurringSaveNotice({
   );
 }
 
+/**
+ * Guards every native purchase result. `status: "success"` only means the STORE
+ * charged the card; the entitlement is live only once the backend has verified
+ * the receipt and granted it (`granted`) — see validateWithBackend in
+ * lib/iapBridge.ts. Toasting on status alone made a refused grant look exactly
+ * like a real purchase: success message, unchanged plan, and the backend's
+ * reason discarded, which is precisely how a sandbox team purchase presented on
+ * 2026-08-12. Returns false (having shown the reason) when nothing was granted.
+ */
+function ensureGranted(res: IapResult, noun: string): boolean {
+  if (res.granted) return true;
+  toast.error(
+    `Payment went through, but we couldn't activate your ${noun}: ` +
+      `${res.validationError || "please contact support"}`,
+    { duration: 10000 },
+  );
+  return false;
+}
+
 // Mandatory "Restore purchases" affordance (App Review requires it; also
 // useful on Android after a reinstall). Rendered only when IAP is available.
 function RestorePurchasesButton({ onRestored }: { onRestored: () => void }) {
@@ -213,7 +233,9 @@ function CreditAddOns({
       if (userId) await iapLogin(userId);
       const res = await iapPurchase(IAP_PRODUCTS.aiCredits[packType]);
       if (res.status === "success") {
-        toast.success("Purchase successful — adding your credits…");
+        if (ensureGranted(res, "credits")) {
+          toast.success("Purchase successful — adding your credits…");
+        }
         if (onPurchased) await waitThenRefresh(onPurchased);
       } else if (res.status === "error") {
         toast.error(res.message || "Purchase failed");
@@ -486,7 +508,9 @@ function ProSubscriptionContent() {
       if (userId) await iapLogin(userId);
       const res = await iapPurchase(productId);
       if (res.status === "success") {
-        toast.success("Purchase successful — activating your add-on…");
+        if (ensureGranted(res, "add-on")) {
+          toast.success("Purchase successful — activating your add-on…");
+        }
         await waitThenRefresh(() => {
           fetchProSubStatus();
           refreshPackStatus();
@@ -1292,6 +1316,17 @@ function SubscriptionPageInner() {
       if (userId) await iapLogin(userId);
       const res = await iapPurchase(productId);
       if (res.status === "success") {
+        // Refresh either way: on a refused grant the store's server-to-server
+        // notification may still land moments later, and then the page catches
+        // up on its own — but say so honestly meanwhile.
+        if (!ensureGranted(res, "plan")) {
+          await waitThenRefresh(() => {
+            fetchCurrent();
+            fetchStatus();
+          });
+          refreshAppContext();
+          return;
+        }
         toast.success("Purchase successful — activating your plan…");
         await waitThenRefresh(() => {
           fetchCurrent();

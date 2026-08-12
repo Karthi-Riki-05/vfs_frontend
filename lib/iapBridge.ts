@@ -10,9 +10,12 @@
  *     "manage on the web" copy with NO link to web payment (no steering)
  *   - web browser                    → Stripe checkout, unchanged
  *
- * Entitlements are granted server-side by the RevenueCat webhook — a success
- * result here only means "the store accepted payment"; the caller refreshes
- * subscription status until the webhook lands (see waitThenRefresh).
+ * Entitlements are granted server-side only, by POST /iap/validate, which
+ * verifies the store's proof directly with Google/Apple (RevenueCat was rejected
+ * 2026-07-21). A `status: "success"` result here means ONLY "the store accepted
+ * payment" — `granted` is what says the entitlement exists. Callers must branch
+ * on `granted`, then refresh subscription status (see waitThenRefresh) because
+ * the store's server-to-server notification can also arrive moments later.
  */
 
 import { useEffect, useState } from "react";
@@ -145,6 +148,12 @@ export interface IapResult {
   restoredCount?: number;
   /** Set by the bridge after the backend confirms the grant. */
   granted?: boolean;
+  /** Why the grant did NOT happen, when `granted` is false. The store has taken
+   * the money at this point, so callers MUST surface this rather than report
+   * success — otherwise the user sees "purchase successful" beside an unchanged
+   * plan, with nothing anywhere naming the cause. */
+  validationCode?: string;
+  validationError?: string;
 }
 
 // ── Environment detection ───────────────────────────────────────────────────
@@ -262,8 +271,11 @@ function waitForResult(action: string, timeoutMs: number): Promise<IapResult> {
  * duplicate send is harmless. Returns true when the grant is confirmed.
  */
 export async function validateWithBackend(result: IapResult): Promise<boolean> {
-  if (!result.productId || !result.verificationData || !result.store)
+  if (!result.productId || !result.verificationData || !result.store) {
+    result.validationCode = "MISSING_PROOF";
+    result.validationError = "The store did not return a usable receipt.";
     return false;
+  }
   try {
     const res = await iapApi.validatePurchase({
       store: result.store,
@@ -276,10 +288,27 @@ export async function validateWithBackend(result: IapResult): Promise<boolean> {
         : { receiptData: result.verificationData }),
     });
     const data = res.data?.data || res.data;
-    return !!data?.granted;
-  } catch {
-    // Backend down or receipt rejected — the RTDN / notification safety net
-    // and the next restore both re-deliver, so don't surface a hard failure.
+    if (data?.granted) return true;
+    // 2xx but no grant — shouldn't happen, so don't let it read as success.
+    result.validationCode = "NOT_GRANTED";
+    result.validationError =
+      "The server accepted the receipt but granted nothing.";
+    return false;
+  } catch (err: unknown) {
+    // The store has already charged the user, so the reason must not be
+    // swallowed: the RTDN / App Store notification safety net and the next
+    // restore do re-deliver, but that is invisible and can take minutes. Record
+    // the backend's own code/message (errorHandler.js shape:
+    // `{success, error:{code, message}}`) so the caller can show it and it
+    // lands in the WebView console for remote debugging.
+    const body = (err as any)?.response?.data?.error;
+    result.validationCode = body?.code || "VALIDATION_FAILED";
+    result.validationError =
+      body?.message || (err as any)?.message || "Could not reach the server.";
+    console.error(
+      `[IAP] validate rejected ${result.store}/${result.productId}: ` +
+        `${result.validationCode} — ${result.validationError}`,
+    );
     return false;
   }
 }
@@ -393,9 +422,10 @@ export async function iapRestore(): Promise<IapResult> {
 }
 
 /**
- * The RevenueCat webhook grants the entitlement a few seconds after the
- * store sheet closes. Calls [refresh] on a short escalating schedule so the
- * UI flips as soon as the backend has processed the purchase.
+ * A grant can land slightly after the store sheet closes — either from
+ * /iap/validate finishing or from the store's server-to-server notification
+ * (Play RTDN / App Store Server Notification). Calls [refresh] on a short
+ * escalating schedule so the UI flips as soon as the backend has processed it.
  */
 export async function waitThenRefresh(
   refresh: () => void | Promise<unknown>,
