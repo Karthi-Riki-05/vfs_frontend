@@ -83,43 +83,46 @@ export const LEGACY_ANDROID_TEAM_PLANS: LegacyTeamPlan[] = [
  * do NOT exist in any store yet, so querying them returns an empty price (the
  * on-device log showed `notFound: [addon_flows_standard_monthly,
  * addon_flows_unlimited_monthly]`). These are the REAL products the published
- * Pro app (`com.valuecharts.pro`) owns — both monthly (basePlan `p1m`,
- * ACTIVE), verified 2026-08-10 via the Play Developer API:
- *   .ltd   → limited flow allowance  (maps to the `standard` addon plan)
- *   .unltd → unlimited flows         (maps to the `unlimited` addon plan)
+ * Pro apps own, both monthly:
+ *   ltd     → limited flow allowance  (maps to the `standard` addon plan)
+ *   unltd   → unlimited flows         (maps to the `unlimited` addon plan)
  * Mirrors backend/src/config/iapProducts.js.
  *
- * iOS deliberately has NO entry: the legacy App Store products are all team
- * seat tiers (mon_5/mon_10/year_5/year_10) — there is no legacy Pro flow-addon
- * product, so the section must show "unavailable" rather than a broken price.
+ * IDs differ per store — Android kept the original short names (verified
+ * 2026-07-31 via the Play Developer API); the iOS App Store Connect entries
+ * were created 2026-08-12 with a `_flows` suffix (subscription group "Value
+ * Charts Pro Subscription", both Approved). Confirmed from the live App
+ * Store Connect product ID column — do not assume the two stores share a
+ * string here, unlike the rest of this file's catalog.
  */
-export const LEGACY_ANDROID_PRO_ADDONS: Record<
-  "standard" | "unlimited",
-  string
-> = {
+export const ANDROID_PRO_ADDONS: Record<"standard" | "unlimited", string> = {
   standard: "com.valuecharts.pro.ltd",
   unlimited: "com.valuecharts.pro.unltd",
 };
 
+export const IOS_PRO_ADDONS: Record<"standard" | "unlimited", string> = {
+  standard: "com.valuecharts.pro.ltd_flows",
+  unlimited: "com.valuecharts.pro.unltd_flows",
+};
+
 /**
- * Real store product id for a Pro flow-addon plan on the CURRENT platform, or
- * undefined when this platform has no such product (iOS today). Callers must
- * treat undefined as "not purchasable" — never fall back to the non-existent
- * addon_flows_* ids, which only produce empty prices.
+ * Real store product id for a Pro flow-addon plan on the CURRENT platform.
+ * Live on both iOS and Android now that the ids are registered in both
+ * stores under the respective Pro app bundle ids.
  */
 export function findLegacyProAddon(
   plan: "standard" | "unlimited",
 ): string | undefined {
   return getNativePlatform() === "ios"
-    ? undefined
-    : LEGACY_ANDROID_PRO_ADDONS[plan];
+    ? IOS_PRO_ADDONS[plan]
+    : ANDROID_PRO_ADDONS[plan];
 }
 
-/** All legacy Pro addon ids to price-check on this platform (empty on iOS). */
+/** All legacy Pro addon ids to price-check on this platform. */
 export function legacyProAddonIds(): string[] {
-  return getNativePlatform() === "ios"
-    ? []
-    : Object.values(LEGACY_ANDROID_PRO_ADDONS);
+  return Object.values(
+    getNativePlatform() === "ios" ? IOS_PRO_ADDONS : ANDROID_PRO_ADDONS,
+  );
 }
 
 // ── Types ───────────────────────────────────────────────────────────────────
