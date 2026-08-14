@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { getPostLoginDashboardUrl } from "@/lib/postLoginRedirect";
 
 /**
  * Redeems the one-time ticket the native shell put in the URL.
@@ -12,10 +13,17 @@ import { signIn } from "next-auth/react";
  * must not be able to bounce a freshly-authenticated session to another origin
  * (`//evil.com` is a protocol-relative URL, which is why the second character
  * is checked too).
+ *
+ * The fallback is the SAME variant-aware destination the password and social
+ * logins use. A bare `/dashboard` is not a valid landing page for either app:
+ * Team belongs on `/dashboard/team` and Pro on `/dashboard/pro`, and sending
+ * both to the generic route makes a biometric login land somewhere no other
+ * login route ever produces.
  */
 function safeRedirect(raw: string | null): string {
-  if (!raw) return "/dashboard";
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/dashboard";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) {
+    return getPostLoginDashboardUrl();
+  }
   return raw;
 }
 
@@ -53,7 +61,23 @@ export default function NativeAuthClient() {
       try {
         const result = await signIn("biometric", { redirect: false, ott });
         if (result?.ok && !result.error) {
-          router.replace(next);
+          // Align the per-tab app context with the landing dashboard BEFORE
+          // navigating, exactly as LoginForm#redirectToDashboard does. logout()
+          // clears vc_app_context, and a biometric unlock is a FRESH login, so
+          // it is empty here — leaving DashboardLayout's reconcile to no-op and
+          // the app stuck on whatever stale value the DB last held.
+          try {
+            sessionStorage.setItem(
+              "vc_app_context",
+              next.startsWith("/dashboard/pro") ? "pro" : "team",
+            );
+          } catch {
+            // sessionStorage may be blocked in restricted WebViews
+          }
+          // Full navigation rather than router.replace: the session cookie was
+          // just minted, and the dashboard must be rendered against it from
+          // scratch rather than reusing this route's client-side tree.
+          window.location.href = next;
           return;
         }
         // Expired, already spent, or the account is no longer loginable. The
