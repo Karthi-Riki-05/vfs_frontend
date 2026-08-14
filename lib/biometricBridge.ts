@@ -174,12 +174,13 @@ export async function disableBiometric(deviceId: string): Promise<void> {
   await api.post("/auth/biometric/revoke", { deviceId });
 }
 
-/**
- * Called from the logout path. Biometric access must not survive a sign-out:
- * otherwise the next person to open the app unlocks the previous user's
- * account with their own fingerprint.
- */
-export function clearBiometricOnLogout(): void {
-  if (typeof window === "undefined") return;
-  post(MSG_DISABLE);
-}
+// NOTE: there is deliberately no clear-on-logout helper here.
+//
+// One existed and was removed: biometric login only matters once the session is
+// gone, and logging out is the commonest way that happens, so clearing on
+// sign-out destroyed the credential in exactly the case it exists for — the
+// user had to re-enrol after every logout. It was also asymmetric: it cleared
+// the phone's copy but never called /revoke, leaving a live server row for a
+// device that could no longer use it.
+//
+// `disableBiometric` is the single off switch, and it does both halves.

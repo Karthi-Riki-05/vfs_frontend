@@ -5,7 +5,6 @@ import {
   unregisterNativeDeviceToken,
   unregisterNotificationToken,
 } from "@/lib/firebase";
-import { clearBiometricOnLogout } from "@/lib/biometricBridge";
 
 // BUG-008: per-tab/per-browser workspace + billing context that must NOT
 // survive a logout — otherwise the next user on a shared browser inherits the
@@ -51,15 +50,12 @@ export async function logout(opts?: { callbackUrl?: string }): Promise<void> {
   } catch {
     // never block sign-out on cleanup
   }
-  // Biometric access must not survive a sign-out. Without this, the next
-  // person to open the app on a shared phone unlocks the PREVIOUS user's
-  // account with their own fingerprint — the stored token is bound to the
-  // device, not to whoever is looking at the screen. No-ops in a browser.
-  try {
-    clearBiometricOnLogout();
-  } catch {
-    // never block sign-out on cleanup
-  }
+  // Biometric enrolment deliberately SURVIVES sign-out. It is only useful once
+  // the session is gone, and logging out is the commonest way that happens — so
+  // clearing it here would destroy the credential in exactly the case it exists
+  // for, and the user would have to re-enrol after every logout. The toggle in
+  // Settings → Security is the off switch (it clears the phone's copy AND
+  // revokes the server record); this is not.
   clearWorkspaceStorage();
   await signOut({ callbackUrl: opts?.callbackUrl ?? "/login" });
 }
