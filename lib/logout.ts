@@ -57,5 +57,35 @@ export async function logout(opts?: { callbackUrl?: string }): Promise<void> {
   // Settings → Security is the off switch (it clears the phone's copy AND
   // revokes the server record); this is not.
   clearWorkspaceStorage();
-  await signOut({ callbackUrl: opts?.callbackUrl ?? "/login" });
+
+  // Revoke the session FIRST, without letting next-auth navigate: the native
+  // cookie wipe below would otherwise race the /api/auth/signout POST and could
+  // strip the CSRF/session cookies it needs to succeed.
+  const callbackUrl = opts?.callbackUrl ?? "/login";
+  await signOut({ redirect: false });
+
+  // Then tell the native shell to hard-clear its cookie jar.
+  //
+  // WHY THIS IS NOT REDUNDANT with the Set-Cookie expiry above: the Android
+  // WebView keeps cookie writes in memory and only persists them to disk on its
+  // own schedule. Force-close the app shortly after signing out and the deletion
+  // is lost, so the NEXT launch restores the old session cookie from disk and
+  // the user is silently logged back in. `clearCookies()` on the native side
+  // removes them at the CookieManager level instead of relying on that flush.
+  //
+  // No-ops in a real browser, where `NativeBridge` does not exist.
+  notifyNativeLogout();
+
+  window.location.href = callbackUrl;
+}
+
+// Fire-and-forget signal to the Flutter shell (see the `logout` case in
+// webview_native.dart, which clears cookies and DOM storage). Inlined rather
+// than imported so a broken bridge can never throw on the sign-out path.
+function notifyNativeLogout(): void {
+  try {
+    (window as any).NativeBridge?.postMessage?.("logout");
+  } catch {
+    // Bridge absent or throwing — sign-out must complete regardless.
+  }
 }
