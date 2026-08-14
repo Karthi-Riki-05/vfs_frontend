@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { getPostLoginDashboardUrl } from "@/lib/postLoginRedirect";
+import { BrandSplash } from "@/components/shared/BrandSplash";
 
 /**
  * Redeems the one-time ticket the native shell put in the URL.
@@ -91,26 +92,24 @@ export default function NativeAuthClient() {
     })();
   }, [params, router]);
 
+  // The app's own splash, not a bespoke spinner. This route is only ever seen
+  // inside the native shell, immediately after the shell's OWN loading screen
+  // (_LoadingScreen in webview_native.dart) — which is a Dart rendering of this
+  // same design. Anything else here reads as a third, unrelated app flashing up
+  // mid-login.
+  //
+  // Pinned over the viewport because the (auth) layout does not treat /native
+  // as a hero route, so it would otherwise wrap this in the centered card and
+  // logo used by reset-password / verify-otp.
   return (
-    <div style={{ textAlign: "center", padding: "24px 0" }}>
-      <div
-        aria-hidden
-        style={{
-          width: 36,
-          height: 36,
-          margin: "0 auto 20px",
-          border: "3px solid #E3E8E5",
-          borderTopColor: "#3CB371",
-          borderRadius: "50%",
-          animation: "vc-native-spin 0.8s linear infinite",
-        }}
+    <div
+      className="tw"
+      data-testid="native-auth-splash"
+      style={{ position: "fixed", inset: 0, zIndex: 9999 }}
+    >
+      <BrandSplash
+        caption={failed ? "Taking you to sign in…" : "Signing you in…"}
       />
-      <p style={{ margin: 0, color: "#4A5568", fontSize: 15 }}>
-        {failed ? "Taking you to sign in…" : "Signing you in…"}
-      </p>
-      <style>{`
-        @keyframes vc-native-spin { to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 }
