@@ -55,7 +55,17 @@ export default function BiometricLoginToggle() {
 
   // Label the hardware the user actually has. "Biometric login" reads as
   // jargon; "Face ID" reads as the thing on their phone.
-  const label = kind === "face" ? "Sign in with Face ID" : "Sign in with Fingerprint";
+  // Apple names its sensors; Android does not. An iPhone SE user reads
+  // "Fingerprint" as some other feature — the thing on their phone is called
+  // Touch ID, and the Settings app they just came from calls it that too.
+  const label =
+    platform === "ios"
+      ? kind === "face"
+        ? "Sign in with Face ID"
+        : "Sign in with Touch ID"
+      : kind === "face"
+        ? "Sign in with face unlock"
+        : "Sign in with fingerprint";
   const Icon = kind === "face" ? ScanFace : Fingerprint;
 
   async function onToggle() {
