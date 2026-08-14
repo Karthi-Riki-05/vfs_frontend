@@ -183,11 +183,77 @@ export const authOptions: NextAuthOptions = {
         }
       },
     }),
+    // Biometric login for the native shell (fingerprint / Face ID).
+    //
+    // The shell cannot hand us a password — it holds a device token in
+    // biometric-gated secure storage, which it exchanges for a one-time ticket
+    // after the OS confirms the user. This provider redeems that ticket, so
+    // NextAuth issues its session cookie through exactly the same path as a
+    // password login. Nothing is forged and the cookie never leaves the
+    // browser's control. See docs/be-auth-biometric.md.
+    //
+    // The ticket is single-use and lives ~60 seconds; the backend re-checks
+    // account state (deleted / suspended / unverified) before honouring it, so
+    // an enrolled phone cannot outlive the account's right to log in.
+    CredentialsProvider({
+      id: "biometric",
+      name: "Biometric",
+      credentials: {
+        ott: { label: "One-time token", type: "text" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.ott) return null;
+        try {
+          const backendUrl =
+            process.env.BACKEND_URL || "http://vc-backend:5000";
+          const response = await axios.post(
+            `${backendUrl}/api/v1/auth/biometric/consume`,
+            { ott: credentials.ott },
+          );
+
+          if (response.data?.success && response.data?.data) {
+            return {
+              ...response.data.data,
+              // The shell is a WebView with no remember-me checkbox. Mirror
+              // what LoginForm does there (see the jwt callback's note) so a
+              // biometric session lasts as long as a password one.
+              remember: true,
+            };
+          }
+          return null;
+        } catch (error: any) {
+          const code = error?.response?.data?.error?.code;
+          const msg = error?.response?.data?.error?.message;
+          // Surface the states the app can act on: re-enrol, or send the user
+          // back to a password login.
+          if (
+            code === "EMAIL_NOT_VERIFIED" ||
+            code === "ACCOUNT_INACTIVE" ||
+            code === "USER_DEACTIVATED" ||
+            code === "INVALID_TOKEN"
+          ) {
+            throw new Error(msg || "Biometric login failed");
+          }
+          console.error("Biometric auth error:", error);
+          throw new Error(msg || "An unexpected error occurred during login");
+        }
+      },
+    }),
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      // Sync OAuth users to backend database
-      if (account && account.provider !== "credentials") {
+      // Sync OAuth users to backend database.
+      //
+      // `biometric` is excluded explicitly: it is a CredentialsProvider, but it
+      // carries its own id, so a bare `!== "credentials"` test would class it as
+      // OAuth and push it through oauth-sync — which would try to create or
+      // re-key an account from a login that has already been fully validated
+      // by the backend. It needs no sync at all.
+      if (
+        account &&
+        account.provider !== "credentials" &&
+        account.provider !== "biometric"
+      ) {
         try {
           const backendUrl =
             process.env.BACKEND_URL || "http://vc-backend:5000";
