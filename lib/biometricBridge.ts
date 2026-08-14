@@ -34,6 +34,21 @@ export interface BiometricStatus {
   enrolled: boolean;
   /** 'face' | 'fingerprint' | 'none' — drives the button label and icon. */
   kind?: "face" | "fingerprint" | "none";
+  /**
+   * Stable per-install id, generated and owned by the shell. Enrolment and
+   * revocation are keyed on it, so it must come from the shell rather than
+   * anything the page could derive — a page-generated id would change on every
+   * session and orphan the server-side record.
+   */
+  deviceId?: string;
+  /**
+   * 'ios' | 'android', reported by the shell. Read from here rather than
+   * sniffed from the User-Agent: the shell sends a FIXED custom User-Agent
+   * that is identical on both platforms by design (see _buildUserAgent in
+   * webview_native.dart), so sniffing it would classify every device as the
+   * same OS.
+   */
+  platform?: "ios" | "android";
 }
 
 function post(message: string): boolean {
@@ -89,6 +104,8 @@ export async function getBiometricStatus(): Promise<BiometricStatus> {
       available: true,
       enrolled: result.enrolled === true,
       kind: result.kind,
+      deviceId: result.deviceId,
+      platform: result.platform,
     };
   } catch {
     return { available: true, enrolled: false };

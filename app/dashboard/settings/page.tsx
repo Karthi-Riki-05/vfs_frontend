@@ -31,6 +31,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import api from "@/lib/axios";
+import BiometricLoginToggle from "@/components/settings/BiometricLoginToggle";
 import { useAuth } from "@/hooks/useAuth";
 import { useAi } from "@/hooks/useAi";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -616,7 +617,7 @@ export default function SettingsPage() {
       </div>
 
       <SectionLabel>Security</SectionLabel>
-      <div className="rounded-2xl bg-card border border-border overflow-hidden">
+      <div className="rounded-2xl bg-card border border-border divide-y divide-border overflow-hidden">
         <button
           onClick={() => setView("password")}
           className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4`}
@@ -627,6 +628,11 @@ export default function SettingsPage() {
           </span>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </button>
+        {/* Renders only inside the native shell on a phone with enrolled
+            biometrics — a browser sees this section unchanged. Sits under
+            Security rather than Preferences because it IS a sign-in
+            credential, not a display option. */}
+        <BiometricLoginToggle />
       </div>
 
       <SectionLabel>Preferences</SectionLabel>
