@@ -59,10 +59,15 @@ export default function BiometricSignInButton() {
     // The shell publishes the flag on every settled load, which may land after
     // this component mounts. Without the listener the button would be missing
     // on exactly the launch it is most wanted.
-    const onEnrolled = () => void refresh();
-    window.addEventListener("flutterBiometricEnrolled", onEnrolled);
-    return () =>
-      window.removeEventListener("flutterBiometricEnrolled", onEnrolled);
+    // Both events, because either flag can be the last to arrive: the shell
+    // fires two independent async injections and does not await either.
+    const onFlag = () => void refresh();
+    window.addEventListener("flutterBiometricEnrolled", onFlag);
+    window.addEventListener("flutterBiometricAvailable", onFlag);
+    return () => {
+      window.removeEventListener("flutterBiometricEnrolled", onFlag);
+      window.removeEventListener("flutterBiometricAvailable", onFlag);
+    };
   }, [refresh]);
 
   if (!show) return null;
