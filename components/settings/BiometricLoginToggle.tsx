@@ -69,7 +69,15 @@ export default function BiometricLoginToggle() {
   const Icon = kind === "face" ? ScanFace : Fingerprint;
 
   async function onToggle() {
-    if (busy || !deviceId) return;
+    if (busy) return;
+    // A missing deviceId means the shell never answered the status request —
+    // the switch would otherwise be a dead control that silently does nothing,
+    // which is indistinguishable from the feature being broken.
+    if (!deviceId) {
+      toast.error("Could not reach the app. Try reopening it.");
+      void refresh();
+      return;
+    }
     setBusy(true);
     try {
       if (enrolled) {

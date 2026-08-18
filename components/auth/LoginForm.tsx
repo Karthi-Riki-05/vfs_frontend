@@ -14,6 +14,7 @@ import AuthShell from "./AuthShell";
 import DesktopAuthShell from "./DesktopAuthShell";
 import PillInput from "./PillInput";
 import { SocialRow, OrDivider } from "./AuthSocial";
+import BiometricSignInButton from "./BiometricSignInButton";
 
 function detectWebView(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -408,8 +409,12 @@ export default function LoginForm() {
           )}
         </button>
 
-        {/* Social pills below the button */}
-        <div className="pt-2">
+        {/* Biometric sign-in, then the social pills. Renders nothing outside
+            the native shell or on a phone with no stored credential. Placed
+            above the social row because inside the app that row is disabled —
+            this is the only alternative sign-in that actually works there. */}
+        <div className="space-y-3 pt-2">
+          <BiometricSignInButton />
           <SocialRow disabled={isWebView} onProvider={socialLogin} />
         </div>
       </form>
@@ -499,6 +504,9 @@ export default function LoginForm() {
               <p className="text-[13px] text-[#DC2626]">{error}</p>
             </div>
           )}
+
+          {/* Biometric sign-in — see the note at the other SocialRow. */}
+          <BiometricSignInButton />
 
           {/* Social buttons — 3-col grid */}
           <SocialRow disabled={isWebView} onProvider={socialLogin} />

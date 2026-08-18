@@ -24,6 +24,7 @@ import { getClientAppType, isNativeAppWebView } from "./detectWebView";
 /** Messages this module sends over NativeBridge. */
 const MSG_ENROL = "biometric-enrol:";
 const MSG_DISABLE = "biometric-disable";
+const MSG_UNLOCK = "biometric-unlock";
 /** Shell answers on this event, mirroring the `flutterIap` pattern. */
 const EVENT = "flutterBiometric";
 
@@ -109,6 +110,41 @@ export async function getBiometricStatus(): Promise<BiometricStatus> {
     };
   } catch {
     return { available: true, enrolled: false };
+  }
+}
+
+/**
+ * Whether this phone has a stored credential, i.e. the login page may offer a
+ * biometric button.
+ *
+ * Read from a flag the shell publishes on every settled load rather than by
+ * asking over the bridge, because the login page needs an answer during its
+ * FIRST render — a round trip would leave the button missing for a beat and
+ * then pop in, which reads as a glitch on the one screen that must look solid.
+ * `getBiometricStatus()` remains the right call for the settings toggle, where
+ * a moment's delay costs nothing.
+ */
+export function biometricEnrolled(): boolean {
+  if (typeof window === "undefined") return false;
+  return (window as any).flutterBiometricEnrolled === true;
+}
+
+/**
+ * Starts a biometric sign-in. Resolves false if it did not happen.
+ *
+ * On success the SHELL navigates the WebView to the hand-off page, so this
+ * never resolves true in practice — the page is already being replaced. The
+ * false path is what matters: a cancelled prompt or a rejected credential must
+ * leave the button tappable again rather than a spinner that never ends.
+ */
+export async function startBiometricUnlock(): Promise<boolean> {
+  if (!biometricAvailable()) return false;
+  if (!post(MSG_UNLOCK)) return false;
+  try {
+    const result = await waitForResult("unlock", 60000);
+    return result.ok === true;
+  } catch {
+    return false;
   }
 }
 
