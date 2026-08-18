@@ -35,8 +35,10 @@ html {
 body {
   margin: 0;
   padding: 0;
+  /* Inter was named here but never loaded anywhere in the app, so this stack
+     always resolved to the OS font. Points at the real next/font face now. */
   font-family:
-    "Inter",
+    var(--font-plus-jakarta),
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
@@ -595,6 +597,114 @@ img {
   }
 }
 
+/* ==================== MOBILE READABILITY SCALE (≤767px) ====================
+   Phones only. Tablet and desktop are untouched — every rule here is inside
+   `max-width: 767px`, so nothing above that breakpoint changes.
+
+   WHY THIS EXISTS
+   Measured on the live app at 390px (2026-08-14): 59% of visible text rendered
+   below 14px (41 runs at 12px, 23 at 11px, 7 at 10px) and 38 of 70 tap targets
+   were under 44×44. Root cause: the 44px block above matches only `.ant-*`
+   selectors, and the type floor above stops at 12px — so every screen ported to
+   the `.tw`/shadcn design left both guarantees behind, and shadcn's desktop
+   sizes (h-8/h-9/h-10, text-sm) became the mobile sizes.
+
+   SCOPE — this changes SIZE ONLY. No layout, colour, spacing, wording,
+   component structure or navigation is altered. Verified at 390px and 320px:
+   no horizontal overflow introduced on dashboard / team / flows / settings.
+
+   TARGET SCALE
+     body / list content   16px   (was 14)
+     secondary / meta      14px   (was 11–12)
+     uppercase overline    12px   (was 10–11)  ← 12px is correct for this role
+     minimum tap target    44×44
+   ========================================================================== */
+
+@media (max-width: 767px) {
+  /* ---------- TYPE ---------- */
+
+  /* shadcn's `text-sm` is a desktop size doing duty as mobile body text */
+  .text-sm {
+    font-size: 16px !important;
+    line-height: 1.45 !important;
+  }
+
+  /* secondary / meta text: KPI captions, row values, helper text */
+  .text-xs {
+    font-size: 14px !important;
+    line-height: 1.4 !important;
+  }
+
+  /* uppercase overlines and small labels floor at 12px */
+  .text-\[11px\] {
+    font-size: 12px !important;
+  }
+
+  /* inline React style objects (MobileDashboard.tsx, SubscriptionWidget.tsx and
+     the AntD Typography spans all set fontSize numerically, bypassing classes) */
+  [style*="font-size: 11px"]:not(.anticon) {
+    font-size: 12px !important;
+  }
+  [style*="font-size: 12px"]:not(.anticon),
+  [style*="font-size: 13px"]:not(.anticon) {
+    font-size: 14px !important;
+  }
+
+  /* The dashboard activity chart is hand-rolled SVG whose <text> nodes carry a
+     `font-size` PRESENTATION ATTRIBUTE (font-size="10"), not a class. Attributes
+     lose to any CSS rule, so matching the attribute value is enough — and keeps
+     this from touching any other SVG. */
+  svg text[font-size="9"],
+  svg text[font-size="10"],
+  svg text[font-size="11"] {
+    font-size: 12px;
+  }
+
+  /* ---------- TAP TARGETS ---------- */
+  /* The `.ant-*` block above already covers Ant Design. These rules extend the
+     same 44px guarantee to the ported `.tw` screens and raw <button> elements. */
+
+  /* Toggles are EXCLUDED. A switch is a <button role="switch"> sized `w-9 h-5`
+     (36×20) with `rounded-full` — forcing min-height:44px turns it into a tall
+     green blob instead of a switch. Same for checkbox/radio-style controls.
+     Their touch area must be enlarged with padding on the wrapper row, never by
+     stretching the control itself. */
+  button:not(.ant-btn):not(.sr-only):not(.ant-modal-close):not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not(.ant-switch),
+  [role="button"]:not(.ant-btn),
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    min-height: 44px;
+  }
+
+  /* square icon-only buttons — header icons, avatar, card ⋯ menus, view toggles.
+     The glyph inside keeps its size; only the hit area grows. */
+  button.w-7.h-7,
+  button.w-8.h-8,
+  button.w-9.h-8,
+  button.w-9.h-9,
+  button.w-10.h-10 {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  /* text links used as actions ("Upgrade ↗", "See all") are 15–16px tall today */
+  a:not([role="button"]):not(.ant-btn):not(.sr-only) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  /* …but links inside running prose must stay inline. Deliberately limited to
+     <p> and <li>: a `span a` exemption here also caught standalone action links
+     such as the dashboard's "Upgrade ↗", leaving them at 15px tall. */
+  p a,
+  li a {
+    display: inline !important;
+    min-height: 0 !important;
+  }
+}
+
 /* ---- Section overline utility ----
    11px bold uppercase label pattern used in multiple pages.
    Not retroactively applied — define here for future usage.
@@ -764,7 +874,11 @@ img {
   --color-orange: var(--orange);
   --color-coral: var(--coral);
 
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  /* The literal "Plus Jakarta Sans" is not a registered family — next/font
+     registers a hashed name and exposes it via --font-plus-jakarta (set in
+     app/layout.tsx). Naming it literally here made all 283 `.tw` elements fall
+     through to system-ui. */
+  --font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
 
   --shadow-card:
     0 1px 2px rgba(16, 40, 32, 0.04), 0 8px 24px -8px rgba(16, 40, 32, 0.08);

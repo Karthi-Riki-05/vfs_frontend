@@ -89,7 +89,7 @@ export default function SupportPage() {
 
   return (
     <div className="tw min-h-screen" style={{ background: "#f5f7f6" }}>
-      <div className="px-5 pt-5 pb-28 lg:pb-10 max-w-[1200px] mx-auto space-y-6">
+      <div className="px-5 pt-3 lg:pt-5 pb-28 max-[767px]:pb-0 lg:pb-10 max-w-[1200px] mx-auto space-y-6">
         {/* Page heading */}
         <div>
           <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">

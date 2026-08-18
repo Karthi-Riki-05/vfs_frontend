@@ -4,9 +4,16 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 
+/* `variable` is required, not optional. next/font registers the face under a
+   generated name (e.g. __Plus_Jakarta_Sans_a11773), NOT under "Plus Jakarta
+   Sans" — so any CSS that names the font literally matches nothing and silently
+   falls back to the OS font. Exposing it as a CSS custom property is the only
+   way stylesheets and the AntD theme can reference it. */
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -52,7 +59,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={plusJakarta.variable}>
       <body className={plusJakarta.className} suppressHydrationWarning>
         <ServiceWorkerRegistrar />
         <Providers>{children}</Providers>

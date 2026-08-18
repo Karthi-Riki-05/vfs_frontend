@@ -1249,7 +1249,12 @@ export default function AIAssistant({
             }}
             className={cn(
               "absolute right-0 bg-card border border-border rounded-2xl px-4 py-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.12)] whitespace-nowrap text-[13px] font-medium text-foreground transition-all duration-300",
-              isMobile ? "bottom-14" : "bottom-[66px]",
+              // Must clear the WHOLE floating stack, not just this button.
+              // FloatingActionButton renders a second 48px FAB directly above
+              // the AI button, occupying 60–108px (mobile) / 64–112px (desktop)
+              // above this container's base — the old 56/66px offsets put the
+              // bubble underneath it, which is why it rendered sliced mid-word.
+              isMobile ? "bottom-[120px]" : "bottom-[124px]",
               showGreeting
                 ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
                 : "opacity-0 translate-y-2 scale-95 pointer-events-none",

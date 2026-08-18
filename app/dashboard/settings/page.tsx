@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/axios";
 import BiometricLoginToggle from "@/components/settings/BiometricLoginToggle";
+import BackButton from "@/components/shared/BackButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useAi } from "@/hooks/useAi";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -204,7 +205,7 @@ function FieldInput({
         {...props}
         type={type}
         disabled={disabled}
-        className="flex-1 bg-transparent outline-none text-sm appearance-none border-0 p-0 disabled:text-muted-foreground"
+        className="flex-1 min-w-0 bg-transparent outline-none text-sm appearance-none border-0 p-0 disabled:text-muted-foreground"
       />
       {eye && (
         <button
@@ -554,7 +555,20 @@ export default function SettingsPage() {
 
   /* ══════════ HUB (Profile) ══════════ */
   const Hub = (
-    <div className="px-5 pt-4 space-y-4 max-w-6xl mx-auto">
+    <div className="px-5 pt-3 space-y-4 max-w-6xl mx-auto">
+      {/* The settings HUB had no back button at all: MobileBackButton excludes
+          /dashboard/settings wholesale (because the sub-views render their own),
+          but the hub itself rendered none — leaving the user stranded on phones,
+          where there is no sidebar. */}
+      <div className="flex items-center gap-3">
+        <BackButton
+          onClick={() => router.push("/dashboard")}
+          label="Back to dashboard"
+        />
+        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          Profile
+        </div>
+      </div>
       <div className="flex flex-col items-center text-center">
         <div className="relative">
           <AvatarCircle size={96} />
@@ -805,12 +819,7 @@ export default function SettingsPage() {
   const Edit = (
     <div className="px-5 pt-3 space-y-4 max-w-6xl mx-auto">
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => setView("hub")}
-          className={`${RESET} w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center`}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
+        <BackButton onClick={() => setView("hub")} label="Back to settings" />
         <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
           Profile Settings
         </div>
@@ -878,12 +887,7 @@ export default function SettingsPage() {
   const Password = (
     <div className="px-5 pt-3 space-y-4 max-w-6xl mx-auto">
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => setView("hub")}
-          className={`${RESET} w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center`}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
+        <BackButton onClick={() => setView("hub")} label="Back to settings" />
         <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
           Security
         </div>
@@ -909,7 +913,7 @@ export default function SettingsPage() {
             eye
             value={pNew}
             onChange={(e) => setPNew(e.target.value)}
-            placeholder="New password (min 8 chars)"
+            placeholder="Min 8 characters"
           />
         </Field>
         <Field label="Confirm Password" required>
@@ -948,12 +952,7 @@ export default function SettingsPage() {
   const NotifPrefs = (
     <div className="px-5 pt-3 space-y-4 max-w-6xl mx-auto pb-6">
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => setView("hub")}
-          className={`${RESET} w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center`}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
+        <BackButton onClick={() => setView("hub")} label="Back to settings" />
         <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
           Notification Settings
         </div>
@@ -996,28 +995,49 @@ export default function SettingsPage() {
                   const p = prefFor(item.category);
                   const saving = prefsSaving === item.category;
                   return (
+                    /* Phones stack label above switches. Previously the switch
+                       grid claimed a hard `max-w-[220px] w-full`, which on a
+                       412px screen left ~110px for the label — and because the
+                       label was `truncate`, it disappeared entirely while the
+                       un-truncated locked caption wrapped to four lines. */
                     <div
                       key={item.category}
-                      className="flex items-center gap-3 p-4"
+                      className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center"
                     >
-                      <span className="text-muted-foreground shrink-0">
-                        {group.icon}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold truncate">
-                          {item.label}
-                        </div>
-                        {item.locked && (
-                          <div className="text-[10px] font-bold uppercase tracking-wide text-primary-deep mt-0.5">
-                            Required — cannot be disabled
+                      <div className="flex items-start gap-3 min-w-0 sm:flex-1 sm:items-center">
+                        <span className="text-muted-foreground shrink-0">
+                          {group.icon}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold sm:truncate">
+                            {item.label}
                           </div>
-                        )}
+                          {item.locked && (
+                            <div className="text-[10px] font-bold uppercase tracking-wide text-primary-deep mt-0.5">
+                              Required — cannot be disabled
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div
-                        className={`grid grid-cols-3 gap-2 place-items-center max-w-[220px] w-full shrink-0 ${
+                        className={`grid grid-cols-3 gap-2 place-items-center w-full shrink-0 sm:max-w-[220px] ${
                           saving ? "opacity-60" : ""
                         }`}
                       >
+                        {/* Column labels, phones only. Stacked full-width, a
+                            bare row of three identical toggles has nothing to
+                            identify it — the IN-APP/PUSH/EMAIL header sits far
+                            up the page. On sm+ these hide and the grid is one
+                            row again, exactly as before. */}
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground sm:hidden">
+                          In-app
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground sm:hidden">
+                          Push
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground sm:hidden">
+                          Email
+                        </span>
                         <MiniSwitch
                           on={p.inApp}
                           disabled={item.locked || saving}

@@ -760,7 +760,7 @@ function ProSubscriptionContent() {
   ];
 
   return (
-    <div className="tw px-4 md:px-8 max-w-5xl mx-auto pt-6 pb-24 space-y-4">
+    <div className="tw px-5 md:px-8 max-w-5xl mx-auto pt-3 md:pt-6 pb-24 max-[767px]:pb-0 space-y-4">
       <div className="flex items-center gap-2">
         <Crown className="w-5 h-5 text-primary-deep" />
         <h1 className="text-2xl font-extrabold text-foreground">Pro Plan</h1>

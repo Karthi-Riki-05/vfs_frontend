@@ -349,7 +349,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   // ─────────── Nav rows ───────────
   const nav = (
-    <nav className="flex-1 overflow-y-auto hide-scrollbar px-2 pb-3 pt-2">
+    <nav className="flex-1 overflow-y-auto hide-scrollbar px-2 pb-6 pt-2">
       <NavTile
         icon={Home}
         label="Dashboard"
@@ -551,8 +551,11 @@ const Sidebar: React.FC<SidebarProps> = ({
               single create entry point on mobile/PWA. */}
           {nav}
 
-          {/* Log out + version footer (prototype Drawer foot) */}
-          <div className="border-t border-border">
+          {/* Log out + version footer (prototype Drawer foot).
+              shrink-0 so a long nav list can never squeeze it, and the nav
+              above carries pb-6 so its last item scrolls clear of this bar
+              instead of being half-hidden behind it. */}
+          <div className="border-t border-border shrink-0">
             <button
               type="button"
               onClick={() => logout({ callbackUrl: "/login" })}

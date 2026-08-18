@@ -91,7 +91,7 @@ function SearchBar({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex-1 bg-transparent outline-none text-sm border-0 p-0 appearance-none"
+        className="flex-1 min-w-0 bg-transparent outline-none text-sm border-0 p-0 appearance-none"
       />
       <button
         type="button"
@@ -228,7 +228,7 @@ function CreateGroupOverlay({
                 if (e.key === "Enter" && value.trim() && !loading) onSubmit();
               }}
               placeholder="e.g. Marketing Team"
-              className="flex-1 bg-transparent outline-none border-0 p-0 appearance-none text-sm font-sans"
+              className="flex-1 min-w-0 bg-transparent outline-none border-0 p-0 appearance-none text-sm font-sans"
             />
           </div>
         </div>
@@ -702,7 +702,7 @@ function ShapesContent() {
     <>
       {/* ══════════ Shapes — Groups → drill-in (prototype 816–965) ══════════ */}
       <div className="tw min-h-screen bg-background pb-28">
-        <div className="mx-auto w-full max-w-6xl px-5 pt-4 lg:px-8 lg:pt-6">
+        <div className="mx-auto w-full max-w-6xl px-5 pt-3 lg:px-8 lg:pt-6">
           {!openGroup ? (
             /* ───────── Root: list of GROUPS ───────── */
             <>

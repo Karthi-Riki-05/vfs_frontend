@@ -49,7 +49,7 @@ export function DashGreeting({ userName }: DashGreetingProps) {
           fontWeight: 700,
           color: "#1A1A2E",
           margin: dateStr ? "2px 0 0" : 0,
-          fontFamily: "Inter, sans-serif",
+          fontFamily: "inherit",
         }}
       >
         {greeting}, {firstName}

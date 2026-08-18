@@ -1412,7 +1412,7 @@ export default function RightChatColumn({
         placeholder="Search conversations"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
-        className="flex-1 bg-transparent outline-none text-sm border-0 p-0"
+        className="flex-1 min-w-0 bg-transparent outline-none text-sm border-0 p-0"
       />
     </div>
   );
@@ -2003,7 +2003,7 @@ export default function RightChatColumn({
             if (e.key === "Enter") handleSend();
           }}
           disabled={sendingMessage || uploading}
-          className="flex-1 bg-transparent outline-none text-sm border-0 p-0"
+          className="flex-1 min-w-0 bg-transparent outline-none text-sm border-0 p-0"
         />
       </div>
       <button

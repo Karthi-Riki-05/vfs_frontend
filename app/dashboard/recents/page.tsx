@@ -119,7 +119,7 @@ function SearchBar({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
-        className="flex-1 bg-transparent outline-none text-sm border-0 p-0 appearance-none"
+        className="flex-1 min-w-0 bg-transparent outline-none text-sm border-0 p-0 appearance-none"
       />
       <button
         type="button"
@@ -371,7 +371,7 @@ export default function RecentsPage() {
   // ─── Main render ───────────────────────────────────────────────────────────
   return (
     <div className="tw min-h-screen bg-background">
-      <div className="px-5 pt-3 pb-24">
+      <div className="px-5 pt-3 pb-24 max-[767px]:pb-0">
         {/* Search */}
         <SearchBar
           placeholder="Search recent flows & shapes"

@@ -32,7 +32,7 @@ export default function PillInput({
       <input
         {...inputProps}
         aria-invalid={error}
-        className="flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        className="flex-1 min-w-0 border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />
       {trailing}
     </div>

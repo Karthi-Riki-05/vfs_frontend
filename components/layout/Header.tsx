@@ -273,14 +273,31 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           )}
 
           <Link href={logoHref} className="flex items-center no-underline">
-            <img
-              src={getLogoForApp(logoApp)}
-              alt="ValueChart Logo"
-              // Logo bumped to 48px so it fills the 56px navbar and its width
-              // lines the Profile divider up with the 220px sidebar border.
-              className="h-12 w-auto object-contain"
-              style={{ objectPosition: "left center", maxHeight: 48 }}
-            />
+            {/* Below 430px the full lockup (mark + wordmark + tagline) ate ~320
+                of a 390px bar and the tagline was far too small to read, which
+                is what squeezed the header icons. The asset is 500×150 with the
+                shield in the left ~30%, so the wrapper simply crops to the mark
+                on small phones. Inline width/maxWidth are required: the
+                UNLAYERED `img { max-width: 100% }` in globals.css beats any
+                layered Tailwind utility (same cascade story as the avatars). */}
+            {/* 36px is measured, not guessed: at height 48 the asset renders
+                160px wide and the shield ends at ~36px — 38px+ starts showing a
+                sliver of the "V". */}
+            <span className="block overflow-hidden h-12 w-40 max-[430px]:w-9">
+              <img
+                src={getLogoForApp(logoApp)}
+                alt="ValueChart Logo"
+                // 48px tall so it fills the 56px navbar and its width lines the
+                // Profile divider up with the 220px sidebar border.
+                className="object-contain"
+                style={{
+                  height: 48,
+                  width: 160,
+                  maxWidth: "none",
+                  objectPosition: "left center",
+                }}
+              />
+            </span>
           </Link>
 
           {/* Current-screen title — new_design TopBar (prototype L264). Desktop

@@ -229,7 +229,7 @@ function LocalSearchBar({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="flex-1 bg-transparent outline-none text-sm border-0 p-0 appearance-none"
+        className="flex-1 min-w-0 bg-transparent outline-none text-sm border-0 p-0 appearance-none"
       />
       <button
         type="button"
@@ -532,7 +532,7 @@ export default function FlowsPage() {
   return (
     <div className="tw">
       {/* ══════════ MOBILE (<1024px) ══════════ */}
-      <div className="lg:hidden px-5 pt-3 pb-28 min-h-screen bg-background">
+      <div className="lg:hidden px-5 pt-3 pb-28 max-[767px]:pb-0 min-h-screen bg-background">
         <LocalSearchBar
           value={search}
           onChange={setSearch}

@@ -105,9 +105,12 @@ export default function BiometricLoginToggle() {
   if (!show) return null;
 
   return (
-    <div className="flex items-center gap-3 p-4">
-      <Icon className="w-4 h-4 text-foreground shrink-0" />
-      <div className="flex-1 min-w-0">
+    /* items-start on phones: the description wraps to 3 lines there, and
+       centre-aligning left the switch floating against the middle of the
+       paragraph instead of sitting beside the title. */
+    <div className="flex items-start sm:items-center gap-3 p-4">
+      <Icon className="w-4 h-4 text-foreground shrink-0 mt-0.5 sm:mt-0" />
+      <div className="flex-1 min-w-0 pr-1">
         <div className="text-sm font-semibold">{label}</div>
         <div className="text-xs text-muted-foreground mt-0.5">
           Unlock ValueFlow without typing your password

@@ -92,7 +92,7 @@ export function DashRecentFlows({
             border: "none",
             cursor: "pointer",
             fontWeight: 600,
-            fontFamily: "Inter, sans-serif",
+            fontFamily: "inherit",
           }}
           onMouseEnter={(e) =>
             (e.currentTarget.style.textDecoration = "underline")

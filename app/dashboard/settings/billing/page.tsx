@@ -3,6 +3,7 @@
 import React, { useState, useEffect, ReactNode } from "react";
 import { Spin } from "antd";
 import { toast } from "sonner";
+import BackButton from "@/components/shared/BackButton";
 import {
   ArrowLeft,
   Crown,
@@ -340,16 +341,13 @@ export default function BillingPage() {
       : "Upgrade";
 
   return (
-    <div className="tw max-w-3xl mx-auto px-4 pt-3 pb-8 space-y-4">
+    <div className="tw max-w-3xl mx-auto px-5 pt-3 pb-8 max-[767px]:pb-0 space-y-4">
       {/* Back to settings hub */}
       <div className="flex items-center gap-3">
-        <button
+        <BackButton
           onClick={() => router.push("/dashboard/settings")}
-          aria-label="Back"
-          className={`${RESET} w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center`}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
+          label="Back to settings"
+        />
       </div>
 
       <div>
@@ -580,10 +578,15 @@ export default function BillingPage() {
           onClick={() => setSubOpen((o) => !o)}
           className={`${RESET} w-full flex items-center justify-between px-3 h-11 rounded-xl bg-secondary`}
         >
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-semibold">Subscription History</span>
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-card border border-border text-muted-foreground">
+          {/* min-w-0 + truncate: without them the label had no room to shrink
+              beside the fixed count pill and wrapped to two lines *inside* the
+              pill on phones. */}
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-semibold truncate">
+              Subscription History
+            </span>
+            <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-card border border-border text-muted-foreground">
               {mappedHistory.length}
             </span>
           </div>

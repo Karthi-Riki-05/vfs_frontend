@@ -69,8 +69,11 @@ export const shadows = {
   fab: "0 10px 24px -6px rgba(31,125,94,0.45)",
 };
 
+// Must reference the next/font CSS variable (set in app/layout.tsx). Naming
+// 'Plus Jakarta Sans' literally matches no registered family, so every AntD
+// component silently rendered in the OS font.
 export const fontFamily =
-  "'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  "var(--font-plus-jakarta), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
 // Ant Design ConfigProvider theme override
 export const antdTheme = {

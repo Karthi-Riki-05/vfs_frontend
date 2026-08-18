@@ -120,7 +120,7 @@ export default function SuperAdminLoginPage() {
         justifyContent: "center",
         background: GREEN,
         padding: 16,
-        fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+        fontFamily: "inherit",
         boxSizing: "border-box",
       }}
     >

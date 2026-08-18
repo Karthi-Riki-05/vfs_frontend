@@ -178,7 +178,7 @@ export default function FavouritesPage() {
 
   return (
     <div className="tw min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto px-5 pt-3 pb-24">
+      <div className="max-w-6xl mx-auto px-5 pt-3 pb-24 max-[767px]:pb-0">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-5">
           <div className="min-w-0">

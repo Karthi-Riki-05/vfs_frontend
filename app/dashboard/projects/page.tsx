@@ -134,7 +134,7 @@ export default function ProjectsPage() {
 
   return (
     <div className="tw min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto px-5 lg:px-8 pt-6 pb-28">
+      <div className="max-w-6xl mx-auto px-5 lg:px-8 pt-3 lg:pt-6 pb-28 max-[767px]:pb-0">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-6">
           <div className="min-w-0">

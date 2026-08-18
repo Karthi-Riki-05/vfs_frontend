@@ -57,3 +57,8 @@ e2e/.auth/gate.json
 e2e/APP_SWITCHER_AUDIT.md
 e2e/**/*-snapshots/
 sidebar-audit/
+
+# Design-review working artifacts (audit docs, screenshots, prototypes).
+# The public/ copy must stay out of git — anything there is served live.
+design-review/
+public/design-review/

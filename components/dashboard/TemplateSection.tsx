@@ -308,7 +308,7 @@ export default function TemplateSection() {
             color: "#8C8C8C",
             textTransform: "uppercase",
             letterSpacing: 1,
-            fontFamily: "Inter, sans-serif",
+            fontFamily: "inherit",
           }}
         >
           TEMPLATES
@@ -325,7 +325,7 @@ export default function TemplateSection() {
             border: "none",
             cursor: "pointer",
             fontWeight: 600,
-            fontFamily: "Inter, sans-serif",
+            fontFamily: "inherit",
             display: "flex",
             alignItems: "center",
             gap: 4,
@@ -418,7 +418,7 @@ export default function TemplateSection() {
               style={{
                 fontSize: 12,
                 color: "#333",
-                fontFamily: "Inter, sans-serif",
+                fontFamily: "inherit",
                 whiteSpace: "nowrap",
               }}
             >

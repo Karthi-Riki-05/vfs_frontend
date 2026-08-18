@@ -40,7 +40,7 @@ export default function AuthLayout({
       className={`auth-root${isHeroPage ? " auth-root--hero" : ""}${
         isSelfHero ? " auth-root--login" : ""
       }`}
-      style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}
+      style={{ fontFamily: "inherit" }}
     >
       <div
         className={`auth-card${isHeroPage ? " auth-card--hero" : ""}${

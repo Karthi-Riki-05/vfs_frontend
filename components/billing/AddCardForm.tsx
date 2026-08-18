@@ -25,7 +25,13 @@ const elementStyle = {
     base: {
       fontSize: "14px",
       color: "#1a1a1a",
-      fontFamily: "Inter, sans-serif",
+      // Stripe Elements render in a cross-origin iframe, so neither `inherit`
+      // nor our self-hosted next/font face is reachable here — the iframe would
+      // resolve them against its own document. Matching Plus Jakarta inside the
+      // card fields requires passing `fonts: [{ cssSrc }]` to <Elements>; until
+      // then this stays on an explicit system stack.
+      fontFamily:
+        '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       "::placeholder": { color: "#9ca3af" },
     },
     invalid: { color: "#ef4444" },

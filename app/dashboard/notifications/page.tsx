@@ -224,7 +224,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="tw min-h-screen bg-background">
-      <div className="mx-auto max-w-2xl px-5 pt-3 pb-24">
+      <div className="mx-auto max-w-2xl px-5 pt-3 pb-24 max-[767px]:pb-0">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3 flex-wrap">
           <div className="min-w-0">

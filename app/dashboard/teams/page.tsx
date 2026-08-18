@@ -728,8 +728,8 @@ export default function TeamsPage() {
 
   return (
     <>
-      <div className="tw min-h-screen bg-background pb-28">
-        <div className="mx-auto w-full max-w-5xl px-4 sm:px-5 pt-4 sm:pt-6">
+      <div className="tw min-h-screen bg-background pb-28 max-[767px]:pb-0">
+        <div className="mx-auto w-full max-w-5xl px-5 pt-3 sm:pt-6">
           {/* Header */}
           <div className="flex items-center justify-between gap-3 mb-6">
             <div className="min-w-0">
@@ -1053,17 +1053,29 @@ export default function TeamsPage() {
                                 {team.name}
                               </span>
                               {/* Ownership, NOT permission — an admin manages
-                                  the team but is not its owner. */}
+                                  the team but is not its owner.
+                                  Hidden on phones: as a `shrink-0` sibling it
+                                  kept its full ~70px while the name absorbed
+                                  the whole deficit and collapsed to one
+                                  character. It reappears in the meta line. */}
                               {isTeamOwner && (
-                                <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#B45309] inline-flex items-center gap-1">
+                                <span className="hidden sm:inline-flex shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#B45309] items-center gap-1">
                                   <Crown className="w-3 h-3" /> Owner
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-muted-foreground mt-0.5">
-                              {memberCount} member{memberCount !== 1 ? "s" : ""}{" "}
-                              · {team.flowCount || 0} flow
-                              {(team.flowCount || 0) !== 1 ? "s" : ""}
+                            <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                              {isTeamOwner && (
+                                <span className="sm:hidden font-bold text-[#B45309] inline-flex items-center gap-1">
+                                  <Crown className="w-3 h-3" /> Owner ·
+                                </span>
+                              )}
+                              <span>
+                                {memberCount} member
+                                {memberCount !== 1 ? "s" : ""} ·{" "}
+                                {team.flowCount || 0} flow
+                                {(team.flowCount || 0) !== 1 ? "s" : ""}
+                              </span>
                             </div>
                           </div>
                         </button>
@@ -1172,8 +1184,17 @@ export default function TeamsPage() {
                                     <div className="text-[11px] text-muted-foreground truncate">
                                       {memberEmail(m)}
                                     </div>
+                                    {/* Phones: the badge sits under the email so
+                                        the name/email column keeps the full row
+                                        width instead of collapsing to
+                                        "spiderma…" beside a fixed-width pill. */}
+                                    <div className="mt-1 sm:hidden">
+                                      <RoleBadge role={m.role} />
+                                    </div>
                                   </div>
-                                  <RoleBadge role={m.role} />
+                                  <div className="hidden sm:block shrink-0">
+                                    <RoleBadge role={m.role} />
+                                  </div>
                                   {canManage && (
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>

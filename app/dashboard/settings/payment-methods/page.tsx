@@ -211,7 +211,7 @@ export default function PaymentMethodsPage() {
   };
 
   return (
-    <div className="max-w-lg mx-auto py-8 px-4">
+    <div className="max-w-lg mx-auto px-5 pt-3 pb-8 max-[767px]:pb-0">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-lg font-bold text-foreground">Payment Methods</h1>

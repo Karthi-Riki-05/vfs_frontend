@@ -16,6 +16,7 @@ import {
 } from "@/components/common/Modal";
 import { Field, FieldInput } from "@/components/common/Field";
 import { Checkbox } from "@/components/ui/checkbox";
+import BackButton from "@/components/shared/BackButton";
 import {
   ArrowLeft,
   Plus,
@@ -234,17 +235,13 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="tw min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto px-5 lg:px-8 pt-6 pb-28 space-y-4">
+      <div className="max-w-3xl mx-auto px-5 lg:px-8 pt-3 lg:pt-6 pb-28 max-[767px]:pb-0 space-y-4">
         {/* Back row */}
         <div className="flex items-center gap-3">
-          <button
-            type="button"
+          <BackButton
             onClick={() => router.push("/dashboard/projects")}
-            aria-label="Back to projects"
-            className="w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center bg-transparent p-0 appearance-none cursor-pointer hover:bg-secondary"
-          >
-            <ArrowLeft className="w-4 h-4 text-foreground" />
-          </button>
+            label="Back to projects"
+          />
           <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
             Project
           </div>

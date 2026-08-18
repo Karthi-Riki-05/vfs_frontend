@@ -138,11 +138,14 @@ export default function TrashPage() {
 
   return (
     <div className="tw min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-5 pt-3 pb-24">
+      <div className="max-w-4xl mx-auto px-5 pt-3 pb-24 max-[767px]:pb-0">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-4">
+        {/* Phones stack the header: the controls below are `shrink-0` and claim
+            ~300px, which on a 412px screen left the title ~60px — the h1 (no
+            truncate) overflowed and the toggle painted over it. */}
+        <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-[22px] sm:text-[28px] font-extrabold text-foreground leading-tight">
+            <h1 className="text-[22px] sm:text-[28px] font-extrabold text-foreground leading-tight truncate">
               Trash
             </h1>
             <p className="text-[11px] sm:text-sm text-muted-foreground">
@@ -151,7 +154,7 @@ export default function TrashPage() {
             </p>
           </div>
           {flows.length > 0 && (
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-3 shrink-0 justify-between sm:justify-end">
               <ViewToggle view={view} onChange={setView} />
               <button
                 onClick={handleEmptyTrash}
