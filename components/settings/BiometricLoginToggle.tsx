@@ -51,6 +51,20 @@ export default function BiometricLoginToggle() {
 
   useEffect(() => {
     void refresh();
+    // The shell injects flutterBiometricAvailable and flutterBiometricEnrolled
+    // from two independent async calls on every settled load, and awaits
+    // neither. Either can land AFTER this component mounts — and without these
+    // listeners the single check above would have already run, found nothing,
+    // and left the switch hidden for the rest of the page's life. Which side
+    // wins is timing, so the toggle appeared on one variant and not the other
+    // with identical code (observed 2026-08-18).
+    const onFlag = () => void refresh();
+    window.addEventListener("flutterBiometricAvailable", onFlag);
+    window.addEventListener("flutterBiometricEnrolled", onFlag);
+    return () => {
+      window.removeEventListener("flutterBiometricAvailable", onFlag);
+      window.removeEventListener("flutterBiometricEnrolled", onFlag);
+    };
   }, [refresh]);
 
   // Label the hardware the user actually has. "Biometric login" reads as
