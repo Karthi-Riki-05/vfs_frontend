@@ -2,9 +2,57 @@ import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import LinkedInProvider from "next-auth/providers/linkedin";
 import FacebookProvider from "next-auth/providers/facebook";
+import AppleProvider from "next-auth/providers/apple";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { encode as defaultJwtEncode } from "next-auth/jwt";
 import axios from "axios";
+import jwt from "jsonwebtoken";
+
+/**
+ * Apple ID's OAuth `client_secret` isn't a static string like the other
+ * providers — Apple requires a JWT signed with the ES256 private key you
+ * download once from Apple Developer (Certificates, Identifiers & Profiles →
+ * Keys), valid for at most 6 months (Apple's own cap). Rather than hand-mint
+ * one and re-deploy every few months, generate it fresh at process start —
+ * cheap, and this module is only evaluated once per server process.
+ *
+ * Required env vars (App Store Guideline 4.8 compliance — added 2026-08-18,
+ * since Google/Facebook/LinkedIn login already existed without it):
+ *   APPLE_CLIENT_ID   — the Services ID (e.g. com.valuecharts.web.signin)
+ *   APPLE_TEAM_ID     — Apple Developer Team ID (same 5HQ828K78T used by iOS)
+ *   APPLE_KEY_ID      — the Key ID shown next to the downloaded .p8 key
+ *   APPLE_PRIVATE_KEY — contents of the .p8 file (PEM, keep the newlines —
+ *                       store as \n-escaped in .env like FIREBASE_PRIVATE_KEY)
+ */
+function generateAppleClientSecret(): string {
+  const teamId = process.env.APPLE_TEAM_ID;
+  const keyId = process.env.APPLE_KEY_ID;
+  const clientId = process.env.APPLE_CLIENT_ID;
+  const privateKey = process.env.APPLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+  if (!teamId || !keyId || !clientId || !privateKey) {
+    // Missing config shouldn't crash the whole auth module for every other
+    // provider — return an empty secret so Apple sign-in fails on its own
+    // (NextAuth reports an OAuth error) rather than breaking Google/Facebook.
+    console.error(
+      "Apple Sign-In not configured: missing APPLE_TEAM_ID / APPLE_KEY_ID / " +
+        "APPLE_CLIENT_ID / APPLE_PRIVATE_KEY",
+    );
+    return "";
+  }
+
+  return jwt.sign(
+    {
+      iss: teamId,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30, // 30 days — well under Apple's 6-month cap, refreshed on every process restart
+      aud: "https://appleid.apple.com",
+      sub: clientId,
+    },
+    privateKey,
+    { algorithm: "ES256", keyid: keyId },
+  );
+}
 
 // Session lifetimes. "Remember me" (and every OAuth login) buys 30 days;
 // otherwise a session lasts a day. Both are ROLLING — `jwt.encode` below runs
@@ -117,6 +165,15 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+    // App Store Guideline 4.8: offering Google/Facebook/LinkedIn login without
+    // also offering Sign in with Apple is a real rejection reason. Flows
+    // through the exact same generic oauth-sync path as every other provider
+    // below (see the signIn callback) — no backend change needed, `provider`
+    // there is a free-form string, not an enum.
+    AppleProvider({
+      clientId: process.env.APPLE_CLIENT_ID!,
+      clientSecret: generateAppleClientSecret(),
     }),
     LinkedInProvider({
       clientId: process.env.LINKEDIN_CLIENT_ID!,

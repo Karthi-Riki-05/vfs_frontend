@@ -44,6 +44,8 @@ import {
   iapLogin,
   iapPurchase,
   iapPrices,
+  aiCreditProductId,
+  aiCreditProductIds,
   iapRestore,
   waitThenRefresh,
   IapPrice,
@@ -220,7 +222,7 @@ function CreditAddOns({
   // Native shell: show what the STORE will charge, not the Stripe price.
   useEffect(() => {
     if (!native || !iapReady) return;
-    iapPrices(Object.values(IAP_PRODUCTS.aiCredits)).then(setStorePrices);
+    iapPrices(aiCreditProductIds()).then(setStorePrices);
   }, [native, iapReady]);
 
   const handleBuy = async (packType: "starter" | "standard" | "proppack") => {
@@ -231,7 +233,7 @@ function CreditAddOns({
       setBuying(packType);
       const userId = (session?.user as any)?.id as string | undefined;
       if (userId) await iapLogin(userId);
-      const res = await iapPurchase(IAP_PRODUCTS.aiCredits[packType]);
+      const res = await iapPurchase(aiCreditProductId(packType));
       if (res.status === "success") {
         if (ensureGranted(res, "credits")) {
           toast.success("Purchase successful — adding your credits…");
@@ -295,7 +297,7 @@ function CreditAddOns({
           {ADDON_PACK_META.map((pack) => {
             const priceInfo = pricing?.prices[pack.priceKey];
             const storePrice =
-              storePrices[IAP_PRODUCTS.aiCredits[pack.packType]]?.priceString;
+              storePrices[aiCreditProductId(pack.packType)]?.priceString;
             const popular = "popular" in pack && pack.popular;
             return (
               <div

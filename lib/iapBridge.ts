@@ -36,12 +36,44 @@ export const IAP_PRODUCTS = {
   flowPackUnlimited: "flowpack_unlimited",
   addonFlowsStandard: "addon_flows_standard_monthly",
   addonFlowsUnlimited: "addon_flows_unlimited_monthly",
+  /**
+   * TEAM-app credit pack ids. The Pro app sells the same three packs under
+   * `_pro`-suffixed ids — always resolve through aiCreditProductId() rather
+   * than reading this map directly.
+   */
   aiCredits: {
     starter: "aicredits_50",
     standard: "aicredits_100",
     proppack: "aicredits_200",
   } as Record<string, string>,
 };
+
+/**
+ * Store id for an AI credit pack in the CURRENT shell.
+ *
+ * The Pro and Team apps sell the same three packs, but Apple scopes a product
+ * id to the DEVELOPER TEAM rather than the app: once the Team app claimed
+ * `aicredits_50`, the Pro app could never use that string (App Store Connect
+ * refuses it outright). Play would have allowed reuse, but the `_pro` suffix
+ * is used on BOTH stores so this stays keyed on variant alone — a
+ * variant × platform matrix would be far easier to get wrong.
+ *
+ * The variant comes from the User-Agent the shell stamps, so no Flutter-side
+ * change is involved. On web (`getClientAppType() === "web"`) the un-suffixed
+ * ids are returned; nothing native reads them there.
+ *
+ * Both id sets map to the same entitlement in backend iapProducts.js.
+ */
+export function aiCreditProductId(packType: string): string {
+  const base = IAP_PRODUCTS.aiCredits[packType];
+  if (!base) return base;
+  return getClientAppType() === "pro" ? `${base}_pro` : base;
+}
+
+/** Every AI credit pack id to price-check in the current shell. */
+export function aiCreditProductIds(): string[] {
+  return Object.keys(IAP_PRODUCTS.aiCredits).map(aiCreditProductId);
+}
 
 /**
  * PHASE 1 TESTING ONLY: the 4 legacy team products already live in each
@@ -63,6 +95,25 @@ export const LEGACY_IOS_TEAM_PLANS: LegacyTeamPlan[] = [
   { productId: "com.valuecharts.app.year_5", seats: 5, period: "yearly" },
   { productId: "com.valuecharts.app.year_10", seats: 10, period: "yearly" },
 ];
+
+/**
+ * The full 10-tier team catalog (5/10/15/20/25 × monthly/yearly), live in
+ * App Store Connect under subscription group "TEAM PLANS" (created
+ * 2026-08-19). Supersedes LEGACY_IOS_TEAM_PLANS for iOS — existing
+ * subscribers on the old 4 legacy ids keep working unaffected (the backend's
+ * IAP_PRODUCTS map and renewal handling for those ids are untouched), this
+ * only changes what NEW purchases are offered. Android stays on
+ * LEGACY_ANDROID_TEAM_PLANS below until its own new-catalog products exist
+ * in Play Console.
+ */
+export const IOS_TEAM_PLANS: LegacyTeamPlan[] = IAP_TEAM_TIERS.flatMap(
+  (seats) =>
+    (["monthly", "yearly"] as const).map((period) => ({
+      productId: teamProductId(seats, period),
+      seats,
+      period,
+    })),
+);
 
 // Confirmed 2026-07-16 from the live native Android app's own Kotlin source
 // (skuTeamMth5/Mth10/Yr5/Yr10 constants) — mirrors the iOS 4-tier pattern
@@ -100,15 +151,31 @@ export const ANDROID_PRO_ADDONS: Record<"standard" | "unlimited", string> = {
   unlimited: "com.valuecharts.pro.unltd",
 };
 
-export const IOS_PRO_ADDONS: Record<"standard" | "unlimited", string> = {
+export const LEGACY_IOS_PRO_ADDONS: Record<"standard" | "unlimited", string> = {
   standard: "com.valuecharts.pro.ltd_flows",
   unlimited: "com.valuecharts.pro.unltd_flows",
 };
 
 /**
+ * The catalog-named Pro add-ons, created in App Store Connect 2026-08-19 under
+ * subscription group "PRO PLANS" (unlimited = level 1, standard = level 2).
+ * Supersedes LEGACY_IOS_PRO_ADDONS for iOS — same two entitlements, catalog
+ * naming. Existing subscribers on the `_flows` ids keep working unaffected
+ * (the backend maps BOTH sets, and renewal handling for the old ids is
+ * untouched); this only changes what NEW purchases are offered.
+ *
+ * Android stays on ANDROID_PRO_ADDONS until the same two ids exist under
+ * `com.valuecharts.pro` in Play Console — querying ids a store doesn't have
+ * returns them in `notFound` and the add-on section renders with no price.
+ */
+export const IOS_PRO_ADDONS: Record<"standard" | "unlimited", string> = {
+  standard: "addon_flows_standard_monthly",
+  unlimited: "addon_flows_unlimited_monthly",
+};
+
+/**
  * Real store product id for a Pro flow-addon plan on the CURRENT platform.
- * Live on both iOS and Android now that the ids are registered in both
- * stores under the respective Pro app bundle ids.
+ * iOS uses the catalog ids; Android its legacy short names.
  */
 export function findLegacyProAddon(
   plan: "standard" | "unlimited",
@@ -148,6 +215,8 @@ export interface IapResult {
   store?: "google_play" | "app_store";
   packageName?: string;
   products?: IapPrice[];
+  /** Requested product ids the store didn't recognise — "prices" action only. */
+  notFound?: string[];
   restoredCount?: number;
   /** Set by the bridge after the backend confirms the grant. */
   granted?: boolean;
@@ -206,13 +275,15 @@ export function getNativePlatform(): "ios" | "android" | null {
 }
 
 /**
- * PHASE 1 TESTING: the 4 legacy team plans for whichever platform this
- * device is. Falls back to Android's set if the platform flag hasn't landed
- * yet (matches the shell's own default — see kAppVariant).
+ * The team plans to OFFER for purchase on whichever platform this device is.
+ * iOS: the new 10-tier catalog (IOS_TEAM_PLANS), live since 2026-08-19.
+ * Android: still the 4 legacy ids until its own new-catalog products exist
+ * in Play Console. Falls back to Android's set if the platform flag hasn't
+ * landed yet (matches the shell's own default — see kAppVariant).
  */
 export function getLegacyTeamPlans(): LegacyTeamPlan[] {
   return getNativePlatform() === "ios"
-    ? LEGACY_IOS_TEAM_PLANS
+    ? IOS_TEAM_PLANS
     : LEGACY_ANDROID_TEAM_PLANS;
 }
 
@@ -248,8 +319,26 @@ function post(message: string): boolean {
   }
 }
 
-/** Resolves with the next flutterIap result matching [action]. */
-function waitForResult(action: string, timeoutMs: number): Promise<IapResult> {
+/**
+ * Resolves with the next flutterIap result matching [action] — and, when
+ * given, satisfying [matches] too.
+ *
+ * bug: two concurrent calls of the same action (e.g. this page's own legacy
+ * team-plan price query AND CreditAddOns' AI-credits price query, both
+ * "prices") used to race here. `window.addEventListener` broadcasts to every
+ * attached listener, so whichever native response landed FIRST resolved
+ * BOTH pending promises — the second (correct) response then arrived with
+ * every listener already removed and was silently dropped, which is exactly
+ * why the AI-credits pack showed a permanent "•••" price. `matches` lets a
+ * caller that knows which product ids it asked for reject a same-action
+ * response that isn't actually for it, instead of accepting any response
+ * with a matching `action` string.
+ */
+function waitForResult(
+  action: string,
+  timeoutMs: number,
+  matches?: (detail: IapResult) => boolean,
+): Promise<IapResult> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       window.removeEventListener("flutterIap", handler);
@@ -258,6 +347,7 @@ function waitForResult(action: string, timeoutMs: number): Promise<IapResult> {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as IapResult;
       if (!detail || detail.action !== action) return;
+      if (matches && !matches(detail)) return;
       clearTimeout(timer);
       window.removeEventListener("flutterIap", handler);
       resolve(detail);
@@ -393,7 +483,17 @@ export async function iapPurchase(productId: string): Promise<IapResult> {
 export async function iapPrices(
   productIds: string[],
 ): Promise<Record<string, IapPrice>> {
-  const pending = waitForResult("prices", 20_000);
+  const requested = new Set(productIds);
+  // Disambiguate from any OTHER concurrent iapPrices() call's response (see
+  // waitForResult) — a response actually answering this request will echo
+  // at least one of the ids we asked for, in either products or notFound.
+  const pending = waitForResult("prices", 20_000, (detail) => {
+    const returned = [
+      ...(detail.products || []).map((p) => p.productId),
+      ...(detail.notFound || []),
+    ];
+    return returned.some((id) => requested.has(id));
+  });
   const map: Record<string, IapPrice> = {};
   if (!post(`iap-prices:${productIds.join(",")}`)) return map;
   try {

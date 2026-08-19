@@ -145,7 +145,7 @@ export default function RegisterForm() {
 
   const isDesktop = useIsDesktop();
 
-  const socialSignup = (provider: "google" | "linkedin" | "facebook") =>
+  const socialSignup = (provider: "google" | "apple" | "linkedin" | "facebook") =>
     signIn(provider, { callbackUrl: getPostLoginDashboardUrl() });
 
   const Shell = isDesktop ? DesktopAuthShell : AuthShell;

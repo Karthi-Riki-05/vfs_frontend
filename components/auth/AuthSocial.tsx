@@ -2,18 +2,20 @@
 
 import React, { ReactNode } from "react";
 
-/** Icon-only social sign-in pills (Google / LinkedIn / Facebook) + OR divider.
- *  Shared across auth forms. Render inside a `.tw` root. */
+/** Icon-only social sign-in pills (Google / Apple / LinkedIn / Facebook) + OR
+ *  divider. Shared across auth forms. Render inside a `.tw` root.
+ *  Apple is required alongside Google/Facebook by App Store Guideline 4.8 —
+ *  added 2026-08-18. */
 export function SocialRow({
   disabled,
   onProvider,
 }: {
   disabled?: boolean;
-  onProvider: (p: "google" | "linkedin" | "facebook") => void;
+  onProvider: (p: "google" | "apple" | "linkedin" | "facebook") => void;
 }) {
   return (
     <div
-      className={`grid grid-cols-3 gap-3 ${
+      className={`grid grid-cols-4 gap-3 ${
         disabled ? "pointer-events-none opacity-40" : ""
       }`}
     >
@@ -22,6 +24,12 @@ export function SocialRow({
         label="Continue with Google"
         disabled={disabled}
         onClick={() => onProvider("google")}
+      />
+      <SocialPill
+        icon={<AppleIcon />}
+        label="Continue with Apple"
+        disabled={disabled}
+        onClick={() => onProvider("apple")}
       />
       <SocialPill
         icon={<LinkedinSquare />}
@@ -94,6 +102,14 @@ function GoogleIcon() {
         fill="#EA4335"
         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
       />
+    </svg>
+  );
+}
+
+function AppleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="#000">
+      <path d="M16.365 1.43c0 1.14-.416 2.06-1.25 2.86-.9.87-2.03 1.37-3.2 1.28-.03-1.11.42-2.13 1.24-2.9C14.06 1.86 15.14 1.4 16.365 1.43zM20.5 17.13c-.36.83-.79 1.6-1.3 2.31-.7.98-1.42 1.94-2.44 1.96-1 .02-1.32-.62-2.47-.62-1.15 0-1.5.6-2.46.64-1 .04-1.76-1-2.47-1.98-1.51-2.1-2.66-5.95-1.11-8.55.77-1.29 2.15-2.11 3.65-2.13 1.03-.02 1.87.66 2.47.66.6 0 1.62-.82 2.75-.7.47.02 1.79.19 2.63 1.43-.07.04-1.57.92-1.55 2.74.02 2.18 1.9 2.9 1.94 2.92-.02.06-.3 1.03-1.34 2.32z" />
     </svg>
   );
 }

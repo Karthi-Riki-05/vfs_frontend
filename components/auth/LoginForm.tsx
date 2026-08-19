@@ -203,7 +203,7 @@ export default function LoginForm() {
     });
   };
 
-  const socialLogin = (provider: "google" | "linkedin" | "facebook") => {
+  const socialLogin = (provider: "google" | "apple" | "linkedin" | "facebook") => {
     // Use UA detection only — ignore ?callbackUrl= URL param so a stale
     // /dashboard/pro param from a previous session never overrides the
     // correct landing page for web users.
