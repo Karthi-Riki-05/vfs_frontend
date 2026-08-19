@@ -174,6 +174,16 @@ export const authOptions: NextAuthOptions = {
     AppleProvider({
       clientId: process.env.APPLE_CLIENT_ID!,
       clientSecret: generateAppleClientSecret(),
+      // Apple requires response_mode=form_post for the name/email scope, which
+      // means the browser returns via a cross-site POST. NextAuth's pkce AND
+      // state cookies are both SameSite=Lax (core/lib/cookie.js), and Lax
+      // cookies are never sent on a cross-site POST — so whichever check runs
+      // always fails ("PKCE code_verifier cookie was missing", then "State
+      // cookie was missing" if you only drop pkce). Apple isn't a public
+      // client here (we already authenticate as it via the signed JWT client
+      // secret), so drop both checks — the standard workaround for this
+      // Apple+NextAuth incompatibility.
+      checks: ["none"],
     }),
     LinkedInProvider({
       clientId: process.env.LINKEDIN_CLIENT_ID!,
