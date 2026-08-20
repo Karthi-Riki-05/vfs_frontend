@@ -293,6 +293,28 @@ export interface AdjustCreditsPayload {
   planCredits?: number;
   addonCredits?: number;
   reason?: string;
+  /** bug-146: which workspace to credit. Omitted = the user's personal pool.
+   *  The server resolves the actual billed pool from this — the client never
+   *  states who gets credited. */
+  workspaceId?: string | null;
+}
+
+/** A workspace the user can spend in, and the pool that spend is billed to. */
+export interface CreditWorkspace {
+  workspaceId: string | null; // null = personal
+  kind: "personal" | "team";
+  label: string;
+  appContext: string;
+  billedTo: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    isSelf: boolean;
+  };
+  planCredits: number;
+  addonCredits: number;
+  planResetsAt: string | null;
+  role: string | null;
 }
 
 export interface AdminLogRow {
@@ -517,6 +539,13 @@ export const superAdminApi = {
       success: boolean;
       data: { history: SubscriptionHistoryEntry[] };
     }>(`/super-admin/users/${userId}/subscription-history`),
+
+  // bug-146: every workspace this user can spend in, and the pool each bills.
+  getUserCreditWorkspaces: (userId: string) =>
+    api.get<{
+      success: boolean;
+      data: { workspaces: CreditWorkspace[] };
+    }>(`/super-admin/users/${userId}/credit-workspaces`),
 
   adjustAiCredits: (userId: string, payload: AdjustCreditsPayload) =>
     api.put<{ success: boolean; data: any }>(

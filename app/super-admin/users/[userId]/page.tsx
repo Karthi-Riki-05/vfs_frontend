@@ -66,6 +66,7 @@ import {
   UserAiUsage,
   UpdateUserPayload,
   TeamDetail,
+  CreditWorkspace,
 } from "@/api/superAdmin.api";
 import TeamMembersPanel from "@/components/super-admin/TeamMembersPanel";
 
@@ -102,12 +103,38 @@ export default function UserDetailPage() {
   const [adjustAddon, setAdjustAddon] = useState<number>(0);
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustSaving, setAdjustSaving] = useState(false);
+  // bug-146: a user can spend in several workspaces, each billing a different
+  // pool. Pick the workspace first; the numbers below follow it.
+  const [creditWorkspaces, setCreditWorkspaces] = useState<CreditWorkspace[]>(
+    [],
+  );
+  const [wsLoading, setWsLoading] = useState(false);
+  const [selectedWs, setSelectedWs] = useState<string | null>(null); // null = personal
 
-  const openAdjustCredits = () => {
-    setAdjustPlan(user?.aiCreditBalance?.planCredits ?? 0);
-    setAdjustAddon(user?.aiCreditBalance?.addonCredits ?? 0);
+  const applyWorkspaceBalance = (ws: CreditWorkspace | undefined) => {
+    setAdjustPlan(ws?.planCredits ?? 0);
+    setAdjustAddon(ws?.addonCredits ?? 0);
+  };
+
+  const openAdjustCredits = async () => {
     setAdjustReason("");
     setAdjustOpen(true);
+    setWsLoading(true);
+    try {
+      const res = await superAdminApi.getUserCreditWorkspaces(userId);
+      const list = res.data.data.workspaces || [];
+      setCreditWorkspaces(list);
+      const first = list[0];
+      setSelectedWs(first?.workspaceId ?? null);
+      applyWorkspaceBalance(first);
+    } catch {
+      // Fall back to the personal pool only — never guess a team's balance.
+      setCreditWorkspaces([]);
+      setSelectedWs(null);
+      applyWorkspaceBalance(undefined);
+    } finally {
+      setWsLoading(false);
+    }
   };
 
   const handleAdjustSave = async () => {
@@ -117,8 +144,14 @@ export default function UserDetailPage() {
         planCredits: adjustPlan,
         addonCredits: adjustAddon,
         reason: adjustReason || undefined,
+        workspaceId: selectedWs,
       });
-      toast.success("Credits adjusted");
+      const ws = creditWorkspaces.find((w) => w.workspaceId === selectedWs);
+      toast.success(
+        ws && !ws.billedTo.isSelf
+          ? `Credits added to ${ws.label} (billed to ${ws.billedTo.name || ws.billedTo.email})`
+          : "Credits adjusted",
+      );
       setAdjustOpen(false);
       load();
     } catch (err: any) {
@@ -1228,6 +1261,78 @@ export default function UserDetailPage() {
           close={() => setAdjustOpen(false)}
         />
         <div className="tw px-5 py-4 space-y-3">
+          {/* bug-146: choose the workspace BEFORE the numbers — a team
+              member's credits are billed to the workspace owner, so the pool
+              being edited must be explicit, never inferred. */}
+          <Field label="Workspace to credit" required>
+            {wsLoading ? (
+              <div className="text-sm text-muted-foreground py-2">
+                Loading workspaces…
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {creditWorkspaces.map((ws) => {
+                  const active = ws.workspaceId === selectedWs;
+                  return (
+                    <button
+                      key={ws.workspaceId ?? "personal"}
+                      type="button"
+                      onClick={() => {
+                        setSelectedWs(ws.workspaceId);
+                        applyWorkspaceBalance(ws);
+                      }}
+                      className={`appearance-none cursor-pointer w-full text-left rounded-xl border px-3 py-2.5 ${
+                        active
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-background"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold truncate">
+                            {ws.label}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {ws.billedTo.isSelf ? (
+                              <>Own pool · {ws.appContext}</>
+                            ) : (
+                              <>
+                                Billed to {ws.billedTo.name || ws.billedTo.email}{" "}
+                                · {ws.appContext}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-xs whitespace-nowrap text-muted-foreground">
+                          {ws.planCredits} + {ws.addonCredits}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+                {creditWorkspaces.length === 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Could not load workspaces — the personal pool will be
+                    credited.
+                  </div>
+                )}
+              </div>
+            )}
+          </Field>
+          {(() => {
+            const ws = creditWorkspaces.find(
+              (w) => w.workspaceId === selectedWs,
+            );
+            if (!ws || ws.billedTo.isSelf) return null;
+            return (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900">
+                These credits go to{" "}
+                <strong>{ws.billedTo.name || ws.billedTo.email}</strong>, who
+                owns this workspace and is billed for everything spent in it —
+                including this user's usage.
+              </div>
+            );
+          })()}
           <Field label="Plan credits" required>
             <FieldInput
               type="number"

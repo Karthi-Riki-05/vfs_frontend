@@ -1037,8 +1037,8 @@ function PlanSelectField({ form }: { form: any }) {
     <Form.Item name="plan" label="Plan">
       <Select
         options={[
-          { value: "free", label: "Free (20 AI credits/mo)" },
-          { value: "team", label: "Team (300 AI credits/mo)" },
+          { value: "free", label: "Free (10 AI credits, one-time)" },
+          { value: "team", label: "Team (40 AI credits/user/mo)" },
         ]}
         getPopupContainer={(t) => t.parentElement || document.body}
       />

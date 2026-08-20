@@ -141,8 +141,8 @@ export default function CreditsExhaustedModal({
         ) : (
           <div className="text-center py-3">
             <div className="text-sm text-muted-foreground mb-4">
-              Upgrade to Pro for 100 AI credits every month, plus all Pro
-              features.
+              Upgrade to Pro for 50 AI credits that never expire, plus all
+              Pro features.
             </div>
             <button
               type="button"

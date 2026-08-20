@@ -53,8 +53,8 @@ const PLANS: PlanCard[] = [
     duration: "monthly",
     name: "Pro Monthly",
     price: "$5/mo",
-    credits: 100,
-    features: ["Unlimited flows", "100 AI credits / month", "Claude AI"],
+    credits: 50,
+    features: ["Unlimited flows", "50 AI credits (one-time)", "Claude AI"],
     badge: "Popular",
     appType: "valuechartpro",
   },
@@ -64,8 +64,8 @@ const PLANS: PlanCard[] = [
     duration: "yearly",
     name: "Pro Yearly",
     price: "$36/yr",
-    credits: 100,
-    features: ["Unlimited flows", "100 AI credits / month", "Save 40%"],
+    credits: 50,
+    features: ["Unlimited flows", "50 AI credits (one-time)", "Save 40%"],
     badge: "Save 40%",
     appType: "valuechartpro",
   },
@@ -75,8 +75,8 @@ const PLANS: PlanCard[] = [
     duration: "monthly",
     name: "Team Monthly",
     price: "$5/seat/mo",
-    credits: 300,
-    features: ["Team collaboration", "300 AI credits / month", "Admin panel"],
+    credits: 200,
+    features: ["Team collaboration", "40 AI credits / user / month", "Admin panel"],
     appType: "valuechartteams",
   },
   {
@@ -85,8 +85,8 @@ const PLANS: PlanCard[] = [
     duration: "yearly",
     name: "Team Yearly",
     price: "$36/seat/yr",
-    credits: 300,
-    features: ["Team collaboration", "300 AI credits / month", "Save 40%"],
+    credits: 200,
+    features: ["Team collaboration", "40 AI credits / user / month", "Save 40%"],
     appType: "valuechartteams",
   },
 ];
@@ -193,7 +193,19 @@ export default function GrantSubscriptionModal({
     return d;
   }, [months]);
 
-  const resolvedCredits = credits === null ? plan.credits : credits;
+  // bug-147: Team credits are seat-scaled server-side (seats × 40/mo, × 500/yr),
+  // so the card's flat figure was only ever right at 5 seats. Mirror the backend
+  // formula here or the modal shows a number the grant will not honour.
+  const TEAM_CREDITS_PER_SEAT_MONTHLY = 40;
+  const TEAM_CREDITS_PER_SEAT_YEARLY = 500;
+  const planDefaultCredits =
+    plan.plan === "team"
+      ? seats *
+        (plan.duration === "yearly"
+          ? TEAM_CREDITS_PER_SEAT_YEARLY
+          : TEAM_CREDITS_PER_SEAT_MONTHLY)
+      : plan.credits;
+  const resolvedCredits = credits === null ? planDefaultCredits : credits;
 
   const reset = () => {
     setAppType("valuechartpro");
@@ -220,7 +232,10 @@ export default function GrantSubscriptionModal({
         plan: plan.plan,
         duration: plan.duration,
         months,
-        credits: resolvedCredits,
+        // bug-142: send a number ONLY when the admin typed an override. The
+        // card's figure is display copy; omitting the field lets the backend's
+        // PLAN_CREDITS decide, so the two can never drift apart again.
+        ...(credits !== null ? { credits } : {}),
         extend,
         reason: reason || undefined,
         appType,
@@ -594,12 +609,13 @@ export default function GrantSubscriptionModal({
             max={100000}
             value={resolvedCredits}
             onChange={(v) =>
-              setCredits(v === plan.credits ? null : (v as number))
+              setCredits(v === planDefaultCredits ? null : (v as number))
             }
             style={{ width: 160 }}
           />
           <Text type="secondary" style={{ fontSize: 12 }}>
-            credits (plan default: {plan.credits})
+            credits (plan default: {planDefaultCredits}
+            {plan.plan === "team" ? ` — ${seats} seats` : ""})
           </Text>
         </div>
 

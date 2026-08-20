@@ -98,15 +98,17 @@ export const LEGACY_IOS_TEAM_PLANS: LegacyTeamPlan[] = [
 
 /**
  * The full 10-tier team catalog (5/10/15/20/25 × monthly/yearly), live in
- * App Store Connect under subscription group "TEAM PLANS" (created
- * 2026-08-19). Supersedes LEGACY_IOS_TEAM_PLANS for iOS — existing
- * subscribers on the old 4 legacy ids keep working unaffected (the backend's
- * IAP_PRODUCTS map and renewal handling for those ids are untouched), this
- * only changes what NEW purchases are offered. Android stays on
- * LEGACY_ANDROID_TEAM_PLANS below until its own new-catalog products exist
- * in Play Console.
+ * BOTH stores since 2026-08-19: App Store Connect group "TEAM PLANS", and Play
+ * package `com.valuecharts.app` (verified ACTIVE via the Play Developer API —
+ * note Play's base plan ids are `team{N}-monthly-subscription` /
+ * `team{N}-annual-subscription`, which arrive appended as `productId:basePlanId`
+ * and are stripped by the backend's resolveIapProduct()).
+ *
+ * Supersedes the LEGACY_* sets for NEW purchases on both platforms. Existing
+ * subscribers on the old 4 ids per store keep working unaffected — the backend
+ * still maps them, so renewals and restores resolve as before.
  */
-export const IOS_TEAM_PLANS: LegacyTeamPlan[] = IAP_TEAM_TIERS.flatMap(
+export const TEAM_PLANS: LegacyTeamPlan[] = IAP_TEAM_TIERS.flatMap(
   (seats) =>
     (["monthly", "yearly"] as const).map((period) => ({
       productId: teamProductId(seats, period),
@@ -114,6 +116,9 @@ export const IOS_TEAM_PLANS: LegacyTeamPlan[] = IAP_TEAM_TIERS.flatMap(
       period,
     })),
 );
+
+/** @deprecated Name kept for existing imports; the catalog is store-agnostic. */
+export const IOS_TEAM_PLANS = TEAM_PLANS;
 
 // Confirmed 2026-07-16 from the live native Android app's own Kotlin source
 // (skuTeamMth5/Mth10/Yr5/Yr10 constants) — mirrors the iOS 4-tier pattern
@@ -128,23 +133,18 @@ export const LEGACY_ANDROID_TEAM_PLANS: LegacyTeamPlan[] = [
 ];
 
 /**
- * PHASE 1 TESTING — Pro flow add-ons.
+ * LEGACY Pro flow add-ons — no longer offered, retained because the backend
+ * maps them so existing subscribers keep renewing.
  *
- * The `addon_flows_*_monthly` ids belong to the future 18-product catalog and
- * do NOT exist in any store yet, so querying them returns an empty price (the
- * on-device log showed `notFound: [addon_flows_standard_monthly,
- * addon_flows_unlimited_monthly]`). These are the REAL products the published
- * Pro apps own, both monthly:
+ * Both are monthly:
  *   ltd     → limited flow allowance  (maps to the `standard` addon plan)
  *   unltd   → unlimited flows         (maps to the `unlimited` addon plan)
- * Mirrors backend/src/config/iapProducts.js.
  *
- * IDs differ per store — Android kept the original short names (verified
- * 2026-07-31 via the Play Developer API); the iOS App Store Connect entries
- * were created 2026-08-12 with a `_flows` suffix (subscription group "Value
- * Charts Pro Subscription", both Approved). Confirmed from the live App
- * Store Connect product ID column — do not assume the two stores share a
- * string here, unlike the rest of this file's catalog.
+ * Note the ids differ per store — Android kept the original short names
+ * (verified 2026-07-31 via the Play Developer API), while App Store Connect
+ * carries a `_flows` suffix (created 2026-08-12, group "Value Charts Pro
+ * Subscription"). That per-store divergence is exactly what PRO_ADDONS below
+ * replaces: the catalog ids are identical on both stores.
  */
 export const ANDROID_PRO_ADDONS: Record<"standard" | "unlimited", string> = {
   standard: "com.valuecharts.pro.ltd",
@@ -168,28 +168,40 @@ export const LEGACY_IOS_PRO_ADDONS: Record<"standard" | "unlimited", string> = {
  * `com.valuecharts.pro` in Play Console — querying ids a store doesn't have
  * returns them in `notFound` and the add-on section renders with no price.
  */
-export const IOS_PRO_ADDONS: Record<"standard" | "unlimited", string> = {
+export const PRO_ADDONS: Record<"standard" | "unlimited", string> = {
   standard: "addon_flows_standard_monthly",
   unlimited: "addon_flows_unlimited_monthly",
 };
 
+/** @deprecated Name kept for existing imports; the ids are store-agnostic. */
+export const IOS_PRO_ADDONS = PRO_ADDONS;
+
 /**
- * Real store product id for a Pro flow-addon plan on the CURRENT platform.
- * iOS uses the catalog ids; Android its legacy short names.
+ * Real store product id for a Pro flow-addon plan. Both stores now carry the
+ * catalog ids — App Store Connect group "PRO PLANS" and Play package
+ * `com.valuecharts.pro` (both 2026-08-19, Play verified ACTIVE via the
+ * Developer API) — so this no longer branches on platform.
+ *
+ * LEGACY_IOS_PRO_ADDONS / ANDROID_PRO_ADDONS stay exported: the backend maps
+ * those ids, so existing subscribers keep renewing. They are simply not
+ * offered for new purchases.
  */
+export function findProAddon(
+  plan: "standard" | "unlimited",
+): string | undefined {
+  return PRO_ADDONS[plan];
+}
+
+/** @deprecated Kept so existing call sites compile — use findProAddon(). */
 export function findLegacyProAddon(
   plan: "standard" | "unlimited",
 ): string | undefined {
-  return getNativePlatform() === "ios"
-    ? IOS_PRO_ADDONS[plan]
-    : ANDROID_PRO_ADDONS[plan];
+  return findProAddon(plan);
 }
 
-/** All legacy Pro addon ids to price-check on this platform. */
+/** All Pro addon ids to price-check. */
 export function legacyProAddonIds(): string[] {
-  return Object.values(
-    getNativePlatform() === "ios" ? IOS_PRO_ADDONS : ANDROID_PRO_ADDONS,
-  );
+  return Object.values(PRO_ADDONS);
 }
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -275,16 +287,23 @@ export function getNativePlatform(): "ios" | "android" | null {
 }
 
 /**
- * The team plans to OFFER for purchase on whichever platform this device is.
- * iOS: the new 10-tier catalog (IOS_TEAM_PLANS), live since 2026-08-19.
- * Android: still the 4 legacy ids until its own new-catalog products exist
- * in Play Console. Falls back to Android's set if the platform flag hasn't
- * landed yet (matches the shell's own default — see kAppVariant).
+ * The team plans to OFFER for purchase. Both stores now hold the full 10-tier
+ * catalog, so the platform split is gone: App Store Connect group "TEAM PLANS"
+ * (2026-08-19) and Play package `com.valuecharts.app` (2026-08-19, verified
+ * ACTIVE via the Play Developer API). The seat ceiling is finally the intended
+ * 25 on both platforms rather than the effective 10 the legacy ids imposed.
+ *
+ * LEGACY_IOS_TEAM_PLANS / LEGACY_ANDROID_TEAM_PLANS are retained deliberately:
+ * the backend still maps those ids, so an existing subscriber's renewals and
+ * restores keep resolving. They are simply no longer OFFERED for new purchases.
  */
+export function getTeamPlans(): LegacyTeamPlan[] {
+  return TEAM_PLANS;
+}
+
+/** @deprecated Kept so existing call sites compile — use getTeamPlans(). */
 export function getLegacyTeamPlans(): LegacyTeamPlan[] {
-  return getNativePlatform() === "ios"
-    ? IOS_TEAM_PLANS
-    : LEGACY_ANDROID_TEAM_PLANS;
+  return getTeamPlans();
 }
 
 /** Legacy team plans for the current platform, filtered to one billing

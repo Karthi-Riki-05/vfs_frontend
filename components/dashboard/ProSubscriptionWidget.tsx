@@ -14,7 +14,12 @@ export default function ProSubscriptionWidget() {
   const planCredits = activeOption?.aiCredits?.planCredits ?? 0;
   const addonCredits = activeOption?.aiCredits?.addonCredits ?? 0;
   const total = planCredits + addonCredits;
-  const planLimit = 100; // Pro plan: 100 credits/month
+  // bug-143: Pro grants 50 credits ONCE (lifetime, never refills) — the old
+  // 100 made the bar read half-used at a full balance. The real per-user
+  // denominator is the backend's planLimitFor() (seat-aware for teams); it is
+  // returned by getBalance but not yet by the billing-options endpoints this
+  // widget reads, so a team context still under-reports here.
+  const planLimit = 50;
 
   const used = Math.max(0, Math.min(planLimit, planLimit - planCredits));
   const pct = planLimit > 0 ? Math.min(100, (used / planLimit) * 100) : 0;

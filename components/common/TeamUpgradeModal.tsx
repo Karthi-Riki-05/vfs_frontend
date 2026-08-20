@@ -15,7 +15,7 @@ const FEATURES = [
   "Team collaboration",
   "Shared flows",
   "Team chat",
-  "300 AI credits/month",
+  "40 AI credits per user / month",
 ];
 
 const TeamUpgradeModal: React.FC<TeamUpgradeModalProps> = ({
