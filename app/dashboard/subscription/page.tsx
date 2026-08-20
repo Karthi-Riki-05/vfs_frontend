@@ -46,11 +46,11 @@ import {
   iapPrices,
   aiCreditProductId,
   aiCreditProductIds,
-  iapRestore,
   waitThenRefresh,
   IapPrice,
   IapResult,
 } from "@/lib/iapBridge";
+import RestorePurchasesButton from "@/components/billing/RestorePurchasesButton";
 
 // Ported from new_design Subscription/ValueChartPlans/ProPlans/CreditAddOns
 // (prototype L1537–1728). Tailwind `.tw` shell, unified for desktop + mobile.
@@ -174,33 +174,9 @@ function ensureGranted(res: IapResult, noun: string): boolean {
   return false;
 }
 
-// Mandatory "Restore purchases" affordance (App Review requires it; also
-// useful on Android after a reinstall). Rendered only when IAP is available.
-function RestorePurchasesButton({ onRestored }: { onRestored: () => void }) {
-  const [restoring, setRestoring] = useState(false);
-  const handleRestore = async () => {
-    setRestoring(true);
-    const res = await iapRestore();
-    if (res.status === "success") {
-      toast.success("Purchases restored — refreshing your plan…");
-      await waitThenRefresh(onRestored);
-    } else if (res.status === "error") {
-      toast.error(res.message || "Restore failed");
-    }
-    setRestoring(false);
-  };
-  return (
-    <div className="flex justify-center pt-1">
-      <button
-        onClick={handleRestore}
-        disabled={restoring}
-        className={`${RESET} h-9 px-4 rounded-xl bg-transparent text-[13px] font-semibold font-sans text-muted-foreground underline underline-offset-2 disabled:opacity-60`}
-      >
-        {restoring ? "Restoring…" : "Restore purchases"}
-      </button>
-    </div>
-  );
-}
+// "Restore purchases" lives in components/billing/RestorePurchasesButton (shared
+// with the Billing page). App Review requires the affordance; also useful on
+// Android after a reinstall. Rendered only when IAP is available.
 
 /* ---------- Shared: AI Credit Add-ons (prototype CreditAddOns L1705) ---------- */
 
@@ -238,7 +214,20 @@ function CreditAddOns({
         if (ensureGranted(res, "credits")) {
           toast.success("Purchase successful — adding your credits…");
         }
-        if (onPurchased) await waitThenRefresh(onPurchased);
+        // `onPurchased` only refreshes THIS page's billing context. The shared
+        // credit store (sidebar, dashboard, AI-credit widget) refetches on the
+        // `aiCreditsChanged` event, which the web addon-success path fires but
+        // the mobile IAP path did NOT — so a mobile credit purchase updated the
+        // subscription page only, leaving every other surface stale. Fire it on
+        // each poll so all surfaces flip as soon as the grant lands.
+        await waitThenRefresh(() => {
+          onPurchased?.();
+          try {
+            window.dispatchEvent(new Event("aiCreditsChanged"));
+          } catch {
+            /* no-op */
+          }
+        });
       } else if (res.status === "error") {
         toast.error(res.message || "Purchase failed");
       }

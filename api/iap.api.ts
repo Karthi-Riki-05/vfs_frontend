@@ -16,6 +16,11 @@ export interface IapValidatePayload {
   packageName?: string;
   /** App Store only — base64 app receipt */
   receiptData?: string;
+  /** Localized store price the buyer saw (from iapPrices) — Google's server API
+   * doesn't return it, so we forward it to record the true amount + currency
+   * (e.g. 499 / "INR") instead of the USD fallback. */
+  priceAmount?: number;
+  currency?: string;
 }
 
 export const iapApi = {

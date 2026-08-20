@@ -382,7 +382,10 @@ function waitForResult(
  * Google/Apple and grants the entitlement. Idempotent (backend dedup), so a
  * duplicate send is harmless. Returns true when the grant is confirmed.
  */
-export async function validateWithBackend(result: IapResult): Promise<boolean> {
+export async function validateWithBackend(
+  result: IapResult,
+  priceInfo?: IapPrice,
+): Promise<boolean> {
   if (!result.productId || !result.verificationData || !result.store) {
     result.validationCode = "MISSING_PROOF";
     result.validationError = "The store did not return a usable receipt.";
@@ -398,6 +401,11 @@ export async function validateWithBackend(result: IapResult): Promise<boolean> {
             packageName: result.packageName,
           }
         : { receiptData: result.verificationData }),
+      // Forward the localized price the store showed the buyer so the backend
+      // records the true amount + currency (Google's server API omits it).
+      ...(priceInfo && typeof priceInfo.price === "number" && priceInfo.price > 0
+        ? { priceAmount: priceInfo.price, currency: priceInfo.currencyCode }
+        : {}),
     });
     const data = res.data?.data || res.data;
     if (data?.granted) return true;
@@ -443,7 +451,21 @@ function installGlobalValidator() {
       (detail.status === "success" || detail.status === "restored") &&
       detail.verificationData
     ) {
-      void validateWithBackend(detail);
+      // Look up the localized store price for THIS product before validating so
+      // restored/background-delivered rows record the real amount + currency
+      // (e.g. ₹499 INR) instead of the USD fallback — matching iapPurchase().
+      // Best-effort: a missing productId or a failed lookup just omits it.
+      void (async () => {
+        let priceInfo: IapPrice | undefined;
+        try {
+          if (detail.productId) {
+            priceInfo = (await iapPrices([detail.productId]))[detail.productId];
+          }
+        } catch {
+          /* price lookup is non-critical — fall back to server-side pricing */
+        }
+        await validateWithBackend(detail, priceInfo);
+      })();
     }
   });
 }
@@ -493,7 +515,16 @@ export async function iapPurchase(productId: string): Promise<IapResult> {
   }
   const result = await pending;
   if (result.status === "success") {
-    result.granted = await validateWithBackend(result);
+    // Look up the localized store price for what was just bought so the backend
+    // records the real amount + currency (e.g. ₹499 INR) rather than the fixed
+    // USD fallback. Best-effort: a failed/empty lookup just omits it.
+    let priceInfo: IapPrice | undefined;
+    try {
+      priceInfo = (await iapPrices([productId]))[productId];
+    } catch {
+      /* price lookup is non-critical — fall back to server-side pricing */
+    }
+    result.granted = await validateWithBackend(result, priceInfo);
   }
   return result;
 }

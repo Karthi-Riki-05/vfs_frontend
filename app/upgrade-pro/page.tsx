@@ -162,9 +162,12 @@ function UpgradeProContent() {
     setPurchasing(true);
     try {
       sessionStorage.setItem(STRIPE_PENDING_KEY, "1");
-      // After purchase, redirect back to Pro dashboard if user came from forced Pro mode
+      // After purchase, redirect back to the Pro dashboard if the user came
+      // from forced Pro mode. Must be the app-context route: `?app=` is no
+      // longer read (postLoginRedirect), and the success page rejects a bare
+      // /dashboard as "not inside the Pro subtree" — so store /dashboard/pro.
       if (isFromProApp) {
-        sessionStorage.setItem(PRO_REDIRECT_KEY, "/dashboard?app=pro");
+        sessionStorage.setItem(PRO_REDIRECT_KEY, "/dashboard/pro");
       }
       await purchasePro();
     } catch (err: any) {

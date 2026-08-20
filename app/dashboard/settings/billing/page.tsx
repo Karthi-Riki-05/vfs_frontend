@@ -19,12 +19,33 @@ import { paymentsApi } from "@/api/payments.api";
 import { usePro } from "@/hooks/usePro";
 import { useRouter } from "next/navigation";
 import { getClientAppType } from "@/lib/detectWebView";
+import { isNativeShell, useIapAvailable } from "@/lib/iapBridge";
+import RestorePurchasesButton from "@/components/billing/RestorePurchasesButton";
 import api from "@/lib/axios";
 
 // Buttons inherit a UA-grey background unless they set their own bg (the
 // "preflight-off button trap" — see Settings page). RESET strips native
 // chrome; every button below sets its own bg/border explicitly.
 const RESET = "appearance-none cursor-pointer outline-none border-0";
+
+// Format a minor-unit (cents/paise) amount with the RIGHT currency symbol.
+// The stored `currency` is the store's real currency (e.g. "inr" from a Play
+// purchase). A hardcoded "$" here rendered ₹550 as "INR $550.00"; Intl picks
+// the correct narrow symbol (₹, $, €, ¥…) and the correct minor-unit divisor.
+function fmtMoney(rawCents: number, currency?: string): string {
+  const cur = (currency || "USD").toUpperCase();
+  const major = Number(rawCents) / 100;
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: cur,
+      currencyDisplay: "narrowSymbol",
+    }).format(major);
+  } catch {
+    // Unknown/invalid currency code → code + number, never a wrong symbol.
+    return `${cur} ${major.toFixed(2)}`;
+  }
+}
 
 function Row({ k, v }: { k: string; v: ReactNode }) {
   return (
@@ -86,6 +107,11 @@ export default function BillingPage() {
   const [txOpen, setTxOpen] = useState(true);
   const [subOpen, setSubOpen] = useState(true);
   const [packOpen, setPackOpen] = useState(true);
+  // Bumped after a Restore so the transaction + history lists re-fetch and any
+  // newly-recorded restored purchase shows up here immediately.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const native = isNativeShell();
+  const iapReady = useIapAvailable();
   // Re-fetch whenever the user toggles between Pro and Team apps so each
   // billing surface stays scoped to its own purchases. Wait until usePro
   // has resolved — otherwise we'd default to "enterprise" while currentApp
@@ -104,7 +130,7 @@ export default function BillingPage() {
         setTransactions([]);
       })
       .finally(() => setTxLoading(false));
-  }, [proLoading, isProApp]);
+  }, [proLoading, isProApp, refreshKey]);
 
   // Subscription history exists for both apps — AI-addon purchases write a
   // SubscriptionHistory row tagged with the real appContext (including
@@ -123,7 +149,7 @@ export default function BillingPage() {
       })
       .catch(() => setHistory([]))
       .finally(() => setHistoryLoading(false));
-  }, [proLoading, isProApp]);
+  }, [proLoading, isProApp, refreshKey]);
 
   // Wait for usePro too — otherwise the Team subscription card flashes
   // inside the Pro app before currentApp resolves.
@@ -245,7 +271,7 @@ export default function BillingPage() {
         ? `${currency} —`
         : raw === null || raw === undefined || Number.isNaN(Number(raw))
           ? `${currency} —`
-          : `${currency} $${(Number(raw) / 100).toFixed(2)}`;
+          : fmtMoney(Number(raw), currency);
     return {
       id: r.id || r.createdAt,
       date,
@@ -258,7 +284,8 @@ export default function BillingPage() {
   // Map subscription history rows for display
   const mappedHistory = history.map((r: any) => {
     const currency = (r.currency || "USD").toUpperCase();
-    const price = `${currency} $${Number(r.price || 0).toFixed(2)}/mo`;
+    // r.price is already in major units (dollars), so scale to cents for fmtMoney.
+    const price = `${fmtMoney(Number(r.price || 0) * 100, currency)}/mo`;
     const planLabel = r.planName ? `${r.planName} — ${price}` : price;
     const startDate = r.startedAt
       ? new Date(r.startedAt).toLocaleDateString()
@@ -570,6 +597,12 @@ export default function BillingPage() {
           </div>
         )}
       </div>
+
+      {/* Restore replays subscriptions / non-consumable unlocks; a newly-recorded
+          one shows up in Transactions above (refreshKey re-fetches). Native only. */}
+      {native && iapReady && (
+        <RestorePurchasesButton onRestored={() => setRefreshKey((k) => k + 1)} />
+      )}
 
       {/* ── Subscription history (both apps — AI-addon buys write appContext-tagged rows too) ── */}
       <div className="rounded-2xl bg-card border border-border p-5">

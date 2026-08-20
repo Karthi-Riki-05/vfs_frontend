@@ -165,12 +165,11 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const brand = useAppBrand();
   const logoApp = brand === "web" ? currentApp : brand;
   // Logo click lands on the app-specific home (matches post-login redirect).
+  // The default context is Team (getPostLoginDashboardUrl's fallback), so an
+  // unresolved app mode goes to /dashboard/team — never the bare /dashboard
+  // generic shell, which the post-login flow deliberately avoids.
   const logoHref =
-    isProApp || forcedAppMode === "pro"
-      ? "/dashboard/pro"
-      : forcedAppMode === "team"
-        ? "/dashboard/team"
-        : "/dashboard";
+    isProApp || forcedAppMode === "pro" ? "/dashboard/pro" : "/dashboard/team";
   // bug-106 (2026-08-08): in the Team app the badge follows the WORKSPACE's
   // tier, not the caller's own receipt. A member inside test123's paid
   // workspace was shown "Free Plan" while spending that workspace's Team AI

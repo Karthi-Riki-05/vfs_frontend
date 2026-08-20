@@ -562,7 +562,22 @@ export default function SettingsPage() {
           where there is no sidebar. */}
       <div className="flex items-center gap-3">
         <BackButton
-          onClick={() => router.push("/dashboard")}
+          onClick={() => {
+            // Route to the CURRENT app's dashboard, not the bare /dashboard
+            // generic shell. vc_app_context (per-tab) is the same signal the
+            // axios interceptor scopes by, so "Back" lands on the same app the
+            // user is in (Pro → /dashboard/pro, else Team).
+            let app = "team";
+            try {
+              app =
+                sessionStorage.getItem("vc_app_context") === "pro"
+                  ? "pro"
+                  : "team";
+            } catch {
+              /* sessionStorage may be blocked in restricted WebViews */
+            }
+            router.push(`/dashboard/${app}`);
+          }}
           label="Back to dashboard"
         />
         <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">

@@ -264,7 +264,7 @@ function ProPurchaseContent() {
           </Paragraph>
           <div style={{ textAlign: "center", marginTop: 12 }}>
             <a
-              href="/dashboard"
+              href="/dashboard/team"
               style={{ fontSize: 13, color: "#999", textDecoration: "none" }}
             >
               ← Back to Dashboard
