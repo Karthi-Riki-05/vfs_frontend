@@ -212,14 +212,19 @@ export default function AIAssistant({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
 
-  // Panel open/close events
+  // Panel open/close events.
+  //
+  // Two channels on purpose. `aiPanelOpened`/`aiPanelClosed` are the legacy
+  // AI-specific signals (EditorFABs still listens to them). `vc:sheet-open` is
+  // the app-wide "an overlay is up, get out of the way" channel — the green `+`
+  // FAB and the editor FABs already subscribe to it, so dispatching it here is
+  // what stops them floating on top of this panel. Anything added later only
+  // needs to listen to the one event.
   useEffect(() => {
-    if (state === "half" || state === "fullscreen") {
-      window.dispatchEvent(new CustomEvent("aiPanelOpened"));
-      setTimeout(() => inputRef.current?.focus(), 100);
-    } else {
-      window.dispatchEvent(new CustomEvent("aiPanelClosed"));
-    }
+    const open = state === "half" || state === "fullscreen";
+    window.dispatchEvent(new CustomEvent(open ? "aiPanelOpened" : "aiPanelClosed"));
+    window.dispatchEvent(new CustomEvent("vc:sheet-open", { detail: open }));
+    if (open) setTimeout(() => inputRef.current?.focus(), 100);
   }, [state]);
 
   // AI greeting bubble — auto-show then auto-dismiss (both mobile + desktop)
@@ -812,9 +817,6 @@ export default function AIAssistant({
           Generate flows from a prompt
         </div>
       </div>
-      <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFE2C0] text-[#FF9A30] text-[10px] font-bold whitespace-nowrap shrink-0">
-        <Zap className="w-3 h-3" /> {credits ?? "—"} credits
-      </div>
       <button
         onClick={handleNewChat}
         title="New Chat"
@@ -864,6 +866,17 @@ export default function AIAssistant({
       >
         <X className="w-[18px] h-[18px]" />
       </button>
+
+      {/* Credits pill — absolutely positioned, centred on the header's bottom
+          edge rather than sitting in the flex row. Two reasons: it reclaims the
+          ~100px the row was spending on it (the title no longer truncates to
+          "Value Chart..." in the 400px docked panel), and the balance reads as a
+          status badge on the divider instead of competing with the action
+          buttons. `pointer-events-none` keeps it from swallowing taps meant for
+          the first message underneath. */}
+      <div className="pointer-events-none absolute left-1/2 -bottom-3 z-10 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#FFE2C0] px-2.5 py-1 text-[10px] font-bold text-[#FF9A30] whitespace-nowrap shadow-[0_2px_8px_-2px_rgba(255,154,48,0.55)]">
+        <Zap className="w-3 h-3" /> {credits ?? "—"} credits
+      </div>
 
       {showHistory && (
         <>
@@ -1037,7 +1050,9 @@ export default function AIAssistant({
 
   // ---- Messages (greeting bubble always first) ----
   const renderMessages = (isFS = false) => (
-    <div className="flex-1 overflow-y-auto px-4 py-4 bg-background no-scrollbar">
+    // `pt-5` (not `py-4`): the credits pill overhangs the header by 12px, so
+    // the extra 4px keeps clear air between it and the first message.
+    <div className="flex-1 overflow-y-auto px-4 pt-5 pb-4 bg-background no-scrollbar">
       <div className={cn("space-y-3", isFS && "max-w-[800px] mx-auto")}>
         {aiBubble(
           "greeting",

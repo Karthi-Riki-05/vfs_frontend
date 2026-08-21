@@ -182,12 +182,18 @@ export function ModalFooter({
   /** Render the primary button as a destructive (coral) action. */
   danger?: boolean;
 }) {
+  // Both buttons use `min-h-10` + `py-2`, never a fixed `h-10`: the mobile
+  // readability scale in globals.css raises `.text-sm` to 16px at <=767px, so a
+  // two-word-plus label wraps to a second line and used to spill straight out
+  // of a 40px-tall box (the "Permanently Delete Account" overlap). Growing the
+  // button is the only thing that keeps an arbitrary caller-supplied label
+  // inside its own border.
   return (
     <div className="p-5 pt-4 border-t border-border flex justify-end gap-2">
       <button
         type="button"
         onClick={close}
-        className="appearance-none cursor-pointer h-10 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
+        className="appearance-none cursor-pointer min-h-10 py-2 px-5 rounded-xl border border-border bg-card font-semibold text-sm text-center"
       >
         {cancelLabel}
       </button>
@@ -197,8 +203,8 @@ export function ModalFooter({
         disabled={loading || disabled}
         className={
           danger
-            ? "appearance-none cursor-pointer h-10 px-5 rounded-xl border-2 border-coral bg-transparent text-coral font-bold text-sm hover:bg-coral/10 disabled:opacity-60 disabled:cursor-not-allowed"
-            : "appearance-none cursor-pointer border-0 h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+            ? "appearance-none cursor-pointer min-h-10 py-2 px-5 rounded-xl border-2 border-coral bg-transparent text-coral font-bold text-sm text-center hover:bg-coral/10 disabled:opacity-60 disabled:cursor-not-allowed"
+            : "appearance-none cursor-pointer border-0 min-h-10 py-2 px-5 rounded-xl bg-primary text-white font-bold text-sm text-center hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
         }
       >
         {loading ? "…" : primaryLabel}

@@ -93,7 +93,9 @@ export default function AiCreditsDisplay({
           }}
         >
           <ThunderboltFilled style={{ fontSize: compact ? 11 : 12 }} />
-          <span>{compact ? total : `AI Credits: ${total}`}</span>
+          {/* "N credits" in both modes so the editor pill reads the same as
+              the AI chat panel's pill. */}
+          <span>{`${total} credits`}</span>
         </div>
       </TooltipTrigger>
       <TooltipContent className="tw" side="bottom">

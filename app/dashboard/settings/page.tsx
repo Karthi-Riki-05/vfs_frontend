@@ -822,7 +822,7 @@ export default function SettingsPage() {
             setDeleteError(null);
           }}
           primary={handleDeleteAccount}
-          primaryLabel="Permanently Delete Account"
+          primaryLabel="Delete"
           loading={deleteLoading}
           danger
         />

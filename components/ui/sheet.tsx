@@ -7,7 +7,51 @@ import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-const Sheet = SheetPrimitive.Root;
+/**
+ * Radix Dialog root, plus one app-wide side effect: every Sheet announces its
+ * open state on `vc:sheet-open`, the channel the floating buttons (dashboard
+ * FAB, editor FABs, AI launcher) listen to so they get out of the way of an
+ * overlay. Putting it here rather than in each caller means a new drawer is
+ * covered the moment it is written — the Version History drawer floated the
+ * FABs on top of itself precisely because it never sent this.
+ *
+ * Only real transitions are dispatched. The initial mount is skipped so the
+ * many closed Sheets that mount on a normal page load cannot broadcast a
+ * spurious `false` and un-hide the FABs while a different sheet is open.
+ */
+const Sheet = ({
+  open,
+  defaultOpen,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Root>) => {
+  const isControlled = open !== undefined;
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(!!defaultOpen);
+  const effectiveOpen = isControlled ? !!open : uncontrolledOpen;
+  const prev = React.useRef<boolean | null>(null);
+
+  React.useEffect(() => {
+    if (prev.current === effectiveOpen) return;
+    const first = prev.current === null;
+    prev.current = effectiveOpen;
+    if (first) return; // skip mount
+    window.dispatchEvent(
+      new CustomEvent("vc:sheet-open", { detail: effectiveOpen }),
+    );
+  }, [effectiveOpen]);
+
+  return (
+    <SheetPrimitive.Root
+      {...props}
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={(next) => {
+        if (!isControlled) setUncontrolledOpen(next);
+        props.onOpenChange?.(next);
+      }}
+    />
+  );
+};
+Sheet.displayName = "Sheet";
 
 const SheetTrigger = SheetPrimitive.Trigger;
 

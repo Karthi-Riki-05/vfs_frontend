@@ -21,7 +21,6 @@ import {
 } from "@/components/common/Modal";
 import { confirmDialog } from "@/components/common/ConfirmDialog";
 import {
-  ArrowLeft,
   Lock,
   Pencil,
   CheckCircle,
@@ -43,6 +42,7 @@ import CustomShapesPanel, {
 import ShareFlowModal from "@/components/flows/ShareFlowModal";
 import FlowLockedModal from "@/components/flows/FlowLockedModal";
 import AiCreditsDisplay from "@/components/ai/AiCreditsDisplay";
+import BackButton from "@/components/shared/BackButton";
 import CreateTeamFromShapeModal from "@/components/flows/shape-association/CreateTeamFromShapeModal";
 import CreateChatGroupFromShapeModal from "@/components/flows/shape-association/CreateChatGroupFromShapeModal";
 import EditTeamModal from "@/components/flows/shape-association/EditTeamModal";
@@ -1502,6 +1502,15 @@ export default function EditorView({
   // is never going to load.
   if (lockedOut) return <FlowLockedModal />;
 
+  // Trailing action buttons in the editor top bar. Square and 44px on mobile
+  // where they are icon-only, one consistent 44px-tall pill with a label on
+  // desktop. Before this they were `h-9 px-3`, which the 44px tap-target floor
+  // in globals.css stretched to 32x44 / 38x44 / 42x44 — narrower than tall, and
+  // all three below the floor on width.
+  const barBtn = isMobile
+    ? "w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+    : "h-11 px-4 rounded-xl flex items-center gap-1.5 shrink-0";
+
   return (
     <ErrorBoundary
       fallback={
@@ -1544,17 +1553,22 @@ export default function EditorView({
           </div>
         )}
 
-        {/* TOP BAR FOR NAME EDITING */}
+        {/* TOP BAR FOR NAME EDITING
+            Wrapped in a `relative` shell purely so the credits pill can hang
+            off the bar's bottom edge: the bar itself is `overflow-hidden` (it
+            has to be, to keep the flow-name input from spilling), which would
+            clip an absolutely-positioned child. */}
+        <div className="tw relative shrink-0">
+        {/* One bar height at both widths (h-14 = 56px). The mobile bar used to
+            be h-12 = 48px, which left no room for the app's standard 48x48
+            BackButton and forced the action buttons into squashed 32-42px-wide
+            rectangles once globals.css applied its 44px tap-target floor. */}
         <div
-          className={`tw flex items-center border-b border-border bg-card overflow-hidden flex-nowrap ${isMobile ? "h-12 gap-1.5 px-2" : "h-14 gap-3 px-4"}`}
+          className={`tw flex items-center border-b border-border bg-card overflow-hidden flex-nowrap h-14 ${isMobile ? "gap-1.5 px-2" : "gap-3 px-4"}`}
         >
-          <button
-            onClick={handleExit}
-            aria-label="Back"
-            className="appearance-none cursor-pointer outline-none w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center shrink-0 hover:bg-secondary transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+          {/* The ONE back button (48x48). This bar kept a 36x36 local copy that
+              the 2026-08-14 standardisation pass missed. */}
+          <BackButton onClick={handleExit} label="Back to flows" />
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1622,14 +1636,14 @@ export default function EditorView({
                 setVersionsOpen(true);
                 loadVersions();
               }}
-              className="appearance-none cursor-pointer outline-none border-0 bg-transparent px-2 py-1.5 rounded-lg hover:bg-secondary text-sm text-foreground/60 flex items-center gap-1.5 shrink-0"
+              aria-label="Version history"
+              title="Version history"
+              className={`appearance-none cursor-pointer outline-none border border-border bg-card hover:bg-secondary text-sm text-foreground/70 font-medium ${barBtn}`}
             >
               <History className="w-4 h-4" />
               {!isMobile && "History"}
             </button>
           )}
-
-          {!isViewMode && <AiCreditsDisplay compact={isMobile} />}
 
           {!isViewMode && !isReadOnly && (
             <button
@@ -1638,7 +1652,9 @@ export default function EditorView({
                 triggerExport();
               }}
               disabled={saveStatus === "saving"}
-              className="appearance-none cursor-pointer outline-none border-0 h-9 px-3 rounded-lg bg-primary text-white font-bold text-sm flex items-center gap-1.5 disabled:opacity-60 shrink-0"
+              aria-label="Save"
+              title="Save"
+              className={`appearance-none cursor-pointer outline-none border-0 bg-primary text-white font-bold text-sm disabled:opacity-60 ${barBtn}`}
             >
               {saveStatus === "saving" ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1652,7 +1668,8 @@ export default function EditorView({
           <button
             onClick={handleExit}
             title={isViewMode ? "Close" : "Exit"}
-            className="appearance-none cursor-pointer outline-none h-9 px-3 rounded-lg border border-border bg-card text-sm text-foreground/70 font-medium flex items-center gap-1.5 shrink-0 hover:bg-secondary"
+            aria-label={isViewMode ? "Close" : "Exit"}
+            className={`appearance-none cursor-pointer outline-none border border-border bg-card text-sm text-foreground/70 font-medium hover:bg-secondary ${barBtn}`}
           >
             {/* B9: give Exit a matching leading icon on desktop too, so it's
                 visually consistent with the icon+label Save button. */}
@@ -1665,6 +1682,21 @@ export default function EditorView({
               </>
             )}
           </button>
+        </div>
+          {/* Credits pill — HIDDEN 2026-08-21 at the owner's request, pending a
+              decision on whether the editor should surface the balance at all.
+              Uncomment to restore; it is centred on the bar's bottom edge to
+              match the AI chat panel, and the `relative` wrapper above exists
+              only for this (the bar is `overflow-hidden` and would clip it).
+              Pointer events stay ON so AiCreditsDisplay's plan/addon/reset
+              tooltip works; it overhangs the canvas by just 12px.
+
+          {!isViewMode && (
+            <div className="absolute left-1/2 -bottom-3 z-20 -translate-x-1/2">
+              <AiCreditsDisplay />
+            </div>
+          )}
+          */}
         </div>
 
         {/* IFRAME EDITOR — Templates icon is injected inside draw.io sidebar via injectEditorCustomisations */}
