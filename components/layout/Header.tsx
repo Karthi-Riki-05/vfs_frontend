@@ -36,6 +36,7 @@ import NotificationDropdown from "@/components/common/NotificationDropdown";
 import { useCurrentUser, resolveAvatar } from "@/hooks/useCurrentUser";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import SidebarTeamSwitcher from "@/components/layout/SidebarTeamSwitcher";
+import TeamUpgradeModal from "@/components/common/TeamUpgradeModal";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useIsMobile, useIsChatColumnHidden } from "@/hooks/useMediaQuery";
 import { useAppContext, type TeamContextOption } from "@/context/AppContext";
@@ -271,7 +272,11 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             </button>
           )}
 
-          <Link href={logoHref} className="flex items-center no-underline">
+          <Link
+            href={logoHref}
+            aria-label="Go to dashboard"
+            className="flex items-center no-underline px-1 min-h-11"
+          >
             {/* Below 430px the full lockup (mark + wordmark + tagline) ate ~320
                 of a 390px bar and the tagline was far too small to read, which
                 is what squeezed the header icons. The asset is 500×150 with the
@@ -282,7 +287,16 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             {/* 36px is measured, not guessed: at height 48 the asset renders
                 160px wide and the shield ends at ~36px — 38px+ starts showing a
                 sliver of the "V". */}
-            <span className="block overflow-hidden h-12 w-40 max-[430px]:w-9">
+            <span
+              className={`block overflow-hidden h-12 w-40 ${
+                // Measured per asset at a 160px render: the Team/free mark ends
+                // at 36px, the Pro mark at ~42px (its lockup stacks three lines,
+                // so the shield is drawn larger in the same 500x150 canvas). A
+                // single 36px crop sliced the Pro shield's right edge, which is
+                // what made the Pro logo look broken.
+                logoApp === "pro" ? "max-[430px]:w-11" : "max-[430px]:w-9"
+              }`}
+            >
               <img
                 src={getLogoForApp(logoApp)}
                 alt="ValueChart Logo"
@@ -309,7 +323,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </div>
 
         {/* Right side — chat, notifications, plan badge, account */}
-        <div className="flex items-center gap-0.5 md:gap-1 ml-auto">
+        <div className="flex items-center gap-1 md:gap-1 ml-auto">
           {/* Chat icon — locked when no chat access */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -396,7 +410,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             // content box, `img { max-width: 100% }` clamped the photo to 24px,
             // and the avatar showed as a square floating in a ring of green
             // background instead of filling the circle.
-            className="ml-1 w-9 h-9 p-0 rounded-full bg-primary ring-2 ring-primary/20 flex items-center justify-center text-white text-sm font-bold cursor-pointer border-0 appearance-none overflow-hidden hover:ring-primary/40 transition"
+            className="w-9 h-9 p-0 rounded-full bg-primary ring-2 ring-primary/20 flex items-center justify-center text-white text-sm font-bold cursor-pointer border-0 appearance-none overflow-hidden hover:ring-primary/40 transition"
           >
             {hasAvatar && !avatarFailed ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -421,57 +435,18 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </div>
       </header>
 
-      {/* Chat locked — requires Team plan */}
-      <ModalShell
+      {/* Chat locked — the shared upgrade modal (same design as the Chat
+          sidebar's), replacing a bespoke copy that had drifted: plain header,
+          no feature list, and buttons at a different height. `feature="chat"`
+          supplies the wording; the optional secondary action keeps the
+          "Switch to team" path for users who already belong to a team. */}
+      <TeamUpgradeModal
         open={chatLockedOpen}
         onClose={() => setChatLockedOpen(false)}
-      >
-        <ModalHeader
-          title="Chat requires a Team plan"
-          close={() => setChatLockedOpen(false)}
-        />
-        <div className="tw px-5 pb-5 text-center">
-          <MessageOutlined
-            style={{ fontSize: 40, color: PRIMARY, marginBottom: 12 }}
-          />
-          <p className="text-sm text-muted-foreground mt-2">
-            {hasTeamContext
-              ? "Switch into your team context to use Chat with team members, or upgrade your personal plan."
-              : "Subscribe to a Team plan (or have a team owner invite you) to message members, share flows, and collaborate."}
-          </p>
-        </div>
-        <div className="tw px-5 pb-5 flex justify-end gap-2 flex-wrap border-t border-border pt-4">
-          <button
-            type="button"
-            onClick={() => setChatLockedOpen(false)}
-            className="appearance-none cursor-pointer outline-none h-10 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
-          >
-            Cancel
-          </button>
-          {hasTeamContext && (
-            <button
-              type="button"
-              onClick={() => {
-                setChatLockedOpen(false);
-                handleContextSwitch();
-              }}
-              className="appearance-none cursor-pointer outline-none h-10 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
-            >
-              Switch to team
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              setChatLockedOpen(false);
-              router.push("/dashboard/subscription");
-            }}
-            className="appearance-none cursor-pointer outline-none border-0 h-10 px-5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90"
-          >
-            View Plans
-          </button>
-        </div>
-      </ModalShell>
+        feature="chat"
+        secondaryLabel={hasTeamContext ? "Switch to team" : undefined}
+        onSecondary={hasTeamContext ? handleContextSwitch : undefined}
+      />
 
       {/* Team picker */}
       <ModalShell

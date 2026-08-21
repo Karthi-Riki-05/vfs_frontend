@@ -112,7 +112,10 @@ export default function DashboardPage() {
       style={{
         maxWidth: 1200,
         margin: "0 auto",
-        padding: isMobile ? "0 16px" : "0 24px",
+        // Page-container scale, shared with every other dashboard page:
+        // 20px sides / 12px top on phones. Bottom stays 0 — `.responsive-content`
+        // already reserves 140px there.
+        padding: isMobile ? "12px 20px 0" : "0 24px",
       }}
     >
       <DashGreeting userName={user?.name} />

@@ -93,6 +93,24 @@ body {
     outline-offset: 2px;
   }
 
+  /* A "field" in this design is the WRAPPER — a rounded, bordered row holding an
+     icon, a bare <input>, and sometimes a trailing button. The input itself has
+     no border-radius, so ringing IT drew a SQUARE green box straight across the
+     rounded field (visible on every modal input). Put the ring on the wrapper,
+     where it follows the radius, and drop it from the control inside.
+     `:has()` is supported in every browser and WebView this app ships to. */
+  .tw div:has(> input:focus-visible),
+  .tw div:has(> textarea:focus-visible),
+  .tw label:has(> input:focus-visible) {
+    outline: 2px solid #3cb371;
+    outline-offset: 2px;
+  }
+  .tw div:has(> input:focus-visible) > input,
+  .tw div:has(> textarea:focus-visible) > textarea,
+  .tw label:has(> input:focus-visible) > input {
+    outline: none;
+  }
+
   /* Anchors need !important: Ant Design emits an UNLAYERED `a` reset with
      `outline: none` that beats every layered rule (same cascade story as
      NavTile's `!transition` / `!bg-*` workarounds). Scoped to .tw anchors
@@ -635,16 +653,32 @@ img {
     line-height: 1.4 !important;
   }
 
-  /* uppercase overlines and small labels floor at 12px */
+  /* Secondary / meta text — dates, emails, counts, price breakdowns, card
+     titles. These arbitrary sizes are the last of the too-small text: at 12–13px
+     they were the reason "the text is very small" on a phone. */
+  .text-\[13px\],
+  .text-\[12px\],
   .text-\[11px\] {
+    font-size: 14px !important;
+    line-height: 1.4 !important;
+  }
+
+  /* …EXCEPT when the same class is doing overline duty. `text-[11px]` serves
+     two roles in this codebase — meta text AND uppercase section labels
+     (ACCOUNT, MY FLOWS, SECURITY). Role is distinguished by `uppercase`, which
+     every overline carries; those stay at 12px, which is correct for the role
+     and keeps section headers from ballooning. Declared after the rule above so
+     it wins on equal specificity. */
+  .uppercase.text-\[13px\],
+  .uppercase.text-\[12px\],
+  .uppercase.text-\[11px\],
+  .uppercase.text-\[10px\] {
     font-size: 12px !important;
   }
 
   /* inline React style objects (MobileDashboard.tsx, SubscriptionWidget.tsx and
      the AntD Typography spans all set fontSize numerically, bypassing classes) */
-  [style*="font-size: 11px"]:not(.anticon) {
-    font-size: 12px !important;
-  }
+  [style*="font-size: 11px"]:not(.anticon),
   [style*="font-size: 12px"]:not(.anticon),
   [style*="font-size: 13px"]:not(.anticon) {
     font-size: 14px !important;

@@ -51,6 +51,20 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
+  /**
+   * Android Chrome defaults to `resizes-visual`: the on-screen keyboard shrinks
+   * the *visual* viewport but leaves the *layout* viewport at full height. The
+   * browser therefore has no scroll range to reveal a focused field with, and
+   * anything the keyboard covers becomes unreachable — on /login the whole form
+   * is exactly 100dvh tall, so the password field and Sign In button could not
+   * be reached at all once the keyboard was up.
+   *
+   * `resizes-content` shrinks the layout viewport instead, which restores the
+   * native scroll-focused-element-into-view behaviour. iOS Safari ignores this
+   * and already resizes; Flutter's Android shell uses `adjustResize`, so all
+   * three surfaces end up with a scrollable viewport.
+   */
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

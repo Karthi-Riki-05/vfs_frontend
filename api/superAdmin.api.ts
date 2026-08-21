@@ -361,6 +361,16 @@ export interface BroadcastResult {
   sent: number;
   failed: number;
   cleaned: number;
+  /** bug-149: how many 500-token batches the send was split into. */
+  batches?: number;
+  /** bug-149: per-batch failures, when some chunks did not go out. */
+  errors?: string[];
+  /** bug-154: how many devices the server counted before sending. */
+  audience?: number;
+  /** bug-154: set when the call was a rehearsal — nothing was transmitted. */
+  dryRun?: boolean;
+  wouldSend?: number;
+  message?: string;
 }
 
 export const superAdminApi = {
@@ -379,6 +389,10 @@ export const superAdminApi = {
     body: string;
     url?: string;
     kind?: "test" | "maintenance" | "announcement";
+    /** bug-154: the server refuses to transmit without this. */
+    confirm?: boolean;
+    /** bug-154: report the audience and send nothing. */
+    dryRun?: boolean;
   }) =>
     api.post<{ success: boolean; data: BroadcastResult }>(
       "/super-admin/notifications/broadcast",

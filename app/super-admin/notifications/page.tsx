@@ -77,6 +77,33 @@ export default function SuperAdminNotificationsPage() {
     form.setFieldsValue({ title: p.title, body: p.body, url: p.url });
   }, [kind, form]);
 
+  // bug-154: the safe rehearsal this screen never had. The server counts the
+  // audience and sends nothing; the action is logged as `dryrun:` so it can
+  // never be mistaken for a real send in the audit trail.
+  const [dryRunning, setDryRunning] = useState(false);
+  const previewAudience = async () => {
+    const values = form.getFieldsValue();
+    if (!values.title || !values.body) {
+      toast.warning("Add a title and message first");
+      return;
+    }
+    setDryRunning(true);
+    try {
+      const res = await superAdminApi.broadcastNotification({
+        ...values,
+        kind,
+        dryRun: true,
+      });
+      toast.success(res.data?.data?.message || "Dry run complete — nothing sent");
+    } catch (e: any) {
+      toast.error(
+        e?.response?.data?.error?.message || "Could not run the preview",
+      );
+    } finally {
+      setDryRunning(false);
+    }
+  };
+
   const submit = async (values: {
     title: string;
     body: string;
@@ -87,16 +114,34 @@ export default function SuperAdminNotificationsPage() {
       return;
     }
 
-    if (kind === "maintenance") {
-      const ok = await confirmDialog({
+    // bug-150: EVERY type reaches every registered device — only the wording
+    // differs. Previously just "maintenance" asked, so "Test", the option whose
+    // name implies it is safe, fired at the whole install base with no prompt.
+    // There is no self-only send, so the confirm is the only thing between a
+    // trial message and every customer's phone.
+    const COPY: Record<Kind, { title: string; content: string }> = {
+      test: {
+        title: `Send this TEST to all ${deviceCount} devices?`,
+        content:
+          "There is no self-only test send — this reaches every registered device, exactly like a real announcement.",
+      },
+      maintenance: {
         title: `Send maintenance alert to ${deviceCount} devices?`,
         content:
           "Every user with notifications enabled will receive this push. Make sure the message and timing are correct.",
-        confirmLabel: "Yes, send to all",
-        danger: true,
-      });
-      if (!ok) return;
-    }
+      },
+      announcement: {
+        title: `Send announcement to ${deviceCount} devices?`,
+        content:
+          "Every user with notifications enabled will receive this push. Check the wording — it cannot be recalled.",
+      },
+    };
+    const ok = await confirmDialog({
+      ...COPY[kind],
+      confirmLabel: "Yes, send to all",
+      danger: true,
+    });
+    if (!ok) return;
 
     setLoading(true);
     setLastResult(null);
@@ -104,6 +149,9 @@ export default function SuperAdminNotificationsPage() {
       const res = await superAdminApi.broadcastNotification({
         ...values,
         kind,
+        // bug-154: the server will not transmit without this. The browser
+        // dialog above is a courtesy; this is the actual gate.
+        confirm: true,
       });
       const data = res.data?.data;
       setLastResult(data);
@@ -217,6 +265,14 @@ export default function SuperAdminNotificationsPage() {
                 ? "Send Maintenance Alert"
                 : "Send to All Devices"}
             </Button>
+            <Button
+              size="large"
+              style={{ marginLeft: 12 }}
+              loading={dryRunning}
+              onClick={previewAudience}
+            >
+              Dry run (sends nothing)
+            </Button>
           </Form.Item>
         </Form>
 
@@ -252,7 +308,9 @@ export default function SuperAdminNotificationsPage() {
               token.
             </li>
             <li>
-              Uses <code>sendEachForMulticast</code> — fans out in one batch.
+              Uses <code>sendEachForMulticast</code> in batches of 500 — the
+              per-call cap Firebase enforces (bug-149). Before batching, any
+              audience over 500 failed outright rather than partially.
             </li>
             <li>
               Expired tokens are auto-cleaned from the DB after each broadcast.

@@ -4,6 +4,7 @@ import React from "react";
 import { usePathname } from "next/navigation";
 import { getLogoForApp } from "@/lib/getLogo";
 import { useAppBrand } from "@/hooks/useAppBrand";
+import { useKeyboardAwareFocus } from "@/hooks/useKeyboardAwareFocus";
 
 export default function AuthLayout({
   children,
@@ -11,6 +12,11 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+
+  // The on-screen keyboard used to sit on top of the field being typed
+  // into on every auth screen. See the hook for why this is needed on top
+  // of the root layout's `interactiveWidget` setting.
+  useKeyboardAwareFocus();
 
   // Shared-shell logo (shown on reset-password / verify-otp; CSS-hidden on the
   // login/register/forgot hero pages) follows the app SHELL via the hydration-

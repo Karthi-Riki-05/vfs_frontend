@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Input, Collapse, Spin, Empty, Tag } from "antd";
+import { Spin, Empty } from "antd";
+import { ChevronRight, Search } from "lucide-react";
 import {
   Sheet,
   SheetContentNoOverlay,
@@ -57,7 +58,7 @@ const TYPE_META: Record<
     icon: <FileImageOutlined />,
   },
   stencil: {
-    color: "#3CB371",
+    color: "var(--primary)",
     bg: "#F0FFF4",
     label: "Stencil",
     icon: <AppstoreOutlined />,
@@ -220,144 +221,109 @@ export default function CustomShapesPanel({
   const totalShapes = shapes.length;
 
   // Collapse items API (antd v5 preferred over deprecated <Panel>).
-  const items = visible.map((g) => ({
-    key: g.id,
-    label: (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          fontSize: 13,
-          fontWeight: 600,
-          color: "#333",
-        }}
-      >
-        <span
-          style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            flex: 1,
-          }}
-        >
-          {g.name}
-        </span>
-        <span
-          style={{
-            fontSize: 11,
-            color: "#8C8C8C",
-            fontWeight: 500,
-            marginLeft: 8,
-            flexShrink: 0,
-          }}
-        >
-          {g.shapes.length}
-        </span>
-      </div>
-    ),
-    children:
-      g.shapes.length === 0 ? (
-        <div
-          style={{
-            fontSize: 11,
-            color: "#aaa",
-            textAlign: "center",
-            padding: "8px 0",
-          }}
-        >
-          No shapes
-        </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: 8,
-            padding: "4px 0 8px",
-          }}
-        >
-          {g.shapes.map((shape) => {
-            const meta = TYPE_META[shape.type] || TYPE_META.stencil;
-            return (
-              <div
-                key={shape.id}
-                title={`Click or drag "${shape.name}" onto the canvas`}
-                draggable={!!onDragShapeStart}
-                onDragStart={(e) => onDragShapeStart?.(shape, e)}
-                onDragEnd={() => onDragShapeEnd?.()}
-                onClick={() => {
-                  onInsert(shape);
-                  onClose();
-                }}
-                style={{
-                  cursor: onDragShapeStart ? "grab" : "pointer",
-                  borderRadius: 8,
-                  overflow: "hidden",
-                  border: "1px solid #f0f0f0",
-                  background: "#fff",
-                  transition: "all .15s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.border =
-                    `1px solid ${meta.color}`;
-                  (e.currentTarget as HTMLDivElement).style.boxShadow =
-                    `0 2px 8px ${meta.color}33`;
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.border =
-                    "1px solid #f0f0f0";
-                  (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
-                }}
-              >
-                <div
-                  style={{
-                    height: 72,
-                    background: meta.bg,
-                    position: "relative",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: 8,
-                  }}
-                >
-                  <Tag
-                    color={meta.color}
-                    style={{
-                      position: "absolute",
-                      top: 4,
-                      left: 4,
-                      margin: 0,
-                      fontSize: 9,
-                      padding: "0 5px",
-                      lineHeight: "16px",
-                      borderRadius: 3,
-                    }}
-                  >
-                    {meta.label}
-                  </Tag>
-                  <ShapePreview shape={shape} />
+  // The panel is deliberately non-modal (`modal={false}`) so shapes can be
+  // dragged onto the canvas — which means Radix does not block the page and the
+  // floating Chat/AI buttons stayed on top of it. Announce open/close on the
+  // same channel modals use; both FABs already listen.
+  useEffect(() => {
+    if (!open) return;
+    const fire = (v: boolean): void => {
+      window.dispatchEvent(new CustomEvent("vc:sheet-open", { detail: v }));
+    };
+    fire(true);
+    return () => fire(false);
+  }, [open]);
+
+  /* Group rows, rebuilt to match the app's accordion pattern (same shape as the
+     Templates browser): a rounded card per group with chevron + name + count.
+     Previously this fed Ant Design's <Collapse ghost>, whose chevron, spacing
+     and type scale are AntD's, not ours — which is what made the panel read as
+     a different design inside an otherwise `.tw` sheet. */
+  const groupList = (
+    <div className="flex flex-col gap-2">
+      {visible.map((g) => {
+        const isOpen = activeKeys.includes(g.id);
+        return (
+          <div
+            key={g.id}
+            className="rounded-xl border border-border bg-card overflow-hidden"
+          >
+            <button
+              type="button"
+              onClick={() =>
+                setActiveKeys((keys) =>
+                  keys.includes(g.id)
+                    ? keys.filter((k) => k !== g.id)
+                    : [...keys, g.id],
+                )
+              }
+              className="appearance-none cursor-pointer border-0 bg-transparent w-full flex items-center gap-2 px-3 py-2.5 text-left"
+            >
+              <ChevronRight
+                className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${
+                  isOpen ? "rotate-90" : ""
+                }`}
+              />
+              <span className="flex-1 min-w-0 truncate text-sm font-semibold text-foreground">
+                {g.name}
+              </span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground shrink-0 tabular-nums">
+                {g.shapes.length}
+              </span>
+            </button>
+
+            {isOpen &&
+              (g.shapes.length === 0 ? (
+                <div className="px-3 pb-3 text-xs text-muted-foreground text-center">
+                  No shapes
                 </div>
-                <div
-                  style={{
-                    padding: "6px 8px",
-                    fontSize: 11,
-                    fontWeight: 500,
-                    color: "#333",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    borderTop: "1px solid #f0f0f0",
-                  }}
-                >
-                  {shape.name}
+              ) : (
+                <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+                  {g.shapes.map((shape) => {
+                    const meta = TYPE_META[shape.type] || TYPE_META.stencil;
+                    return (
+                      <div
+                        key={shape.id}
+                        title={`Click or drag "${shape.name}" onto the canvas`}
+                        draggable={!!onDragShapeStart}
+                        onDragStart={(e) => onDragShapeStart?.(shape, e)}
+                        onDragEnd={() => onDragShapeEnd?.()}
+                        onClick={() => {
+                          onInsert(shape);
+                          onClose();
+                        }}
+                        className="rounded-xl border border-border bg-card overflow-hidden transition-colors hover:border-primary"
+                        style={{ cursor: onDragShapeStart ? "grab" : "pointer" }}
+                      >
+                        <div
+                          className="relative flex items-center justify-center p-2"
+                          style={{ height: 80, background: meta.bg }}
+                        >
+                          <span
+                            className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md border"
+                            style={{
+                              background: "var(--card)",
+                              color: meta.color,
+                              borderColor: meta.color,
+                            }}
+                          >
+                            {meta.label}
+                          </span>
+                          <ShapePreview shape={shape} />
+                        </div>
+                        <div className="px-2 py-1.5 text-[11px] font-medium text-foreground truncate border-t border-border">
+                          {shape.name}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      ),
-  }));
+              ))}
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     // bug-108: `modal={false}` is what makes drag-and-drop onto the canvas
@@ -384,11 +350,11 @@ export default function CustomShapesPanel({
       >
         <SheetHeader className="px-4 py-3 border-b border-border shrink-0">
           <SheetTitle className="flex items-center gap-2 text-sm font-medium">
-            <AppstoreOutlined style={{ color: "#3CB371" }} />
+            <AppstoreOutlined style={{ color: "var(--primary)" }} />
             <span>Custom Shapes</span>
             {totalShapes > 0 && (
-              <span style={{ fontSize: 11, color: "#888", fontWeight: 400 }}>
-                · {totalShapes} total
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-secondary text-primary-deep">
+                {totalShapes}
               </span>
             )}
           </SheetTitle>
@@ -397,18 +363,20 @@ export default function CustomShapesPanel({
         <div
           style={{
             padding: "10px 16px",
-            borderBottom: "1px solid #F0F0F0",
+            borderBottom: "1px solid var(--border)",
             flexShrink: 0,
           }}
         >
-          <Input
-            size="small"
-            prefix={<SearchOutlined style={{ color: "#BFBFBF" }} />}
-            placeholder="Search shapes or groups…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            allowClear
-          />
+          {/* App field pattern (rounded wrapper + bare input), not AntD's Input */}
+          <div className="flex items-center gap-2 h-10 px-3 rounded-xl border border-border bg-background transition-colors focus-within:border-primary">
+            <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+            <input
+              placeholder="Search shapes or groups…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 min-w-0 bg-transparent border-0 p-0 outline-none appearance-none text-sm"
+            />
+          </div>
         </div>
 
         <div
@@ -430,12 +398,7 @@ export default function CustomShapesPanel({
               style={{ padding: "40px 16px" }}
             />
           ) : (
-            <Collapse
-              ghost
-              activeKey={activeKeys}
-              onChange={(keys) => setActiveKeys(keys as string[])}
-              items={items}
-            />
+            groupList
           )}
         </div>
       </SheetContentNoOverlay>

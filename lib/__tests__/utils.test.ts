@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { cn } from "../utils";
 import { timeAgo, isFlowEmpty } from "../flowUtils";
-import { getLogoForApp, getIconForApp, LOGOS } from "../getLogo";
+import { getLogoForApp, LOGOS } from "../getLogo";
 
 describe("cn (className merge)", () => {
   it("joins multiple class strings", () => {
@@ -106,13 +106,3 @@ describe("getLogoForApp", () => {
   });
 });
 
-describe("getIconForApp", () => {
-  it("returns the Pro shield icon for the pro app", () => {
-    expect(getIconForApp("pro")).toBe(LOGOS.proIcon);
-  });
-  it("returns the standard logo for non-pro contexts", () => {
-    expect(getIconForApp("team")).toBe(LOGOS.standard);
-    expect(getIconForApp("free")).toBe(LOGOS.standard);
-    expect(getIconForApp(null)).toBe(LOGOS.standard);
-  });
-});

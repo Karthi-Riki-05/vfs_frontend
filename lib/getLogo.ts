@@ -9,7 +9,6 @@ const LOGOS = {
   standard: "/images/image.png",
   pro: "/images/vc_pro.png",
   team: "/images/vc_team.png",
-  proIcon: "/Logo/Symbol.png",
   proAppIcon40: "/Logo/Pro/icon-sizes-alt/40.png",
 } as const;
 
@@ -25,10 +24,12 @@ export function getLogoForApp(app: "pro" | "free" | "team" | null): string {
   return LOGOS.standard;
 }
 
-/** Shield icon only — used for collapsed sidebar or small avatar. */
-export function getIconForApp(app: "pro" | "free" | "team" | null): string {
-  return app === "pro" ? LOGOS.proIcon : LOGOS.standard;
-}
+/* NOTE (2026-08-14): `getIconForApp()` was removed. It returned
+   "/Logo/Symbol.png", which does not exist in public/ — every caller would have
+   got a 404 — and for non-Pro contexts it returned the full horizontal lockup,
+   not an icon. Nothing in the app called it; only its own unit test did.
+   The Header crops the lockup to its mark instead (see Header.tsx). If a real
+   icon-only asset is added later, reintroduce this with that file. */
 
 /** Read the forced-app mode from sessionStorage (per-tab, client-side only). */
 export function getForcedMode(): "pro" | "team" | null {

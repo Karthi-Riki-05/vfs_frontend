@@ -143,9 +143,12 @@ export function MobileDashboard({
     <div
       style={{
         background: "#F5F7F6",
-        paddingBottom: 100,
-        paddingLeft: 16,
-        paddingRight: 16,
+        // Page-container scale, shared with every other dashboard page:
+        // 20px sides / 12px top. Bottom is 0 — `.responsive-content` already
+        // reserves 140px on phones and the two stacked to 240px of dead scroll.
+        paddingBottom: 0,
+        paddingLeft: 20,
+        paddingRight: 20,
         paddingTop: 12,
       }}
     >

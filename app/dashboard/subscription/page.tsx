@@ -1757,7 +1757,7 @@ function SubscriptionPageInner() {
   };
 
   return (
-    <div className="tw px-4 md:px-8 max-w-5xl mx-auto pt-6 pb-24 space-y-4">
+    <div className="tw px-5 md:px-8 max-w-5xl mx-auto pt-3 md:pt-6 pb-24 max-[767px]:pb-0 space-y-4">
       <div>
         <h1 className="text-2xl font-extrabold text-foreground">
           Plan &amp; Pricing

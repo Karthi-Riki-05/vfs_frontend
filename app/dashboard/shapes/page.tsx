@@ -193,64 +193,34 @@ function CreateGroupOverlay({
   loading: boolean;
 }) {
   return (
-    <div
-      className="tw fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md bg-card rounded-2xl border border-border overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="text-base font-bold text-foreground">
-            Create New Group
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="appearance-none border-0 bg-transparent cursor-pointer w-8 h-8 max-lg:w-11 max-lg:h-11 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary"
-          >
-            <PlusIcon className="w-4 h-4 rotate-45" />
-          </button>
-        </div>
-        <div className="px-5 py-5">
-          <label className="block text-[13px] font-bold text-foreground mb-1.5">
-            Group Name <span className="text-[var(--coral)]">*</span>
-          </label>
-          <div className="flex items-center gap-2 h-11 px-3 rounded-xl border border-border bg-card">
-            <Folder className="w-4 h-4 text-muted-foreground" />
-            <input
-              autoFocus
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && value.trim() && !loading) onSubmit();
-              }}
-              placeholder="e.g. Marketing Team"
-              className="flex-1 min-w-0 bg-transparent outline-none border-0 p-0 appearance-none text-sm font-sans"
-            />
-          </div>
-        </div>
-        <div className="flex items-center justify-end gap-2 px-5 pb-5">
-          <button
-            type="button"
-            onClick={onClose}
-            className="appearance-none cursor-pointer h-10 px-4 rounded-xl border border-border bg-card text-sm font-semibold text-foreground"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!value.trim() || loading}
-            onClick={onSubmit}
-            className="appearance-none border-0 cursor-pointer h-10 px-5 rounded-xl bg-primary text-white text-sm font-bold disabled:opacity-50"
-          >
-            {loading ? "Creating…" : "Create"}
-          </button>
-        </div>
+    /* Was a hand-rolled overlay (`fixed inset-0 z-50 … bg-black/50`) — which is
+       why it looked nothing like the rest of the app AND why the FAB stack
+       (z-index 1000) painted over its Create button. Now the shared ModalShell,
+       identical to Chat's "Create Group" (RightChatColumn.tsx). */
+    <ModalShell open onClose={onClose}>
+      <ModalHeader title="Create New Group" close={onClose} />
+      <div className="px-5 pb-5">
+        <Field label="Group Name" required>
+          <FieldInput
+            autoFocus
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && value.trim() && !loading) onSubmit();
+            }}
+            placeholder="e.g. Marketing Team"
+            icon={<Folder className="w-4 h-4" />}
+          />
+        </Field>
       </div>
-    </div>
+      <ModalFooter
+        close={onClose}
+        primary={onSubmit}
+        primaryLabel="Create"
+        loading={loading}
+        disabled={!value.trim()}
+      />
+    </ModalShell>
   );
 }
 

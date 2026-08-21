@@ -9,6 +9,10 @@ interface TeamUpgradeModalProps {
   open: boolean;
   onClose: () => void;
   feature?: "teams" | "chat" | "export";
+  /** Optional middle action — e.g. Header's "Switch to team" for users who
+   *  already belong to a team but are viewing their personal context. */
+  secondaryLabel?: string;
+  onSecondary?: () => void;
 }
 
 const FEATURES = [
@@ -22,6 +26,8 @@ const TeamUpgradeModal: React.FC<TeamUpgradeModalProps> = ({
   open,
   onClose,
   feature = "teams",
+  secondaryLabel,
+  onSecondary,
 }) => {
   const router = useRouter();
   const isExport = feature === "export";
@@ -57,7 +63,7 @@ const TeamUpgradeModal: React.FC<TeamUpgradeModalProps> = ({
           ))}
         </div>
 
-        <div className="flex justify-end gap-2 mt-5">
+        <div className="flex justify-end gap-2 mt-5 flex-wrap">
           <button
             type="button"
             onClick={onClose}
@@ -65,6 +71,18 @@ const TeamUpgradeModal: React.FC<TeamUpgradeModalProps> = ({
           >
             Maybe Later
           </button>
+          {secondaryLabel && onSecondary && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onSecondary();
+              }}
+              className="appearance-none cursor-pointer outline-none h-11 px-5 rounded-xl border border-border bg-card font-semibold text-sm"
+            >
+              {secondaryLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {

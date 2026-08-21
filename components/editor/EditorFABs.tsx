@@ -17,6 +17,9 @@ export default function EditorFABs() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [aiOpen, setAiOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  // Any open sheet/drawer — e.g. the Custom Shapes panel, which is non-modal so
+  // it cannot block this button by itself. Same channel the modals use.
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // Poll unread count every 30s for badge
   useEffect(() => {
@@ -43,11 +46,15 @@ export default function EditorFABs() {
     const onAiClose = () => setAiOpen(false);
     const onChatOpen = () => setChatOpen(true);
     const onChatClose = () => setChatOpen(false);
+    const onSheet = (e: Event) =>
+      setSheetOpen((e as CustomEvent<boolean>).detail);
+    window.addEventListener("vc:sheet-open", onSheet);
     window.addEventListener("aiPanelOpened", onAiOpen);
     window.addEventListener("aiPanelClosed", onAiClose);
     window.addEventListener("chatPanelOpened", onChatOpen);
     window.addEventListener("chatPanelClosed", onChatClose);
     return () => {
+      window.removeEventListener("vc:sheet-open", onSheet);
       window.removeEventListener("aiPanelOpened", onAiOpen);
       window.removeEventListener("aiPanelClosed", onAiClose);
       window.removeEventListener("chatPanelOpened", onChatOpen);
@@ -79,12 +86,12 @@ export default function EditorFABs() {
         flexDirection: "column",
         alignItems: "center",
         gap: 12,
-        opacity: aiOpen || chatOpen ? 0 : 1,
+        opacity: aiOpen || chatOpen || sheetOpen ? 0 : 1,
         transform:
-          aiOpen || chatOpen
+          aiOpen || chatOpen || sheetOpen
             ? "scale(0.8) translateY(20px)"
             : "scale(1) translateY(0)",
-        pointerEvents: aiOpen || chatOpen ? "none" : "auto",
+        pointerEvents: aiOpen || chatOpen || sheetOpen ? "none" : "auto",
         transition: "opacity 0.25s ease, transform 0.25s ease",
       }}
     >

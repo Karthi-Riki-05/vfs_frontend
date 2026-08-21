@@ -273,7 +273,7 @@ export default function NotificationsPage() {
             <div className="font-bold text-foreground">
               No notifications yet
             </div>
-            <div className="text-sm text-muted-foreground mt-1 max-w-xs">
+            <div className="text-sm text-muted-foreground mt-1 max-w-sm sm:max-w-xs">
               You&apos;ll see alerts here when your flow packs are expiring or
               your plan changes.
             </div>
@@ -285,9 +285,16 @@ export default function NotificationsPage() {
               {g.items.map((n) => {
                 const s = styleFor(n.type);
                 return (
+                  /* Phones do NOT keep the icon/text/delete on one flex row —
+                     that left the message a ~200px column with the rest of the
+                     card empty, so every notification wrapped and clipped.
+                     Row 1 is icon + title + delete; the message and meta then
+                     span the FULL card width beneath. From `sm` up they indent
+                     back under the title (40px icon + 12px gap = 52px) so the
+                     desktop look is unchanged. */
                   <div
                     key={n.id}
-                    className={`relative flex items-start gap-3 p-3 rounded-2xl border mb-2 transition-colors bg-card overflow-hidden ${
+                    className={`relative p-3 rounded-2xl border mb-2 transition-colors bg-card overflow-hidden ${
                       n.isRead ? "border-border" : "border-border shadow-sm"
                     }`}
                   >
@@ -299,18 +306,43 @@ export default function NotificationsPage() {
                         style={{ background: s.c }}
                       />
                     )}
-                    <button
-                      onClick={() => handleClick(n)}
-                      className={`${RESET} flex items-start gap-3 flex-1 min-w-0 text-left`}
-                    >
+
+                    <div className="flex items-start gap-3 pl-[3px] sm:pl-0">
                       <div
                         className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                         style={{ background: s.bg, color: s.c }}
                       >
                         <s.I className="w-5 h-5" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => handleClick(n)}
+                        className={`${RESET} flex-1 min-w-0 text-left bg-transparent border-0 p-0`}
+                      >
+                        <div className="font-bold text-sm text-foreground">
+                          {n.title}
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => handleDelete(n.id, e)}
+                        aria-label="Delete notification"
+                        className="shrink-0 w-11 h-11 sm:w-8 sm:h-8 -mt-1.5 sm:mt-0 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[var(--coral)]/10 hover:text-[var(--coral)] transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => handleClick(n)}
+                      className={`${RESET} block w-full text-left bg-transparent border-0 p-0 pl-[3px] sm:pl-[52px]`}
+                    >
+                      <div className="text-[12px] text-muted-foreground mt-1 leading-snug">
+                        {n.message}
+                      </div>
+                      {/* Kind chip anchors left, timestamp right — the two are
+                          different kinds of information and reading them as one
+                          run made the row hard to scan. */}
+                      <div className="flex items-center justify-between gap-2 mt-1.5 sm:justify-start sm:flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
                           <span
                             className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
                             style={{ background: s.bg, color: s.c }}
@@ -324,23 +356,10 @@ export default function NotificationsPage() {
                             />
                           )}
                         </div>
-                        <div className="font-bold text-sm text-foreground truncate mt-0.5">
-                          {n.title}
-                        </div>
-                        <div className="text-[12px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
-                          {n.message}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground mt-1">
+                        <span className="text-[10px] text-muted-foreground shrink-0">
                           {timeAgo(n.createdAt)}
-                        </div>
+                        </span>
                       </div>
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(n.id, e)}
-                      aria-label="Delete notification"
-                      className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[var(--coral)]/10 hover:text-[var(--coral)] transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 );

@@ -15,7 +15,8 @@
     "e2e:ui": "playwright test --ui",
     "e2e:headed": "playwright test --headed",
     "e2e:flowpack": "playwright test e2e/flow-pack.spec.ts",
-    "e2e:report": "playwright show-report"
+    "e2e:report": "playwright show-report",
+    "e2e:ergonomics": "playwright test -c playwright.ergonomics.config.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^5.3.7",

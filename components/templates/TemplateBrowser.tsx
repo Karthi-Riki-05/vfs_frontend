@@ -1,5 +1,6 @@
 "use client";
 
+import { ModalShell, ModalHeader } from "@/components/common/Modal";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   fetchTemplates,
@@ -109,138 +110,22 @@ export default function TemplateBrowser({
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        onClick={handleClose}
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.4)",
-          zIndex: 1000,
-          animation: closing
-            ? "tmplFadeOut 0.22s ease forwards"
-            : "tmplFadeIn 0.18s ease forwards",
-        }}
-      />
-
-      {/* Main modal */}
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 1001,
-          display: "flex",
-          alignItems: isMobile ? "flex-end" : "center",
-          justifyContent: "center",
-          padding: isMobile ? 0 : 24,
-          pointerEvents: "none",
-        }}
-      >
-        <div
+      {/* Frame is the shared ModalShell. This component hand-rolled its own
+          backdrop, fixed wrapper, sheet animation and drag handle — none of
+          which any other dialog has, which is why it read as a different theme.
+          ModalShell also brings ESC, the focus trap, and the `vc:sheet-open`
+          dispatch that moves the floating buttons out of the way. */}
+      <ModalShell open onClose={handleClose} size="wide">
+            <ModalHeader title="Templates" close={handleClose} />
+        <p
           style={{
-            background: "#fff",
-            borderRadius: isMobile ? "20px 20px 0 0" : 16,
-            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            width: isMobile ? "100%" : 900,
-            maxWidth: isMobile ? "100%" : "95vw",
-            height: isMobile ? "90vh" : 620,
-            maxHeight: "90vh",
-            pointerEvents: "all",
-            animation: closing
-              ? isMobile
-                ? "tmplSheetOut 0.22s ease forwards"
-                : "tmplModalOut 0.22s cubic-bezier(0.4,0,1,1) forwards"
-              : isMobile
-                ? "tmplSheetIn 0.25s ease forwards"
-                : "tmplModalIn 0.28s cubic-bezier(0.16,1,0.3,1) forwards",
+            margin: "-10px 20px 10px",
+            fontSize: 12,
+            color: "var(--muted-foreground)",
           }}
         >
-          {/* Drag handle (mobile) */}
-          {isMobile && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                padding: "10px 0 0",
-              }}
-            >
-              <div
-                style={{
-                  width: 36,
-                  height: 4,
-                  borderRadius: 2,
-                  background: "#D9D9D9",
-                }}
-              />
-            </div>
-          )}
-
-          {/* Header */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: isMobile ? "10px 16px 12px" : "16px 20px",
-              borderBottom: "1px solid #f0f0f0",
-              flexShrink: 0,
-            }}
-          >
-            <div>
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: 18,
-                  fontWeight: 600,
-                  color: "#1a1a2e",
-                }}
-              >
-                Templates
-              </h2>
-              <p style={{ margin: "2px 0 0", fontSize: 12, color: "#999" }}>
-                Choose a template to start with
-              </p>
-            </div>
-            <button
-              onClick={handleClose}
-              style={{
-                width: 32,
-                height: 32,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 8,
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                color: "#999",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "#f5f5f5")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
-            >
-              <svg
-                width={16}
-                height={16}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
+          Choose a template to start with
+        </p>
 
           {isMobile ? (
             /* ── Mobile: accordion view ── */
@@ -257,7 +142,7 @@ export default function TemplateBrowser({
                   padding: "12px 16px 8px",
                   position: "sticky",
                   top: 0,
-                  background: "#fff",
+                  background: "var(--card)",
                   zIndex: 2,
                 }}
               >
@@ -266,8 +151,8 @@ export default function TemplateBrowser({
                     display: "flex",
                     alignItems: "center",
                     gap: 8,
-                    background: "#f8f8f8",
-                    border: "1px solid #e8e8e8",
+                    background: "var(--secondary)",
+                    border: "1px solid var(--border)",
                     borderRadius: 10,
                     padding: "8px 12px",
                   }}
@@ -276,7 +161,7 @@ export default function TemplateBrowser({
                     width={14}
                     height={14}
                     fill="none"
-                    stroke="#999"
+                    stroke="var(--muted-foreground)"
                     viewBox="0 0 24 24"
                   >
                     <path
@@ -296,7 +181,7 @@ export default function TemplateBrowser({
                       border: "none",
                       outline: "none",
                       fontSize: 14,
-                      color: "#333",
+                      color: "var(--foreground)",
                     }}
                   />
                   {search && (
@@ -307,7 +192,7 @@ export default function TemplateBrowser({
                         border: "none",
                         padding: 0,
                         cursor: "pointer",
-                        color: "#999",
+                        color: "var(--muted-foreground)",
                         fontSize: 16,
                         lineHeight: 1,
                       }}
@@ -330,7 +215,7 @@ export default function TemplateBrowser({
                     style={{
                       width: 24,
                       height: 24,
-                      border: "2px solid #3CB371",
+                      border: "2px solid var(--primary)",
                       borderTopColor: "transparent",
                       borderRadius: "50%",
                       animation: "tmplSpin 0.6s linear infinite",
@@ -344,7 +229,7 @@ export default function TemplateBrowser({
                     <p
                       style={{
                         textAlign: "center",
-                        color: "#999",
+                        color: "var(--muted-foreground)",
                         fontSize: 14,
                         padding: "32px 0",
                       }}
@@ -388,7 +273,7 @@ export default function TemplateBrowser({
                           key={cat}
                           style={{
                             marginBottom: 8,
-                            background: "#fff",
+                            background: "var(--card)",
                             border: isOpen
                               ? "1px solid #D1FAE5"
                               : "1px solid #F0F0F0",
@@ -419,7 +304,7 @@ export default function TemplateBrowser({
                                 width: 40,
                                 height: 40,
                                 borderRadius: 12,
-                                background: catMeta?.color || "#f0f0f0",
+                                background: catMeta?.color || "var(--border)",
                                 flexShrink: 0,
                                 display: "flex",
                                 alignItems: "center",
@@ -439,13 +324,13 @@ export default function TemplateBrowser({
                                 style={{
                                   fontSize: 14,
                                   fontWeight: 600,
-                                  color: "#333",
+                                  color: "var(--foreground)",
                                   display: "block",
                                 }}
                               >
                                 {cat}
                               </span>
-                              <span style={{ fontSize: 11, color: "#999" }}>
+                              <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
                                 {catTemplates.length} template
                                 {catTemplates.length !== 1 ? "s" : ""}
                               </span>
@@ -454,7 +339,7 @@ export default function TemplateBrowser({
                               style={{
                                 width: 18,
                                 height: 18,
-                                color: isOpen ? "#3CB371" : "#bbb",
+                                color: isOpen ? "var(--primary)" : "#bbb",
                                 flexShrink: 0,
                                 transition: "transform 0.2s ease, color 0.2s",
                                 transform: isOpen
@@ -512,7 +397,7 @@ export default function TemplateBrowser({
                 style={{
                   width: 180,
                   flexShrink: 0,
-                  borderRight: "1px solid #f0f0f0",
+                  borderRight: "1px solid var(--border)",
                   paddingTop: 12,
                   overflowY: "auto",
                 }}
@@ -524,8 +409,8 @@ export default function TemplateBrowser({
                       display: "flex",
                       alignItems: "center",
                       gap: 8,
-                      background: "#f8f8f8",
-                      border: "1px solid #e8e8e8",
+                      background: "var(--secondary)",
+                      border: "1px solid var(--border)",
                       borderRadius: 8,
                       padding: "6px 10px",
                     }}
@@ -534,7 +419,7 @@ export default function TemplateBrowser({
                       width={14}
                       height={14}
                       fill="none"
-                      stroke="#999"
+                      stroke="var(--muted-foreground)"
                       viewBox="0 0 24 24"
                     >
                       <path
@@ -554,7 +439,7 @@ export default function TemplateBrowser({
                         border: "none",
                         outline: "none",
                         fontSize: 12,
-                        color: "#333",
+                        color: "var(--foreground)",
                       }}
                     />
                   </div>
@@ -582,7 +467,7 @@ export default function TemplateBrowser({
                         fontWeight: isActive ? 600 : 400,
                         cursor: "pointer",
                         borderRight: isActive
-                          ? "2px solid #3CB371"
+                          ? "2px solid var(--primary)"
                           : "2px solid transparent",
                         transition: "all 0.15s",
                         display: "flex",
@@ -591,7 +476,7 @@ export default function TemplateBrowser({
                       }}
                       onMouseEnter={(e) => {
                         if (!isActive)
-                          e.currentTarget.style.background = "#fafafa";
+                          e.currentTarget.style.background = "var(--secondary)";
                       }}
                       onMouseLeave={(e) => {
                         if (!isActive)
@@ -610,7 +495,7 @@ export default function TemplateBrowser({
                       <span
                         style={{
                           fontSize: 11,
-                          color: "#aaa",
+                          color: "var(--muted-foreground)",
                           flexShrink: 0,
                           marginLeft: 4,
                         }}
@@ -637,7 +522,7 @@ export default function TemplateBrowser({
                       style={{
                         width: 24,
                         height: 24,
-                        border: "2px solid #3CB371",
+                        border: "2px solid var(--primary)",
                         borderTopColor: "transparent",
                         borderRadius: "50%",
                         animation: "tmplSpin 0.6s linear infinite",
@@ -651,7 +536,7 @@ export default function TemplateBrowser({
                       alignItems: "center",
                       justifyContent: "center",
                       height: "100%",
-                      color: "#999",
+                      color: "var(--muted-foreground)",
                       fontSize: 14,
                     }}
                   >
@@ -686,17 +571,17 @@ export default function TemplateBrowser({
               paddingBottom: isMobile
                 ? "max(8px, env(safe-area-inset-bottom))"
                 : "10px",
-              borderTop: "1px solid #f0f0f0",
+              borderTop: "1px solid var(--border)",
               display: "flex",
               alignItems: "center",
               justifyContent: isMobile ? "center" : "space-between",
               flexShrink: 0,
-              background: "#fafafa",
+              background: "var(--secondary)",
               gap: 8,
             }}
           >
             {!isMobile && (
-              <span style={{ fontSize: 12, color: "#aaa" }}>
+              <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
                 {filtered.length} template{filtered.length !== 1 ? "s" : ""}
               </span>
             )}
@@ -718,18 +603,18 @@ export default function TemplateBrowser({
                     gap: 6,
                     padding: isMobile ? "10px 16px" : "6px 16px",
                     fontSize: 13,
-                    color: "#666",
+                    color: "var(--muted-foreground)",
                     flex: isMobile ? 1 : undefined,
-                    background: "#fff",
+                    background: "var(--card)",
                     border: "1px solid #ddd",
                     borderRadius: 8,
                     cursor: "pointer",
                   }}
                   onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "#f5f5f5")
+                    (e.currentTarget.style.background = "var(--secondary)")
                   }
                   onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "#fff")
+                    (e.currentTarget.style.background = "var(--card)")
                   }
                 >
                   <svg
@@ -754,7 +639,7 @@ export default function TemplateBrowser({
                 style={{
                   padding: isMobile ? "10px 16px" : "6px 16px",
                   fontSize: 13,
-                  color: "#666",
+                  color: "var(--muted-foreground)",
                   flex: isMobile ? 1 : undefined,
                   background: "transparent",
                   border: "1px solid #ddd",
@@ -762,7 +647,7 @@ export default function TemplateBrowser({
                   cursor: "pointer",
                 }}
                 onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "#f5f5f5")
+                  (e.currentTarget.style.background = "var(--secondary)")
                 }
                 onMouseLeave={(e) =>
                   (e.currentTarget.style.background = "transparent")
@@ -772,8 +657,7 @@ export default function TemplateBrowser({
               </button>
             </div>
           </div>
-        </div>
-      </div>
+      </ModalShell>
 
       {/* Preview modal */}
       {selected && (
@@ -815,24 +699,24 @@ function MobileTemplateCard({
         borderRadius: 10,
         overflow: "hidden",
         cursor: "pointer",
-        border: "1px solid #e8e8e8",
-        background: "#fff",
+        border: "1px solid var(--border)",
+        background: "var(--card)",
         transition: "box-shadow 0.15s, border-color 0.15s",
       }}
       onTouchStart={(e) => {
-        e.currentTarget.style.borderColor = "#3CB371";
+        e.currentTarget.style.borderColor = "var(--primary)";
         e.currentTarget.style.boxShadow = "0 2px 8px rgba(60,179,113,0.15)";
       }}
       onTouchEnd={(e) => {
-        e.currentTarget.style.borderColor = "#e8e8e8";
+        e.currentTarget.style.borderColor = "var(--border)";
         e.currentTarget.style.boxShadow = "none";
       }}
     >
       <div
         style={{
           height: 80,
-          background: "#f8f9fa",
-          borderBottom: "1px solid #f0f0f0",
+          background: "var(--secondary)",
+          borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -864,7 +748,7 @@ function MobileTemplateCard({
             margin: 0,
             fontSize: 11,
             fontWeight: 600,
-            color: "#1a1a2e",
+            color: "var(--foreground)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -894,11 +778,11 @@ function TemplateCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        border: hovered ? "1px solid #3CB371" : "1px solid #e8e8e8",
+        border: hovered ? "1px solid var(--primary)" : "1px solid var(--border)",
         borderRadius: 12,
         overflow: "hidden",
         cursor: "pointer",
-        background: "#fff",
+        background: "var(--card)",
         boxShadow: hovered ? "0 4px 12px rgba(60,179,113,0.15)" : "none",
         transition: "all 0.2s",
         transform: hovered ? "translateY(-2px)" : "translateY(0)",
@@ -908,8 +792,8 @@ function TemplateCard({
       <div
         style={{
           height: 120,
-          background: "#f8f9fa",
-          borderBottom: "1px solid #f0f0f0",
+          background: "var(--secondary)",
+          borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -963,7 +847,7 @@ function TemplateCard({
                 width={14}
                 height={14}
                 fill="none"
-                stroke="#3CB371"
+                stroke="var(--primary)"
                 viewBox="0 0 24 24"
               >
                 <path
@@ -985,7 +869,7 @@ function TemplateCard({
             margin: 0,
             fontSize: 12,
             fontWeight: 600,
-            color: "#1a1a2e",
+            color: "var(--foreground)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -997,7 +881,7 @@ function TemplateCard({
           style={{
             margin: "2px 0 0",
             fontSize: 11,
-            color: "#aaa",
+            color: "var(--muted-foreground)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -1085,7 +969,7 @@ function TemplatePreview({
       >
         <div
           style={{
-            background: "#fff",
+            background: "var(--card)",
             borderRadius: 20,
             boxShadow: "0 32px 64px -12px rgba(0,0,0,0.28)",
             overflow: "hidden",
@@ -1126,7 +1010,7 @@ function TemplatePreview({
                   height={32}
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#3CB371"
+                  stroke="var(--primary)"
                   strokeWidth={2}
                   style={{ animation: "spin 1s linear infinite" }}
                 >
@@ -1180,7 +1064,7 @@ function TemplatePreview({
                 margin: "0 0 8px",
                 fontSize: 18,
                 fontWeight: 700,
-                color: "#1a1a2e",
+                color: "var(--foreground)",
                 lineHeight: 1.3,
               }}
             >
@@ -1222,8 +1106,8 @@ function TemplatePreview({
                   fontSize: 13,
                   fontWeight: 500,
                   color: "#555",
-                  background: "#f5f5f5",
-                  border: "1px solid #e8e8e8",
+                  background: "var(--secondary)",
+                  border: "1px solid var(--border)",
                   borderRadius: 10,
                   cursor: "pointer",
                   transition: "background 0.15s",
@@ -1232,7 +1116,7 @@ function TemplatePreview({
                   (e.currentTarget.style.background = "#ebebeb")
                 }
                 onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "#f5f5f5")
+                  (e.currentTarget.style.background = "var(--secondary)")
                 }
               >
                 Cancel
@@ -1244,8 +1128,8 @@ function TemplatePreview({
                   padding: "10px 24px",
                   fontSize: 13,
                   fontWeight: 700,
-                  color: "#fff",
-                  background: inserting ? "#9ACD9A" : "#3CB371",
+                  color: "var(--card)",
+                  background: inserting ? "#9ACD9A" : "var(--primary)",
                   border: "none",
                   borderRadius: 10,
                   cursor: inserting ? "not-allowed" : "pointer",
@@ -1265,7 +1149,7 @@ function TemplatePreview({
                 }}
                 onMouseLeave={(e) => {
                   if (!inserting) {
-                    e.currentTarget.style.background = "#3CB371";
+                    e.currentTarget.style.background = "var(--primary)";
                     e.currentTarget.style.transform = "translateY(0)";
                   }
                 }}

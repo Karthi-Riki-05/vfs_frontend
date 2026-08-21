@@ -165,10 +165,10 @@ export default function FloatingActionButton({
         right,
         zIndex: 1000,
         // Fade out (matching the AI button) when the mobile sidebar is open.
-        opacity: hidden || (isMobile && sheetOpen) ? 0 : 1,
-        pointerEvents: hidden || (isMobile && sheetOpen) ? "none" : "auto",
+        opacity: hidden || sheetOpen ? 0 : 1,
+        pointerEvents: hidden || sheetOpen ? "none" : "auto",
         transform:
-          hidden || (isMobile && sheetOpen) ? "scale(0.9)" : "scale(1)",
+          hidden || sheetOpen ? "scale(0.9)" : "scale(1)",
         transition: "opacity 0.3s ease, transform 0.3s ease",
       }}
     >

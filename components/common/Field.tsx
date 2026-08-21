@@ -50,7 +50,7 @@ export function FieldInput({
         {...props}
         type={type}
         disabled={disabled}
-        className="flex-1 bg-transparent text-sm font-sans appearance-none border-0 p-0 disabled:text-muted-foreground"
+        className="flex-1 min-w-0 bg-transparent text-sm font-sans appearance-none border-0 p-0 outline-none disabled:text-muted-foreground"
       />
       {eye && (
         <button

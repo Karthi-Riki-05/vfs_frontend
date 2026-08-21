@@ -1231,9 +1231,9 @@ export default function AIAssistant({
                 ? 92
                 : 28,
             right: isMobile ? 20 : 24,
-            opacity: (isMobile && sheetOpen) || chatPanelOpen ? 0 : 1,
+            opacity: sheetOpen || chatPanelOpen ? 0 : 1,
             pointerEvents:
-              (isMobile && sheetOpen) || chatPanelOpen ? "none" : "auto",
+              sheetOpen || chatPanelOpen ? "none" : "auto",
             transition: "opacity 0.25s ease, transform 0.25s ease",
             transform: chatPanelOpen
               ? "scale(0.8) translateY(20px)"

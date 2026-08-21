@@ -540,7 +540,6 @@ export default function BillingPage() {
 
       {/* ── Transaction history ── */}
       <div className="rounded-2xl bg-card border border-border p-5">
-        <div className="font-bold text-sm mb-3">Transaction History</div>
         <button
           onClick={() => setTxOpen((o) => !o)}
           className={`${RESET} w-full flex items-center justify-between px-3 h-11 rounded-xl bg-secondary`}
@@ -572,18 +571,21 @@ export default function BillingPage() {
                   {mappedTransactions.map((t) => (
                     <div
                       key={t.id}
-                      className="flex items-center justify-between py-3"
+                      /* Phones stack: the description gets the full card width
+                         instead of competing with the amount on one line. From
+                         `sm` up it returns to the original two-column row. */
+                      className="py-3 sm:flex sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0">
-                        <div className="font-semibold text-sm truncate">
+                        <div className="font-semibold text-sm sm:truncate">
                           {t.description}
                         </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                        <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
                           {t.date}
                           {getTransactionBadge(t.status)}
                         </div>
                       </div>
-                      <div className="font-bold text-sm shrink-0 ml-3">
+                      <div className="font-bold text-sm shrink-0 mt-1 sm:mt-0 sm:ml-3">
                         {t.amount}
                       </div>
                     </div>
@@ -606,7 +608,6 @@ export default function BillingPage() {
 
       {/* ── Subscription history (both apps — AI-addon buys write appContext-tagged rows too) ── */}
       <div className="rounded-2xl bg-card border border-border p-5">
-        <div className="font-bold text-sm mb-3">Subscription History</div>
         <button
           onClick={() => setSubOpen((o) => !o)}
           className={`${RESET} w-full flex items-center justify-between px-3 h-11 rounded-xl bg-secondary`}
@@ -617,7 +618,7 @@ export default function BillingPage() {
           <div className="flex items-center gap-2 min-w-0">
             <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
             <span className="text-sm font-semibold truncate">
-              Subscription History
+              Subscription
             </span>
             <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-card border border-border text-muted-foreground">
               {mappedHistory.length}
@@ -636,7 +637,7 @@ export default function BillingPage() {
             <div className="py-8 px-4 text-center text-sm text-muted-foreground">
               No past plans yet. This lists plans that have ended — your
               current plan is shown at the top of this page, and individual
-              payments appear under Transaction History above.
+              payments appear under Transactions above.
             </div>
           ) : (
             <>
@@ -644,10 +645,10 @@ export default function BillingPage() {
                 {mappedHistory.map((s) => (
                   <div
                     key={s.id}
-                    className="flex items-center justify-between py-3"
+                    className="py-3 sm:flex sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
-                      <div className="font-semibold text-sm truncate">
+                      <div className="font-semibold text-sm sm:truncate">
                         {s.planName}
                       </div>
                       <div className="text-[11px] text-muted-foreground mt-0.5">
@@ -655,7 +656,7 @@ export default function BillingPage() {
                       </div>
                     </div>
                     {s.reason && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground shrink-0 ml-3">
+                      <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground shrink-0 mt-1 sm:mt-0 sm:ml-3">
                         {s.reason}
                       </span>
                     )}
@@ -695,10 +696,10 @@ export default function BillingPage() {
               {mappedFlowPacks.map((p) => (
                 <div
                   key={p.id}
-                  className="flex items-center justify-between py-3"
+                  className="py-3 sm:flex sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
-                    <div className="font-semibold text-sm truncate">
+                    <div className="font-semibold text-sm sm:truncate">
                       {p.label}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
@@ -706,7 +707,7 @@ export default function BillingPage() {
                       {p.expiryLabel ? ` · ${p.expiryLabel}` : ""}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <div className="flex items-center gap-2 shrink-0 mt-1 sm:mt-0 sm:ml-3">
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground capitalize">
                       {p.status}
                     </span>

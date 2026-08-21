@@ -54,6 +54,7 @@ next-env.d.ts
 /verify-*.mjs
 /profile-*.mjs
 e2e/.auth/gate.json
+e2e/.auth/ergonomics.json
 e2e/APP_SWITCHER_AUDIT.md
 e2e/**/*-snapshots/
 sidebar-audit/

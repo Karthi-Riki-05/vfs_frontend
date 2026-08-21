@@ -95,7 +95,10 @@ function Paginator({
   for (let i = start; i <= end; i++) pages.push(i);
 
   return (
-    <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
+    /* Phones: page-size / pager / total stack, with the pager CENTRED on its own
+       row. Previously all three were justify-between siblings, which put the
+       page numbers wherever the two labels happened to leave room. */
+    <div className="flex flex-col items-center gap-3 mt-3 sm:flex-row sm:justify-between sm:flex-wrap">
       <div className="relative">
         <select
           value={pageSize}
@@ -113,7 +116,7 @@ function Paginator({
         </select>
         <ChevronDown className="w-3 h-3 text-muted-foreground absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center justify-center gap-1 order-first sm:order-none">
         <button
           disabled={page === 1}
           onClick={() => onPage(page - 1)}
@@ -768,7 +771,7 @@ export default function TeamsPage() {
                     setMemberSearch(e.target.value);
                     setMemberPage(1);
                   }}
-                  placeholder="Search name or email…"
+                  placeholder="Search members…"
                   className="flex-1 bg-transparent outline-none text-sm border-0 p-0 appearance-none min-w-0"
                 />
                 {memberSearch && (
@@ -907,14 +910,20 @@ export default function TeamsPage() {
                         <div className="text-[11px] text-muted-foreground truncate">
                           {email}
                         </div>
+                        {/* Phones: the badge sits under the email. Beside the
+                            name it is a `shrink-0` sibling, so the name absorbs
+                            the whole width deficit and truncates instead. */}
+                        <div className="mt-1 sm:hidden">
+                          <RoleBadge role={m.role} />
+                        </div>
                       </div>
 
                       {/* No team names here on purpose — this list is the
                           workspace, not the teams. Which teams someone is in
                           is shown per team in the All Teams section. */}
 
-                      {/* Role badge */}
-                      <div className="shrink-0">
+                      {/* Role badge — desktop only; phones show it above. */}
+                      <div className="shrink-0 hidden sm:block">
                         <RoleBadge role={m.role} />
                       </div>
 

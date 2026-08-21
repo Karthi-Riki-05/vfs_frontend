@@ -37,6 +37,20 @@ export function ModalShell({
         : size === "lg"
           ? "sm:max-w-lg"
           : "sm:max-w-md";
+  // Tell the floating buttons to get out of the way. FloatingActionButton and
+  // AIAssistant both already listen for `vc:sheet-open` — nothing ever
+  // dispatched it for `.tw` modals, so at an equal z-index (both 1000) DOM
+  // order decided and the FAB stack painted over dialogs, covering their
+  // primary action.
+  useEffect(() => {
+    if (!open) return;
+    const fire = (v: boolean): void => {
+      window.dispatchEvent(new CustomEvent("vc:sheet-open", { detail: v }));
+    };
+    fire(true);
+    return () => fire(false);
+  }, [open]);
+
   useEffect(() => {
     if (!open || disableClose) return;
     const onKey = (e: KeyboardEvent) => {
