@@ -51,6 +51,13 @@ export default function LoginForm() {
   const [isWebView, setIsWebView] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
+  // Guards the OAuth hand-off against a second tap. In WKWebView the first
+  // navigation to appleid.apple.com raises the NATIVE Sign in with Apple
+  // sheet; a second signIn() fires a second navigation that cancels that
+  // hand-off, so Apple falls back to its web login form — the "double tap
+  // shows the Apple web page" bug reported 2026-08-22. It also stops the
+  // second call from overwriting NextAuth's state/PKCE cookies.
+  const [socialPending, setSocialPending] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const verified = searchParams?.get("verified") ?? null;
@@ -204,13 +211,22 @@ export default function LoginForm() {
   };
 
   const socialLogin = (provider: "google" | "apple" | "linkedin" | "facebook") => {
+    // One hand-off at a time — see socialPending above. The redirect to the
+    // provider can take a second or two on a cold WebView, which is exactly
+    // the window in which a user taps again.
+    if (socialPending) return;
+    setSocialPending(provider);
     // Use UA detection only — ignore ?callbackUrl= URL param so a stale
     // /dashboard/pro param from a previous session never overrides the
     // correct landing page for web users.
     const appType = getClientAppType();
     const callbackUrl =
       appType === "pro" ? "/dashboard/pro" : "/dashboard/team";
-    return signIn(provider, { callbackUrl });
+    // Re-arm if the hand-off never navigates (offline, provider error),
+    // otherwise the buttons would stay dead until a manual reload.
+    return signIn(provider, { callbackUrl }).catch(() => {
+      setSocialPending(null);
+    });
   };
 
   const Shell = isDesktop ? DesktopAuthShell : AuthShell;
@@ -415,7 +431,10 @@ export default function LoginForm() {
             this is the only alternative sign-in that actually works there. */}
         <div className="space-y-3 pt-2">
           <BiometricSignInButton />
-          <SocialRow disabled={isWebView} onProvider={socialLogin} />
+          <SocialRow
+            disabled={isWebView || socialPending !== null}
+            onProvider={socialLogin}
+          />
         </div>
       </form>
     </>
@@ -509,7 +528,10 @@ export default function LoginForm() {
           <BiometricSignInButton />
 
           {/* Social buttons — 3-col grid */}
-          <SocialRow disabled={isWebView} onProvider={socialLogin} />
+          <SocialRow
+            disabled={isWebView || socialPending !== null}
+            onProvider={socialLogin}
+          />
 
           {/* OR divider */}
           <OrDivider label="OR CONTINUE WITH EMAIL" />

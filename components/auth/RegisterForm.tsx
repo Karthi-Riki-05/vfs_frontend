@@ -69,6 +69,10 @@ export default function RegisterForm() {
   const [isWebView, setIsWebView] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
+  // Same one-tap guard as LoginForm — a second signIn() cancels WKWebView's
+  // native Sign in with Apple hand-off and drops the user on Apple's web
+  // login form instead (reported 2026-08-22).
+  const [socialPending, setSocialPending] = useState<string | null>(null);
   const [existsCode, setExistsCode] = useState<
     "PRO_USER_EXISTS" | "TEAM_USER_EXISTS" | "USER_EXISTS" | null
   >(null);
@@ -145,8 +149,17 @@ export default function RegisterForm() {
 
   const isDesktop = useIsDesktop();
 
-  const socialSignup = (provider: "google" | "apple" | "linkedin" | "facebook") =>
-    signIn(provider, { callbackUrl: getPostLoginDashboardUrl() });
+  const socialSignup = (
+    provider: "google" | "apple" | "linkedin" | "facebook",
+  ) => {
+    if (socialPending) return;
+    setSocialPending(provider);
+    return signIn(provider, { callbackUrl: getPostLoginDashboardUrl() }).catch(
+      () => {
+        setSocialPending(null);
+      },
+    );
+  };
 
   const Shell = isDesktop ? DesktopAuthShell : AuthShell;
 
@@ -241,7 +254,10 @@ export default function RegisterForm() {
       )}
 
       {/* Social buttons */}
-      <SocialRow disabled={isWebView} onProvider={socialSignup} />
+      <SocialRow
+        disabled={isWebView || socialPending !== null}
+        onProvider={socialSignup}
+      />
 
       <OrDivider label="OR SIGN UP WITH EMAIL" />
 
