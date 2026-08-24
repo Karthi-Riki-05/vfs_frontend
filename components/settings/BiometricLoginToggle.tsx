@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Fingerprint, ScanFace } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -25,6 +26,13 @@ import {
  * state where a credential is live on the server but absent from the device.
  */
 export default function BiometricLoginToggle() {
+  // The signed-in user's own id. Enrolment is filed against it, and the switch
+  // reflects THIS account rather than "somebody enrolled on this phone" — which
+  // is what it used to say, misleading anyone sharing the device.
+  const { data: session } = useSession();
+  const accountId = (session?.user as { id?: string } | undefined)?.id ?? "";
+  const accountLabel = session?.user?.email ?? "";
+
   const [show, setShow] = useState(false);
   const [enrolled, setEnrolled] = useState(false);
   const [kind, setKind] = useState<"face" | "fingerprint" | "none">(
@@ -43,11 +51,15 @@ export default function BiometricLoginToggle() {
     }
     const status = await getBiometricStatus();
     setShow(status.available);
-    setEnrolled(status.enrolled);
+    // Only THIS user's entry counts. A phone can hold several accounts, and
+    // reporting "on" because a colleague enrolled here told the user their own
+    // fingerprint login worked when it would have opened someone else's
+    // account.
+    setEnrolled(status.accounts.some((a) => a.id === accountId));
     if (status.kind) setKind(status.kind);
     if (status.deviceId) setDeviceId(status.deviceId);
     if (status.platform) setPlatform(status.platform);
-  }, []);
+  }, [accountId]);
 
   useEffect(() => {
     void refresh();
@@ -84,6 +96,10 @@ export default function BiometricLoginToggle() {
 
   async function onToggle() {
     if (busy) return;
+    if (!accountId) {
+      toast.error("Still loading your account. Try again in a moment.");
+      return;
+    }
     // A missing deviceId means the shell never answered the status request —
     // the switch would otherwise be a dead control that silently does nothing,
     // which is indistinguishable from the feature being broken.
@@ -95,7 +111,7 @@ export default function BiometricLoginToggle() {
     setBusy(true);
     try {
       if (enrolled) {
-        await disableBiometric(deviceId);
+        await disableBiometric(deviceId, accountId);
         setEnrolled(false);
         toast.success(`${label} turned off`);
       } else {
@@ -103,7 +119,12 @@ export default function BiometricLoginToggle() {
         // confirmed the credential is stored.
         // `platform` comes from the shell, not the User-Agent — the shell's
         // custom UA is identical on iOS and Android by design.
-        const ok = await enrolBiometric(deviceId, platform);
+        const ok = await enrolBiometric(
+          deviceId,
+          platform,
+          accountId,
+          accountLabel,
+        );
         setEnrolled(ok);
         if (ok) {
           toast.success(`${label} is on`);
@@ -136,6 +157,14 @@ export default function BiometricLoginToggle() {
         <div className="text-sm font-semibold">{label}</div>
         <div className="text-xs text-muted-foreground mt-0.5">
           Unlock ValueFlow without typing your password
+        </div>
+        {/* Says the quiet part out loud. The credential is gated on THIS
+            PHONE's biometrics, so enrolling on a phone that is not yours hands
+            its owner access to your account — which the user cannot infer from
+            "unlock without a password". */}
+        <div className="text-[11px] text-muted-foreground/80 mt-1">
+          Anyone who can unlock this phone will be able to sign in to this
+          account.
         </div>
       </div>
       <button

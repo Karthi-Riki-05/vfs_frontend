@@ -23,12 +23,29 @@ import { getClientAppType, isNativeAppWebView } from "./detectWebView";
 
 /** Messages this module sends over NativeBridge. */
 const MSG_ENROL = "biometric-enrol:";
-const MSG_DISABLE = "biometric-disable";
-const MSG_UNLOCK = "biometric-unlock";
+const MSG_DISABLE = "biometric-disable:";
+const MSG_UNLOCK = "biometric-unlock:";
 /** Shell answers on this event, mirroring the `flutterIap` pattern. */
 const EVENT = "flutterBiometric";
 
+/** One account this phone can sign in to, as reported by the shell. */
+export interface BiometricAccount {
+  /** The user id the stored credential belongs to. */
+  id: string;
+  /** Usually the email. Shown in the chooser so the user sees WHOSE account
+   *  a tap will open before touching the sensor. */
+  label: string;
+}
+
 export interface BiometricStatus {
+  /**
+   * Every account enrolled on this phone.
+   *
+   * A list rather than a flag because the phone is shared: the old single-slot
+   * design let a second person's enrolment silently overwrite the first's, and
+   * then offered that second account to the first person's fingerprint.
+   */
+  accounts: BiometricAccount[];
   /** The shell is present AND the device has usable biometric hardware. */
   available: boolean;
   /** A device token is currently stored on this phone. */
@@ -97,19 +114,21 @@ export function biometricAvailable(): boolean {
 
 /** Current enrolment state as reported by the shell. */
 export async function getBiometricStatus(): Promise<BiometricStatus> {
-  if (!biometricAvailable()) return { available: false, enrolled: false };
+  if (!biometricAvailable())
+    return { available: false, enrolled: false, accounts: [] };
   try {
     post("biometric-status");
     const result = await waitForResult("status", 5000);
     return {
       available: true,
+      accounts: Array.isArray(result.accounts) ? result.accounts : [],
       enrolled: result.enrolled === true,
       kind: result.kind,
       deviceId: result.deviceId,
       platform: result.platform,
     };
   } catch {
-    return { available: true, enrolled: false };
+    return { available: true, enrolled: false, accounts: [] };
   }
 }
 
@@ -137,9 +156,9 @@ export function biometricEnrolled(): boolean {
  * false path is what matters: a cancelled prompt or a rejected credential must
  * leave the button tappable again rather than a spinner that never ends.
  */
-export async function startBiometricUnlock(): Promise<boolean> {
-  if (!biometricAvailable()) return false;
-  if (!post(MSG_UNLOCK)) return false;
+export async function startBiometricUnlock(accountId: string): Promise<boolean> {
+  if (!biometricAvailable() || !accountId) return false;
+  if (!post(`${MSG_UNLOCK}${accountId}`)) return false;
   try {
     const result = await waitForResult("unlock", 60000);
     return result.ok === true;
@@ -163,9 +182,10 @@ export async function startBiometricUnlock(): Promise<boolean> {
 export async function enrolBiometric(
   deviceId: string,
   platform: "ios" | "android",
-  label?: string,
+  accountId: string,
+  label: string,
 ): Promise<boolean> {
-  if (!biometricAvailable()) return false;
+  if (!biometricAvailable() || !accountId) return false;
 
   const appVariant = getClientAppType();
   const res = await api.post("/auth/biometric/enroll", {
@@ -179,7 +199,13 @@ export async function enrolBiometric(
   if (!deviceToken) return false;
 
   // Hand off and forget. Nothing below this line may retain the token.
-  if (!post(`${MSG_ENROL}${deviceToken}`)) return false;
+  //
+  // The account id travels WITH the credential so the phone can file it by
+  // owner. Without it the shell has one nameless slot, and a second person
+  // enrolling on the same phone silently replaces the first — then offers
+  // their account to the first person's fingerprint.
+  if (!post(`${MSG_ENROL}${JSON.stringify({ accountId, label, token: deviceToken })}`))
+    return false;
 
   try {
     const result = await waitForResult("enrol", 30000);
@@ -205,8 +231,14 @@ export async function enrolBiometric(
  * secure storage, and clearing alone would leave a live credential on the
  * server.
  */
-export async function disableBiometric(deviceId: string): Promise<void> {
-  post(MSG_DISABLE);
+export async function disableBiometric(
+  deviceId: string,
+  accountId: string,
+): Promise<void> {
+  // Scoped to ONE account: this phone may hold credentials for several people,
+  // and signing yourself out must not silently break theirs. The server call is
+  // already scoped to the caller's own session.
+  post(`${MSG_DISABLE}${accountId}`);
   await api.post("/auth/biometric/revoke", { deviceId });
 }
 
