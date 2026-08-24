@@ -86,6 +86,21 @@ function isLikelyEditRequest(text: string): boolean {
   return EDIT_INTENT_RE.test(t) && REFERS_TO_EXISTING_RE.test(t);
 }
 
+// Does the USER's own message ask to create a diagram? Gates the fallback
+// Generate button so it only appears when the user actually wants one — NOT
+// when the chat assistant merely explains diagrams / the Generate button in its
+// reply (that explanatory prose was making the button appear on plain Q&A,
+// especially after the first diagram, when the model talks about diagrams more).
+const DIAGRAM_NOUN_RE =
+  /\b(diagram|fl?owchart|flow\s*chart|flow|chart|graph|mind\s*map|mindmap|org\s*chart|orgchart|sequence|workflow|process\s*map|swimlane|gantt|erd|uml)\b/i;
+const DIAGRAM_VERB_RE =
+  /\b(create|make|draw|generate|build|design|produce|map\s*out|visuali[sz]e|show\s*me|give\s*me|plot|sketch|diagram)\b/i;
+function userWantsDiagram(text: string): boolean {
+  const t = (text || "").trim();
+  if (!t) return false;
+  return DIAGRAM_NOUN_RE.test(t) && DIAGRAM_VERB_RE.test(t);
+}
+
 function timeAgo(iso: string | null | undefined): string {
   if (!iso) return "";
   const diff = Date.now() - new Date(iso).getTime();
@@ -537,13 +552,19 @@ export default function AIAssistant({
       // If the keyword-based detectIntent missed diagram intent but the
       // chat AI itself responded with diagram generation language,
       // show the Generate button so the user isn't left stranded.
+      //
+      // GATE: only when the USER's message actually asked for a diagram. The
+      // assistant frequently *explains* diagrams / the Generate button in plain
+      // Q&A (e.g. "click the ⚡ Generate button to create a diagram"), which used
+      // to trip this heuristic and show a Generate button on unrelated questions
+      // — worse after the first diagram, since the model mentions diagrams more.
       const lowerResp = assistantText.toLowerCase();
       const chatSuggestsDiagram =
         (lowerResp.includes("generate") &&
           (lowerResp.includes("diagram") || lowerResp.includes("flow"))) ||
         (lowerResp.includes("click") && lowerResp.includes("generate below")) ||
         lowerResp.includes("generate diagram button");
-      if (chatSuggestsDiagram) {
+      if (chatSuggestsDiagram && userWantsDiagram(text)) {
         appendMessage({
           role: "assistant",
           content:
@@ -569,7 +590,9 @@ export default function AIAssistant({
   // Poll an async diagram job until done/error. Throws on error/timeout so the
   // caller's catch shows the right message (timeout reuses the 408 copy).
   async function pollDiagramJob(jobId: string): Promise<any> {
-    const maxAttempts = 60; // 60 × 2s = 2 minutes
+    const maxAttempts = 90; // 90 × 2s = 3 minutes — long free-tier prompts can
+    // take 60–90s on Gemini; the old 2-min cap cut successful jobs off as
+    // "timeouts" (and the server still charged for them).
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await new Promise((r) => setTimeout(r, 2000));
       const res = await aiApi.getDiagramJob(jobId);
@@ -579,6 +602,19 @@ export default function AIAssistant({
         throw new Error(d.error || "Diagram generation failed");
       }
       // pending | processing → keep polling
+    }
+    // Final check: the job may have completed on the server in the gap after our
+    // last poll. Surface a finished result instead of a false "timeout" (the
+    // credit was charged either way, so the user must get their diagram).
+    try {
+      const res = await aiApi.getDiagramJob(jobId);
+      const d = res.data?.data || res.data || {};
+      if (d.status === "done") return d;
+      if (d.status === "error") {
+        throw new Error(d.error || "Diagram generation failed");
+      }
+    } catch (_) {
+      // fall through to timeout
     }
     const timeoutErr: any = new Error("Diagram generation timed out");
     timeoutErr.code = "ECONNABORTED";
@@ -711,7 +747,7 @@ export default function AIAssistant({
         setShowCreditsExhausted(true);
       } else if (isTimeout) {
         antdMessage.error(
-          "Diagram generation taking longer than expected. This is normal for free users. Please wait a moment and try again. Pro users get faster responses.",
+          "Your diagram is taking longer than usual and hasn't finished yet. It may still complete — check back in a moment, or tap Generate to try again.",
         );
       } else {
         antdMessage.error(
