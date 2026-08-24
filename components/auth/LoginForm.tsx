@@ -15,6 +15,8 @@ import DesktopAuthShell from "./DesktopAuthShell";
 import PillInput from "./PillInput";
 import { SocialRow, OrDivider } from "./AuthSocial";
 import BiometricSignInButton from "./BiometricSignInButton";
+import NativeGoogleButton from "./NativeGoogleButton";
+import { nativeGoogleAvailable } from "@/lib/nativeGoogleBridge";
 
 function detectWebView(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -51,6 +53,7 @@ export default function LoginForm() {
   const [isWebView, setIsWebView] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
+  const [nativeGoogle, setNativeGoogle] = useState(false);
   // Guards the OAuth hand-off against a second tap. In WKWebView the first
   // navigation to appleid.apple.com raises the NATIVE Sign in with Apple
   // sheet; a second signIn() fires a second navigation that cancels that
@@ -84,6 +87,18 @@ export default function LoginForm() {
   useEffect(() => {
     setIsWebView(detectWebView());
     setPageUrl(window.location.href);
+  }, []);
+
+  // Whether the shell can run Google sign-in natively. When it can, the
+  // "open this in Chrome" banner below is not just unnecessary — it is wrong,
+  // and it tells the user to leave an app that would have signed them in.
+  // Re-checked on the shell's flag event, which can land after mount.
+  useEffect(() => {
+    const sync = () => setNativeGoogle(nativeGoogleAvailable());
+    sync();
+    window.addEventListener("flutterGoogleSignInAvailable", sync);
+    return () =>
+      window.removeEventListener("flutterGoogleSignInAvailable", sync);
   }, []);
 
   const handleVerifyRedirect = () => {
@@ -239,7 +254,7 @@ export default function LoginForm() {
   const banners = (
     <>
       {/* WebView banner — Google blocks OAuth in in-app browsers */}
-      {isWebView && (
+      {isWebView && !nativeGoogle && (
         <div className="rounded-xl border border-[#FED7AA] bg-[#FFF7ED] p-4">
           <div className="mb-2.5 flex items-start gap-2.5">
             <span className="shrink-0 text-lg">⚠️</span>
@@ -431,6 +446,7 @@ export default function LoginForm() {
             this is the only alternative sign-in that actually works there. */}
         <div className="space-y-3 pt-2">
           <BiometricSignInButton />
+          <NativeGoogleButton />
           <SocialRow
             disabled={isWebView || socialPending !== null}
             onProvider={socialLogin}
@@ -459,7 +475,7 @@ export default function LoginForm() {
       ) : (
         <>
           {/* WebView banner — Google blocks OAuth in in-app browsers */}
-          {isWebView && (
+          {isWebView && !nativeGoogle && (
             <div className="rounded-xl border border-[#FED7AA] bg-[#FFF7ED] p-4">
               <div className="mb-2.5 flex items-start gap-2.5">
                 <span className="shrink-0 text-lg">⚠️</span>
@@ -526,6 +542,7 @@ export default function LoginForm() {
 
           {/* Biometric sign-in — see the note at the other SocialRow. */}
           <BiometricSignInButton />
+          <NativeGoogleButton />
 
           {/* Social buttons — 3-col grid */}
           <SocialRow

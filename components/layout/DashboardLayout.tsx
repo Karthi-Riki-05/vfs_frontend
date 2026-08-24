@@ -214,6 +214,19 @@ export default function DashboardLayout({
     setMobileOpen(false);
   }, [pathname]);
 
+  // Close the mobile AI panel when navigation happens. Two triggers because the
+  // panel's own route-change effect misses SAME-route taps (e.g. "Dashboard"
+  // while already on /dashboard): (1) route actually changed, (2) the nav drawer
+  // opened — you must open it to reach the sidebar links, so closing the sheet
+  // here guarantees it's gone before/at navigation regardless of destination.
+  useEffect(() => {
+    if (isMobile) window.dispatchEvent(new CustomEvent("closeAIAssistant"));
+  }, [pathname, isMobile]);
+  useEffect(() => {
+    if (isMobile && mobileOpen)
+      window.dispatchEvent(new CustomEvent("closeAIAssistant"));
+  }, [mobileOpen, isMobile]);
+
   // When chat opens on desktop, auto-collapse the sidebar so pages have room.
   // When chat closes, restore only if we were the ones who collapsed it.
   useEffect(() => {

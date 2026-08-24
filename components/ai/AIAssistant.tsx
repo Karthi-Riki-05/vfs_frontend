@@ -283,9 +283,29 @@ export default function AIAssistant({
       refreshContext();
       setState("half");
     }
+    // The mobile shell fires this when the nav drawer opens or the route
+    // changes, so the sheet doesn't linger over the page the user navigated to.
+    function handleCloseEvent() {
+      setState("collapsed");
+    }
     window.addEventListener("openAIAssistant", handleOpenEvent);
-    return () => window.removeEventListener("openAIAssistant", handleOpenEvent);
+    window.addEventListener("closeAIAssistant", handleCloseEvent);
+    return () => {
+      window.removeEventListener("openAIAssistant", handleOpenEvent);
+      window.removeEventListener("closeAIAssistant", handleCloseEvent);
+    };
   }, [hasConsent, refreshContext]);
+
+  // On mobile the AI panel is a full/half sheet that covers the page, so a
+  // navigation (e.g. tapping the profile icon) must close it — otherwise it
+  // stays open over the new route. The docked desktop panel is left alone.
+  // NOTE: this only fires when the path actually CHANGES; same-route taps (e.g.
+  // "Dashboard" while already on /dashboard) are covered by the drawer-open
+  // close signal from DashboardLayout instead.
+  useEffect(() => {
+    if (isMobile && state !== "collapsed") setState("collapsed");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   async function loadConversation(conversationId: string) {
     setLoadingHistory(true);
