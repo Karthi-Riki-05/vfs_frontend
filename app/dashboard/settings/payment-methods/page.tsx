@@ -9,6 +9,8 @@ import { CreditCard, Star, Trash2, Plus, AlertCircle } from "lucide-react";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { paymentsApi, SavedCard } from "@/api/payments.api";
 import { useTabFocus } from "@/hooks/useTabFocus";
+import { useRouter } from "next/navigation";
+import { getClientAppType, type AppType } from "@/lib/detectWebView";
 import { AddCardForm } from "@/components/billing/AddCardForm";
 
 const RESET = "appearance-none cursor-pointer outline-none border-0";
@@ -104,6 +106,25 @@ export default function PaymentMethodsPage() {
     null,
   );
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
+  const router = useRouter();
+  // Saved Stripe cards are a web-only surface: Apple and Google forbid routing
+  // an in-app user to an external payment mechanism for digital goods, and a
+  // store-owned subscription cannot be acted on from here anyway (the API
+  // answers 409 MANAGED_BY_STORE). The Settings entry point is hidden in the
+  // shells, but this page guards itself too — otherwise history, a deep link,
+  // or a stale in-app tab would still reach the Stripe card form.
+  //
+  // `null` is "not resolved yet", which `getClientAppType()` cannot express on
+  // its own: it returns "web" during SSR and the first client render. Treating
+  // that first "web" as final would flash the card form inside the app before
+  // the redirect landed, so nothing renders until after mount.
+  const [shell, setShell] = useState<AppType | null>(null);
+  useEffect(() => {
+    setShell(getClientAppType());
+  }, []);
+  useEffect(() => {
+    if (shell && shell !== "web") router.replace("/dashboard/settings");
+  }, [shell, router]);
   const [cancelRecurringInfo, setCancelRecurringInfo] =
     useState<CancelRecurringInfo | null>(null);
 
@@ -209,6 +230,16 @@ export default function PaymentMethodsPage() {
       setActionLoading(false);
     }
   };
+
+  // Held back until the shell type is known, then permanently in the apps
+  // while the redirect above navigates away.
+  if (shell === null || shell !== "web") {
+    return (
+      <div className="flex justify-center py-16">
+        <Spin />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto px-5 pt-3 pb-8 max-[767px]:pb-0">

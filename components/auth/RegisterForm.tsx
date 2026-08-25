@@ -18,6 +18,10 @@ import {
   nativeGoogleAvailable,
   startNativeGoogleSignIn,
 } from "@/lib/nativeGoogleBridge";
+import {
+  nativeFacebookAvailable,
+  startNativeFacebookSignIn,
+} from "@/lib/nativeFacebookBridge";
 
 // Password strength: +1 each for length>=8, uppercase, number, special char.
 const getPasswordStrength = (pwd: string) => {
@@ -72,6 +76,7 @@ export default function RegisterForm() {
   const [error, setError] = useState("");
   const [isWebView, setIsWebView] = useState(false);
   const [nativeGoogle, setNativeGoogle] = useState(false);
+  const [nativeFacebook, setNativeFacebook] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
   // Same one-tap guard as LoginForm — a second signIn() cancels WKWebView's
@@ -112,6 +117,16 @@ export default function RegisterForm() {
     window.addEventListener("flutterGoogleSignInAvailable", sync);
     return () =>
       window.removeEventListener("flutterGoogleSignInAvailable", sync);
+  }, []);
+
+  // Same publication pattern as the Google flag — the shell fires it on every
+  // settled load, which can land after this component mounts.
+  useEffect(() => {
+    const sync = () => setNativeFacebook(nativeFacebookAvailable());
+    sync();
+    window.addEventListener("flutterFacebookSignInAvailable", sync);
+    return () =>
+      window.removeEventListener("flutterFacebookSignInAvailable", sync);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -173,6 +188,20 @@ export default function RegisterForm() {
     // picker rather than web OAuth, which Google blocks in a WebView. Signing
     // up and signing in are the same call — the backend creates the account on
     // first sight. See docs/be-auth-native-google.md.
+    if (provider === "facebook" && nativeFacebookAvailable()) {
+      return startNativeFacebookSignIn().then((result) => {
+        if (result.ok) return; // navigating away
+        setSocialPending(null);
+        // SOCIAL_NO_EMAIL is worth naming: the account genuinely cannot be used
+        // here, and "try again" would send the user round a loop that can never
+        // succeed. Everything else is a dismissed sheet or a transient failure.
+        toast.error(
+          result.reason === "SOCIAL_NO_EMAIL"
+            ? "That Facebook account has no email address to sign in with. Use email instead."
+            : "Could not continue with Facebook. Use your password.",
+        );
+      });
+    }
     if (provider === "google" && nativeGoogleAvailable()) {
       return startNativeGoogleSignIn().then((ok) => {
         if (ok) return; // navigating away
@@ -283,6 +312,7 @@ export default function RegisterForm() {
       <SocialRow
         disabled={isWebView || socialPending !== null}
         googleEnabled={nativeGoogle && socialPending === null}
+        facebookEnabled={nativeFacebook && socialPending === null}
         onProvider={socialSignup}
       />
 

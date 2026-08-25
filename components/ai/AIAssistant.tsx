@@ -227,6 +227,20 @@ export default function AIAssistant({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
 
+  // Scroll to the newest message whenever the panel OPENS (or finishes loading
+  // history). While collapsed the list + messagesEndRef aren't mounted, so the
+  // scroll effect above no-ops at load time; without this, re-opening the panel
+  // lands at the top (the first message) instead of the latest. Instant jump
+  // (not smooth) — the content just appeared, there's nothing to animate from.
+  useEffect(() => {
+    if (state === "collapsed" || loadingHistory) return;
+    // rAF: wait for renderMessages to mount before the ref exists.
+    const id = requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ block: "end" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [state, loadingHistory]);
+
   // Panel open/close events.
   //
   // Two channels on purpose. `aiPanelOpened`/`aiPanelClosed` are the legacy

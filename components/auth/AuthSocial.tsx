@@ -9,25 +9,30 @@ import React, { ReactNode } from "react";
 export function SocialRow({
   disabled,
   googleEnabled,
+  facebookEnabled,
   onProvider,
 }: {
   disabled?: boolean;
   /**
    * Keep the Google pill live even when the rest of the row is disabled.
    *
-   * Inside the native shell every web OAuth pill is dead — Google blocks OAuth
-   * in embedded WebViews and the others follow the same redirect path. Google
-   * alone has a way through: the shell can ask the OS instead. So the row can
-   * no longer be dimmed as a block; Google opts out of the dimming and stays
-   * tappable. See fe-auth-pages.md and docs/be-auth-native-google.md.
+   * Inside the native shell the web OAuth pills are dead — Google and Facebook
+   * both refuse embedded WebViews (verified on device 2026-08-25). Each has a
+   * way through: the shell can ask the OS instead. So the row can no longer be
+   * dimmed as a block; a provider with a native path opts out of the dimming
+   * and stays tappable. LinkedIn and Apple work in the WebView as-is.
+   * See fe-auth-pages.md and docs/be-auth-native-google.md.
    */
   googleEnabled?: boolean;
+  /** Same opt-out as [googleEnabled], for the native Facebook path. */
+  facebookEnabled?: boolean;
   onProvider: (p: "google" | "apple" | "linkedin" | "facebook") => void;
 }) {
   // Dimming moved from the wrapper onto each pill. A wrapper-level
   // `pointer-events-none` would swallow the Google pill's clicks too, however
   // enabled that button says it is.
   const googleDisabled = googleEnabled ? false : disabled;
+  const facebookDisabled = facebookEnabled ? false : disabled;
   return (
     <div className="grid grid-cols-4 gap-3">
       <SocialPill
@@ -51,7 +56,7 @@ export function SocialRow({
       <SocialPill
         icon={<FacebookCircle />}
         label="Continue with Facebook"
-        disabled={disabled}
+        disabled={facebookDisabled}
         onClick={() => onProvider("facebook")}
       />
     </div>

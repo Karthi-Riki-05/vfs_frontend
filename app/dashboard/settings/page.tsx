@@ -36,6 +36,7 @@ import BackButton from "@/components/shared/BackButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useAi } from "@/hooks/useAi";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useAppBrand } from "@/hooks/useAppBrand";
 import { useRouter } from "next/navigation";
 import { logout } from "@/lib/logout";
 import {
@@ -224,6 +225,17 @@ export default function SettingsPage() {
   const { user, isAdmin } = useAuth() as any;
   const router = useRouter();
   const { status: subStatus } = useSubscription();
+  // Apple and Google both forbid an in-app route to an external payment
+  // mechanism for digital goods, and inside the shells a subscription is bought
+  // with in-app purchase anyway — the saved Stripe cards on that page cannot
+  // act on a store-owned subscription (the API answers 409 MANAGED_BY_STORE).
+  // useAppBrand rather than getClientAppType: it resolves after mount, which
+  // keeps the server HTML and the first client render identical. The cost is
+  // that the row renders for one frame before being removed, which is why
+  // /dashboard/settings/payment-methods guards itself as well — hiding the
+  // entry point alone would still leave the route reachable in-app via history
+  // or a deep link.
+  const isNativeShell = useAppBrand() !== "web";
   const { deleteAllData: deleteAiData } = useAi();
 
   const [view, setView] = useState<View>("hub");
@@ -692,7 +704,9 @@ export default function SettingsPage() {
       <div className="rounded-2xl bg-card border border-border overflow-hidden">
         <button
           onClick={() => router.push("/dashboard/settings/billing")}
-          className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4 border-b border-border`}
+          className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4${
+            isNativeShell ? "" : " border-b border-border"
+          }`}
         >
           <ShieldCheck className="w-4 h-4 text-foreground" />
           <span className="flex-1 text-left text-sm font-semibold">
@@ -700,16 +714,18 @@ export default function SettingsPage() {
           </span>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </button>
-        <button
-          onClick={() => router.push("/dashboard/settings/payment-methods")}
-          className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4`}
-        >
-          <CreditCard className="w-4 h-4 text-foreground" />
-          <span className="flex-1 text-left text-sm font-semibold">
-            Payment Methods
-          </span>
-          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-        </button>
+        {!isNativeShell && (
+          <button
+            onClick={() => router.push("/dashboard/settings/payment-methods")}
+            className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4`}
+          >
+            <CreditCard className="w-4 h-4 text-foreground" />
+            <span className="flex-1 text-left text-sm font-semibold">
+              Payment Methods
+            </span>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </button>
+        )}
       </div>
 
       <button
