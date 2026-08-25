@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect, useRef } from "react";
 import { Button, Typography, message, Spin, Alert } from "antd";
 import { toast } from "sonner";
 import { CheckCircleFilled, CrownOutlined } from "@ant-design/icons";
@@ -16,8 +16,10 @@ import {
   iapPurchase,
   iapPrices,
   waitThenRefresh,
+  type IapPrice,
 } from "@/lib/iapBridge";
 import { colors, spacing, borderRadius, shadows } from "@/lib/theme";
+import PurchaseBlockerOverlay from "@/components/billing/PurchaseBlockerOverlay";
 
 const { Text, Title } = Typography;
 
@@ -50,7 +52,21 @@ function UpgradeProContent() {
   const native = isNativeShell();
   const iapReady = useIapAvailable();
   const [storePrice, setStorePrice] = useState<string | null>(null);
+  // The full price object, kept so the purchase can hand it straight to
+  // iapPurchase() instead of re-querying the store mid-grant (bug-155).
+  const [storePriceInfo, setStorePriceInfo] = useState<IapPrice | undefined>();
   const [purchasing, setPurchasing] = useState(false);
+  // bug-155b: `purchasing` spins the BUTTON until Pro reads live; `blocking`
+  // holds the screen, and only until the grant is settled.
+  const [blocking, setBlocking] = useState(false);
+  // bug-155: the post-purchase poll needs the LIVE entitlement, but `hasPro` in
+  // the handler's closure is frozen at the render that started the purchase.
+  // "Pro lifetime purchased" is hasPro AND proPurchasedAt — a Team-plan user
+  // has hasPro=true with proPurchasedAt=null and has not bought this product.
+  const hasProRef = useRef(false);
+  useEffect(() => {
+    hasProRef.current = hasPro && proPurchasedAt !== null;
+  }, [hasPro, proPurchasedAt]);
   const [returnedFromStripe, setReturnedFromStripe] = useState(false);
   const [forcedMode, setForcedMode] = useState<string | null>(null);
   const searchParams = useSearchParams();
@@ -137,25 +153,59 @@ function UpgradeProContent() {
     if (!native || !iapReady) return;
     iapPrices([IAP_PRODUCTS.proLifetime]).then((map) => {
       setStorePrice(map[IAP_PRODUCTS.proLifetime]?.priceString ?? null);
+      setStorePriceInfo(map[IAP_PRODUCTS.proLifetime]);
     });
   }, [native, iapReady]);
 
   const handlePurchase = async () => {
-    // Native shell → store purchase sheet; the RevenueCat webhook grants
-    // Pro, so poll usePro until hasPro flips.
+    // Native shell → store purchase sheet. POST /iap/validate is what grants
+    // Pro (direct Apple/Google verification — RevenueCat was removed
+    // 2026-08-14 and its webhook is dormant); poll until hasPro flips.
     if (native) {
       if (!iapReady) return;
       setPurchasing(true);
-      const userId = (session?.user as any)?.id as string | undefined;
-      if (userId) await iapLogin(userId);
-      const res = await iapPurchase(IAP_PRODUCTS.proLifetime);
-      if (res.status === "success") {
-        toast.success("Purchase successful — activating your Pro access…");
-        await waitThenRefresh(refreshPro);
-      } else if (res.status === "error") {
-        toast.error(res.message || "Purchase failed");
+      setBlocking(true);
+      // bug-155: try/finally — a rejected iapPurchase() used to skip
+      // setPurchasing(false) and strand the button on its loading state.
+      try {
+        const userId = (session?.user as any)?.id as string | undefined;
+        if (userId) await iapLogin(userId);
+        const res = await iapPurchase(
+          IAP_PRODUCTS.proLifetime,
+          storePriceInfo,
+        );
+        // bug-155b: grant settled — unblock the screen here, not after the
+        // refresh poll. `vc:iap-granted` covers the user leaving now.
+        setBlocking(false);
+        if (res.status === "success") {
+          // bug-155: this used to toast success unconditionally, so a REFUSED
+          // grant still read as "Purchase successful" — the store had taken the
+          // money and nothing named the cause. `granted` is the only signal
+          // that the entitlement exists.
+          if (res.granted) {
+            toast.success("Purchase successful — activating your Pro access…");
+          } else {
+            toast.error(
+              "Payment went through, but we couldn't activate Pro: " +
+                (res.validationError || "please contact support"),
+              { duration: 10000 },
+            );
+          }
+          // Stop as soon as Pro is live rather than burning the whole schedule.
+          await waitThenRefresh(async () => {
+            await refreshPro();
+            return hasProRef.current;
+          });
+        } else if (res.status === "error") {
+          toast.error(res.message || "Purchase failed");
+        }
+        // "cancelled" is intentionally silent — the user backed out on purpose.
+      } catch {
+        toast.error("Something went wrong — please try again.");
+      } finally {
+        setBlocking(false);
+        setPurchasing(false);
       }
-      setPurchasing(false);
       return;
     }
 
@@ -237,6 +287,12 @@ function UpgradeProContent() {
         textAlign: "center",
       }}
     >
+      {/* bug-155: nothing stopped the user navigating away mid-purchase, which
+          unmounted the code that activates and reflects the grant. */}
+      <PurchaseBlockerOverlay
+        active={native && blocking}
+        message="Completing your purchase…"
+      />
       {wasCancelled && (
         <Alert
           message="Payment cancelled"

@@ -378,6 +378,64 @@ function waitForResult(
 // ── Backend validation ──────────────────────────────────────────────────────
 
 /**
+ * Product ids with a page-level iapPurchase() promise currently awaiting them.
+ *
+ * bug-155: one `flutterIap` event reaches BOTH listeners — the window-level
+ * installGlobalValidator AND iapPurchase's own waitForResult — so every
+ * foreground purchase used to be validated TWICE: two `iap-prices` bridge
+ * round-trips and two POST /iap/validate calls, each re-verifying with Google
+ * Play / Apple and re-acknowledging. Harmless (the backend dedup ledger holds,
+ * and `granted` is true on `duplicate`) but it doubled the wait the user sees
+ * and the store-API load. The global validator now stands down for any product
+ * a foreground purchase already owns; it still covers exactly what it was
+ * built for — crash-replayed and restored transactions nobody is awaiting.
+ */
+const pendingPurchaseIds = new Set<string>();
+
+/**
+ * Window event fired once a grant is CONFIRMED by the backend, from the
+ * window-level bridge rather than any component.
+ *
+ * bug-155: the post-purchase refresh used to live entirely inside the page's
+ * own promise chain, so navigating away mid-purchase unmounted the only code
+ * that would have updated the UI — the entitlement landed server-side and
+ * every surface stayed stale until a full reload. This survives client-side
+ * navigation, so whichever surface is mounted when the grant lands refetches.
+ */
+export const IAP_GRANTED_EVENT = "vc:iap-granted";
+
+function announceGrant(result: IapResult) {
+  try {
+    window.dispatchEvent(
+      new CustomEvent(IAP_GRANTED_EVENT, { detail: { ...result } }),
+    );
+    // Credit balances are read from a separate shared store that already
+    // listens on this channel (see CreditAddOns) — keep it in sync too.
+    window.dispatchEvent(new Event("aiCreditsChanged"));
+  } catch {
+    /* no-op */
+  }
+}
+
+/**
+ * How long a purchase may wait on the localized-price lookup before the
+ * receipt is sent WITHOUT it.
+ *
+ * bug-155: the price is display metadata only — the backend treats it as "sets
+ * the recorded amount, never an entitlement" (iap.controller.js) — yet the
+ * grant call was queued behind it with the full 20s price timeout. Worse, that
+ * timeout was reachable: waitForResult's matcher only accepts a response
+ * echoing the requested id in `products` or `notFound`, and the shell's
+ * `_error` / `_disabled` price shapes (iap_service.dart) carry NEITHER field,
+ * so one flaky queryProductDetails after a purchase meant 20 seconds of
+ * spinner before the receipt was even sent. Callers that already hold the
+ * store price (every purchase surface fetches it to render the button) should
+ * pass it to iapPurchase() and skip this wait entirely.
+ */
+const PRICE_LOOKUP_BUDGET_MS = 3_000;
+
+
+/**
  * Sends the store's proof of purchase to the backend, which verifies it with
  * Google/Apple and grants the entitlement. Idempotent (backend dedup), so a
  * duplicate send is harmless. Returns true when the grant is confirmed.
@@ -408,7 +466,10 @@ export async function validateWithBackend(
         : {}),
     });
     const data = res.data?.data || res.data;
-    if (data?.granted) return true;
+    if (data?.granted) {
+      announceGrant(result);
+      return true;
+    }
     // 2xx but no grant — shouldn't happen, so don't let it read as success.
     result.validationCode = "NOT_GRANTED";
     result.validationError =
@@ -449,7 +510,10 @@ function installGlobalValidator() {
     if (
       detail?.action === "purchase" &&
       (detail.status === "success" || detail.status === "restored") &&
-      detail.verificationData
+      detail.verificationData &&
+      // bug-155: an awaited foreground purchase validates itself — don't
+      // duplicate the store verification and the acknowledge.
+      !(detail.productId && pendingPurchaseIds.has(detail.productId))
     ) {
       // Look up the localized store price for THIS product before validating so
       // restored/background-delivered rows record the real amount + currency
@@ -459,7 +523,9 @@ function installGlobalValidator() {
         let priceInfo: IapPrice | undefined;
         try {
           if (detail.productId) {
-            priceInfo = (await iapPrices([detail.productId]))[detail.productId];
+            priceInfo = (
+              await iapPrices([detail.productId], PRICE_LOOKUP_BUDGET_MS)
+            )[detail.productId];
           }
         } catch {
           /* price lookup is non-critical — fall back to server-side pricing */
@@ -501,10 +567,20 @@ export async function iapLogin(userId: string): Promise<boolean> {
  * On success the store proof is validated with the backend before resolving;
  * `granted: true` on the result means the entitlement is confirmed live.
  */
-export async function iapPurchase(productId: string): Promise<IapResult> {
+export async function iapPurchase(
+  productId: string,
+  /**
+   * The localized store price this surface ALREADY fetched to render its
+   * button. Pass it and the grant call goes out the moment the sheet closes;
+   * omit it and we spend up to PRICE_LOOKUP_BUDGET_MS looking it up.
+   */
+  knownPrice?: IapPrice,
+): Promise<IapResult> {
   installGlobalValidator();
+  pendingPurchaseIds.add(productId);
   const pending = waitForResult("purchase", 5 * 60_000);
   if (!post(`iap-purchase:${productId}`)) {
+    pendingPurchaseIds.delete(productId);
     return {
       action: "purchase",
       status: "error",
@@ -513,18 +589,45 @@ export async function iapPurchase(productId: string): Promise<IapResult> {
       productId,
     };
   }
-  const result = await pending;
-  if (result.status === "success") {
-    // Look up the localized store price for what was just bought so the backend
-    // records the real amount + currency (e.g. ₹499 INR) rather than the fixed
-    // USD fallback. Best-effort: a failed/empty lookup just omits it.
-    let priceInfo: IapPrice | undefined;
-    try {
-      priceInfo = (await iapPrices([productId]))[productId];
-    } catch {
-      /* price lookup is non-critical — fall back to server-side pricing */
+  let result: IapResult;
+  try {
+    result = await pending;
+  } catch (err) {
+    // The 5-minute waitForResult timeout. Release the claim so a late
+    // delivery still reaches the global validator, and hand the caller an
+    // IapResult instead of a rejection — three of the four purchase surfaces
+    // had no try/catch, so a throw here left the button spinning forever.
+    pendingPurchaseIds.delete(productId);
+    return {
+      action: "purchase",
+      status: "error",
+      code: "timeout",
+      message:
+        (err as Error)?.message ||
+        "The store did not respond. If you were charged, your purchase will " +
+          "activate on its own shortly.",
+      productId,
+    };
+  }
+  try {
+    if (result.status === "success") {
+      // The backend records the real amount + currency (e.g. ₹499 INR) rather
+      // than the fixed USD fallback when it gets a price. Never let that hold
+      // up the grant, though — see PRICE_LOOKUP_BUDGET_MS.
+      let priceInfo: IapPrice | undefined = knownPrice;
+      if (!priceInfo) {
+        try {
+          priceInfo = (
+            await iapPrices([productId], PRICE_LOOKUP_BUDGET_MS)
+          )[productId];
+        } catch {
+          /* price lookup is non-critical — fall back to server-side pricing */
+        }
+      }
+      result.granted = await validateWithBackend(result, priceInfo);
     }
-    result.granted = await validateWithBackend(result, priceInfo);
+  } finally {
+    pendingPurchaseIds.delete(productId);
   }
   return result;
 }
@@ -532,12 +635,13 @@ export async function iapPurchase(productId: string): Promise<IapResult> {
 /** Localized store prices keyed by productId (empty map on failure). */
 export async function iapPrices(
   productIds: string[],
+  timeoutMs = 20_000,
 ): Promise<Record<string, IapPrice>> {
   const requested = new Set(productIds);
   // Disambiguate from any OTHER concurrent iapPrices() call's response (see
   // waitForResult) — a response actually answering this request will echo
   // at least one of the ids we asked for, in either products or notFound.
-  const pending = waitForResult("prices", 20_000, (detail) => {
+  const pending = waitForResult("prices", timeoutMs, (detail) => {
     const returned = [
       ...(detail.products || []).map((p) => p.productId),
       ...(detail.notFound || []),
@@ -577,17 +681,30 @@ export async function iapRestore(): Promise<IapResult> {
 /**
  * A grant can land slightly after the store sheet closes — either from
  * /iap/validate finishing or from the store's server-to-server notification
- * (Play RTDN / App Store Server Notification). Calls [refresh] on a short
- * escalating schedule so the UI flips as soon as the backend has processed it.
+ * (Play RTDN / App Store Server Notification). Calls [refresh] on an
+ * escalating schedule until it reports the entitlement is live.
+ *
+ * bug-155: this used to be a FIXED timer — sleep 2s, refresh, sleep 4s,
+ * refresh, sleep 8s, refresh — with the first refresh 2 seconds in and no way
+ * to stop early. Callers `await` it before clearing their loading flag, so
+ * every purchase held the button on "Loading…" for the full 14 seconds of
+ * sleeping even when the grant was already live before the first tick; and
+ * when the grant took longer than 14s the button reverted to its idle label
+ * with the plan still not showing, which is exactly how it was reported.
+ *
+ * Now: refresh IMMEDIATELY (delay 0), stop as soon as [refresh] returns true,
+ * and keep a longer tail for the slow case. A `refresh` that returns nothing
+ * behaves like the old fixed schedule, minus the leading 2-second dead wait.
  */
 export async function waitThenRefresh(
-  refresh: () => void | Promise<unknown>,
-  delaysMs: number[] = [2000, 4000, 8000],
+  /** Return `true` once the entitlement is confirmed live to stop polling. */
+  refresh: () => boolean | void | Promise<boolean | void>,
+  delaysMs: number[] = [0, 1500, 2500, 4000, 6000, 8000],
 ): Promise<void> {
   for (const delay of delaysMs) {
-    await new Promise((r) => setTimeout(r, delay));
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
     try {
-      await refresh();
+      if ((await refresh()) === true) return;
     } catch {
       /* transient refresh failure — next attempt covers it */
     }

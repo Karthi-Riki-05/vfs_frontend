@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { useSession } from "next-auth/react";
 import api from "@/lib/axios";
+import { IAP_GRANTED_EVENT } from "@/lib/iapBridge";
 import {
   getAiBillingTeamId,
   AI_BILLING_EVENT,
@@ -242,6 +243,15 @@ export function AppContextProvider({
 
   useEffect(() => {
     refresh();
+  }, [refresh]);
+
+  // bug-155: plan-derived UI (sidebar, gating) reads from here, so a store
+  // grant confirmed by iapBridge must re-sync it even when the purchase screen
+  // has already been navigated away from.
+  useEffect(() => {
+    const onGranted = () => void refresh();
+    window.addEventListener(IAP_GRANTED_EVENT, onGranted);
+    return () => window.removeEventListener(IAP_GRANTED_EVENT, onGranted);
   }, [refresh]);
 
   // Cross-tab + cross-component sync.

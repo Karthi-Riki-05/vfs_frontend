@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { Select, Spin } from "antd";
 import { toast } from "sonner";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
+import PurchaseBlockerOverlay from "@/components/billing/PurchaseBlockerOverlay";
 import {
   ModalShell,
   ModalHeader,
@@ -185,15 +186,26 @@ function CreditAddOns({
   onPurchased,
 }: {
   balance?: number;
-  onPurchased?: () => void;
+  onPurchased?: () => void | Promise<unknown>;
 }) {
   const [buying, setBuying] = useState<string | null>(null);
+  // Separate from `buying`. `buying` spins the BUTTON until the new balance is
+  // on screen; `blocking` holds the whole screen, and only until the grant is
+  // settled — see the note on PurchaseBlockerOverlay below.
+  const [blocking, setBlocking] = useState(false);
   const { pricing } = usePricing();
   const { data: session } = useSession();
   const native = isNativeShell();
   const iapReady = useIapAvailable();
   const [storePrices, setStorePrices] = useState<Record<string, IapPrice>>({});
   const hasCredits = typeof balance === "number" && balance > 0;
+  // The live balance for the post-purchase poll. `balance` is a prop from a
+  // shared store, so the handler's closure only ever sees the value at the
+  // moment the purchase started — the ref is what lets the poll stop early.
+  const balanceRef = useRef(balance);
+  useEffect(() => {
+    balanceRef.current = balance;
+  }, [balance]);
 
   // Native shell: show what the STORE will charge, not the Stripe price.
   useEffect(() => {
@@ -207,31 +219,65 @@ function CreditAddOns({
     if (native) {
       if (!iapReady) return;
       setBuying(packType);
-      const userId = (session?.user as any)?.id as string | undefined;
-      if (userId) await iapLogin(userId);
-      const res = await iapPurchase(aiCreditProductId(packType));
-      if (res.status === "success") {
-        if (ensureGranted(res, "credits")) {
-          toast.success("Purchase successful — adding your credits…");
-        }
-        // `onPurchased` only refreshes THIS page's billing context. The shared
-        // credit store (sidebar, dashboard, AI-credit widget) refetches on the
-        // `aiCreditsChanged` event, which the web addon-success path fires but
-        // the mobile IAP path did NOT — so a mobile credit purchase updated the
-        // subscription page only, leaving every other surface stale. Fire it on
-        // each poll so all surfaces flip as soon as the grant lands.
-        await waitThenRefresh(() => {
-          onPurchased?.();
-          try {
-            window.dispatchEvent(new Event("aiCreditsChanged"));
-          } catch {
-            /* no-op */
+      setBlocking(true);
+      // bug-155: try/finally — a rejected iapPurchase() used to skip
+      // setBuying(null) and strand the button on "Loading…".
+      const productId = aiCreditProductId(packType);
+      const startBalance = typeof balance === "number" ? balance : undefined;
+      try {
+        const userId = (session?.user as any)?.id as string | undefined;
+        if (userId) await iapLogin(userId);
+        // Pass the price this card already rendered so the grant call isn't
+        // queued behind a fresh price lookup.
+        const res = await iapPurchase(productId, storePrices[productId]);
+        // bug-155b: the grant is settled the moment this returns — the receipt
+        // has been verified and recorded, and `vc:iap-granted` will update
+        // whatever screen the user is on. Leaving is harmless from here, so
+        // stop blocking now. The button keeps spinning below until the new
+        // balance is actually on screen.
+        setBlocking(false);
+        if (res.status === "success") {
+          if (ensureGranted(res, "credits")) {
+            toast.success("Purchase successful — adding your credits…");
           }
-        });
-      } else if (res.status === "error") {
-        toast.error(res.message || "Purchase failed");
+          // `onPurchased` only refreshes THIS page's billing context. The shared
+          // credit store (sidebar, dashboard, AI-credit widget) refetches on the
+          // `aiCreditsChanged` event, which the web addon-success path fires but
+          // the mobile IAP path did NOT — so a mobile credit purchase updated the
+          // subscription page only, leaving every other surface stale. Fire it on
+          // each poll so all surfaces flip as soon as the grant lands.
+          //
+          //
+          // bug-155b: this used to have NO early-exit predicate, so it burned
+          // the whole 22-second schedule on every credit purchase — measured on
+          // device: the balance was already correct at the FIRST poll (+0.9s
+          // after the grant) and the next five calls returned the identical
+          // number while the screen stayed blocked. Stop as soon as the balance
+          // actually rises above where it started.
+          await waitThenRefresh(async () => {
+            await onPurchased?.();
+            try {
+              window.dispatchEvent(new Event("aiCreditsChanged"));
+            } catch {
+              /* no-op */
+            }
+            // Let React commit the refreshed balance before reading the ref.
+            await new Promise((r) => setTimeout(r, 0));
+            if (startBalance === undefined) return undefined; // no baseline
+            return (
+              typeof balanceRef.current === "number" &&
+              balanceRef.current > startBalance
+            );
+          });
+        } else if (res.status === "error") {
+          toast.error(res.message || "Purchase failed");
+        }
+      } catch {
+        toast.error("Something went wrong — please try again.");
+      } finally {
+        setBlocking(false);
+        setBuying(null);
       }
-      setBuying(null);
       return;
     }
 
@@ -254,6 +300,9 @@ function CreditAddOns({
 
   return (
     <div className="rounded-2xl bg-secondary/40 border border-border p-5">
+      {/* bug-155: nothing stopped the user navigating away mid-purchase, which
+          unmounted the code that activates and reflects the grant. */}
+      <PurchaseBlockerOverlay active={native && blocking} />
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <div className="font-bold text-base text-foreground">
@@ -354,6 +403,9 @@ function ProSubscriptionContent() {
   const [proSubStatus, setProSubStatus] = useState<ProSubStatus | null>(null);
   const [proSubLoading, setProSubLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  // bug-155b: `purchasing` spins the BUTTON until the add-on shows; `blocking`
+  // holds the screen, and only until the grant is settled.
+  const [blocking, setBlocking] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [proSavedCards, setProSavedCards] = useState<SavedCard[]>([]);
@@ -464,16 +516,21 @@ function ProSubscriptionContent() {
     iapPrices(ids).then(setIapStorePrices);
   }, [native, iapReady]);
 
-  const fetchProSubStatus = async () => {
+  // Returns the fetched status as well as storing it: bug-155's poll must test
+  // the FRESH value, and reading `proSubStatus` from the closure would only
+  // ever see the render that started the purchase.
+  const fetchProSubStatus = async (): Promise<ProSubStatus | null> => {
     try {
       const res = await proApi.getSubscriptionStatus();
       const data = res.data?.data || res.data;
       setProSubStatus(data);
+      return data ?? null;
     } catch (err: any) {
       const msg =
         err?.response?.data?.error?.message || "Failed to load Pro plan";
       toast.error(msg);
       setProSubStatus(null);
+      return null;
     } finally {
       setProSubLoading(false);
     }
@@ -495,21 +552,48 @@ function ProSubscriptionContent() {
         return;
       }
       setPurchasing(plan);
-      const userId = (session?.user as any)?.id as string | undefined;
-      if (userId) await iapLogin(userId);
-      const res = await iapPurchase(productId);
-      if (res.status === "success") {
-        if (ensureGranted(res, "add-on")) {
-          toast.success("Purchase successful — activating your add-on…");
+      setBlocking(true);
+      // bug-155: no try/finally here meant a rejected iapPurchase() (its
+      // 5-minute bridge timeout) skipped setPurchasing(null) and left the
+      // button on "Loading…" permanently, with no toast. iapPurchase now
+      // returns a timeout RESULT rather than throwing, and this guards the rest.
+      try {
+        const userId = (session?.user as any)?.id as string | undefined;
+        if (userId) await iapLogin(userId);
+        // Pass the price this card already rendered — the grant call must not
+        // queue behind a fresh price lookup (see PRICE_LOOKUP_BUDGET_MS).
+        const res = await iapPurchase(productId, iapStorePrices[productId]);
+        // bug-155b: grant settled — unblock the screen here, not after the
+        // refresh poll. `vc:iap-granted` covers the user leaving now.
+        setBlocking(false);
+        if (res.status === "success") {
+          if (ensureGranted(res, "add-on")) {
+            toast.success("Purchase successful — activating your add-on…");
+          }
+          // Stop polling the moment the add-on is live instead of burning the
+          // whole fixed schedule — this is what the button was waiting on.
+          await waitThenRefresh(async () => {
+            const [fresh] = await Promise.all([
+              fetchProSubStatus(),
+              refreshPackStatus(),
+            ]);
+            const st = fresh?.flowAddon?.status;
+            return st === "active" || st === "cancelling";
+          });
+          // The sidebar and gating read the plan from AppContext, which
+          // otherwise only re-syncs on next mount — handleLegacyPurchase
+          // already did this; the add-on path never did.
+          refreshAppContext();
+        } else if (res.status === "error") {
+          toast.error(res.message || "Purchase failed");
         }
-        await waitThenRefresh(() => {
-          fetchProSubStatus();
-          refreshPackStatus();
-        });
-      } else if (res.status === "error") {
-        toast.error(res.message || "Purchase failed");
+        // "cancelled" is intentionally silent — the user backed out on purpose.
+      } catch {
+        toast.error("Something went wrong — please try again.");
+      } finally {
+        setBlocking(false);
+        setPurchasing(null);
       }
-      setPurchasing(null);
       return;
     }
 
@@ -752,6 +836,9 @@ function ProSubscriptionContent() {
 
   return (
     <div className="tw px-5 md:px-8 max-w-5xl mx-auto pt-3 md:pt-6 pb-24 max-[767px]:pb-0 space-y-4">
+      {/* bug-155: nothing stopped the user navigating away mid-purchase, which
+          unmounted the code that activates and reflects the grant. */}
+      <PurchaseBlockerOverlay active={native && blocking} />
       <div className="flex items-center gap-2">
         <Crown className="w-5 h-5 text-primary-deep" />
         <h1 className="text-2xl font-extrabold text-foreground">Pro Plan</h1>
@@ -1165,6 +1252,9 @@ function SubscriptionPageInner() {
   const [monthlyMembers, setMonthlyMembers] = useState(5);
   const [yearlyMembers, setYearlyMembers] = useState(5);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  // bug-155b: `checkoutLoading` spins the BUTTON until the plan reads live;
+  // `blocking` holds the screen, and only until the grant is settled.
+  const [blocking, setBlocking] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
   const [pendingPlan, setPendingPlan] = useState<"monthly" | "yearly" | null>(
@@ -1302,27 +1392,36 @@ function SubscriptionPageInner() {
       return;
     }
     setCheckoutLoading(productId);
+    setBlocking(true);
     try {
       const userId = (session?.user as any)?.id as string | undefined;
       if (userId) await iapLogin(userId);
-      const res = await iapPurchase(productId);
+      // Pass the price this card already rendered so the grant call isn't
+      // queued behind a fresh price lookup (bug-155).
+      const res = await iapPurchase(productId, teamStorePrices[productId]);
+      // bug-155b: grant settled — unblock the screen here, not after the
+      // refresh poll. `vc:iap-granted` covers the user leaving now.
+      setBlocking(false);
       if (res.status === "success") {
+        // Stop as soon as the subscription reads live — the fixed 14-second
+        // schedule was what held the button on "Loading…" (bug-155).
+        const untilLive = async () => {
+          const [, st] = await Promise.all([fetchCurrent(), fetchStatus()]);
+          return (
+            !!st?.hasSubscription &&
+            (st.status === "active" || st.status === "cancelling")
+          );
+        };
         // Refresh either way: on a refused grant the store's server-to-server
         // notification may still land moments later, and then the page catches
         // up on its own — but say so honestly meanwhile.
         if (!ensureGranted(res, "plan")) {
-          await waitThenRefresh(() => {
-            fetchCurrent();
-            fetchStatus();
-          });
+          await waitThenRefresh(untilLive);
           refreshAppContext();
           return;
         }
         toast.success("Purchase successful — activating your plan…");
-        await waitThenRefresh(() => {
-          fetchCurrent();
-          fetchStatus();
-        });
+        await waitThenRefresh(untilLive);
         // fetchCurrent/fetchStatus only update this page's local state —
         // the sidebar/chat read plan from AppContext, which otherwise only
         // re-syncs on next mount or JWT refresh. Force it now.
@@ -1342,6 +1441,7 @@ function SubscriptionPageInner() {
           : "Something went wrong — please try again.",
       );
     } finally {
+      setBlocking(false);
       setCheckoutLoading(null);
     }
   };
@@ -1758,6 +1858,9 @@ function SubscriptionPageInner() {
 
   return (
     <div className="tw px-5 md:px-8 max-w-5xl mx-auto pt-3 md:pt-6 pb-24 max-[767px]:pb-0 space-y-4">
+      {/* bug-155: nothing stopped the user navigating away mid-purchase, which
+          unmounted the code that activates and reflects the grant. */}
+      <PurchaseBlockerOverlay active={native && blocking} />
       <div>
         <h1 className="text-2xl font-extrabold text-foreground">
           Plan &amp; Pricing

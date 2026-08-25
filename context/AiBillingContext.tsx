@@ -17,6 +17,7 @@ import {
   setAiBillingTeamId,
 } from "@/lib/aiBilling";
 import { flushWorkspaceCache } from "@/lib/workspaceCache";
+import { IAP_GRANTED_EVENT } from "@/lib/iapBridge";
 
 // ─────────────────────────────────────────────────────────────────────────
 // AI-billing context — the profile/workspace switcher. Its PRIMARY job is to
@@ -344,9 +345,22 @@ export function AiBillingProvider({ children }: { children: React.ReactNode }) {
       if (e.key !== AI_BILLING_KEY && e.key !== PRO_BILLING_KEY) return;
       refresh();
     };
+    // bug-155b: the credit balance is read from HERE, but this context listened
+    // for neither `aiCreditsChanged` nor a store grant — so `vc:iap-granted`
+    // updated the plan stores (useSubscription/usePro/usePackStatus/AppContext)
+    // and left CREDITS stale until a remount or a workspace switch. That was the
+    // one hole in the post-purchase safety net: a credit pack bought and then
+    // navigated away from showed the old balance everywhere.
+    //
+    // Listen only to IAP_GRANTED_EVENT, never to `aiCreditsChanged` —
+    // switchBilling dispatches that one, so listening to it here risks a
+    // refresh/dispatch loop.
+    const onGranted = () => void refresh();
+    window.addEventListener(IAP_GRANTED_EVENT, onGranted);
     window.addEventListener(AI_BILLING_EVENT, onChange);
     window.addEventListener("storage", onStorageChange);
     return () => {
+      window.removeEventListener(IAP_GRANTED_EVENT, onGranted);
       window.removeEventListener(AI_BILLING_EVENT, onChange);
       window.removeEventListener("storage", onStorageChange);
     };

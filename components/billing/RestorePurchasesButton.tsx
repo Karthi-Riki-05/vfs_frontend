@@ -35,14 +35,24 @@ export default function RestorePurchasesButton({
       // Notify the shared credit store (sidebar/dashboard/AI widget) too — a
       // restored credit balance is the same class as a mobile purchase and
       // otherwise updates only this page.
-      await waitThenRefresh(() => {
-        onRestored?.();
-        try {
-          window.dispatchEvent(new Event("aiCreditsChanged"));
-        } catch {
-          /* no-op */
-        }
-      });
+      // bug-155b: a SHORT schedule here, unlike the purchase paths. A restore
+      // has no single "done" signal — it may legitimately restore nothing — so
+      // there is no predicate to exit on, and the default schedule would spin
+      // this button for 22 seconds on an account with nothing to restore.
+      // Each restored purchase is validated individually by iapBridge's global
+      // validator and fires `vc:iap-granted`, which every shared store now
+      // listens to, so this poll is a nudge rather than the mechanism.
+      await waitThenRefresh(
+        () => {
+          onRestored?.();
+          try {
+            window.dispatchEvent(new Event("aiCreditsChanged"));
+          } catch {
+            /* no-op */
+          }
+        },
+        [0, 1500, 3000],
+      );
     } else if (res.status === "error") {
       toast.error(res.message || "Restore failed");
     }

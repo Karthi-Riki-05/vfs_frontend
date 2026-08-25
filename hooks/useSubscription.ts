@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { subscriptionsApi } from "@/api/subscriptions.api";
 import { toast } from "sonner";
+import { IAP_GRANTED_EVENT } from "@/lib/iapBridge";
 
 interface ScheduledChange {
   plan: string;
@@ -59,21 +60,34 @@ export function useSubscription() {
   // and can resolve after the component navigates away.
   const mountedRef = useRef(true);
 
+  // Both return what they fetched as well as storing it. bug-155's
+  // post-purchase poll must test the FRESH value — reading `status` from a
+  // closure only ever sees the render that started the purchase — and the
+  // return is unaffected by `mountedRef`, so a caller still polling after
+  // navigation gets a true answer instead of a silently dropped one.
   const fetchCurrent = useCallback(async () => {
     try {
       const res = await subscriptionsApi.getCurrent();
-      if (mountedRef.current) setSubscription(res.data?.data || res.data);
+      const data = res.data?.data || res.data;
+      if (mountedRef.current) setSubscription(data);
+      return data ?? null;
     } catch {
       // may not have a subscription
+      return null;
     }
   }, []);
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (): Promise<
+    SubscriptionStatus | null
+  > => {
     try {
       const res = await subscriptionsApi.getStatus();
-      if (mountedRef.current) setStatus(res.data?.data || res.data);
+      const data = res.data?.data || res.data;
+      if (mountedRef.current) setStatus(data);
+      return data ?? null;
     } catch {
       // handled by interceptor
+      return null;
     }
   }, []);
 
@@ -97,6 +111,19 @@ export function useSubscription() {
       mountedRef.current = false;
     };
   }, [fetchCurrent, fetchStatus, fetchPlans]);
+
+  // bug-155: a store grant confirmed by iapBridge is announced on the window,
+  // not through the page that started it — so a user who navigated away
+  // mid-purchase still sees the new plan wherever they landed, instead of a
+  // stale one until a full reload.
+  useEffect(() => {
+    const onGranted = () => {
+      fetchCurrent();
+      fetchStatus();
+    };
+    window.addEventListener(IAP_GRANTED_EVENT, onGranted);
+    return () => window.removeEventListener(IAP_GRANTED_EVENT, onGranted);
+  }, [fetchCurrent, fetchStatus]);
 
   const subscribe = async (planId: string) => {
     try {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { proApi } from "@/api/pro.api";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
+import { IAP_GRANTED_EVENT } from "@/lib/iapBridge";
 
 interface ProFlows {
   used: number;
@@ -156,6 +157,15 @@ export function usePro() {
   const fetchStatus = useCallback(async () => {
     await loadProStatus(true);
   }, []);
+
+  // bug-155: a store grant confirmed by iapBridge must land here even when the
+  // purchase screen has already been navigated away from — Pro access and the
+  // flow add-on both read from this snapshot.
+  useEffect(() => {
+    const onGranted = () => void fetchStatus();
+    window.addEventListener(IAP_GRANTED_EVENT, onGranted);
+    return () => window.removeEventListener(IAP_GRANTED_EVENT, onGranted);
+  }, [fetchStatus]);
 
   // Use a STABLE primitive as the effect key. NextAuth replaces the
   // `session` object identity on every silent refresh; depending on the

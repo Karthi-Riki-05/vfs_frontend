@@ -6,6 +6,7 @@ import { flowPackApi } from "@/api/notifications.api";
 import { flowsApi } from "@/api/flows.api";
 import { onWorkspaceFlush } from "@/lib/workspaceCache";
 import { appTypeFromUserAgent } from "@/lib/detectWebView";
+import { IAP_GRANTED_EVENT } from "@/lib/iapBridge";
 
 export interface PackStatus {
   activePackId: string | null;
@@ -92,6 +93,15 @@ export function usePackStatus() {
   useEffect(() => {
     setIsTeamApp(readIsTeamApp());
   }, []);
+
+  // bug-155: refetch when iapBridge confirms a store grant, so a flow pack or
+  // add-on bought on a screen the user has since left still shows up here
+  // without a full reload.
+  useEffect(() => {
+    const onGranted = () => void refresh();
+    window.addEventListener(IAP_GRANTED_EVENT, onGranted);
+    return () => window.removeEventListener(IAP_GRANTED_EVENT, onGranted);
+  }, [refresh]);
 
   // Re-scope on workspace switch: drop the previous workspace's pack/limit
   // state immediately so a stale "at-limit" banner can't bleed across, then
