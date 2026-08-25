@@ -15,8 +15,10 @@ import DesktopAuthShell from "./DesktopAuthShell";
 import PillInput from "./PillInput";
 import { SocialRow, OrDivider } from "./AuthSocial";
 import BiometricSignInButton from "./BiometricSignInButton";
-import NativeGoogleButton from "./NativeGoogleButton";
-import { nativeGoogleAvailable } from "@/lib/nativeGoogleBridge";
+import {
+  nativeGoogleAvailable,
+  startNativeGoogleSignIn,
+} from "@/lib/nativeGoogleBridge";
 
 function detectWebView(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -231,6 +233,18 @@ export default function LoginForm() {
     // the window in which a user taps again.
     if (socialPending) return;
     setSocialPending(provider);
+    // Inside the shell the Google pill does NOT run web OAuth — Google blocks
+    // that in an embedded WebView. It asks the shell for the OS account picker
+    // instead, and the shell navigates to the hand-off page on success. So the
+    // only case to handle here is failure: re-arm the row so the pill can be
+    // tapped again. See docs/be-auth-native-google.md.
+    if (provider === "google" && nativeGoogleAvailable()) {
+      return startNativeGoogleSignIn().then((ok) => {
+        if (ok) return; // navigating away
+        setSocialPending(null);
+        toast.error("Could not sign you in with Google. Use your password.");
+      });
+    }
     // Use UA detection only — ignore ?callbackUrl= URL param so a stale
     // /dashboard/pro param from a previous session never overrides the
     // correct landing page for web users.
@@ -446,9 +460,9 @@ export default function LoginForm() {
             this is the only alternative sign-in that actually works there. */}
         <div className="space-y-3 pt-2">
           <BiometricSignInButton />
-          <NativeGoogleButton />
           <SocialRow
             disabled={isWebView || socialPending !== null}
+            googleEnabled={nativeGoogle && socialPending === null}
             onProvider={socialLogin}
           />
         </div>
@@ -542,11 +556,11 @@ export default function LoginForm() {
 
           {/* Biometric sign-in — see the note at the other SocialRow. */}
           <BiometricSignInButton />
-          <NativeGoogleButton />
 
           {/* Social buttons — 3-col grid */}
           <SocialRow
             disabled={isWebView || socialPending !== null}
+            googleEnabled={nativeGoogle && socialPending === null}
             onProvider={socialLogin}
           />
 

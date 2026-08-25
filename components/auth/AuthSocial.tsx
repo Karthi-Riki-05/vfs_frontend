@@ -8,21 +8,32 @@ import React, { ReactNode } from "react";
  *  added 2026-08-18. */
 export function SocialRow({
   disabled,
+  googleEnabled,
   onProvider,
 }: {
   disabled?: boolean;
+  /**
+   * Keep the Google pill live even when the rest of the row is disabled.
+   *
+   * Inside the native shell every web OAuth pill is dead — Google blocks OAuth
+   * in embedded WebViews and the others follow the same redirect path. Google
+   * alone has a way through: the shell can ask the OS instead. So the row can
+   * no longer be dimmed as a block; Google opts out of the dimming and stays
+   * tappable. See fe-auth-pages.md and docs/be-auth-native-google.md.
+   */
+  googleEnabled?: boolean;
   onProvider: (p: "google" | "apple" | "linkedin" | "facebook") => void;
 }) {
+  // Dimming moved from the wrapper onto each pill. A wrapper-level
+  // `pointer-events-none` would swallow the Google pill's clicks too, however
+  // enabled that button says it is.
+  const googleDisabled = googleEnabled ? false : disabled;
   return (
-    <div
-      className={`grid grid-cols-4 gap-3 ${
-        disabled ? "pointer-events-none opacity-40" : ""
-      }`}
-    >
+    <div className="grid grid-cols-4 gap-3">
       <SocialPill
         icon={<GoogleIcon />}
         label="Continue with Google"
-        disabled={disabled}
+        disabled={googleDisabled}
         onClick={() => onProvider("google")}
       />
       <SocialPill
@@ -76,7 +87,7 @@ function SocialPill({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-11 items-center justify-center rounded-full border border-border bg-card shadow-sm transition active:scale-95 disabled:cursor-not-allowed sm:h-12"
+      className="flex h-11 items-center justify-center rounded-full border border-border bg-card shadow-sm transition active:scale-95 disabled:pointer-events-none disabled:opacity-40 disabled:cursor-not-allowed sm:h-12"
     >
       {icon}
     </button>

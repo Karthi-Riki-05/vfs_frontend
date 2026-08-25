@@ -14,6 +14,10 @@ import AuthShell from "./AuthShell";
 import DesktopAuthShell from "./DesktopAuthShell";
 import PillInput from "./PillInput";
 import { SocialRow, OrDivider } from "./AuthSocial";
+import {
+  nativeGoogleAvailable,
+  startNativeGoogleSignIn,
+} from "@/lib/nativeGoogleBridge";
 
 // Password strength: +1 each for length>=8, uppercase, number, special char.
 const getPasswordStrength = (pwd: string) => {
@@ -67,6 +71,7 @@ export default function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isWebView, setIsWebView] = useState(false);
+  const [nativeGoogle, setNativeGoogle] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
   // Same one-tap guard as LoginForm — a second signIn() cancels WKWebView's
@@ -97,6 +102,16 @@ export default function RegisterForm() {
       /WebView|webview/.test(ua);
     setIsWebView(webview);
     setPageUrl(window.location.href);
+  }, []);
+
+  // Whether the shell can run Google sign-in natively. Mirrors LoginForm: the
+  // flag is published on every settled load and can land after mount.
+  useEffect(() => {
+    const sync = () => setNativeGoogle(nativeGoogleAvailable());
+    sync();
+    window.addEventListener("flutterGoogleSignInAvailable", sync);
+    return () =>
+      window.removeEventListener("flutterGoogleSignInAvailable", sync);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -154,6 +169,17 @@ export default function RegisterForm() {
   ) => {
     if (socialPending) return;
     setSocialPending(provider);
+    // Same hand-off as LoginForm: in the shell, Google goes to the OS account
+    // picker rather than web OAuth, which Google blocks in a WebView. Signing
+    // up and signing in are the same call — the backend creates the account on
+    // first sight. See docs/be-auth-native-google.md.
+    if (provider === "google" && nativeGoogleAvailable()) {
+      return startNativeGoogleSignIn().then((ok) => {
+        if (ok) return; // navigating away
+        setSocialPending(null);
+        toast.error("Could not continue with Google. Try email instead.");
+      });
+    }
     return signIn(provider, { callbackUrl: getPostLoginDashboardUrl() }).catch(
       () => {
         setSocialPending(null);
@@ -182,7 +208,7 @@ export default function RegisterForm() {
       }
     >
       {/* WebView banner — social sign-up blocked in in-app browsers */}
-      {isWebView && (
+      {isWebView && !nativeGoogle && (
         <div className="rounded-xl border border-[#FED7AA] bg-[#FFF7ED] p-4">
           <div className="mb-2.5 flex items-start gap-2.5">
             <span className="shrink-0 text-lg">⚠️</span>
@@ -256,6 +282,7 @@ export default function RegisterForm() {
       {/* Social buttons */}
       <SocialRow
         disabled={isWebView || socialPending !== null}
+        googleEnabled={nativeGoogle && socialPending === null}
         onProvider={socialSignup}
       />
 
