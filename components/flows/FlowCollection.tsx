@@ -206,7 +206,10 @@ export default function FlowCollection({
     </div>
   );
 
-  const newTileEl = newTile && onNewFlow && (
+  // On mobile the floating "+" action button already provides create, so the
+  // dashed "+ New Flow" tile is redundant there — hide it on mobile, keep it on
+  // desktop where the grid is the primary create affordance.
+  const newTileEl = newTile && onNewFlow && !isMobile && (
     <div
       onClick={onNewFlow}
       className="border-2 border-dashed border-border rounded-2xl h-44 flex flex-col items-center justify-center bg-background cursor-pointer gap-1"

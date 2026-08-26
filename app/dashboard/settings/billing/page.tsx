@@ -408,12 +408,22 @@ export default function BillingPage() {
         )}
 
         <div className="mt-4 flex flex-col sm:flex-row gap-2">
-          <button
-            onClick={() => router.push("/dashboard/subscription")}
-            className={`${RESET} w-full sm:flex-1 h-11 rounded-xl bg-primary text-white font-bold text-sm`}
-          >
-            {changePlanLabel}
-          </button>
+          {/* Change Plan / Upgrade is WEB-ONLY.
+              In the native shells every plan change goes through the store's
+              own subscription screen (Play Store / App Store) — that is what
+              "Managed by Google Play — cancel or change seats there" directly
+              below already tells the user. Offering our own button beside that
+              sentence contradicts it and leads to a page that cannot complete
+              a purchase, since the shells buy through IAP. Owner decision
+              2026-08-25. `native` is isNativeShell(); the web is unchanged. */}
+          {!native && (
+            <button
+              onClick={() => router.push("/dashboard/subscription")}
+              className={`${RESET} w-full sm:flex-1 h-11 rounded-xl bg-primary text-white font-bold text-sm`}
+            >
+              {changePlanLabel}
+            </button>
+          )}
           {/* Native shells: subscriptions are managed where they were
               purchased (app-store settings or the web) — no Stripe
               cancel/reactivate actions in-app. clientAppType !== "web"

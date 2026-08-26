@@ -37,7 +37,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAi } from "@/hooks/useAi";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAppBrand } from "@/hooks/useAppBrand";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { logout } from "@/lib/logout";
 import {
   notificationsApi,
@@ -238,7 +238,31 @@ export default function SettingsPage() {
   const isNativeShell = useAppBrand() !== "web";
   const { deleteAllData: deleteAiData } = useAi();
 
-  const [view, setView] = useState<View>("hub");
+  // The sub-views are URL-driven, not local state.
+  //
+  // WHY: this page renders four screens behind one route. With the view held
+  // only in state, the URL never changed — so the header's profile icon, which
+  // does router.push("/dashboard/settings"), was a no-op for anyone already on
+  // this route. From Notification Settings the icon appeared dead (reported
+  // 2026-08-25). Hardware Back had the same problem: it left the page entirely
+  // instead of returning to the hub.
+  //
+  // Driving `view` from ?view= fixes both at once — pushing the bare path is
+  // now a real navigation back to the hub, and each sub-screen gets its own
+  // history entry.
+  const searchParams = useSearchParams();
+  const viewParam = searchParams?.get("view");
+  const view: View = (
+    ["edit", "password", "notifPrefs"].includes(viewParam || "")
+      ? viewParam
+      : "hub"
+  ) as View;
+
+  const setView = (next: View) => {
+    router.push(
+      next === "hub" ? "/dashboard/settings" : `/dashboard/settings?view=${next}`,
+    );
+  };
   const [initialLoading, setInitialLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -678,16 +702,6 @@ export default function SettingsPage() {
 
       <SectionLabel>Preferences</SectionLabel>
       <div className="rounded-2xl bg-card border border-border divide-y divide-border overflow-hidden">
-        <button
-          onClick={() => router.push("/dashboard/notifications")}
-          className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4`}
-        >
-          <Bell className="w-4 h-4 text-foreground" />
-          <span className="flex-1 text-left text-sm font-semibold">
-            Notifications
-          </span>
-          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-        </button>
         <button
           onClick={() => setView("notifPrefs")}
           className={`${RESET} bg-transparent border-0 w-full flex items-center gap-3 p-4`}
