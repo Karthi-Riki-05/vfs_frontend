@@ -4,8 +4,20 @@ import { getClientAppType, isProWebView } from "@/lib/detectWebView";
 export const proApi = {
   getAppStatus: () => api.get("/pro/app-status"),
   switchApp: (app: "free" | "pro") => api.put("/pro/switch-app", { app }),
-  purchasePro: (inviteToken?: string) =>
-    api.post("/upgrade-pro/checkout", inviteToken ? { inviteToken } : {}),
+  /**
+   * `waiver` carries the buyer's agreement to immediate delivery (and so to
+   * waiving the 14-day withdrawal right). The server stamps it onto the Stripe
+   * session metadata, which is what evidences consent in a card dispute — so
+   * it must be sent with the purchase, not recorded separately afterwards.
+   */
+  purchasePro: (
+    inviteToken?: string,
+    waiver?: { accepted: boolean; text: string; at: string },
+  ) =>
+    api.post("/upgrade-pro/checkout", {
+      ...(inviteToken ? { inviteToken } : {}),
+      ...(waiver ? { waiver } : {}),
+    }),
   buyFlows: (flowPackage: "50" | "unlimited") =>
     api.post("/pro/buy-flows", { package: flowPackage }),
   getFlowPricing: () => api.get("/pro/flow-pricing"),

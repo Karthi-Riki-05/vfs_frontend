@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import LinkedInProvider from "next-auth/providers/linkedin";
@@ -158,6 +159,23 @@ export async function refreshUserOnce(userId: string, force = false) {
 
   userRefreshInflight.set(userId, p);
   return p;
+}
+
+/**
+ * The browser's User-Agent, read inside a NextAuth callback.
+ *
+ * NextAuth v4 callbacks do not receive the request, but they DO run inside the
+ * App Router request scope of `app/api/auth/[...nextauth]/route.ts`, so
+ * `next/headers` resolves. Wrapped defensively: outside a request scope (unit
+ * tests, any future non-request invocation) `headers()` throws, and a missing
+ * UA must degrade to "unknown platform", never break sign-in.
+ */
+function clientUserAgent(): string {
+  try {
+    return headers().get("user-agent") || "";
+  } catch {
+    return "";
+  }
 }
 
 export const authOptions: NextAuthOptions = {
@@ -346,6 +364,12 @@ export const authOptions: NextAuthOptions = {
               // leaving the endpoint open to anyone who can reach the API.
               headers: {
                 "X-Internal-Auth": process.env.INTERNAL_API_SECRET || "",
+                // Signup provenance: the browser's own User-Agent, so a social
+                // signup inside the Pro/Team shell is not recorded as "web".
+                // Must be a custom header — the real User-Agent on this hop is
+                // axios in the Next.js container. See
+                // backend/src/lib/signupProvenance.js.
+                "X-Client-User-Agent": clientUserAgent(),
               },
             },
           );

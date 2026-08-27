@@ -20,6 +20,9 @@ import {
 } from "@/lib/iapBridge";
 import { colors, spacing, borderRadius, shadows } from "@/lib/theme";
 import PurchaseBlockerOverlay from "@/components/billing/PurchaseBlockerOverlay";
+import DigitalDeliveryWaiver, {
+  WAIVER_TEXT,
+} from "@/components/billing/DigitalDeliveryWaiver";
 
 const { Text, Title } = Typography;
 
@@ -56,6 +59,11 @@ function UpgradeProContent() {
   // iapPurchase() instead of re-querying the store mid-grant (bug-155).
   const [storePriceInfo, setStorePriceInfo] = useState<IapPrice | undefined>();
   const [purchasing, setPurchasing] = useState(false);
+  // Withdrawal-right waiver. Web/Stripe only: in the native shells Apple and
+  // Google are the merchant of record and run their own refund process, so a
+  // checkbox here would not govern that decision — and gating the store button
+  // on it would just block a purchase we do not adjudicate.
+  const [waiverAccepted, setWaiverAccepted] = useState(false);
   // bug-155b: `purchasing` spins the BUTTON until Pro reads live; `blocking`
   // holds the screen, and only until the grant is settled.
   const [blocking, setBlocking] = useState(false);
@@ -209,6 +217,13 @@ function UpgradeProContent() {
       return;
     }
 
+    // Consent must precede payment; the disabled button is the primary guard,
+    // this is the one that cannot be clicked past with devtools.
+    if (!waiverAccepted) {
+      toast.error("Please confirm immediate access before purchasing.");
+      return;
+    }
+
     setPurchasing(true);
     try {
       sessionStorage.setItem(STRIPE_PENDING_KEY, "1");
@@ -219,7 +234,11 @@ function UpgradeProContent() {
       if (isFromProApp) {
         sessionStorage.setItem(PRO_REDIRECT_KEY, "/dashboard/pro");
       }
-      await purchasePro();
+      await purchasePro({
+        accepted: true,
+        text: WAIVER_TEXT,
+        at: new Date().toISOString(),
+      });
     } catch (err: any) {
       sessionStorage.removeItem(STRIPE_PENDING_KEY);
       if (isFromProApp) sessionStorage.removeItem(PRO_REDIRECT_KEY);
@@ -426,11 +445,22 @@ function UpgradeProContent() {
             Pro is not available for purchase in this version of the app.
           </Text>
         ) : (
+          <>
+          {!native && (
+            <div style={{ marginBottom: 12 }}>
+              <DigitalDeliveryWaiver
+                checked={waiverAccepted}
+                onChange={setWaiverAccepted}
+                disabled={purchasing}
+              />
+            </div>
+          )}
           <Button
             type="primary"
             block
             size="large"
             loading={purchasing}
+            disabled={!native && !waiverAccepted}
             onClick={handlePurchase}
             style={{
               height: 50,
@@ -445,6 +475,7 @@ function UpgradeProContent() {
               ? `Purchase Pro${storePrice ? ` — ${storePrice} lifetime` : ""}`
               : `Purchase Pro${proMonthly ? ` — ${proMonthly.display} lifetime` : ""}`}
           </Button>
+          </>
         )}
       </div>
     </div>

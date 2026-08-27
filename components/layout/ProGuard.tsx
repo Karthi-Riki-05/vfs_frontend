@@ -119,6 +119,18 @@ export function ProGuard({ children }: { children: React.ReactNode }) {
             }).catch(() => {});
           }
 
+          // The server refused to grant because this Pro purchase was
+          // refunded (see backend prisma User.proRefundedAt). Send them to the
+          // upgrade page rather than into a Pro UI the server will refuse to
+          // serve data to — they can buy Pro again from there. Defined before
+          // the alreadyGranted branch because a refusal is neither a grant nor
+          // a failure, and must not fall through to window.location.reload(),
+          // which would loop.
+          if (result?.refused) {
+            redirectToUpgrade();
+            return;
+          }
+
           if (result?.alreadyGranted) {
             // Credits already exist — no DB writes, no reload needed.
             setGranting(false);

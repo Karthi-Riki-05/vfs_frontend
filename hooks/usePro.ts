@@ -214,11 +214,13 @@ export function usePro() {
       const res = await proApi.switchApp(app);
       const data = res.data?.data || res.data;
 
-      // Backend returns { requiresPurchase: true, url } when the user
-      // hasn't bought Pro yet — Pro is a separate one-time $5 product
-      // that team-plan owners must buy explicitly. Redirect to checkout.
-      if (data?.requiresPurchase && data?.url) {
-        window.location.href = data.url;
+      // Backend returns { requiresPurchase: true, redirect } when the user
+      // hasn't bought Pro yet — Pro is a separate one-time $5 product that
+      // team-plan owners must buy explicitly. bug-158: go to the Pro FEATURES
+      // page (/upgrade-pro), not straight to Stripe — the user sees what Pro is
+      // and buys from there. (`data.url` fallback keeps older backends working.)
+      if (data?.requiresPurchase) {
+        window.location.href = data.redirect || data.url || "/upgrade-pro";
         return false;
       }
 
@@ -263,9 +265,13 @@ export function usePro() {
     }
   }, []);
 
-  const purchasePro = useCallback(async () => {
+  const purchasePro = useCallback(async (waiver?: {
+    accepted: boolean;
+    text: string;
+    at: string;
+  }) => {
     try {
-      const res = await proApi.purchasePro();
+      const res = await proApi.purchasePro(undefined, waiver);
       const data = res.data?.data || res.data;
       if (data?.url) {
         window.location.href = data.url;
