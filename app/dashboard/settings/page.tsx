@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, type ReactNode } from "react";
+import React, { useState, useEffect, Suspense, type ReactNode } from "react";
 import { Upload, message, Spin } from "antd";
 import { toast } from "sonner";
 import { confirmDialog } from "@/components/common/ConfirmDialog";
@@ -221,7 +221,7 @@ function FieldInput({
   );
 }
 
-export default function SettingsPage() {
+function SettingsPageInner() {
   const { user, isAdmin } = useAuth() as any;
   const router = useRouter();
   const { status: subStatus } = useSubscription();
@@ -1126,5 +1126,16 @@ export default function SettingsPage() {
             ? Password
             : NotifPrefs}
     </div>
+  );
+}
+
+// useSearchParams() forces this route out of static prerendering unless the
+// reading component sits behind a Suspense boundary — without it `next build`
+// fails with the CSR-bailout error. Same wrapper as /dashboard/subscription.
+export default function SettingsPage() {
+  return (
+    <Suspense>
+      <SettingsPageInner />
+    </Suspense>
   );
 }

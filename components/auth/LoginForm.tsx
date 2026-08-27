@@ -126,8 +126,11 @@ export default function LoginForm() {
     router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
   };
 
-  // Per-field validation — far more visible on mobile / WebView than a single
-  // toast or a banner that scrolls off-screen. Errors render right at the field.
+  // Per-field validation. The message is delivered by TOAST ONLY — the inline
+  // per-field <p> was removed 2026-08-21 because an empty submit showed the
+  // same sentence twice (toast + text under the box). `fieldErr` is still
+  // tracked: it drives the red BORDER on the field (a cue, not a duplicate
+  // message) and is cleared as soon as the user types.
   const validate = () => {
     const errs: { email?: string; password?: string } = {};
     const e = email.trim();
@@ -188,7 +191,6 @@ export default function LoginForm() {
         friendly = "Login failed. Please try again.";
       }
       toast.error(friendly);
-      setError(friendly);
     } else {
       // Block super admins from using the user login page — they must log
       // in via /super-admin/login so the admin portal is a distinct entry.
@@ -394,11 +396,6 @@ export default function LoginForm() {
             className="flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
-        {fieldErr.email && (
-          <p className="px-1 text-[12px] font-medium text-[#DC2626]">
-            {fieldErr.email}
-          </p>
-        )}
 
         <label htmlFor="login-password" className="sr-only">
           Password
@@ -431,11 +428,6 @@ export default function LoginForm() {
             )}
           </button>
         </div>
-        {fieldErr.password && (
-          <p className="px-1 text-[12px] font-medium text-[#DC2626]">
-            {fieldErr.password}
-          </p>
-        )}
 
         {/* Remember me / Forgot password */}
         <div className="flex items-center justify-between text-xs">
@@ -626,11 +618,6 @@ export default function LoginForm() {
                 autoCorrect="off"
                 spellCheck={false}
               />
-              {fieldErr.email && (
-                <p className="mt-1.5 px-4 text-[12px] font-medium text-[#DC2626]">
-                  {fieldErr.email}
-                </p>
-              )}
             </div>
 
             {/* Password */}
@@ -679,11 +666,6 @@ export default function LoginForm() {
                   </button>
                 }
               />
-              {fieldErr.password && (
-                <p className="mt-1.5 px-4 text-[12px] font-medium text-[#DC2626]">
-                  {fieldErr.password}
-                </p>
-              )}
             </div>
 
             {/* Resend verification */}

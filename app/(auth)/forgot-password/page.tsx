@@ -15,7 +15,10 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [email, setEmail] = useState("");
-  const [error, setError] = useState("");
+  // Validation messages are delivered by TOAST ONLY (2026-08-21) — the error
+  // banner used to repeat the same sentence the toast already showed. This flag
+  // is all that remains: it drives the field's red BORDER, not a message.
+  const [invalid, setInvalid] = useState(false);
 
   // Full logo follows the app SHELL (WebView UA), read post-mount via the
   // hydration-safe useAppBrand hook (UA wins over ?app= / stored). Web visitors
@@ -29,10 +32,11 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      setError("Please enter your email");
+      toast.error("Please enter your email");
+      setInvalid(true);
       return;
     }
-    setError("");
+    setInvalid(false);
     setLoading(true);
     try {
       await authApi.forgotPassword(email);
@@ -41,7 +45,7 @@ export default function ForgotPasswordPage() {
       const msg =
         err.response?.data?.error?.message || "Failed to send reset email";
       toast.error(msg);
-      setError(msg);
+      setInvalid(true);
     } finally {
       setLoading(false);
     }
@@ -96,38 +100,24 @@ export default function ForgotPasswordPage() {
             </div>
           </div>
 
-          {error && (
-            <div className="flex items-center gap-2 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2.5">
-              <svg
-                className="h-4 w-4 shrink-0 text-[#EF4444]"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <p className="text-[13px] text-[#DC2626]">{error}</p>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-[13px] font-bold text-foreground">
+              {/* sr-only, not deleted: a placeholder is not an accessible name
+                  (it vanishes on type and is unreliable for screen readers). */}
+              <label htmlFor="forgot-email" className="sr-only">
                 Email address
               </label>
               <PillInput
+                id="forgot-email"
                 icon={Mail}
-                error={!!error}
+                error={invalid}
                 type="email"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  if (error) setError("");
+                  if (invalid) setInvalid(false);
                 }}
-                placeholder="you@example.com"
+                placeholder="Email"
                 inputMode="email"
                 autoComplete="email"
                 autoCapitalize="none"

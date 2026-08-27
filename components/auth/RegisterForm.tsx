@@ -13,6 +13,7 @@ import { useIsDesktop } from "@/hooks/useMediaQuery";
 import AuthShell from "./AuthShell";
 import DesktopAuthShell from "./DesktopAuthShell";
 import PillInput from "./PillInput";
+import PasswordHintTip from "./PasswordHintTip";
 import { SocialRow, OrDivider } from "./AuthSocial";
 import {
   nativeGoogleAvailable,
@@ -73,7 +74,6 @@ export default function RegisterForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
   const [isWebView, setIsWebView] = useState(false);
   const [nativeGoogle, setNativeGoogle] = useState(false);
   const [nativeFacebook, setNativeFacebook] = useState(false);
@@ -132,27 +132,26 @@ export default function RegisterForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError("Please enter your name");
+      toast.error("Please enter your name");
       return;
     }
     if (!email.trim()) {
-      setError("Please enter your email");
+      toast.error("Please enter your email");
       return;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
-      setError("Please enter a valid email address");
+      toast.error("Please enter a valid email address");
       return;
     }
     if (!password || password.length < 8) {
-      setError("Password must be at least 8 characters");
+      toast.error("Password must be at least 8 characters");
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      toast.error("Passwords do not match");
       return;
     }
-    setError("");
     setExistsCode(null);
     setLoading(true);
     try {
@@ -170,7 +169,6 @@ export default function RegisterForm() {
         setExistsCode(code);
       } else {
         toast.error(msg);
-        setError(msg);
       }
     } finally {
       setLoading(false);
@@ -290,23 +288,6 @@ export default function RegisterForm() {
         </div>
       )}
 
-      {/* Generic error */}
-      {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2.5">
-          <svg
-            className="h-4 w-4 shrink-0 text-[#EF4444]"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path
-              fillRule="evenodd"
-              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-              clipRule="evenodd"
-            />
-          </svg>
-          <p className="text-[13px] text-[#DC2626]">{error}</p>
-        </div>
-      )}
 
       {/* Social buttons */}
       <SocialRow
@@ -319,30 +300,36 @@ export default function RegisterForm() {
       <OrDivider label="OR SIGN UP WITH EMAIL" />
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Full Name */}
+        {/* Full Name — placeholder-only, matching Sign In. The visible <label>
+            is replaced by an `sr-only` one so the field keeps an accessible
+            name; a placeholder alone is not an accessible name. */}
         <div>
-          <label className="text-[13px] font-bold text-foreground">
+          <label htmlFor="register-name" className="sr-only">
             Full Name
           </label>
           <PillInput
+            id="register-name"
             icon={User}
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="John Doe"
+            placeholder="Full Name"
             autoComplete="name"
           />
         </div>
 
         {/* Email */}
         <div>
-          <label className="text-[13px] font-bold text-foreground">Email</label>
+          <label htmlFor="register-email" className="sr-only">
+            Email
+          </label>
           <PillInput
+            id="register-email"
             icon={Mail}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+            placeholder="Email"
             inputMode="email"
             autoComplete="email"
             autoCapitalize="none"
@@ -353,17 +340,20 @@ export default function RegisterForm() {
 
         {/* Password */}
         <div>
-          <label className="text-[13px] font-bold text-foreground">
+          <label htmlFor="register-password" className="sr-only">
             Password
           </label>
           <PillInput
+            id="register-password"
             icon={Lock}
             type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Min. 8 characters"
+            placeholder="Password"
             autoComplete="new-password"
             trailing={
+              <>
+              <PasswordHintTip />
               <button
                 type="button"
                 onClick={() => setShowPassword((p) => !p)}
@@ -376,27 +366,25 @@ export default function RegisterForm() {
                   <Eye className="h-4 w-4" />
                 )}
               </button>
+              </>
             }
           />
           <PasswordStrengthBar password={password} />
-          <p className="mt-1.5 px-4 text-[12px] leading-relaxed text-muted-foreground">
-            At least 8 characters. Adding an uppercase letter, a number, and a
-            symbol makes it stronger.
-          </p>
         </div>
 
         {/* Confirm Password */}
         <div>
-          <label className="text-[13px] font-bold text-foreground">
+          <label htmlFor="register-confirm" className="sr-only">
             Confirm Password
           </label>
           <PillInput
+            id="register-confirm"
             icon={Lock}
             error={confirmPassword.length > 0 && password !== confirmPassword}
             type={showPassword ? "text" : "password"}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Re-enter password"
+            placeholder="Confirm Password"
             autoComplete="new-password"
           />
           {confirmPassword.length > 0 && password !== confirmPassword && (

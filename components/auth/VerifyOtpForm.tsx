@@ -10,6 +10,8 @@ import DesktopAuthShell from "@/components/auth/DesktopAuthShell";
 import { getLogoForApp } from "@/lib/getLogo";
 import { useAppBrand } from "@/hooks/useAppBrand";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
+import { Mail } from "lucide-react";
+import PillInput from "./PillInput";
 
 const GREEN = "#34A881";
 const OTP_LEN = 6;
@@ -36,7 +38,6 @@ export default function VerifyOtpForm() {
   const [digits, setDigits] = useState<string[]>(Array(OTP_LEN).fill(""));
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
-  const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
@@ -93,14 +94,13 @@ export default function VerifyOtpForm() {
   const submitOtp = async (otp: string) => {
     if (loading) return; // guard against double-submit (auto + manual)
     if (!email.trim()) {
-      setError("Email is required");
+      toast.error("Email is required");
       return;
     }
     if (otp.length !== OTP_LEN) {
-      setError("Enter the 6-digit code");
+      toast.error("Enter the 6-digit code");
       return;
     }
-    setError("");
     setLoading(true);
     try {
       await axios.post("/auth/verify-otp", { email, otp });
@@ -109,7 +109,6 @@ export default function VerifyOtpForm() {
     } catch (err: any) {
       const msg = err.response?.data?.error?.message || "Verification failed";
       toast.error(msg);
-      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -122,10 +121,9 @@ export default function VerifyOtpForm() {
 
   const handleResend = async () => {
     if (!email.trim()) {
-      setError("Enter your email first");
+      toast.error("Enter your email first");
       return;
     }
-    setError("");
     setResending(true);
     try {
       await axios.post("/auth/resend-verification", { email });
@@ -175,25 +173,23 @@ export default function VerifyOtpForm() {
       )}
 
       <form onSubmit={handleSubmit}>
+        {/* Email — placeholder-only, matching the rest of the auth flow. */}
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Email</label>
-          <input
+          <label htmlFor="otp-email" className="sr-only">
+            Email
+          </label>
+          <PillInput
+            id="otp-email"
+            icon={Mail}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              height: 44,
-              padding: "0 12px",
-              backgroundColor: "#EFF6FF",
-              border: "1.5px solid #DBEAFE",
-              borderRadius: 10,
-              fontSize: 14,
-              color: "#1a1a2e",
-              fontFamily: "inherit",
-            }}
+            placeholder="Email"
+            inputMode="email"
+            autoComplete="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
           />
         </div>
 
@@ -248,23 +244,6 @@ export default function VerifyOtpForm() {
             ))}
           </div>
         </div>
-
-        {error && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 14,
-              background: "#FEF2F2",
-              border: "1px solid #FECACA",
-              borderRadius: 10,
-              padding: "10px 12px",
-            }}
-          >
-            <p style={{ fontSize: 13, color: "#DC2626", margin: 0 }}>{error}</p>
-          </div>
-        )}
 
         <button
           type="submit"
