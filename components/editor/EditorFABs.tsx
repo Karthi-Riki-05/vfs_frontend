@@ -23,9 +23,26 @@ export default function EditorFABs() {
 
   // Poll unread count every 30s for badge
   useEffect(() => {
+    if (!session) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+
     async function fetchUnread() {
       try {
         const res = await fetch("/api/chat/unread-count");
+        // `fetch` does not throw on 4xx, so the entitlement verdict has to be
+        // read off the status. 403 (no chat entitlement) / 401 cannot change by
+        // asking again — polling through one produced an endless once-per-30s
+        // 403 in the backend log (2026-08-27). Stop; the badge stays 0, which
+        // is the correct display for someone without chat.
+        if (res.status === 403 || res.status === 401) {
+          stop();
+          return;
+        }
+        if (!res.ok) return; // transient — keep polling
         const json = await res.json();
         const count = json.data?.totalUnread ?? json.totalUnread ?? 0;
         setUnreadCount(count);
@@ -33,11 +50,10 @@ export default function EditorFABs() {
         // fail silently — badge just shows 0
       }
     }
-    if (session) {
-      fetchUnread();
-      const t = setInterval(fetchUnread, 30000);
-      return () => clearInterval(t);
-    }
+
+    fetchUnread();
+    timer = setInterval(fetchUnread, 30000);
+    return stop;
   }, [session]);
 
   // Hide FABs when AI or chat panel opens

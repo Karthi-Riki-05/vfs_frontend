@@ -26,6 +26,13 @@ interface Store {
   state: UnreadState;
   subscribers: Set<(s: UnreadState) => void>;
   inflight: Promise<void> | null;
+  /**
+   * Set when the server answers 403/401 — the caller is not entitled to chat.
+   * Unlike a network blip, that verdict cannot change by retrying, so it stops
+   * both the fallback poll and any further fetch until something that really
+   * can change entitlement happens (a workspace switch).
+   */
+  forbidden: boolean;
   /** Torn down when the last consumer unmounts. */
   teardown: (() => void) | null;
   refs: number;
@@ -40,6 +47,7 @@ function storeFor(ctx: Ctx): Store {
       state: { totalUnread: 0, perGroup: {} },
       subscribers: new Set(),
       inflight: null,
+      forbidden: false,
       teardown: null,
       refs: 0,
     };
@@ -60,6 +68,8 @@ function setState(
 /** Concurrent callers share one request — that is what collapses the storm. */
 function fetchCounts(ctx: Ctx): Promise<void> {
   const s = storeFor(ctx);
+  // Already told "no" by the server — do not ask again.
+  if (s.forbidden) return Promise.resolve();
   if (s.inflight) return s.inflight;
   s.inflight = (async () => {
     try {
@@ -73,8 +83,15 @@ function fetchCounts(ctx: Ctx): Promise<void> {
           perGroup: data.perGroup || {},
         });
       }
-    } catch {
-      // Silently fail — user may not have chat access
+    } catch (err: any) {
+      // A 403 (no chat entitlement) or 401 is a verdict, not a blip: retrying
+      // it every 60s can never succeed. It used to, forever — one
+      // `level:"error"` line per minute per tab in the backend log
+      // (403 UPGRADE_REQUIRED on /chat/unread-count, 2026-08-27). Latch it and
+      // let the poller stop itself; every other failure stays silent and
+      // retryable, exactly as before.
+      const status = err?.response?.status;
+      if (status === 403 || status === 401) s.forbidden = true;
     } finally {
       s.inflight = null;
     }
@@ -177,9 +194,16 @@ function startLiveUpdates(ctx: Ctx) {
   // `vc:socket-lost` and stops again on `vc:socket-ready`.
   let interval: ReturnType<typeof setInterval> | null = null;
   const startPolling = () => {
-    if (interval || cancelled) return;
+    if (interval || cancelled || s.forbidden) return;
     interval = setInterval(() => {
-      if (!cancelled) fetchCounts(ctx);
+      if (cancelled) return;
+      // The latch can be set by any fetch, including the very first one, so the
+      // poll has to re-check it rather than trusting the entry condition.
+      if (storeFor(ctx).forbidden) {
+        stopPolling();
+        return;
+      }
+      fetchCounts(ctx);
     }, 60000);
   };
   const stopPolling = () => {
@@ -200,7 +224,11 @@ function startLiveUpdates(ctx: Ctx) {
   // the profile-switcher event and the AI-billing event that rides with it),
   // matching what useNotificationCount does for the bell.
   const onWorkspaceSwitch = () => {
-    if (!cancelled) fetchCounts(ctx);
+    if (cancelled) return;
+    // Switching workspace changes WHOSE plan is being read, so a previous 403
+    // says nothing about the new one — clear the latch and ask once.
+    s.forbidden = false;
+    fetchCounts(ctx);
   };
   window.addEventListener("vc:workspace-switch", onWorkspaceSwitch);
   window.addEventListener(AI_BILLING_EVENT, onWorkspaceSwitch);
